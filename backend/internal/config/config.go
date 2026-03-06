@@ -69,11 +69,13 @@ type KafkaConfig struct {
 }
 
 type AuthConfig struct {
-	JWTSecret       string        `mapstructure:"jwt_secret"`
-	JWTIssuer       string        `mapstructure:"jwt_issuer"`
-	AccessTokenTTL  time.Duration `mapstructure:"access_token_ttl"`
-	RefreshTokenTTL time.Duration `mapstructure:"refresh_token_ttl"`
-	BcryptCost      int           `mapstructure:"bcrypt_cost"`
+	JWTSecret        string        `mapstructure:"jwt_secret"`          // Deprecated: use RSA keys for RS256
+	RSAPrivateKeyPEM string        `mapstructure:"rsa_private_key_pem"` // PEM-encoded RSA private key for RS256 signing
+	RSAPublicKeyPEM  string        `mapstructure:"rsa_public_key_pem"`  // PEM-encoded RSA public key for RS256 verification
+	JWTIssuer        string        `mapstructure:"jwt_issuer"`
+	AccessTokenTTL   time.Duration `mapstructure:"access_token_ttl"`
+	RefreshTokenTTL  time.Duration `mapstructure:"refresh_token_ttl"`
+	BcryptCost       int           `mapstructure:"bcrypt_cost"`
 }
 
 type ObservabilityConfig struct {
@@ -208,11 +210,13 @@ func bindEnvVars(v *viper.Viper) {
 		"kafka.brokers":             "KAFKA_BROKERS",
 		"kafka.group_id":            "KAFKA_GROUP_ID",
 		"kafka.auto_offset_reset":   "KAFKA_AUTO_OFFSET_RESET",
-		"auth.jwt_secret":           "AUTH_JWT_SECRET",
-		"auth.jwt_issuer":           "AUTH_JWT_ISSUER",
-		"auth.access_token_ttl":     "AUTH_JWT_ACCESS_TOKEN_TTL",
-		"auth.refresh_token_ttl":    "AUTH_JWT_REFRESH_TOKEN_TTL",
-		"auth.bcrypt_cost":          "AUTH_BCRYPT_COST",
+		"auth.jwt_secret":            "AUTH_JWT_SECRET",
+		"auth.rsa_private_key_pem":   "AUTH_RSA_PRIVATE_KEY_PEM",
+		"auth.rsa_public_key_pem":    "AUTH_RSA_PUBLIC_KEY_PEM",
+		"auth.jwt_issuer":            "AUTH_JWT_ISSUER",
+		"auth.access_token_ttl":      "AUTH_JWT_ACCESS_TOKEN_TTL",
+		"auth.refresh_token_ttl":     "AUTH_JWT_REFRESH_TOKEN_TTL",
+		"auth.bcrypt_cost":           "AUTH_BCRYPT_COST",
 		"observability.log_level":   "LOG_LEVEL",
 		"observability.log_format":  "LOG_FORMAT",
 		"observability.otlp_endpoint": "OTEL_EXPORTER_OTLP_ENDPOINT",

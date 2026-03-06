@@ -292,8 +292,16 @@ func (s *AuthService) ForgotPassword(ctx context.Context, req *dto.ForgotPasswor
 	tokenHash := sha256Hex(token)
 	email := strings.ToLower(strings.TrimSpace(req.Email))
 
-	// Store in Redis: hash → email
-	s.redis.Set(ctx, resetTokenPrefix+tokenHash, email, resetTokenTTL)
+	// Look up the user to store their ID (needed for ResetPassword)
+	user, err := s.userRepo.GetByEmail(ctx, req.TenantID, email)
+	if err != nil {
+		// Don't reveal whether user exists; just log and return success
+		s.logger.Debug().Str("email", email).Msg("forgot password for unknown email")
+		return nil
+	}
+
+	// Store in Redis: hash → userID (so ResetPassword can find the user)
+	s.redis.Set(ctx, resetTokenPrefix+tokenHash, user.ID, resetTokenTTL)
 
 	// Log the token (dev mode — in production, send via email)
 	s.logger.Info().
@@ -310,7 +318,7 @@ func (s *AuthService) ResetPassword(ctx context.Context, req *dto.ResetPasswordR
 	}
 
 	tokenHash := sha256Hex(req.Token)
-	email, err := s.redis.Get(ctx, resetTokenPrefix+tokenHash).Result()
+	userID, err := s.redis.Get(ctx, resetTokenPrefix+tokenHash).Result()
 	if err != nil {
 		return model.ErrInvalidToken
 	}
@@ -318,30 +326,19 @@ func (s *AuthService) ResetPassword(ctx context.Context, req *dto.ResetPasswordR
 	// Delete the token immediately (single use)
 	s.redis.Del(ctx, resetTokenPrefix+tokenHash)
 
-	// Find user by email across all tenants (simplified: take first match)
-	// In production, the reset email would contain tenant context
-	row := s.redis // just need the user
-	_ = row
-
-	// We need to find the user. Since we stored just the email, we'll search across tenants.
-	// For now, use a direct query approach via the user repo pattern.
-	// The user repo requires tenant_id, so we do a direct lookup.
 	hash, err := bcrypt.GenerateFromPassword([]byte(req.NewPassword), s.bcryptCost)
 	if err != nil {
 		return fmt.Errorf("hashing password: %w", err)
 	}
 
-	// Direct query to find user by email without tenant context
-	// This is handled by a special method or direct pool access
-	// For simplicity, store user_id in Redis alongside email
-	_ = email
-	_ = hash
+	if err := s.userRepo.UpdatePassword(ctx, userID, string(hash)); err != nil {
+		return err
+	}
 
-	// Enhanced approach: store user_id:tenant_id in the reset token value
-	// The ForgotPassword handler will need to look up the user first
-	// For now, return success (the actual implementation will be connected when tenant context is available)
-	s.logger.Info().Str("email", email).Msg("password reset completed")
+	// Invalidate all sessions for this user
+	_ = s.sessionRepo.DeleteByUserID(ctx, userID)
 
+	s.logger.Info().Str("user_id", userID).Msg("password reset completed")
 	return nil
 }
 

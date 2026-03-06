@@ -34,13 +34,15 @@ func newTestRouter(t *testing.T) (http.Handler, *service.AuthService) {
 		rdb.Close()
 	})
 
-	jwtMgr := auth.NewJWTManager(config.AuthConfig{
-		JWTSecret:       "handler-test-secret-key-32bytes!",
+	jwtMgr, err := auth.NewJWTManager(config.AuthConfig{
 		JWTIssuer:       "test",
 		AccessTokenTTL:  15 * time.Minute,
 		RefreshTokenTTL: 7 * 24 * time.Hour,
 		BcryptCost:      4,
 	})
+	if err != nil {
+		t.Fatalf("failed to create JWT manager: %v", err)
+	}
 
 	logger := zerolog.Nop()
 
@@ -186,7 +188,7 @@ func TestAuthHandler_Login_WrongPassword(t *testing.T) {
 func TestAuthHandler_ForgotPassword(t *testing.T) {
 	router, _ := newTestRouter(t)
 
-	body, _ := json.Marshal(dto.ForgotPasswordRequest{Email: "anyone@example.com"})
+	body, _ := json.Marshal(dto.ForgotPasswordRequest{TenantID: "tenant-test", Email: "anyone@example.com"})
 	req := httptest.NewRequest(http.MethodPost, "/forgot-password", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()

@@ -50,7 +50,10 @@ func main() {
 	})
 	defer rdb.Close()
 
-	srv := server.New(cfg, db, rdb, logger)
+	srv, err := server.New(cfg, db, rdb, logger)
+	if err != nil {
+		logger.Fatal().Err(err).Msg("failed to create server")
+	}
 
 	srv.Router.Route("/api/v1/lex", func(r chi.Router) {
 		auth := srv.AuthenticatedRoutes()

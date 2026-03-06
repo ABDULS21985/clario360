@@ -73,7 +73,10 @@ func main() {
 	apiKeyRepo := repository.NewAPIKeyRepository(db)
 
 	// ---- Services ----
-	srv := server.New(cfg, db, rdb, logger)
+	srv, err := server.New(cfg, db, rdb, logger)
+	if err != nil {
+		logger.Fatal().Err(err).Msg("failed to create server")
+	}
 
 	authSvc := service.NewAuthService(
 		userRepo, sessionRepo, roleRepo, tenantRepo,

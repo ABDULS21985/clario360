@@ -34,8 +34,11 @@ type Server struct {
 }
 
 // New creates a new HTTP server with the full middleware stack.
-func New(cfg *config.Config, db *pgxpool.Pool, rdb *redis.Client, logger zerolog.Logger) *Server {
-	jwtMgr := auth.NewJWTManager(cfg.Auth)
+func New(cfg *config.Config, db *pgxpool.Pool, rdb *redis.Client, logger zerolog.Logger) (*Server, error) {
+	jwtMgr, err := auth.NewJWTManager(cfg.Auth)
+	if err != nil {
+		return nil, fmt.Errorf("initializing JWT manager: %w", err)
+	}
 
 	r := chi.NewRouter()
 
@@ -69,7 +72,7 @@ func New(cfg *config.Config, db *pgxpool.Pool, rdb *redis.Client, logger zerolog
 		JWTManager: jwtMgr,
 	}
 
-	return srv
+	return srv, nil
 }
 
 // AuthenticatedRoutes returns a chi.Router with auth, rate limit, and tenant middleware applied.

@@ -5,14 +5,24 @@ import (
 	"encoding/json"
 	"net/http"
 	"os"
+	"os/signal"
+	"strings"
+	"syscall"
+	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/redis/go-redis/v9"
 
+	"github.com/clario360/platform/internal/auth"
 	"github.com/clario360/platform/internal/config"
-	"github.com/clario360/platform/internal/database"
+	gwconfig "github.com/clario360/platform/internal/gateway/config"
+	"github.com/clario360/platform/internal/gateway/health"
+	gwmw "github.com/clario360/platform/internal/gateway/middleware"
+	"github.com/clario360/platform/internal/gateway/proxy"
+	"github.com/clario360/platform/internal/gateway/ratelimit"
+	"github.com/clario360/platform/internal/middleware"
 	"github.com/clario360/platform/internal/observability"
-	"github.com/clario360/platform/internal/server"
 )
 
 func main() {
@@ -20,6 +30,7 @@ func main() {
 	if err != nil {
 		panic("loading config: " + err.Error())
 	}
+	cfg.Server.Port = 8080
 
 	logger := observability.NewLogger(
 		cfg.Observability.LogLevel,
@@ -37,14 +48,7 @@ func main() {
 		defer shutdownTracer(ctx)
 	}
 
-	// Connect to PostgreSQL
-	db, err := database.NewPostgresPool(ctx, cfg.Database, logger)
-	if err != nil {
-		logger.Fatal().Err(err).Msg("failed to connect to database")
-	}
-	defer db.Close()
-
-	// Connect to Redis
+	// Connect to Redis (required for rate limiting)
 	rdb := redis.NewClient(&redis.Options{
 		Addr:     cfg.Redis.Addr(),
 		Password: cfg.Redis.Password,
@@ -56,59 +60,175 @@ func main() {
 		logger.Fatal().Err(err).Msg("failed to connect to redis")
 	}
 
-	// Create server
-	srv := server.New(cfg, db, rdb, logger)
+	// ---- JWT Manager (local token validation) ----
+	jwtMgr, err := auth.NewJWTManager(cfg.Auth)
+	if err != nil {
+		logger.Fatal().Err(err).Msg("failed to create JWT manager")
+	}
 
-	// API routes (authenticated)
-	srv.Router.Route("/api/v1", func(r chi.Router) {
-		// Mount authenticated sub-router
-		auth := srv.AuthenticatedRoutes()
+	// ---- Service Registry ----
+	registry, err := proxy.NewServiceRegistry(gwconfig.DefaultServices())
+	if err != nil {
+		logger.Fatal().Err(err).Msg("failed to create service registry")
+	}
 
-		auth.Get("/me", meHandler())
+	// ---- Proxy Router with circuit breakers ----
+	routes := gwconfig.DefaultRoutes()
+	cbCfg := proxy.DefaultCircuitBreakerConfig()
+	proxyRouter, err := proxy.NewRouter(routes, registry, cbCfg, logger)
+	if err != nil {
+		logger.Fatal().Err(err).Msg("failed to create proxy router")
+	}
 
-		// Service proxy routes
-		auth.Route("/cyber", func(r chi.Router) {
-			r.Get("/", placeholderHandler("cyber"))
-		})
-		auth.Route("/data", func(r chi.Router) {
-			r.Get("/", placeholderHandler("data"))
-		})
-		auth.Route("/acta", func(r chi.Router) {
-			r.Get("/", placeholderHandler("acta"))
-		})
-		auth.Route("/lex", func(r chi.Router) {
-			r.Get("/", placeholderHandler("lex"))
-		})
-		auth.Route("/visus", func(r chi.Router) {
-			r.Get("/", placeholderHandler("visus"))
-		})
+	// ---- Rate Limiter ----
+	limiter := ratelimit.NewLimiter(rdb, ratelimit.DefaultConfig())
 
-		r.Mount("/", auth)
+	// ---- Gateway Metrics ----
+	gwMetrics := gwmw.NewGatewayMetrics()
+
+	// ---- Health Checker ----
+	healthChecker := health.NewChecker(registry, proxyRouter, logger)
+
+	// ---- Build Chi Router ----
+	r := chi.NewRouter()
+
+	// Global middleware: RequestID → Recovery → CORS → Logging
+	r.Use(middleware.RequestID)
+	r.Use(middleware.RecoveryWithLogger(logger))
+	r.Use(middleware.CORS(middleware.CORSConfig{
+		AllowedOrigins:   []string{"https://*.clario360.com", "http://localhost:3000"},
+		AllowedMethods:   []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
+		AllowedHeaders:   []string{"Authorization", "Content-Type", "X-Request-ID", "X-Tenant-ID"},
+		ExposedHeaders:   []string{"X-Request-ID", "X-RateLimit-Limit", "X-RateLimit-Remaining"},
+		AllowCredentials: true,
+		MaxAge:           3600,
+	}))
+	r.Use(middleware.Logging(logger))
+
+	// ---- Infrastructure endpoints (no auth) ----
+	r.Get("/healthz", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_ = json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+	})
+	r.Get("/readyz", healthChecker.Handler())
+	r.Handle("/metrics", promhttp.Handler())
+
+	// ---- Gateway status endpoint ----
+	r.Get("/api/v1/gateway/status", func(w http.ResponseWriter, r *http.Request) {
+		type serviceStatus struct {
+			Name           string `json:"name"`
+			CircuitBreaker string `json:"circuit_breaker"`
+		}
+
+		proxies := proxyRouter.Proxies()
+		statuses := make([]serviceStatus, 0, len(proxies))
+		for name, rp := range proxies {
+			statuses = append(statuses, serviceStatus{
+				Name:           name,
+				CircuitBreaker: rp.CircuitState().String(),
+			})
+			gwMetrics.CircuitBreakerState.WithLabelValues(name).Set(float64(rp.CircuitState()))
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{"services": statuses})
 	})
 
-	logger.Info().Str("addr", cfg.Server.Addr()).Msg("api-gateway starting")
+	// ---- Register proxy routes ----
+	for _, route := range routes {
+		route := route
 
-	if err := srv.Start(); err != nil {
-		logger.Fatal().Err(err).Msg("server failed")
+		match := proxyRouter.Match(route.Prefix)
+		if !match.Matched {
+			logger.Warn().Str("prefix", route.Prefix).Msg("no proxy found for route, skipping")
+			continue
+		}
+
+		rp := match.Proxy
+
+		r.Route(route.Prefix, func(sub chi.Router) {
+			if !route.Public {
+				sub.Use(gwmw.ProxyAuth(jwtMgr, logger))
+			} else {
+				sub.Use(middleware.OptionalAuth(jwtMgr))
+			}
+
+			sub.Use(gwmw.ProxyHeaders)
+			sub.Use(gwmw.ProxyRateLimit(limiter, route.EndpointGroup, gwMetrics, logger))
+			sub.Use(gwmw.ProxyMetrics(gwMetrics, route.Service))
+			sub.Use(gwmw.ProxyLogging(logger, route.Service))
+
+			sub.HandleFunc("/*", rp.ServeHTTP)
+			sub.HandleFunc("/", rp.ServeHTTP)
+		})
+	}
+
+	// ---- WebSocket proxy routes ----
+	r.Route("/ws/v1", func(sub chi.Router) {
+		sub.Use(gwmw.ProxyAuth(jwtMgr, logger))
+		sub.Use(gwmw.ProxyHeaders)
+
+		sub.HandleFunc("/{service}/*", func(w http.ResponseWriter, r *http.Request) {
+			serviceName := chi.URLParam(r, "service") + "-service"
+			target, ok := registry.Resolve(serviceName)
+			if !ok {
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusNotFound)
+				_ = json.NewEncoder(w).Encode(map[string]any{
+					"status":  404,
+					"code":    "SERVICE_NOT_FOUND",
+					"message": "unknown service: " + serviceName,
+				})
+				return
+			}
+
+			wsPath := strings.TrimPrefix(r.URL.Path, "/ws/v1/"+chi.URLParam(r, "service"))
+			if wsPath == "" {
+				wsPath = "/"
+			}
+			r.URL.Path = "/ws" + wsPath
+
+			wsProxy := proxy.NewWebSocketProxy(target, logger)
+			wsProxy.ServeHTTP(w, r)
+		})
+	})
+
+	// ---- Start server with graceful shutdown ----
+	srv := &http.Server{
+		Addr:         cfg.Server.Addr(),
+		Handler:      r,
+		ReadTimeout:  cfg.Server.ReadTimeout,
+		WriteTimeout: cfg.Server.WriteTimeout,
+		IdleTimeout:  2 * time.Minute,
+	}
+
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+
+	errCh := make(chan error, 1)
+	go func() {
+		logger.Info().Str("addr", srv.Addr).Msg("api-gateway starting")
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			errCh <- err
+		}
+	}()
+
+	select {
+	case sig := <-quit:
+		logger.Info().Str("signal", sig.String()).Msg("shutting down api-gateway")
+	case err := <-errCh:
+		logger.Fatal().Err(err).Msg("api-gateway failed")
 		os.Exit(1)
 	}
-}
 
-func meHandler() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(map[string]string{
-			"message": "authenticated user endpoint",
-		})
-	}
-}
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), cfg.Server.ShutdownTimeout)
+	defer cancel()
 
-func placeholderHandler(suite string) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(map[string]string{
-			"suite":  suite,
-			"status": "operational",
-		})
+	if err := srv.Shutdown(shutdownCtx); err != nil {
+		logger.Fatal().Err(err).Msg("api-gateway shutdown failed")
+		os.Exit(1)
 	}
+
+	logger.Info().Msg("api-gateway stopped gracefully")
 }

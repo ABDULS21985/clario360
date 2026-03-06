@@ -2,10 +2,13 @@ package service
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"testing"
 	"time"
 
+	"github.com/pquerna/otp/totp"
 	"github.com/redis/go-redis/v9"
 	"github.com/rs/zerolog"
 
@@ -278,13 +281,15 @@ func newTestAuthService(t *testing.T) (*AuthService, *mockUserRepo, *mockSession
 
 	rdb := newTestRedis(t)
 
-	jwtMgr := auth.NewJWTManager(config.AuthConfig{
-		JWTSecret:       "test-secret-key-for-testing-only-32bytes!",
+	jwtMgr, err := auth.NewJWTManager(config.AuthConfig{
 		JWTIssuer:       "test",
 		AccessTokenTTL:  15 * time.Minute,
 		RefreshTokenTTL: 7 * 24 * time.Hour,
 		BcryptCost:      4, // low cost for fast tests
 	})
+	if err != nil {
+		t.Fatalf("failed to create JWT manager: %v", err)
+	}
 
 	logger := zerolog.Nop()
 
@@ -547,6 +552,181 @@ func TestLogout_Success(t *testing.T) {
 	}
 }
 
+func TestForgotPassword_KnownUser(t *testing.T) {
+	svc, _, _, _, _ := newTestAuthService(t)
+	ctx := context.Background()
+
+	// Register a user first
+	_, err := svc.Register(ctx, &dto.RegisterRequest{
+		TenantID: "tenant-test", Email: "forgot@example.com",
+		Password: "StrongP@ss12345", FirstName: "Forgot", LastName: "User",
+	})
+	if err != nil {
+		t.Fatalf("Register failed: %v", err)
+	}
+
+	err = svc.ForgotPassword(ctx, &dto.ForgotPasswordRequest{
+		TenantID: "tenant-test",
+		Email:    "forgot@example.com",
+	})
+	if err != nil {
+		t.Fatalf("ForgotPassword failed: %v", err)
+	}
+}
+
+func TestForgotPassword_UnknownEmail(t *testing.T) {
+	svc, _, _, _, _ := newTestAuthService(t)
+
+	// Should not return error (prevent enumeration)
+	err := svc.ForgotPassword(context.Background(), &dto.ForgotPasswordRequest{
+		TenantID: "tenant-test",
+		Email:    "nobody@example.com",
+	})
+	if err != nil {
+		t.Fatalf("ForgotPassword should not error for unknown email: %v", err)
+	}
+}
+
+func TestResetPassword_InvalidToken(t *testing.T) {
+	svc, _, _, _, _ := newTestAuthService(t)
+
+	err := svc.ResetPassword(context.Background(), &dto.ResetPasswordRequest{
+		Token:       "nonexistent-token",
+		NewPassword: "NewStrongP@ss99!",
+	})
+	if err == nil {
+		t.Fatal("expected error for invalid reset token")
+	}
+	if !errors.Is(err, model.ErrInvalidToken) {
+		t.Errorf("expected ErrInvalidToken, got %v", err)
+	}
+}
+
+func TestResetPassword_WeakPassword(t *testing.T) {
+	svc, _, _, _, _ := newTestAuthService(t)
+
+	err := svc.ResetPassword(context.Background(), &dto.ResetPasswordRequest{
+		Token:       "some-token",
+		NewPassword: "weak",
+	})
+	if err == nil {
+		t.Fatal("expected error for weak password")
+	}
+	if !errors.Is(err, model.ErrValidation) {
+		t.Errorf("expected ErrValidation, got %v", err)
+	}
+}
+
+func TestLogin_AccountLockout(t *testing.T) {
+	svc, _, _, _, _ := newTestAuthService(t)
+	ctx := context.Background()
+
+	// Register
+	_, _ = svc.Register(ctx, &dto.RegisterRequest{
+		TenantID: "tenant-test", Email: "lockout@example.com",
+		Password: "StrongP@ss12345", FirstName: "Lock", LastName: "Out",
+	})
+
+	// Attempt login with wrong password 5 times
+	for i := 0; i < loginLockoutMax; i++ {
+		_, _ = svc.Login(ctx, &dto.LoginRequest{
+			TenantID: "tenant-test",
+			Email:    "lockout@example.com",
+			Password: "WrongPassword!!1",
+		}, "127.0.0.1", "test-agent")
+	}
+
+	// Next attempt should be locked out
+	_, err := svc.Login(ctx, &dto.LoginRequest{
+		TenantID: "tenant-test",
+		Email:    "lockout@example.com",
+		Password: "StrongP@ss12345", // correct password
+	}, "127.0.0.1", "test-agent")
+	if err == nil {
+		t.Fatal("expected error when account is locked")
+	}
+	if !errors.Is(err, model.ErrAccountLocked) {
+		t.Errorf("expected ErrAccountLocked, got %v", err)
+	}
+}
+
+func TestLogin_InactiveAccount(t *testing.T) {
+	svc, userRepo, _, _, _ := newTestAuthService(t)
+	ctx := context.Background()
+
+	// Register
+	_, _ = svc.Register(ctx, &dto.RegisterRequest{
+		TenantID: "tenant-test", Email: "inactive@example.com",
+		Password: "StrongP@ss12345", FirstName: "In", LastName: "Active",
+	})
+
+	// Suspend the user
+	u := userRepo.emailIndex["tenant-test:inactive@example.com"]
+	u.Status = model.UserStatusSuspended
+
+	// Login should fail
+	_, err := svc.Login(ctx, &dto.LoginRequest{
+		TenantID: "tenant-test",
+		Email:    "inactive@example.com",
+		Password: "StrongP@ss12345",
+	}, "127.0.0.1", "test-agent")
+	if err == nil {
+		t.Fatal("expected error for inactive account")
+	}
+	if !errors.Is(err, model.ErrForbidden) {
+		t.Errorf("expected ErrForbidden, got %v", err)
+	}
+}
+
+func TestLogout_InvalidToken(t *testing.T) {
+	svc, _, _, _, _ := newTestAuthService(t)
+
+	// Logout with invalid token should not error (silent ignore)
+	err := svc.Logout(context.Background(), &dto.LogoutRequest{
+		RefreshToken: "nonexistent-token",
+	})
+	if err != nil {
+		t.Fatalf("Logout with invalid token should silently succeed: %v", err)
+	}
+}
+
+func TestResetPasswordForUser_Success(t *testing.T) {
+	svc, _, _, _, _ := newTestAuthService(t)
+	ctx := context.Background()
+
+	// Register
+	resp, err := svc.Register(ctx, &dto.RegisterRequest{
+		TenantID: "tenant-test", Email: "resetuser@example.com",
+		Password: "StrongP@ss12345", FirstName: "Reset", LastName: "User",
+	})
+	if err != nil {
+		t.Fatalf("Register failed: %v", err)
+	}
+
+	err = svc.ResetPasswordForUser(ctx, resp.User.ID, "NewStrongP@ss99!")
+	if err != nil {
+		t.Fatalf("ResetPasswordForUser failed: %v", err)
+	}
+}
+
+func TestResetPasswordForUser_WeakPassword(t *testing.T) {
+	svc, _, _, _, _ := newTestAuthService(t)
+	ctx := context.Background()
+
+	resp, _ := svc.Register(ctx, &dto.RegisterRequest{
+		TenantID: "tenant-test", Email: "resetweak@example.com",
+		Password: "StrongP@ss12345", FirstName: "Reset", LastName: "Weak",
+	})
+
+	err := svc.ResetPasswordForUser(ctx, resp.User.ID, "short")
+	if err == nil {
+		t.Fatal("expected error for weak password")
+	}
+	if !errors.Is(err, model.ErrValidation) {
+		t.Errorf("expected ErrValidation, got %v", err)
+	}
+}
+
 func TestValidatePassword(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -569,5 +749,258 @@ func TestValidatePassword(t *testing.T) {
 				t.Errorf("validatePassword(%q) error = %v, wantErr %v", tt.password, err, tt.wantErr)
 			}
 		})
+	}
+}
+
+func TestVerifyMFA_Success(t *testing.T) {
+	svc, userRepo, _, _, _ := newTestAuthService(t)
+	ctx := context.Background()
+
+	// Register a user
+	_, err := svc.Register(ctx, &dto.RegisterRequest{
+		TenantID: "tenant-test", Email: "mfaverify@example.com",
+		Password: "StrongP@ss12345", FirstName: "MFA", LastName: "Verify",
+	})
+	if err != nil {
+		t.Fatalf("Register failed: %v", err)
+	}
+
+	// Enable MFA on the user
+	user := userRepo.emailIndex["tenant-test:mfaverify@example.com"]
+	secret := "JBSWY3DPEHPK3PXP" // well-known test TOTP secret
+	user.MFAEnabled = true
+	user.MFASecret = &secret
+
+	// Login should return MFA challenge
+	resp, err := svc.Login(ctx, &dto.LoginRequest{
+		TenantID: "tenant-test",
+		Email:    "mfaverify@example.com",
+		Password: "StrongP@ss12345",
+	}, "127.0.0.1", "test-agent")
+	if err != nil {
+		t.Fatalf("Login failed: %v", err)
+	}
+
+	mfaResp, ok := resp.(*dto.MFARequiredResponse)
+	if !ok {
+		t.Fatal("expected MFARequiredResponse type")
+	}
+	if !mfaResp.MFARequired {
+		t.Error("expected mfa_required to be true")
+	}
+	if mfaResp.MFAToken == "" {
+		t.Error("expected mfa_token")
+	}
+
+	// Generate valid TOTP code
+	code, err := totp.GenerateCode(secret, time.Now())
+	if err != nil {
+		t.Fatalf("failed to generate TOTP code: %v", err)
+	}
+
+	authResp, err := svc.VerifyMFA(ctx, &dto.VerifyMFARequest{
+		MFAToken: mfaResp.MFAToken,
+		Code:     code,
+	})
+	if err != nil {
+		t.Fatalf("VerifyMFA failed: %v", err)
+	}
+	if authResp.AccessToken == "" {
+		t.Error("expected access token after MFA verification")
+	}
+}
+
+func TestVerifyMFA_InvalidCode(t *testing.T) {
+	svc, userRepo, _, _, _ := newTestAuthService(t)
+	ctx := context.Background()
+
+	_, _ = svc.Register(ctx, &dto.RegisterRequest{
+		TenantID: "tenant-test", Email: "mfabad@example.com",
+		Password: "StrongP@ss12345", FirstName: "MFA", LastName: "Bad",
+	})
+
+	user := userRepo.emailIndex["tenant-test:mfabad@example.com"]
+	secret := "JBSWY3DPEHPK3PXP"
+	user.MFAEnabled = true
+	user.MFASecret = &secret
+
+	resp, _ := svc.Login(ctx, &dto.LoginRequest{
+		TenantID: "tenant-test",
+		Email:    "mfabad@example.com",
+		Password: "StrongP@ss12345",
+	}, "127.0.0.1", "test-agent")
+
+	mfaResp := resp.(*dto.MFARequiredResponse)
+
+	_, err := svc.VerifyMFA(ctx, &dto.VerifyMFARequest{
+		MFAToken: mfaResp.MFAToken,
+		Code:     "000000",
+	})
+	if err == nil {
+		t.Fatal("expected error for invalid MFA code")
+	}
+	if !errors.Is(err, model.ErrInvalidMFA) {
+		t.Errorf("expected ErrInvalidMFA, got %v", err)
+	}
+}
+
+func TestVerifyMFA_InvalidToken(t *testing.T) {
+	svc, _, _, _, _ := newTestAuthService(t)
+
+	_, err := svc.VerifyMFA(context.Background(), &dto.VerifyMFARequest{
+		MFAToken: "nonexistent-token",
+		Code:     "123456",
+	})
+	if err == nil {
+		t.Fatal("expected error for invalid MFA token")
+	}
+	if !errors.Is(err, model.ErrInvalidToken) {
+		t.Errorf("expected ErrInvalidToken, got %v", err)
+	}
+}
+
+func TestVerifyMFA_RecoveryCode(t *testing.T) {
+	svc, userRepo, _, _, _ := newTestAuthService(t)
+	ctx := context.Background()
+
+	_, _ = svc.Register(ctx, &dto.RegisterRequest{
+		TenantID: "tenant-test", Email: "mfarecovery@example.com",
+		Password: "StrongP@ss12345", FirstName: "MFA", LastName: "Recovery",
+	})
+
+	user := userRepo.emailIndex["tenant-test:mfarecovery@example.com"]
+	secret := "JBSWY3DPEHPK3PXP"
+	user.MFAEnabled = true
+	user.MFASecret = &secret
+
+	// Store a known recovery code in Redis
+	recoveryCode := "testrecovery01"
+	h := sha256.Sum256([]byte(recoveryCode))
+	codeHash := hex.EncodeToString(h[:])
+	svc.redis.SAdd(ctx, recoveryPrefix+user.ID, codeHash)
+
+	resp, _ := svc.Login(ctx, &dto.LoginRequest{
+		TenantID: "tenant-test",
+		Email:    "mfarecovery@example.com",
+		Password: "StrongP@ss12345",
+	}, "127.0.0.1", "test-agent")
+
+	mfaResp := resp.(*dto.MFARequiredResponse)
+
+	authResp, err := svc.VerifyMFA(ctx, &dto.VerifyMFARequest{
+		MFAToken: mfaResp.MFAToken,
+		Code:     recoveryCode,
+	})
+	if err != nil {
+		t.Fatalf("VerifyMFA with recovery code failed: %v", err)
+	}
+	if authResp.AccessToken == "" {
+		t.Error("expected access token after recovery code verification")
+	}
+}
+
+func TestResetPassword_FullFlow(t *testing.T) {
+	svc, _, _, _, _ := newTestAuthService(t)
+	ctx := context.Background()
+
+	// Register a user
+	regResp, err := svc.Register(ctx, &dto.RegisterRequest{
+		TenantID: "tenant-test", Email: "resetflow@example.com",
+		Password: "StrongP@ss12345", FirstName: "Reset", LastName: "Flow",
+	})
+	if err != nil {
+		t.Fatalf("Register failed: %v", err)
+	}
+
+	// Trigger forgot password
+	err = svc.ForgotPassword(ctx, &dto.ForgotPasswordRequest{
+		TenantID: "tenant-test",
+		Email:    "resetflow@example.com",
+	})
+	if err != nil {
+		t.Fatalf("ForgotPassword failed: %v", err)
+	}
+
+	// Find the reset token in Redis (scan for resetTokenPrefix keys)
+	var resetToken string
+	iter := svc.redis.Scan(ctx, 0, resetTokenPrefix+"*", 100).Iterator()
+	for iter.Next(ctx) {
+		key := iter.Val()
+		val, _ := svc.redis.Get(ctx, key).Result()
+		if val == regResp.User.ID {
+			// The key is resetTokenPrefix + hash, we need the original token
+			// Since we can't reverse the hash, seed a known token instead
+			resetToken = key
+			break
+		}
+	}
+
+	if resetToken == "" {
+		t.Fatal("expected to find a reset token in Redis")
+	}
+
+	// We can't easily get the original token (it's hashed), so test ResetPassword
+	// by directly seeding a known token
+	knownToken := "known-test-reset-token-hex-value"
+	h := sha256.Sum256([]byte(knownToken))
+	tokenHash := hex.EncodeToString(h[:])
+	svc.redis.Set(ctx, resetTokenPrefix+tokenHash, regResp.User.ID, resetTokenTTL)
+
+	err = svc.ResetPassword(ctx, &dto.ResetPasswordRequest{
+		Token:       knownToken,
+		NewPassword: "NewStrongP@ss99!",
+	})
+	if err != nil {
+		t.Fatalf("ResetPassword failed: %v", err)
+	}
+
+	// Verify new password works by logging in
+	resp, err := svc.Login(ctx, &dto.LoginRequest{
+		TenantID: "tenant-test",
+		Email:    "resetflow@example.com",
+		Password: "NewStrongP@ss99!",
+	}, "127.0.0.1", "test-agent")
+	if err != nil {
+		t.Fatalf("Login with new password failed: %v", err)
+	}
+	authResp, ok := resp.(*dto.AuthResponse)
+	if !ok {
+		t.Fatal("expected AuthResponse type")
+	}
+	if authResp.AccessToken == "" {
+		t.Error("expected access token")
+	}
+}
+
+func TestRefreshToken_SuspendedUser(t *testing.T) {
+	svc, userRepo, _, _, _ := newTestAuthService(t)
+	ctx := context.Background()
+
+	_, _ = svc.Register(ctx, &dto.RegisterRequest{
+		TenantID: "tenant-test", Email: "suspended@example.com",
+		Password: "StrongP@ss12345", FirstName: "Susp", LastName: "User",
+	})
+
+	loginResp, _ := svc.Login(ctx, &dto.LoginRequest{
+		TenantID: "tenant-test",
+		Email:    "suspended@example.com",
+		Password: "StrongP@ss12345",
+	}, "127.0.0.1", "test-agent")
+
+	authResp := loginResp.(*dto.AuthResponse)
+
+	// Suspend the user after login
+	user := userRepo.emailIndex["tenant-test:suspended@example.com"]
+	user.Status = model.UserStatusSuspended
+
+	// Refresh should fail for suspended user
+	_, err := svc.RefreshToken(ctx, &dto.RefreshRequest{
+		RefreshToken: authResp.RefreshToken,
+	}, "127.0.0.1", "test-agent")
+	if err == nil {
+		t.Fatal("expected error refreshing for suspended user")
+	}
+	if !errors.Is(err, model.ErrForbidden) {
+		t.Errorf("expected ErrForbidden, got %v", err)
 	}
 }

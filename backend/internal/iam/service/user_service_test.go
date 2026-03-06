@@ -4,7 +4,9 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
+	"github.com/pquerna/otp/totp"
 	"github.com/rs/zerolog"
 	"golang.org/x/crypto/bcrypt"
 
@@ -214,6 +216,137 @@ func TestUserService_List(t *testing.T) {
 	}
 	if len(users) != 0 {
 		t.Errorf("expected 0 users, got %d", len(users))
+	}
+}
+
+func TestUserService_List_WithFilters(t *testing.T) {
+	svc, _, _ := newTestUserService(t)
+
+	// List with search and status filters (empty results expected, but exercises the code path)
+	users, total, err := svc.List(context.Background(), "tenant-1", 1, 10, "test", "active")
+	if err != nil {
+		t.Fatalf("List with filters failed: %v", err)
+	}
+	if total != 0 {
+		t.Errorf("expected 0 total, got %d", total)
+	}
+	if len(users) != 0 {
+		t.Errorf("expected 0 users, got %d", len(users))
+	}
+}
+
+func TestUserService_DisableMFA(t *testing.T) {
+	svc, repo, _ := newTestUserService(t)
+	user := seedTestUser(repo, "tenant-1", "disablemfa@example.com", "StrongP@ss12345")
+
+	// Enable MFA first
+	mfaResp, err := svc.EnableMFA(context.Background(), user.ID)
+	if err != nil {
+		t.Fatalf("EnableMFA failed: %v", err)
+	}
+
+	// Generate a valid TOTP code using the secret returned by EnableMFA
+	code, err := totp.GenerateCode(mfaResp.Secret, time.Now())
+	if err != nil {
+		t.Fatalf("failed to generate TOTP code: %v", err)
+	}
+
+	err = svc.DisableMFA(context.Background(), user.ID, &dto.DisableMFARequest{
+		Code: code,
+	})
+	if err != nil {
+		t.Fatalf("DisableMFA failed: %v", err)
+	}
+
+	// Verify MFA is now disabled
+	updated := repo.users[user.ID]
+	if updated.MFAEnabled {
+		t.Error("expected MFA to be disabled")
+	}
+}
+
+func TestUserService_DisableMFA_InvalidCode(t *testing.T) {
+	svc, repo, _ := newTestUserService(t)
+	user := seedTestUser(repo, "tenant-1", "disablemfabad@example.com", "StrongP@ss12345")
+
+	_, err := svc.EnableMFA(context.Background(), user.ID)
+	if err != nil {
+		t.Fatalf("EnableMFA failed: %v", err)
+	}
+
+	err = svc.DisableMFA(context.Background(), user.ID, &dto.DisableMFARequest{
+		Code: "000000",
+	})
+	if err == nil {
+		t.Fatal("expected error for invalid TOTP code")
+	}
+}
+
+func TestUserService_DisableMFA_NotEnabled(t *testing.T) {
+	svc, repo, _ := newTestUserService(t)
+	user := seedTestUser(repo, "tenant-1", "nomfa@example.com", "StrongP@ss12345")
+
+	err := svc.DisableMFA(context.Background(), user.ID, &dto.DisableMFARequest{
+		Code: "000000",
+	})
+	if err == nil {
+		t.Fatal("expected error when MFA is not enabled")
+	}
+	if !errors.Is(err, model.ErrValidation) {
+		t.Errorf("expected ErrValidation, got %v", err)
+	}
+}
+
+func TestUserService_GetByID_WithUpdate(t *testing.T) {
+	svc, repo, _ := newTestUserService(t)
+	user := seedTestUser(repo, "tenant-1", "combo@example.com", "StrongP@ss12345")
+
+	// Update then get
+	newFirst := "Updated"
+	newLast := "Name"
+	_, err := svc.Update(context.Background(), user.ID, &dto.UpdateUserRequest{
+		FirstName: &newFirst,
+		LastName:  &newLast,
+	}, "admin-id")
+	if err != nil {
+		t.Fatalf("Update failed: %v", err)
+	}
+
+	resp, err := svc.GetByID(context.Background(), user.ID)
+	if err != nil {
+		t.Fatalf("GetByID after update failed: %v", err)
+	}
+	if resp.FirstName != "Updated" {
+		t.Errorf("expected first name 'Updated', got %s", resp.FirstName)
+	}
+	if resp.LastName != "Name" {
+		t.Errorf("expected last name 'Name', got %s", resp.LastName)
+	}
+}
+
+func TestUserService_Delete_NotFound(t *testing.T) {
+	svc, _, _ := newTestUserService(t)
+
+	err := svc.Delete(context.Background(), "nonexistent", "admin-id")
+	if err == nil {
+		t.Fatal("expected error for nonexistent user")
+	}
+	if !errors.Is(err, model.ErrNotFound) {
+		t.Errorf("expected ErrNotFound, got %v", err)
+	}
+}
+
+func TestUserService_UpdateStatus_NotFound(t *testing.T) {
+	svc, _, _ := newTestUserService(t)
+
+	err := svc.UpdateStatus(context.Background(), "nonexistent", &dto.UpdateStatusRequest{
+		Status: "suspended",
+	}, "admin-id")
+	if err == nil {
+		t.Fatal("expected error for nonexistent user")
+	}
+	if !errors.Is(err, model.ErrNotFound) {
+		t.Errorf("expected ErrNotFound, got %v", err)
 	}
 }
 

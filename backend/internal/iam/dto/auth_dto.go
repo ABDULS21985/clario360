@@ -27,7 +27,8 @@ type LogoutRequest struct {
 }
 
 type ForgotPasswordRequest struct {
-	Email string `json:"email" validate:"required,email"`
+	TenantID string `json:"tenant_id" validate:"required"`
+	Email    string `json:"email" validate:"required,email"`
 }
 
 type ResetPasswordRequest struct {
