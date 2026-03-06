@@ -1,0 +1,140 @@
+# Default values for Clario 360
+replicaCount: 1
+
+image:
+  repository: clario360
+  pullPolicy: IfNotPresent
+  tag: "latest"
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+# Backend services configuration
+services:
+  apiGateway:
+    enabled: true
+    port: 8080
+    replicas: 2
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+
+  iamService:
+    enabled: true
+    port: 8081
+    replicas: 2
+
+  eventBus:
+    enabled: true
+    replicas: 1
+
+  workflowEngine:
+    enabled: true
+    port: 8083
+    replicas: 1
+
+  auditService:
+    enabled: true
+    port: 8084
+    replicas: 1
+
+  cyberService:
+    enabled: true
+    port: 8085
+    replicas: 1
+
+  dataService:
+    enabled: true
+    port: 8086
+    replicas: 1
+
+  actaService:
+    enabled: true
+    port: 8087
+    replicas: 1
+
+  lexService:
+    enabled: true
+    port: 8088
+    replicas: 1
+
+  visusService:
+    enabled: true
+    port: 8089
+    replicas: 1
+
+# Frontend
+frontend:
+  enabled: true
+  port: 3000
+  replicas: 2
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 250m
+      memory: 256Mi
+
+# PostgreSQL
+postgresql:
+  enabled: true
+  auth:
+    username: clario
+    password: ""
+    database: clario360
+    existingSecret: clario360-db-secret
+  primary:
+    persistence:
+      size: 20Gi
+
+# Redis
+redis:
+  enabled: true
+  auth:
+    enabled: false
+  master:
+    persistence:
+      size: 5Gi
+
+# Kafka
+kafka:
+  enabled: true
+  kraft:
+    enabled: true
+  persistence:
+    size: 10Gi
+
+# Ingress
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/rate-limit: "100"
+  hosts:
+    - host: clario360.example.com
+      paths:
+        - path: /api
+          pathType: Prefix
+          service: api-gateway
+        - path: /
+          pathType: Prefix
+          service: frontend
+  tls:
+    - secretName: clario360-tls
+      hosts:
+        - clario360.example.com
+
+# Observability
+observability:
+  metrics:
+    enabled: true
+  tracing:
+    enabled: true
+    otlpEndpoint: "otel-collector:4317"

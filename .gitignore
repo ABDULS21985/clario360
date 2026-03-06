@@ -1,0 +1,57 @@
+# Binaries
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+/backend/bin/
+
+# Test
+*.test
+*.out
+coverage.html
+coverage.txt
+
+# Go
+/vendor/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Node
+node_modules/
+.next/
+out/
+frontend/.next/
+frontend/node_modules/
+
+# Docker
+docker-compose.override.yml
+
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.backup
+*.tfplan
+
+# MinIO data
+minio-data/
+
+# Logs
+*.log
+
+# Temp
+tmp/

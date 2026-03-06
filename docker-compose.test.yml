@@ -1,0 +1,54 @@
+version: "3.9"
+
+services:
+  postgres-test:
+    image: postgres:16-alpine
+    container_name: clario360-postgres-test
+    environment:
+      POSTGRES_USER: clario_test
+      POSTGRES_PASSWORD: clario_test_pass
+      POSTGRES_DB: clario360_test
+    ports:
+      - "5433:5432"
+    tmpfs:
+      - /var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U clario_test -d clario360_test"]
+      interval: 2s
+      timeout: 2s
+      retries: 10
+
+  redis-test:
+    image: redis:7.2-alpine
+    container_name: clario360-redis-test
+    ports:
+      - "6380:6379"
+    tmpfs:
+      - /data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 2s
+      timeout: 2s
+      retries: 10
+
+  kafka-test:
+    image: bitnami/kafka:3.7
+    container_name: clario360-kafka-test
+    environment:
+      KAFKA_CFG_NODE_ID: "1"
+      KAFKA_CFG_PROCESS_ROLES: broker,controller
+      KAFKA_CFG_CONTROLLER_QUORUM_VOTERS: 1@kafka-test:9093
+      KAFKA_CFG_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093,EXTERNAL://:9095
+      KAFKA_CFG_ADVERTISED_LISTENERS: PLAINTEXT://kafka-test:9092,EXTERNAL://localhost:9095
+      KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT,EXTERNAL:PLAINTEXT
+      KAFKA_CFG_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_CFG_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_CFG_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_CFG_NUM_PARTITIONS: "1"
+      KAFKA_CFG_DEFAULT_REPLICATION_FACTOR: "1"
+      KAFKA_CFG_OFFSETS_TOPIC_REPLICATION_FACTOR: "1"
+      KAFKA_KRAFT_CLUSTER_ID: clario360-kraft-test-cluster
+    ports:
+      - "9095:9095"
+    tmpfs:
+      - /bitnami/kafka
