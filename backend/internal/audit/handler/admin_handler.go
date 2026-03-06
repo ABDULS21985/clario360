@@ -90,10 +90,6 @@ func (h *AdminHandler) ListPartitions(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if partitions == nil {
-		partitions = []interface{}(nil)
-	}
-
 	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"partitions": partitions,
 	})
