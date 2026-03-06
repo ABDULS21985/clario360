@@ -1,0 +1,56 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: "prometheus"
+    static_configs:
+      - targets: ["localhost:9090"]
+
+  - job_name: "iam-service"
+    metrics_path: /metrics
+    scheme: http
+    static_configs:
+      - targets: ["iam-service:9091"]
+        labels:
+          service: "iam-service"
+
+  - job_name: "api-gateway"
+    metrics_path: /metrics
+    scheme: http
+    static_configs:
+      - targets: ["api-gateway:9090"]
+        labels:
+          service: "api-gateway"
+
+  - job_name: "audit-service"
+    metrics_path: /metrics
+    scheme: http
+    static_configs:
+      - targets: ["audit-service:9092"]
+        labels:
+          service: "audit-service"
+
+  - job_name: "workflow-engine"
+    metrics_path: /metrics
+    scheme: http
+    static_configs:
+      - targets: ["workflow-engine:9093"]
+        labels:
+          service: "workflow-engine"
+
+  - job_name: "notification-service"
+    metrics_path: /metrics
+    scheme: http
+    static_configs:
+      - targets: ["notification-service:9094"]
+        labels:
+          service: "notification-service"
+
+  - job_name: "file-service"
+    metrics_path: /metrics
+    scheme: http
+    static_configs:
+      - targets: ["file-service:9095"]
+        labels:
+          service: "file-service"

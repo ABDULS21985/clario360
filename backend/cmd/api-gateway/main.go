@@ -5,14 +5,10 @@ import (
 	"encoding/json"
 	"net/http"
 	"os"
-	"os/signal"
 	"strings"
-	"syscall"
-	"time"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
-	"github.com/redis/go-redis/v9"
+	"github.com/rs/zerolog/log"
 
 	"github.com/clario360/platform/internal/auth"
 	"github.com/clario360/platform/internal/config"
@@ -22,105 +18,118 @@ import (
 	"github.com/clario360/platform/internal/gateway/proxy"
 	"github.com/clario360/platform/internal/gateway/ratelimit"
 	"github.com/clario360/platform/internal/middleware"
-	"github.com/clario360/platform/internal/observability"
+	"github.com/clario360/platform/internal/observability/bootstrap"
+	"github.com/clario360/platform/internal/observability/tracing"
 )
 
 func main() {
-	cfg, err := config.Load()
-	if err != nil {
-		panic("loading config: " + err.Error())
-	}
-	cfg.Server.Port = 8080
-
-	logger := observability.NewLogger(
-		cfg.Observability.LogLevel,
-		cfg.Observability.LogFormat,
-		"api-gateway",
-	)
-
 	ctx := context.Background()
 
-	// Initialize tracing
-	shutdownTracer, err := observability.InitTracer(ctx, "api-gateway", cfg.Observability.OTLPEndpoint)
+	// Load legacy config for auth and Redis settings.
+	legacyCfg, err := config.Load()
 	if err != nil {
-		logger.Warn().Err(err).Msg("failed to initialize tracer, continuing without tracing")
-	} else {
-		defer shutdownTracer(ctx)
+		log.Fatal().Err(err).Msg("loading config")
 	}
 
-	// Connect to Redis (required for rate limiting)
-	rdb := redis.NewClient(&redis.Options{
-		Addr:     cfg.Redis.Addr(),
-		Password: cfg.Redis.Password,
-		DB:       cfg.Redis.DB,
-	})
-	defer rdb.Close()
+	env := envOrDefault("ENVIRONMENT", "development")
 
-	if err := rdb.Ping(ctx).Err(); err != nil {
-		logger.Fatal().Err(err).Msg("failed to connect to redis")
+	cfg := &bootstrap.ServiceConfig{
+		Name:        "api-gateway",
+		Version:     "1.0.0",
+		Environment: env,
+		Port:        8080,
+		AdminPort:   9090,
+		LogLevel:    legacyCfg.Observability.LogLevel,
+		Redis: &bootstrap.RedisConfig{
+			Addr:     legacyCfg.Redis.Addr(),
+			Password: legacyCfg.Redis.Password,
+			DB:       legacyCfg.Redis.DB,
+		},
+		Kafka: &bootstrap.KafkaConfig{
+			Brokers: legacyCfg.Kafka.Brokers,
+			GroupID: "api-gateway",
+		},
+		Tracing: tracing.TracerConfig{
+			Enabled:     legacyCfg.Observability.OTLPEndpoint != "",
+			Endpoint:    legacyCfg.Observability.OTLPEndpoint,
+			ServiceName: "api-gateway",
+			Version:     "1.0.0",
+			Environment: env,
+			SampleRate:  0.1,
+			Insecure:    true,
+		},
+		ShutdownTimeout: legacyCfg.Server.ShutdownTimeout,
+		ReadTimeout:     legacyCfg.Server.ReadTimeout,
+		WriteTimeout:    legacyCfg.Server.WriteTimeout,
 	}
 
-	// ---- JWT Manager (local token validation) ----
-	jwtMgr, err := auth.NewJWTManager(cfg.Auth)
+	svc, err := bootstrap.Bootstrap(ctx, cfg)
 	if err != nil {
-		logger.Fatal().Err(err).Msg("failed to create JWT manager")
+		log.Fatal().Err(err).Msg("failed to bootstrap api-gateway")
 	}
 
-	// ---- Service Registry ----
+	// Register gateway-specific metrics.
+	svc.Metrics.Counter("gateway_proxy_requests_total", "Total proxied requests", []string{"service", "status"})
+	svc.Metrics.Counter("gateway_circuit_breaker_state_changes_total", "Circuit breaker state changes", []string{"service", "state"})
+
+	// JWT Manager.
+	jwtMgr, err := auth.NewJWTManager(legacyCfg.Auth)
+	if err != nil {
+		svc.Logger.Fatal().Err(err).Msg("failed to create JWT manager")
+	}
+
+	// Service Registry.
 	registry, err := proxy.NewServiceRegistry(gwconfig.DefaultServices())
 	if err != nil {
-		logger.Fatal().Err(err).Msg("failed to create service registry")
+		svc.Logger.Fatal().Err(err).Msg("failed to create service registry")
 	}
 
-	// ---- Proxy Router with circuit breakers ----
+	// Proxy Router with circuit breakers.
 	routes := gwconfig.DefaultRoutes()
 	cbCfg := proxy.DefaultCircuitBreakerConfig()
-	proxyRouter, err := proxy.NewRouter(routes, registry, cbCfg, logger)
+	proxyRouter, err := proxy.NewRouter(routes, registry, cbCfg, svc.Logger)
 	if err != nil {
-		logger.Fatal().Err(err).Msg("failed to create proxy router")
+		svc.Logger.Fatal().Err(err).Msg("failed to create proxy router")
 	}
 
-	// ---- Rate Limiter ----
-	limiter := ratelimit.NewLimiter(rdb, ratelimit.DefaultConfig())
+	// Rate Limiter.
+	limiter := ratelimit.NewLimiter(svc.Redis, ratelimit.DefaultConfig())
 
-	// ---- Gateway Metrics ----
+	// Gateway Metrics.
 	gwMetrics := gwmw.NewGatewayMetrics()
 
-	// ---- Health Checker ----
-	healthChecker := health.NewChecker(registry, proxyRouter, logger)
+	// Gateway Health Checker.
+	healthChecker := health.NewChecker(registry, proxyRouter, svc.Logger)
 
-	// ---- Build Chi Router ----
-	r := chi.NewRouter()
-
-	// Global middleware: RequestID → Recovery → CORS → Logging
-	r.Use(middleware.RequestID)
-	r.Use(middleware.RecoveryWithLogger(logger))
-	r.Use(middleware.CORS(middleware.CORSConfig{
+	// Override CORS on the main router with gateway-specific origins.
+	svc.Router = chi.NewRouter()
+	svc.Router.Use(middleware.RequestID)
+	svc.Router.Use(middleware.RecoveryWithLogger(svc.Logger))
+	svc.Router.Use(tracing.ChiTracingMiddleware(cfg.Name))
+	svc.Router.Use(middleware.CORS(middleware.CORSConfig{
 		AllowedOrigins:   []string{"https://*.clario360.com", "http://localhost:3000"},
 		AllowedMethods:   []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
 		AllowedHeaders:   []string{"Authorization", "Content-Type", "X-Request-ID", "X-Tenant-ID"},
-		ExposedHeaders:   []string{"X-Request-ID", "X-RateLimit-Limit", "X-RateLimit-Remaining"},
+		ExposedHeaders:   []string{"X-Request-ID", "X-RateLimit-Limit", "X-RateLimit-Remaining", "X-Trace-ID"},
 		AllowCredentials: true,
 		MaxAge:           3600,
 	}))
-	r.Use(middleware.Logging(logger))
+	svc.Router.Use(middleware.Logging(svc.Logger))
 
-	// ---- Infrastructure endpoints (no auth) ----
-	r.Get("/healthz", func(w http.ResponseWriter, r *http.Request) {
+	// Infrastructure endpoints (no auth).
+	svc.Router.Get("/healthz", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		_ = json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
 	})
-	r.Get("/readyz", healthChecker.Handler())
-	r.Handle("/metrics", promhttp.Handler())
+	svc.Router.Get("/readyz", healthChecker.Handler())
 
-	// ---- Gateway status endpoint ----
-	r.Get("/api/v1/gateway/status", func(w http.ResponseWriter, r *http.Request) {
+	// Gateway status endpoint.
+	svc.Router.Get("/api/v1/gateway/status", func(w http.ResponseWriter, r *http.Request) {
 		type serviceStatus struct {
 			Name           string `json:"name"`
 			CircuitBreaker string `json:"circuit_breaker"`
 		}
-
 		proxies := proxyRouter.Proxies()
 		statuses := make([]serviceStatus, 0, len(proxies))
 		for name, rp := range proxies {
@@ -130,43 +139,40 @@ func main() {
 			})
 			gwMetrics.CircuitBreakerState.WithLabelValues(name).Set(float64(rp.CircuitState()))
 		}
-
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(map[string]any{"services": statuses})
 	})
 
-	// ---- Register proxy routes ----
+	// Register proxy routes.
 	for _, route := range routes {
 		route := route
-
 		match := proxyRouter.Match(route.Prefix)
 		if !match.Matched {
-			logger.Warn().Str("prefix", route.Prefix).Msg("no proxy found for route, skipping")
+			svc.Logger.Warn().Str("prefix", route.Prefix).Msg("no proxy found for route, skipping")
 			continue
 		}
-
 		rp := match.Proxy
 
-		r.Route(route.Prefix, func(sub chi.Router) {
+		svc.Router.Route(route.Prefix, func(sub chi.Router) {
 			if !route.Public {
-				sub.Use(gwmw.ProxyAuth(jwtMgr, logger))
+				sub.Use(gwmw.ProxyAuth(jwtMgr, svc.Logger))
 			} else {
 				sub.Use(middleware.OptionalAuth(jwtMgr))
 			}
-
 			sub.Use(gwmw.ProxyHeaders)
-			sub.Use(gwmw.ProxyRateLimit(limiter, route.EndpointGroup, gwMetrics, logger))
+			sub.Use(gwmw.ProxyRateLimit(limiter, route.EndpointGroup, gwMetrics, svc.Logger))
 			sub.Use(gwmw.ProxyMetrics(gwMetrics, route.Service))
-			sub.Use(gwmw.ProxyLogging(logger, route.Service))
+			sub.Use(gwmw.ProxyLogging(svc.Logger, route.Service))
+			sub.Use(tracing.SpanEnricher())
 
 			sub.HandleFunc("/*", rp.ServeHTTP)
 			sub.HandleFunc("/", rp.ServeHTTP)
 		})
 	}
 
-	// ---- WebSocket proxy routes ----
-	r.Route("/ws/v1", func(sub chi.Router) {
-		sub.Use(gwmw.ProxyAuth(jwtMgr, logger))
+	// WebSocket proxy routes.
+	svc.Router.Route("/ws/v1", func(sub chi.Router) {
+		sub.Use(gwmw.ProxyAuth(jwtMgr, svc.Logger))
 		sub.Use(gwmw.ProxyHeaders)
 
 		sub.HandleFunc("/{service}/*", func(w http.ResponseWriter, r *http.Request) {
@@ -189,46 +195,21 @@ func main() {
 			}
 			r.URL.Path = "/ws" + wsPath
 
-			wsProxy := proxy.NewWebSocketProxy(target, logger)
+			wsProxy := proxy.NewWebSocketProxy(target, svc.Logger)
 			wsProxy.ServeHTTP(w, r)
 		})
 	})
 
-	// ---- Start server with graceful shutdown ----
-	srv := &http.Server{
-		Addr:         cfg.Server.Addr(),
-		Handler:      r,
-		ReadTimeout:  cfg.Server.ReadTimeout,
-		WriteTimeout: cfg.Server.WriteTimeout,
-		IdleTimeout:  2 * time.Minute,
-	}
-
-	quit := make(chan os.Signal, 1)
-	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
-
-	errCh := make(chan error, 1)
-	go func() {
-		logger.Info().Str("addr", srv.Addr).Msg("api-gateway starting")
-		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			errCh <- err
-		}
-	}()
-
-	select {
-	case sig := <-quit:
-		logger.Info().Str("signal", sig.String()).Msg("shutting down api-gateway")
-	case err := <-errCh:
-		logger.Fatal().Err(err).Msg("api-gateway failed")
+	svc.Logger.Info().Int("port", cfg.Port).Msg("api-gateway starting")
+	if err := svc.Run(ctx); err != nil {
+		svc.Logger.Fatal().Err(err).Msg("api-gateway failed")
 		os.Exit(1)
 	}
+}
 
-	shutdownCtx, cancel := context.WithTimeout(context.Background(), cfg.Server.ShutdownTimeout)
-	defer cancel()
-
-	if err := srv.Shutdown(shutdownCtx); err != nil {
-		logger.Fatal().Err(err).Msg("api-gateway shutdown failed")
-		os.Exit(1)
+func envOrDefault(key, defaultVal string) string {
+	if v := os.Getenv(key); v != "" {
+		return v
 	}
-
-	logger.Info().Msg("api-gateway stopped gracefully")
+	return defaultVal
 }
