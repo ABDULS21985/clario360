@@ -42,7 +42,7 @@ const mockLogs: AuditLog[] = [
     id: 'log-2',
     tenant_id: 'tenant-1',
     user_id: null,
-    user_email: null,
+    user_email: '',
     action: 'login.failed',
     resource_type: 'auth',
     resource_id: null,

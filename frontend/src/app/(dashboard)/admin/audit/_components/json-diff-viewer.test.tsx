@@ -25,13 +25,17 @@ describe('JsonDiffViewer', () => {
     expect(screen.getByText('~')).toBeInTheDocument();
   });
 
-  it('test_showsUnchangedFields: same field → shown (space prefix)', () => {
+  it('test_showsUnchangedFields: same field → shown with unchanged styling', () => {
     render(
       <JsonDiffViewer oldValue={{ age: 30 }} newValue={{ age: 30 }} />
     );
     expect(screen.getByText('age:')).toBeInTheDocument();
-    const prefixes = screen.getAllByText(' ');
-    expect(prefixes.length).toBeGreaterThan(0);
+    expect(screen.getByText('30')).toBeInTheDocument();
+    // Unchanged rows have muted-foreground class (no +/- prefix)
+    const minusCells = screen.queryAllByText('-');
+    const plusCells = screen.queryAllByText('+');
+    expect(minusCells.length).toBe(0);
+    expect(plusCells.length).toBe(0);
   });
 
   it('test_handlesNullOld: old=null → all new fields shown as added', () => {
