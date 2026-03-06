@@ -1,45 +1,40 @@
-"use client";
+'use client';
 
-import Link from "next/link";
-import { usePathname } from "next/navigation";
-
-const labels: Record<string, string> = {
-  cyber: "Cybersecurity",
-  data: "Data Suite",
-  acta: "Acta",
-  lex: "Lex",
-  visus: "Visus360",
-};
+import Link from 'next/link';
+import { ChevronRight } from 'lucide-react';
+import { useBreadcrumbs } from '@/hooks/use-breadcrumbs';
 
 export function Breadcrumbs() {
-  const pathname = usePathname();
-  const segments = pathname.split("/").filter(Boolean);
+  const crumbs = useBreadcrumbs();
 
-  if (segments.length === 0) return null;
+  if (crumbs.length <= 1) return null;
 
   return (
-    <nav className="flex items-center gap-1.5 text-sm text-muted-foreground">
-      <Link href="/" className="hover:text-foreground">
-        Home
-      </Link>
-      {segments.map((segment, index) => {
-        const href = "/" + segments.slice(0, index + 1).join("/");
-        const label = labels[segment] || segment.charAt(0).toUpperCase() + segment.slice(1);
-        const isLast = index === segments.length - 1;
-
-        return (
-          <span key={href} className="flex items-center gap-1.5">
-            <span>/</span>
-            {isLast ? (
-              <span className="font-medium text-foreground">{label}</span>
+    <nav aria-label="Breadcrumb">
+      <ol role="list" className="flex flex-wrap items-center gap-1 text-sm">
+        {crumbs.map((crumb, idx) => (
+          <li key={crumb.href} className="flex items-center gap-1">
+            {idx > 0 && (
+              <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />
+            )}
+            {crumb.isLast ? (
+              <span
+                aria-current="page"
+                className="font-medium text-foreground truncate max-w-[200px]"
+              >
+                {crumb.label}
+              </span>
             ) : (
-              <Link href={href} className="hover:text-foreground">
-                {label}
+              <Link
+                href={crumb.href}
+                className="text-muted-foreground hover:text-foreground truncate max-w-[150px] transition-colors"
+              >
+                {crumb.label}
               </Link>
             )}
-          </span>
-        );
-      })}
+          </li>
+        ))}
+      </ol>
     </nav>
   );
 }

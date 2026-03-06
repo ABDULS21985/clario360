@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { isAuthenticated } from "@/lib/auth";
+import { getAccessToken } from "@/lib/auth";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Header } from "@/components/layout/header";
 import { Breadcrumbs } from "@/components/layout/breadcrumbs";
@@ -15,7 +15,7 @@ export default function DashboardLayout({
   const router = useRouter();
 
   useEffect(() => {
-    if (!isAuthenticated()) {
+    if (!getAccessToken()) {
       router.push("/login");
     }
   }, [router]);

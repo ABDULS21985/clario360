@@ -1,6 +1,13 @@
-"use client";
+'use client';
 
-import { useAuth } from "@/hooks/use-auth";
+import { Menu, Search } from 'lucide-react';
+import { useSidebar } from '@/hooks/use-sidebar';
+import { useIsMobile } from '@/hooks/use-media-query';
+import { useCommandPalette } from '@/hooks/use-command-palette';
+import { Breadcrumbs } from './breadcrumbs';
+import { NotificationDropdown } from './notification-dropdown';
+import { UserMenu } from './user-menu';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 export function Header() {
   const { user, logout } = useAuth();
@@ -30,7 +37,7 @@ export function Header() {
           <div className="hidden md:block">
             <p className="text-sm font-medium">{user?.email || "User"}</p>
             <p className="text-xs text-muted-foreground">
-              {user?.roles?.[0] || "viewer"}
+              {user?.roles?.[0]?.name ?? 'viewer'}
             </p>
           </div>
           <button

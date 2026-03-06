@@ -1,12 +1,11 @@
 'use client';
 
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { X } from 'lucide-react';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
 import { useSidebar } from '@/hooks/use-sidebar';
 import { useAuth } from '@/hooks/use-auth';
 import { useBadgeCounts } from '@/hooks/use-badge-counts';
-import { useIsMobile } from '@/hooks/use-media-query';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { SidebarSection } from './sidebar-section';
 import { SidebarNavItem } from './sidebar-nav-item';
@@ -25,35 +24,49 @@ function collectBadgeConfigs(): BadgeConfig[] {
 
 const ALL_BADGE_CONFIGS = collectBadgeConfigs();
 
-export function Sidebar() {
-  const { collapsed, toggleCollapsed } = useSidebar();
+export function MobileSidebar() {
+  const { mobileOpen, setMobileOpen } = useSidebar();
   const { hasPermission } = useAuth();
-  const isMobile = useIsMobile();
   const badgeCounts = useBadgeCounts(ALL_BADGE_CONFIGS);
 
-  if (isMobile) return null;
+  if (!mobileOpen) return null;
 
   return (
     <TooltipProvider>
+      {/* Backdrop */}
+      <div
+        className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm"
+        onClick={() => setMobileOpen(false)}
+        aria-hidden="true"
+      />
+
+      {/* Sidebar panel */}
       <aside
-        aria-label="Main navigation"
+        aria-label="Mobile navigation"
         className={cn(
-          'flex h-full shrink-0 flex-col border-r bg-card transition-[width] duration-200 ease-in-out',
-          collapsed ? 'w-16' : 'w-64',
+          'fixed inset-y-0 left-0 z-50 flex w-72 flex-col border-r bg-card shadow-xl',
+          'animate-in slide-in-from-left-0 duration-200',
         )}
       >
-        <div className="flex h-16 items-center border-b px-3">
-          {!collapsed ? (
-            <Link href="/dashboard" className="font-bold text-lg text-primary">
-              Clario 360
-            </Link>
-          ) : (
-            <Link href="/dashboard" className="mx-auto font-bold text-primary text-sm">
-              C360
-            </Link>
-          )}
+        {/* Header */}
+        <div className="flex h-16 items-center justify-between border-b px-4">
+          <Link
+            href="/dashboard"
+            className="font-bold text-lg text-primary"
+            onClick={() => setMobileOpen(false)}
+          >
+            Clario 360
+          </Link>
+          <button
+            onClick={() => setMobileOpen(false)}
+            aria-label="Close navigation menu"
+            className="rounded-md p-1.5 text-muted-foreground hover:bg-accent"
+          >
+            <X className="h-5 w-5" />
+          </button>
         </div>
 
+        {/* Navigation */}
         <nav className="flex-1 overflow-y-auto py-3 px-2">
           {navigation.map((section) => {
             if (section.permission !== '*:read' && !hasPermission(section.permission)) {
@@ -70,16 +83,13 @@ export function Sidebar() {
             if (visibleItems.length === 0) return null;
 
             return (
-              <SidebarSection key={section.id} label={section.label} collapsed={collapsed}>
+              <SidebarSection key={section.id} label={section.label} collapsed={false}>
                 {visibleItems.map((item) => {
                   const count = item.badge ? badgeCounts.get(item.badge.endpoint) : undefined;
                   return (
-                    <SidebarNavItem
-                      key={item.id}
-                      item={item}
-                      collapsed={collapsed}
-                      badgeCount={count}
-                    />
+                    <div key={item.id} onClick={() => setMobileOpen(false)}>
+                      <SidebarNavItem item={item} collapsed={false} badgeCount={count} />
+                    </div>
                   );
                 })}
               </SidebarSection>
@@ -87,25 +97,8 @@ export function Sidebar() {
           })}
         </nav>
 
-        <div className="border-t px-2 py-2">
-          <button
-            onClick={toggleCollapsed}
-            aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-            className="flex w-full items-center justify-center rounded-md p-2 text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
-          >
-            {collapsed ? (
-              <ChevronRight className="h-4 w-4" />
-            ) : (
-              <div className="flex w-full items-center justify-between text-xs">
-                <span>Collapse</span>
-                <ChevronLeft className="h-4 w-4" />
-              </div>
-            )}
-          </button>
-        </div>
-
         <div className="border-t">
-          <SidebarUserFooter collapsed={collapsed} />
+          <SidebarUserFooter collapsed={false} />
         </div>
       </aside>
     </TooltipProvider>
