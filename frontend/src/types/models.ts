@@ -65,3 +65,82 @@ export interface BrandingSettings {
 }
 
 export type SuiteName = 'cyber' | 'data' | 'acta' | 'lex' | 'visus';
+
+export type NotificationCategory =
+  | 'security'
+  | 'data'
+  | 'workflow'
+  | 'system'
+  | 'governance'
+  | 'legal';
+
+export type NotificationPriority = 'critical' | 'high' | 'medium' | 'low';
+
+export interface Notification {
+  id: string;
+  title: string;
+  body: string;
+  category: NotificationCategory;
+  priority: NotificationPriority;
+  action_url?: string;
+  read: boolean;
+  created_at: string;
+}
+
+export type ConnectionStatus =
+  | 'connecting'
+  | 'connected'
+  | 'disconnected'
+  | 'reconnecting'
+  | 'failed';
+
+export interface WorkflowTask {
+  id: string;
+  name: string;
+  workflow_id: string;
+  workflow_name: string;
+  status: 'pending' | 'claimed' | 'completed' | 'failed' | 'overdue';
+  assigned_to: string | null;
+  due_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AuditLog {
+  id: string;
+  tenant_id: string;
+  user_id: string;
+  user_email: string;
+  action: string;
+  resource_type: string;
+  resource_id: string | null;
+  ip_address: string;
+  user_agent: string;
+  metadata: Record<string, unknown>;
+  created_at: string;
+}
+
+export interface FileItem {
+  id: string;
+  tenant_id: string;
+  name: string;
+  original_name: string;
+  content_type: string;
+  size: number;
+  status: 'pending' | 'processing' | 'available' | 'quarantined' | 'deleted';
+  uploaded_by: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Alert {
+  id: string;
+  tenant_id: string;
+  title: string;
+  description: string;
+  severity: 'critical' | 'high' | 'medium' | 'low' | 'info';
+  status: 'new' | 'acknowledged' | 'investigating' | 'resolved' | 'false_positive';
+  source: string;
+  created_at: string;
+  updated_at: string;
+}
