@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/redis/go-redis/v9"
 	"golang.org/x/sync/errgroup"
 
@@ -22,6 +23,7 @@ import (
 	"github.com/clario360/platform/internal/notification/consumer"
 	"github.com/clario360/platform/internal/notification/handler"
 	"github.com/clario360/platform/internal/notification/health"
+	_ "github.com/clario360/platform/internal/notification/metrics" // registers Prometheus metrics on import
 	notifmw "github.com/clario360/platform/internal/notification/middleware"
 	"github.com/clario360/platform/internal/notification/repository"
 	"github.com/clario360/platform/internal/notification/service"
@@ -69,7 +71,13 @@ func main() {
 	}
 	defer db.Close()
 
-	// 5. Connect Redis.
+	// 5. Run schema migration.
+	if err := repository.RunMigration(ctx, db); err != nil {
+		logger.Fatal().Err(err).Msg("failed to run notification schema migration")
+	}
+	logger.Info().Msg("notification schema migration completed")
+
+	// 6. Connect Redis.
 	rdb := redis.NewClient(&redis.Options{
 		Addr:     cfg.Redis.Addr(),
 		Password: cfg.Redis.Password,
@@ -151,9 +159,10 @@ func main() {
 	}
 	healthChecker := health.NewChecker(db, rdb, cfg.Kafka.Brokers, smtpAddr, logger)
 
-	// Override health endpoints.
+	// Override health and metrics endpoints.
 	srv.Router.Get("/healthz", health.LivenessHandler())
 	srv.Router.Get("/readyz", healthChecker.ReadinessHandler())
+	srv.Router.Handle("/metrics", promhttp.Handler())
 
 	// 13. WebSocket endpoint (authenticated via query param, not middleware).
 	srv.Router.Get("/ws/v1/notifications", wsHandler.HandleWebSocket)

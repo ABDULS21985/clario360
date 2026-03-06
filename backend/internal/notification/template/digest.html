@@ -1,0 +1,21 @@
+<h2 style="color:#1B5E20; margin:0 0 16px 0; font-size:20px;">Your Notification Summary</h2>
+<p style="color:#333; font-size:15px; margin-bottom:20px;">
+  You have <strong>{{.count}}</strong> unread notification{{if ne .count 1}}s{{end}} since your last digest.
+</p>
+
+{{range .items}}
+<div style="border-bottom:1px solid #e9ecef; padding:12px 0;">
+  <div style="display:flex; align-items:center; margin-bottom:4px;">
+    <span style="display:inline-block; background-color:#{{if eq .Priority "critical"}}d32f2f{{else if eq .Priority "high"}}e65100{{else if eq .Priority "medium"}}1565c0{{else}}4caf50{{end}}; color:#fff; font-size:10px; padding:2px 8px; border-radius:3px; text-transform:uppercase; letter-spacing:0.5px;">{{.Priority}}</span>
+    <span style="color:#999; font-size:12px; margin-left:8px;">{{.Category}}</span>
+  </div>
+  <p style="margin:4px 0 0 0; font-size:14px; font-weight:600; color:#333;">{{.Title}}</p>
+  <p style="margin:4px 0 0 0; font-size:13px; color:#666;">{{.Body}}</p>
+</div>
+{{end}}
+
+{{if .dashboard_url}}
+<p style="text-align:center; margin:24px 0 0 0;">
+  <a href="{{.dashboard_url}}" style="display:inline-block; background-color:#1B5E20; color:#ffffff; padding:12px 24px; text-decoration:none; border-radius:4px; font-weight:600; font-size:14px;">View All Notifications</a>
+</p>
+{{end}}
