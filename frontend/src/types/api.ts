@@ -1,36 +1,34 @@
-export interface ApiResponse<T> {
-  data: T;
-  message?: string;
-}
-
 export interface ApiError {
   status: number;
   code: string;
   message: string;
-  fields?: Record<string, string>;
+  details?: Record<string, string[]>;
+  request_id?: string;
+}
+
+export interface ApiResponse<T> {
+  data: T;
+  meta?: PaginationMeta;
 }
 
 export interface PaginatedResponse<T> {
-  items: T[];
-  pagination: {
-    page: number;
-    page_size: number;
-    total_items: number;
-    total_pages: number;
-  };
+  data: T[];
+  meta: PaginationMeta;
 }
 
-export interface LoginRequest {
-  email: string;
-  password: string;
+export interface PaginationMeta {
+  page: number;
+  per_page: number;
+  total: number;
+  total_pages: number;
 }
 
-export interface LoginResponse {
-  access_token: string;
-  refresh_token: string;
-  expires_at: string;
-}
-
-export interface RefreshRequest {
-  refresh_token: string;
+export function isApiError(error: unknown): error is ApiError {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'status' in error &&
+    'code' in error &&
+    'message' in error
+  );
 }

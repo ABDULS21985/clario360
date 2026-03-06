@@ -71,10 +71,9 @@ func NewReverseProxy(serviceName string, target *url.URL, timeout time.Duration,
 			ResponseHeaderTimeout: timeout,
 		},
 		Director: func(req *http.Request) {
-			// Strip any internal headers the client may have injected.
-			for _, h := range internalRequestHeaders {
-				req.Header.Del(h)
-			}
+			// NOTE: internal header stripping and re-injection from JWT is handled
+			// upstream by the ProxyHeaders middleware before this Director runs.
+			// Do NOT strip them here — that would remove the JWT-injected values.
 
 			// Rewrite destination.
 			req.URL.Scheme = target.Scheme
