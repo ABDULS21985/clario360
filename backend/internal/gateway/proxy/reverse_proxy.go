@@ -1,6 +1,7 @@
 package proxy
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -13,6 +14,30 @@ import (
 	"github.com/rs/zerolog"
 )
 
+// internalRequestHeaders are headers injected by the gateway that must be stripped
+// from incoming client requests to prevent spoofing.
+var internalRequestHeaders = []string{
+	"X-Tenant-ID",
+	"X-User-ID",
+	"X-User-Email",
+	"X-User-Roles",
+	"X-User-Permissions",
+}
+
+// internalResponseHeaders are headers that must be stripped from backend responses
+// before returning to the client.
+var internalResponseHeaders = []string{
+	"X-Powered-By",
+	"Server",
+	"X-AspNet-Version",
+	"X-Runtime",
+	"X-Tenant-ID",
+	"X-User-ID",
+	"X-User-Email",
+	"X-User-Roles",
+	"X-User-Permissions",
+}
+
 // ReverseProxy wraps httputil.ReverseProxy with circuit breaker support.
 type ReverseProxy struct {
 	serviceName string
@@ -23,67 +48,124 @@ type ReverseProxy struct {
 }
 
 // NewReverseProxy creates a reverse proxy for a backend service.
-// The timeout parameter controls the ResponseHeaderTimeout for upstream requests.
+// The timeout parameter controls ResponseHeaderTimeout for upstream requests.
 func NewReverseProxy(serviceName string, target *url.URL, timeout time.Duration, breaker *CircuitBreaker, logger zerolog.Logger) *ReverseProxy {
-	proxy := httputil.NewSingleHostReverseProxy(target)
-
 	if timeout == 0 {
 		timeout = 30 * time.Second
-	}
-
-	// Custom transport with per-service timeout
-	proxy.Transport = &http.Transport{
-		DialContext:           (&net.Dialer{Timeout: 5 * time.Second}).DialContext,
-		MaxIdleConns:          100,
-		MaxIdleConnsPerHost:   20,
-		IdleConnTimeout:       90 * time.Second,
-		TLSHandshakeTimeout:   5 * time.Second,
-		ResponseHeaderTimeout: timeout,
 	}
 
 	rp := &ReverseProxy{
 		serviceName: serviceName,
 		target:      target,
-		proxy:       proxy,
 		breaker:     breaker,
 		logger:      logger,
 	}
 
-	// Custom director to rewrite request URL
-	originalDirector := proxy.Director
-	proxy.Director = func(req *http.Request) {
-		originalDirector(req)
-		req.Host = target.Host
-	}
+	p := &httputil.ReverseProxy{
+		Transport: &http.Transport{
+			DialContext:           (&net.Dialer{Timeout: 5 * time.Second}).DialContext,
+			MaxIdleConns:          100,
+			MaxIdleConnsPerHost:   20,
+			IdleConnTimeout:       90 * time.Second,
+			TLSHandshakeTimeout:   10 * time.Second,
+			ResponseHeaderTimeout: timeout,
+		},
+		Director: func(req *http.Request) {
+			// Strip any internal headers the client may have injected.
+			for _, h := range internalRequestHeaders {
+				req.Header.Del(h)
+			}
 
-	// Error handler
-	proxy.ErrorHandler = func(w http.ResponseWriter, r *http.Request, err error) {
-		rp.breaker.RecordFailure()
-		rp.logger.Error().
-			Err(err).
-			Str("service", serviceName).
-			Str("path", r.URL.Path).
-			Msg("proxy error")
+			// Rewrite destination.
+			req.URL.Scheme = target.Scheme
+			req.URL.Host = target.Host
+			req.Host = target.Host
 
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusBadGateway)
-		_ = json.NewEncoder(w).Encode(map[string]any{
-			"status":  502,
-			"code":    "BAD_GATEWAY",
-			"message": fmt.Sprintf("upstream service %s is unavailable", serviceName),
-		})
-	}
+			// X-Forwarded-For: append client IP.
+			clientIP := extractClientIP(req)
+			if existing := req.Header.Get("X-Forwarded-For"); existing != "" {
+				req.Header.Set("X-Forwarded-For", existing+", "+clientIP)
+			} else {
+				req.Header.Set("X-Forwarded-For", clientIP)
+			}
 
-	// Modify response to record success/failure
-	proxy.ModifyResponse = func(resp *http.Response) error {
-		if resp.StatusCode >= 500 {
+			// X-Forwarded-Host preserves the original host.
+			req.Header.Set("X-Forwarded-Host", req.Header.Get("Host"))
+
+			// X-Forwarded-Proto: trust upstream proxy header or infer.
+			if req.Header.Get("X-Forwarded-Proto") == "" {
+				proto := "http"
+				if req.TLS != nil {
+					proto = "https"
+				}
+				req.Header.Set("X-Forwarded-Proto", proto)
+			}
+
+			// X-Real-IP: first non-proxy IP in the chain.
+			req.Header.Set("X-Real-IP", clientIP)
+		},
+		ModifyResponse: func(resp *http.Response) error {
+			// Strip internal/server-identifying headers from the response.
+			for _, h := range internalResponseHeaders {
+				resp.Header.Del(h)
+			}
+			// Strip any X-Debug-* headers.
+			for key := range resp.Header {
+				if strings.HasPrefix(strings.ToLower(key), "x-debug-") {
+					resp.Header.Del(key)
+				}
+			}
+
+			// Record outcome for circuit breaker.
+			if resp.StatusCode >= 500 {
+				rp.breaker.RecordFailure()
+			} else {
+				rp.breaker.RecordSuccess()
+			}
+			return nil
+		},
+		ErrorHandler: func(w http.ResponseWriter, r *http.Request, err error) {
 			rp.breaker.RecordFailure()
-		} else {
-			rp.breaker.RecordSuccess()
-		}
-		return nil
+
+			status := http.StatusBadGateway
+			code := "BAD_GATEWAY"
+			message := "upstream service is unavailable"
+
+			if err != nil {
+				switch {
+				case isContextError(err):
+					status = http.StatusGatewayTimeout
+					code = "GATEWAY_TIMEOUT"
+					message = "upstream service did not respond in time"
+				case isConnectionError(err):
+					status = http.StatusBadGateway
+					code = "BAD_GATEWAY"
+					message = "upstream service is unavailable"
+				}
+			}
+
+			// Log at ERROR but never expose service name, host, or port to the client.
+			reqID, _ := r.Context().Value(requestIDKey).(string)
+			rp.logger.Error().
+				Err(err).
+				Str("service", rp.serviceName).
+				Str("path", r.URL.Path).
+				Str("request_id", reqID).
+				Msg("proxy error")
+
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(status)
+			_ = json.NewEncoder(w).Encode(gatewayError{
+				Error: errorDetail{
+					Code:      code,
+					Message:   message,
+					RequestID: reqID,
+				},
+			})
+		},
 	}
 
+	rp.proxy = p
 	return rp
 }
 
@@ -93,15 +175,18 @@ func (rp *ReverseProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		rp.logger.Warn().
 			Str("service", rp.serviceName).
 			Str("state", rp.breaker.State().String()).
-			Msg("circuit breaker open")
+			Msg("circuit breaker open, rejecting request")
 
+		reqID, _ := r.Context().Value(requestIDKey).(string)
 		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("Retry-After", "30")
 		w.WriteHeader(http.StatusServiceUnavailable)
-		_ = json.NewEncoder(w).Encode(map[string]any{
-			"status":  503,
-			"code":    "SERVICE_UNAVAILABLE",
-			"message": fmt.Sprintf("service %s is temporarily unavailable", rp.serviceName),
-			"service": rp.serviceName,
+		_ = json.NewEncoder(w).Encode(gatewayError{
+			Error: errorDetail{
+				Code:      "SERVICE_UNAVAILABLE",
+				Message:   "service is temporarily unavailable, please retry later",
+				RequestID: reqID,
+			},
 		})
 		return
 	}
@@ -119,39 +204,95 @@ func (rp *ReverseProxy) CircuitState() CircuitState {
 	return rp.breaker.State()
 }
 
-// NewWebSocketProxy creates a reverse proxy suitable for WebSocket connections.
-func NewWebSocketProxy(target *url.URL, logger zerolog.Logger) http.Handler {
-	proxy := httputil.NewSingleHostReverseProxy(target)
+// gatewayError is the standard error envelope for all gateway error responses.
+type gatewayError struct {
+	Error errorDetail `json:"error"`
+}
 
-	originalDirector := proxy.Director
-	proxy.Director = func(req *http.Request) {
+type errorDetail struct {
+	Code      string `json:"code"`
+	Message   string `json:"message"`
+	RequestID string `json:"request_id,omitempty"`
+}
+
+// requestIDKey is used to retrieve X-Request-ID from context.
+// It matches the key used in the requestid middleware.
+type ctxKey string
+
+const requestIDKey ctxKey = "request_id"
+
+func isContextError(err error) bool {
+	return err == context.Canceled || err == context.DeadlineExceeded ||
+		strings.Contains(err.Error(), "context canceled") ||
+		strings.Contains(err.Error(), "context deadline exceeded")
+}
+
+func isConnectionError(err error) bool {
+	if err == nil {
+		return false
+	}
+	s := err.Error()
+	return strings.Contains(s, "connection refused") ||
+		strings.Contains(s, "connection reset") ||
+		strings.Contains(s, "no such host") ||
+		strings.Contains(s, "dial tcp")
+}
+
+func extractClientIP(r *http.Request) string {
+	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
+		// Return the rightmost non-proxy IP that we trust.
+		parts := strings.Split(xff, ",")
+		if ip := strings.TrimSpace(parts[0]); ip != "" {
+			return ip
+		}
+	}
+	if xri := r.Header.Get("X-Real-IP"); xri != "" {
+		return xri
+	}
+	if host, _, err := net.SplitHostPort(r.RemoteAddr); err == nil {
+		return host
+	}
+	return r.RemoteAddr
+}
+
+// WriteGatewayError writes a structured gateway error response.
+func WriteGatewayError(w http.ResponseWriter, status int, code, message, requestID string) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	_ = json.NewEncoder(w).Encode(gatewayError{
+		Error: errorDetail{
+			Code:      code,
+			Message:   message,
+			RequestID: requestID,
+		},
+	})
+}
+
+// NewWebSocketHTTPProxy creates a simple WebSocket-capable reverse proxy using httputil.
+// For real gorilla-based WebSocket proxying, use NewWebSocketProxy instead.
+func NewWebSocketHTTPProxy(target *url.URL, logger zerolog.Logger) http.Handler {
+	p := httputil.NewSingleHostReverseProxy(target)
+
+	originalDirector := p.Director
+	p.Director = func(req *http.Request) {
 		originalDirector(req)
 		req.Host = target.Host
-
-		// Ensure WebSocket upgrade headers are forwarded
 		if strings.EqualFold(req.Header.Get("Upgrade"), "websocket") {
 			req.Header.Set("Connection", "Upgrade")
 		}
 	}
 
-	// Use flush-friendly transport for WebSocket
-	proxy.Transport = &http.Transport{
+	p.Transport = &http.Transport{
 		DialContext:         (&net.Dialer{Timeout: 10 * time.Second}).DialContext,
 		MaxIdleConns:        50,
 		IdleConnTimeout:     120 * time.Second,
 		TLSHandshakeTimeout: 5 * time.Second,
 	}
 
-	proxy.ErrorHandler = func(w http.ResponseWriter, r *http.Request, err error) {
+	p.ErrorHandler = func(w http.ResponseWriter, r *http.Request, err error) {
 		logger.Error().Err(err).Str("path", r.URL.Path).Msg("websocket proxy error")
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusBadGateway)
-		_ = json.NewEncoder(w).Encode(map[string]any{
-			"status":  502,
-			"code":    "BAD_GATEWAY",
-			"message": "websocket upstream unavailable",
-		})
+		fmt.Fprintf(w, "websocket upstream unavailable")
 	}
 
-	return proxy
+	return p
 }

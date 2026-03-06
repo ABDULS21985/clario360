@@ -2,6 +2,8 @@ package middleware
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -36,13 +38,14 @@ func DefaultRateLimitConfig() RateLimitConfig {
 func RateLimit(rdb *redis.Client, cfg RateLimitConfig) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			// Determine the rate limit key: use tenant ID if available, otherwise IP
+			// Determine the rate limit key: use tenant ID if available, otherwise IP.
+			// Hash the key material with SHA-256 to avoid storing PII in Redis.
 			key := r.RemoteAddr
 			if tenantID := auth.TenantFromContext(r.Context()); tenantID != "" {
 				key = tenantID
 			}
-
-			redisKey := fmt.Sprintf("%s:%s", cfg.KeyPrefix, key)
+			keyHash := sha256.Sum256([]byte(key))
+			redisKey := fmt.Sprintf("%s:%s", cfg.KeyPrefix, hex.EncodeToString(keyHash[:]))
 			now := time.Now()
 			windowStart := now.Add(-cfg.Window)
 

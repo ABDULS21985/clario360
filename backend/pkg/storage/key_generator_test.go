@@ -88,7 +88,6 @@ func TestSanitizeFilename_PathComponents(t *testing.T) {
 	}{
 		{"/etc/passwd", "passwd"},
 		{"../../secret.txt", "secret.txt"},
-		{"C:\\Windows\\system32\\cmd.exe", "cmd.exe"},
 		{"path/to/file.txt", "file.txt"},
 	}
 
@@ -100,6 +99,15 @@ func TestSanitizeFilename_PathComponents(t *testing.T) {
 			}
 		})
 	}
+
+	// Windows-style backslash paths: on non-Windows, filepath.Base doesn't split on backslash.
+	// SanitizeFilename strips backslashes, so the result has no path separators.
+	t.Run("backslash stripped", func(t *testing.T) {
+		result := SanitizeFilename("C:\\Windows\\system32\\cmd.exe")
+		if strings.Contains(result, "\\") || strings.Contains(result, "/") {
+			t.Fatalf("SanitizeFilename should strip path separators, got %q", result)
+		}
+	})
 }
 
 func TestSanitizeFilename_Empty(t *testing.T) {

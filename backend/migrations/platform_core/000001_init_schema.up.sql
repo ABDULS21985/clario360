@@ -228,6 +228,26 @@ CREATE INDEX idx_api_keys_prefix ON api_keys (key_prefix);
 CREATE INDEX idx_api_keys_permissions ON api_keys USING GIN (permissions);
 
 -- =============================================================================
+-- TABLE: password_reset_tokens
+-- =============================================================================
+
+CREATE TABLE password_reset_tokens (
+    id           UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id      UUID        NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    token_hash   TEXT        NOT NULL,
+    expires_at   TIMESTAMPTZ NOT NULL,
+    used         BOOLEAN     NOT NULL DEFAULT false,
+    used_at      TIMESTAMPTZ,
+    created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+COMMENT ON TABLE password_reset_tokens IS 'Password reset tokens (hashed with SHA-256)';
+COMMENT ON COLUMN password_reset_tokens.token_hash IS 'SHA-256 hash of the reset token';
+
+CREATE INDEX idx_reset_tokens_hash ON password_reset_tokens (token_hash) WHERE used = false;
+CREATE INDEX idx_reset_tokens_user ON password_reset_tokens (user_id);
+
+-- =============================================================================
 -- TABLE: audit_logs (PARTITIONED by created_at — monthly)
 -- =============================================================================
 

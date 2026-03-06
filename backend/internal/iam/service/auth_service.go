@@ -20,6 +20,7 @@ import (
 	"github.com/clario360/platform/internal/iam/dto"
 	"github.com/clario360/platform/internal/iam/model"
 	"github.com/clario360/platform/internal/iam/repository"
+	"github.com/clario360/platform/pkg/crypto"
 )
 
 const (
@@ -34,6 +35,28 @@ const (
 	recoveryCodeCount  = 10
 )
 
+// commonPasswords is a set of commonly used passwords that must be rejected.
+var commonPasswords = map[string]struct{}{
+	"password":        {}, "123456":          {}, "123456789":       {}, "12345678":        {},
+	"12345":           {}, "1234567":         {}, "1234567890":      {}, "qwerty":          {},
+	"abc123":          {}, "password1":       {}, "password123":     {}, "admin":           {},
+	"letmein":         {}, "welcome":         {}, "monkey":          {}, "master":          {},
+	"dragon":          {}, "login":           {}, "princess":        {}, "qwerty123":       {},
+	"solo":            {}, "passw0rd":        {}, "starwars":        {}, "iloveyou":        {},
+	"trustno1":        {}, "sunshine":        {}, "football":        {}, "shadow":          {},
+	"michael":         {}, "superman":        {}, "access":          {}, "hello":           {},
+	"charlie":         {}, "donald":          {}, "batman":          {}, "qwerty12345":     {},
+	"password12345":   {}, "letmein123":      {}, "welcome1":        {}, "1q2w3e4r":        {},
+	"1q2w3e4r5t":      {}, "zaq1zaq1":        {}, "qazwsx":          {}, "1qaz2wsx":        {},
+	"changeme":        {}, "p@ssw0rd":        {}, "p@ssword":        {}, "passw0rd!":       {},
+	"clario360":       {}, "clario":          {}, "administrator":   {}, "root":            {},
+	"toor":            {}, "pa$$w0rd":        {}, "p@ssw0rd1":       {}, "test1234!":       {},
+	"qwerty123!":      {}, "welcome1!":       {}, "password1!":      {}, "winter2024!":     {},
+	"summer2024!":     {}, "spring2024!":     {}, "autumn2024!":     {}, "january2024!":    {},
+	"company123!":     {}, "security1!":      {}, "admin123!":       {}, "user12345!":      {},
+	"abcdefghijkl":    {}, "aaaaaaaaaaaa":    {}, "123456789012":    {}, "qwertyuiopas":    {},
+}
+
 type AuthService struct {
 	userRepo    repository.UserRepository
 	sessionRepo repository.SessionRepository
@@ -45,6 +68,7 @@ type AuthService struct {
 	logger      zerolog.Logger
 	bcryptCost  int
 	refreshTTL  time.Duration
+	mfaKey      []byte // 32-byte AES-256 key for MFA secret encryption
 }
 
 func NewAuthService(
@@ -71,6 +95,11 @@ func NewAuthService(
 		bcryptCost:  bcryptCost,
 		refreshTTL:  refreshTTL,
 	}
+}
+
+// SetMFAEncryptionKey sets the AES-256 key used to encrypt MFA secrets at rest.
+func (s *AuthService) SetMFAEncryptionKey(key []byte) {
+	s.mfaKey = key
 }
 
 func (s *AuthService) Register(ctx context.Context, req *dto.RegisterRequest) (*dto.AuthResponse, error) {
@@ -141,17 +170,26 @@ func (s *AuthService) Register(ctx context.Context, req *dto.RegisterRequest) (*
 }
 
 func (s *AuthService) Login(ctx context.Context, req *dto.LoginRequest, ip, userAgent string) (any, error) {
-	// Check rate limit
-	lockoutKey := fmt.Sprintf("%s%s:%s", loginLockoutPrefix, ip, req.Email)
-	count, err := s.redis.Get(ctx, lockoutKey).Int()
-	if err == nil && count >= loginLockoutMax {
-		return nil, model.ErrAccountLocked
+	// Hash the key material to avoid storing PII (raw IP + email) in Redis
+	lockoutKey := fmt.Sprintf("%s%s", loginLockoutPrefix, sha256Hex(ip+":"+strings.ToLower(req.Email)))
+
+	// Atomic lockout check: INCR the attempt counter first, then check.
+	// This prevents race conditions between separate GET and INCR calls.
+	attempts, incrErr := s.redis.Incr(ctx, lockoutKey).Result()
+	if incrErr == nil {
+		if attempts == 1 {
+			// First attempt in this window — set the TTL
+			s.redis.Expire(ctx, lockoutKey, loginLockoutTTL)
+		}
+		if attempts > int64(loginLockoutMax) {
+			return nil, model.ErrAccountLocked
+		}
 	}
+	// If Redis is unavailable (incrErr != nil), fail-open: allow the request
 
 	user, err := s.userRepo.GetByEmail(ctx, req.TenantID, strings.ToLower(strings.TrimSpace(req.Email)))
 	if err != nil {
-		s.incrementLoginFailure(ctx, lockoutKey)
-		s.publishEvent(ctx, "user.login.failed", req.TenantID, "", map[string]string{"email": req.Email, "reason": "user_not_found"})
+		s.publishEvent(ctx, "user.login.failed", req.TenantID, "", map[string]string{"email_hash": sha256Hex(req.Email), "reason": "user_not_found"})
 		return nil, model.ErrUnauthorized
 	}
 
@@ -161,12 +199,11 @@ func (s *AuthService) Login(ctx context.Context, req *dto.LoginRequest, ip, user
 	}
 
 	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(req.Password)); err != nil {
-		s.incrementLoginFailure(ctx, lockoutKey)
 		s.publishEvent(ctx, "user.login.failed", user.TenantID, user.ID, map[string]string{"reason": "invalid_password"})
 		return nil, model.ErrUnauthorized
 	}
 
-	// Clear lockout on success
+	// Login successful — clear lockout counter
 	s.redis.Del(ctx, lockoutKey)
 
 	// If MFA is enabled, return MFA challenge
@@ -212,8 +249,18 @@ func (s *AuthService) VerifyMFA(ctx context.Context, req *dto.VerifyMFARequest) 
 		return nil, model.ErrInvalidMFA
 	}
 
+	// Decrypt MFA secret if encrypted
+	secret := *user.MFASecret
+	if len(s.mfaKey) == 32 {
+		decrypted, err := crypto.Decrypt(secret, s.mfaKey)
+		if err != nil {
+			return nil, fmt.Errorf("decrypting MFA secret: %w", err)
+		}
+		secret = string(decrypted)
+	}
+
 	// Try TOTP code
-	valid := totp.Validate(req.Code, *user.MFASecret)
+	valid := totp.Validate(req.Code, secret)
 
 	// If TOTP fails, try recovery codes
 	if !valid {
@@ -247,14 +294,23 @@ func (s *AuthService) RefreshToken(ctx context.Context, req *dto.RefreshRequest,
 	tokenHash := sha256Hex(req.RefreshToken)
 	session, err := s.sessionRepo.GetByTokenHash(ctx, tokenHash)
 	if err != nil {
+		// Token not found — possible reuse of an already-rotated token (theft detection).
+		// Revoke ALL sessions for this user as a safety measure.
+		s.logger.Warn().Str("user_id", userID).Msg("refresh token reuse detected — revoking all sessions for user")
+		_ = s.sessionRepo.DeleteByUserID(ctx, userID)
+		s.publishEvent(ctx, "user.sessions.revoked", "", userID, map[string]string{"reason": "token_reuse"})
 		return nil, fmt.Errorf("session not found: %w", model.ErrInvalidToken)
 	}
 
 	if session.UserID != userID {
+		// Token/session mismatch — revoke all sessions
+		s.logger.Warn().Str("user_id", userID).Msg("refresh token user mismatch — revoking all sessions")
+		_ = s.sessionRepo.DeleteByUserID(ctx, userID)
+		s.publishEvent(ctx, "user.sessions.revoked", "", userID, map[string]string{"reason": "token_mismatch"})
 		return nil, model.ErrInvalidToken
 	}
 
-	// Delete old session (rotation)
+	// Delete old session (rotation — each refresh token is single-use)
 	if err := s.sessionRepo.Delete(ctx, session.ID); err != nil {
 		s.logger.Error().Err(err).Msg("failed to delete old session")
 	}
@@ -401,15 +457,6 @@ func (s *AuthService) generateTokens(ctx context.Context, user *model.User, ip, 
 	}, nil
 }
 
-func (s *AuthService) incrementLoginFailure(ctx context.Context, key string) {
-	pipe := s.redis.Pipeline()
-	pipe.Incr(ctx, key)
-	pipe.Expire(ctx, key, loginLockoutTTL)
-	if _, err := pipe.Exec(ctx); err != nil {
-		s.logger.Error().Err(err).Msg("failed to increment login failure counter")
-	}
-}
-
 func (s *AuthService) tryRecoveryCode(ctx context.Context, userID, code string) (bool, error) {
 	key := recoveryPrefix + userID
 	codes, err := s.redis.SMembers(ctx, key).Result()
@@ -417,9 +464,9 @@ func (s *AuthService) tryRecoveryCode(ctx context.Context, userID, code string) 
 		return false, nil
 	}
 
-	codeHash := sha256Hex(code)
+	// Recovery codes are bcrypt-hashed
 	for _, stored := range codes {
-		if stored == codeHash {
+		if err := bcrypt.CompareHashAndPassword([]byte(stored), []byte(code)); err == nil {
 			// Remove used recovery code
 			s.redis.SRem(ctx, key, stored)
 			return true, nil
@@ -464,6 +511,15 @@ func validatePassword(password string) error {
 	if len(password) < 12 {
 		return fmt.Errorf("password must be at least 12 characters")
 	}
+	if len(password) > 128 {
+		return fmt.Errorf("password must not exceed 128 characters")
+	}
+
+	// Check against common passwords (case-insensitive)
+	if _, found := commonPasswords[strings.ToLower(password)]; found {
+		return fmt.Errorf("password is too common — please choose a different password")
+	}
+
 	var hasUpper, hasLower, hasDigit, hasSpecial bool
 	for _, c := range password {
 		switch {

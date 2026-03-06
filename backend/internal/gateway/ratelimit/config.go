@@ -42,6 +42,32 @@ func DefaultConfig() Config {
 				Window:            1 * time.Minute,
 				BurstPerSecond:    20,
 			},
+			gwconfig.EndpointGroupUpload: {
+				RequestsPerWindow: 50,
+				Window:            1 * time.Minute,
+				BurstPerSecond:    10,
+			},
+			gwconfig.EndpointGroupWS: {
+				RequestsPerWindow: 10,
+				Window:            1 * time.Minute,
+				BurstPerSecond:    2,
+			},
+		},
+	}
+}
+
+// ConfigFromGateway builds a Config from GatewayConfig rate limit settings.
+func ConfigFromGateway(
+	authPerMin, readPerMin, writePerMin, adminPerMin, uploadPerMin, wsPerMin int,
+) Config {
+	return Config{
+		Groups: map[gwconfig.EndpointGroup]GroupLimit{
+			gwconfig.EndpointGroupAuth:   {RequestsPerWindow: authPerMin, Window: time.Minute, BurstPerSecond: authPerMin / 5},
+			gwconfig.EndpointGroupRead:   {RequestsPerWindow: readPerMin, Window: time.Minute, BurstPerSecond: readPerMin / 10},
+			gwconfig.EndpointGroupWrite:  {RequestsPerWindow: writePerMin, Window: time.Minute, BurstPerSecond: writePerMin / 5},
+			gwconfig.EndpointGroupAdmin:  {RequestsPerWindow: adminPerMin, Window: time.Minute, BurstPerSecond: adminPerMin / 5},
+			gwconfig.EndpointGroupUpload: {RequestsPerWindow: uploadPerMin, Window: time.Minute, BurstPerSecond: uploadPerMin / 5},
+			gwconfig.EndpointGroupWS:     {RequestsPerWindow: wsPerMin, Window: time.Minute, BurstPerSecond: 2},
 		},
 	}
 }

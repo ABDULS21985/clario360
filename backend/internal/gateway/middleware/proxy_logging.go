@@ -1,7 +1,10 @@
 package middleware
 
 import (
+	"net"
 	"net/http"
+	"net/url"
+	"strings"
 	"time"
 
 	"github.com/rs/zerolog"
@@ -9,6 +12,9 @@ import (
 	"github.com/clario360/platform/internal/auth"
 	mw "github.com/clario360/platform/internal/middleware"
 )
+
+// sensitiveQueryParams are query parameter names whose values must never appear in logs.
+var sensitiveQueryParams = []string{"token", "password", "secret", "key", "api_key", "access_token"}
 
 // loggingResponseWriter captures status code and bytes for logging.
 type loggingResponseWriter struct {
@@ -37,7 +43,7 @@ func (w *loggingResponseWriter) Write(b []byte) (int, error) {
 }
 
 // ProxyLogging logs every proxied request with structured fields.
-// It excludes sensitive headers (Authorization) and request/response bodies.
+// Sensitive data (JWT, API keys, request/response bodies, sensitive query params) is NEVER logged.
 func ProxyLogging(logger zerolog.Logger, serviceName string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -48,7 +54,7 @@ func ProxyLogging(logger zerolog.Logger, serviceName string) func(http.Handler) 
 
 			duration := time.Since(start)
 
-			// Extract user/tenant info from context (may be empty for public routes)
+			// Extract user/tenant from context (empty for public routes).
 			userID := ""
 			tenantID := ""
 			if user := auth.UserFromContext(r.Context()); user != nil {
@@ -58,14 +64,17 @@ func ProxyLogging(logger zerolog.Logger, serviceName string) func(http.Handler) 
 
 			requestID := mw.GetRequestID(r.Context())
 
+			// Redact sensitive query parameters before logging.
+			query := redactQuery(r.URL.RawQuery)
+
 			var event *zerolog.Event
 			switch {
 			case wrapped.statusCode >= 500:
 				event = logger.Error()
 			case wrapped.statusCode >= 400:
-				event = logger.Warn()
-			default:
 				event = logger.Info()
+			default:
+				event = logger.Debug()
 			}
 
 			event.
@@ -73,7 +82,7 @@ func ProxyLogging(logger zerolog.Logger, serviceName string) func(http.Handler) 
 				Str("service", serviceName).
 				Str("method", r.Method).
 				Str("path", r.URL.Path).
-				Str("query", r.URL.RawQuery).
+				Str("query", query).
 				Int64("content_length", r.ContentLength).
 				Str("user_agent", r.UserAgent()).
 				Str("ip", getClientIP(r)).
@@ -87,19 +96,38 @@ func ProxyLogging(logger zerolog.Logger, serviceName string) func(http.Handler) 
 	}
 }
 
+// redactQuery replaces the values of sensitive query params with "[REDACTED]".
+func redactQuery(raw string) string {
+	if raw == "" {
+		return ""
+	}
+	vals, err := url.ParseQuery(raw)
+	if err != nil {
+		return "[PARSE_ERROR]"
+	}
+
+	for _, param := range sensitiveQueryParams {
+		if vals.Has(param) {
+			vals.Set(param, "[REDACTED]")
+		}
+	}
+	return vals.Encode()
+}
+
 // getClientIP extracts the real client IP from proxy headers.
 func getClientIP(r *http.Request) string {
 	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
-		// Return the first IP in the chain (the original client)
-		for i := 0; i < len(xff); i++ {
-			if xff[i] == ',' {
-				return xff[:i]
-			}
+		// Return the first (original client) IP in the chain.
+		if idx := strings.IndexByte(xff, ','); idx != -1 {
+			return strings.TrimSpace(xff[:idx])
 		}
-		return xff
+		return strings.TrimSpace(xff)
 	}
 	if xri := r.Header.Get("X-Real-IP"); xri != "" {
 		return xri
+	}
+	if host, _, err := net.SplitHostPort(r.RemoteAddr); err == nil {
+		return host
 	}
 	return r.RemoteAddr
 }

@@ -163,13 +163,25 @@ func TestUserService_EnableMFA(t *testing.T) {
 		t.Errorf("expected %d recovery codes, got %d", recoveryCodeCount, len(resp.RecoveryCodes))
 	}
 
-	// Verify user is now MFA-enabled
+	// MFA secret stored but not yet enabled (two-step flow)
 	updated := repo.users[user.ID]
-	if !updated.MFAEnabled {
-		t.Error("expected user to have MFA enabled")
-	}
 	if updated.MFASecret == nil {
 		t.Error("expected MFA secret to be set")
+	}
+
+	// Complete setup by verifying a valid TOTP code
+	code, err := totp.GenerateCode(resp.Secret, time.Now())
+	if err != nil {
+		t.Fatalf("failed to generate TOTP code: %v", err)
+	}
+	if err := svc.VerifyMFASetup(context.Background(), user.ID, code); err != nil {
+		t.Fatalf("VerifyMFASetup failed: %v", err)
+	}
+
+	// Now MFA should be enabled
+	updated = repo.users[user.ID]
+	if !updated.MFAEnabled {
+		t.Error("expected user to have MFA enabled after VerifyMFASetup")
 	}
 }
 
@@ -177,11 +189,20 @@ func TestUserService_EnableMFA_AlreadyEnabled(t *testing.T) {
 	svc, repo, _ := newTestUserService(t)
 	user := seedTestUser(repo, "tenant-1", "mfa2@example.com", "StrongP@ss12345")
 
-	_, err := svc.EnableMFA(context.Background(), user.ID)
+	// Enable and complete two-step setup
+	resp, err := svc.EnableMFA(context.Background(), user.ID)
 	if err != nil {
 		t.Fatalf("first EnableMFA failed: %v", err)
 	}
+	code, err := totp.GenerateCode(resp.Secret, time.Now())
+	if err != nil {
+		t.Fatalf("failed to generate TOTP code: %v", err)
+	}
+	if err := svc.VerifyMFASetup(context.Background(), user.ID, code); err != nil {
+		t.Fatalf("VerifyMFASetup failed: %v", err)
+	}
 
+	// MFA is now enabled — second EnableMFA should conflict
 	_, err = svc.EnableMFA(context.Background(), user.ID)
 	if err == nil {
 		t.Fatal("expected error when MFA already enabled")
@@ -189,6 +210,7 @@ func TestUserService_EnableMFA_AlreadyEnabled(t *testing.T) {
 	if !errors.Is(err, model.ErrConflict) {
 		t.Errorf("expected ErrConflict, got %v", err)
 	}
+	_ = repo // suppress unused warning
 }
 
 func TestUserService_UpdateStatus(t *testing.T) {
@@ -239,13 +261,20 @@ func TestUserService_DisableMFA(t *testing.T) {
 	svc, repo, _ := newTestUserService(t)
 	user := seedTestUser(repo, "tenant-1", "disablemfa@example.com", "StrongP@ss12345")
 
-	// Enable MFA first
+	// Enable MFA and complete two-step setup
 	mfaResp, err := svc.EnableMFA(context.Background(), user.ID)
 	if err != nil {
 		t.Fatalf("EnableMFA failed: %v", err)
 	}
+	setupCode, err := totp.GenerateCode(mfaResp.Secret, time.Now())
+	if err != nil {
+		t.Fatalf("failed to generate setup TOTP code: %v", err)
+	}
+	if err := svc.VerifyMFASetup(context.Background(), user.ID, setupCode); err != nil {
+		t.Fatalf("VerifyMFASetup failed: %v", err)
+	}
 
-	// Generate a valid TOTP code using the secret returned by EnableMFA
+	// Generate a valid TOTP code to disable MFA
 	code, err := totp.GenerateCode(mfaResp.Secret, time.Now())
 	if err != nil {
 		t.Fatalf("failed to generate TOTP code: %v", err)

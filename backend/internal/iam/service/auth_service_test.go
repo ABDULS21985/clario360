@@ -11,6 +11,7 @@ import (
 	"github.com/pquerna/otp/totp"
 	"github.com/redis/go-redis/v9"
 	"github.com/rs/zerolog"
+	"golang.org/x/crypto/bcrypt"
 
 	"github.com/clario360/platform/internal/auth"
 	"github.com/clario360/platform/internal/config"
@@ -211,6 +212,10 @@ func (m *mockRoleRepo) RemoveFromUser(ctx context.Context, userID, roleID string
 }
 
 func (m *mockRoleRepo) GetUserRoles(ctx context.Context, userID string) ([]model.Role, error) {
+	return nil, nil
+}
+
+func (m *mockRoleRepo) ListUserIDsByRole(ctx context.Context, tenantID, roleSlug string) ([]string, error) {
 	return nil, nil
 }
 
@@ -873,11 +878,10 @@ func TestVerifyMFA_RecoveryCode(t *testing.T) {
 	user.MFAEnabled = true
 	user.MFASecret = &secret
 
-	// Store a known recovery code in Redis
+	// Store a known recovery code in Redis (bcrypt hashed)
 	recoveryCode := "testrecovery01"
-	h := sha256.Sum256([]byte(recoveryCode))
-	codeHash := hex.EncodeToString(h[:])
-	svc.redis.SAdd(ctx, recoveryPrefix+user.ID, codeHash)
+	codeHash, _ := bcrypt.GenerateFromPassword([]byte(recoveryCode), bcrypt.MinCost)
+	svc.redis.SAdd(ctx, recoveryPrefix+user.ID, string(codeHash))
 
 	resp, _ := svc.Login(ctx, &dto.LoginRequest{
 		TenantID: "tenant-test",

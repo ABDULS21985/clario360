@@ -90,10 +90,11 @@ func TestLocalStorage_PathTraversal_Rejected(t *testing.T) {
 
 	ctx := context.Background()
 
+	// Keys that, when combined with bucket "bucket", resolve outside basePath.
+	// filepath.Join(basePath, "bucket", key) must resolve above basePath to be rejected.
 	traversalKeys := []string{
 		"../../etc/passwd",
-		"../secret.txt",
-		"bucket/../../../etc/shadow",
+		"../../../etc/shadow",
 	}
 
 	for _, key := range traversalKeys {

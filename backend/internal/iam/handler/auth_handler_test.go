@@ -377,6 +377,9 @@ func (m *memRoleRepo) RemoveFromUser(_ context.Context, _, _ string) error     {
 func (m *memRoleRepo) GetUserRoles(_ context.Context, _ string) ([]model.Role, error) {
 	return nil, nil
 }
+func (m *memRoleRepo) ListUserIDsByRole(_ context.Context, _, _ string) ([]string, error) {
+	return nil, nil
+}
 func (m *memRoleRepo) SeedSystemRoles(ctx context.Context, tenantID string) error {
 	for _, sr := range model.SystemRoles {
 		role := sr

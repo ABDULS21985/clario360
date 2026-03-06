@@ -118,6 +118,9 @@ func main() {
 	tenantHandler := handler.NewTenantHandler(tenantSvc, svc.Logger)
 	apiKeyHandler := handler.NewAPIKeyHandler(apiKeySvc, svc.Logger)
 
+	// Security headers on all responses.
+	svc.Router.Use(middleware.SecurityHeaders())
+
 	// Routes.
 	svc.Router.Route("/api/v1", func(r chi.Router) {
 		// Public auth routes (no auth middleware).
