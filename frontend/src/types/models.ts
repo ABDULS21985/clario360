@@ -106,6 +106,100 @@ export interface WorkflowTask {
   updated_at: string;
 }
 
+export type FormFieldType = 'boolean' | 'text' | 'textarea' | 'select' | 'number' | 'date';
+
+export interface FormField {
+  name: string;
+  type: FormFieldType;
+  label: string;
+  required: boolean;
+  default?: unknown;
+  options?: string[];
+  placeholder?: string;
+  description?: string;
+}
+
+export type HumanTaskStatus = 'pending' | 'claimed' | 'completed' | 'rejected' | 'escalated' | 'cancelled';
+export type TaskPriority = 0 | 1 | 2;
+
+export interface HumanTask {
+  id: string;
+  name: string;
+  description: string;
+  instance_id: string;
+  definition_name: string;
+  workflow_name: string;
+  step_id: string;
+  status: HumanTaskStatus;
+  priority: TaskPriority;
+  form_schema: FormField[];
+  form_data: Record<string, unknown> | null;
+  sla_deadline: string | null;
+  sla_breached: boolean;
+  claimed_by: string | null;
+  claimed_by_name: string | null;
+  assignee_role: string | null;
+  assignee_id: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export type StepType = 'human_task' | 'service_task' | 'condition' | 'parallel_gateway' | 'timer' | 'end';
+export type StepStatus = 'completed' | 'running' | 'failed' | 'pending' | 'skipped' | 'cancelled';
+
+export interface StepDefinition {
+  id: string;
+  name: string;
+  type: StepType;
+  description?: string;
+}
+
+export interface StepExecution {
+  id: string;
+  step_id: string;
+  step_name: string;
+  step_type: StepType;
+  status: StepStatus;
+  started_at: string | null;
+  completed_at: string | null;
+  duration_seconds: number | null;
+  attempt: number;
+  input: Record<string, unknown> | null;
+  output: Record<string, unknown> | null;
+  error: string | null;
+  assigned_to: string | null;
+  completed_by: string | null;
+}
+
+export type WorkflowInstanceStatus = 'running' | 'completed' | 'failed' | 'cancelled' | 'suspended';
+
+export interface WorkflowInstance {
+  id: string;
+  definition_id: string;
+  definition_name: string;
+  tenant_id: string;
+  status: WorkflowInstanceStatus;
+  current_step_id: string | null;
+  current_step_name: string | null;
+  total_steps: number;
+  completed_steps: number;
+  started_at: string;
+  completed_at: string | null;
+  started_by: string | null;
+  started_by_name: string | null;
+  variables: Record<string, unknown>;
+  step_outputs: Record<string, Record<string, unknown>>;
+  definition_steps: StepDefinition[];
+}
+
+export interface TaskCounts {
+  pending: number;
+  claimed_by_me: number;
+  completed: number;
+  overdue: number;
+  escalated: number;
+}
+
 export interface AuditLog {
   id: string;
   tenant_id: string;

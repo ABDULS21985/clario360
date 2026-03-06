@@ -1,12 +1,25 @@
 'use client';
 
 import { useEffect, useRef, useCallback } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { getAccessToken } from '@/lib/auth';
 import { useNotificationStore } from '@/stores/notification-store';
+import { useRealtimeStore } from '@/stores/realtime-store';
 import type { ConnectionStatus, Notification } from '@/types/models';
 
 const MAX_RECONNECT_ATTEMPTS = 10;
 const BACKOFF_DELAYS = [1000, 2000, 4000, 8000, 16000, 30000];
+
+// Toast-worthy event types (only show toast for critical events)
+const TOAST_TYPES = new Set([
+  'alert.created',
+  'alert.escalated',
+  'task.assigned',
+  'task.escalated',
+  'remediation.approval_required',
+  'security.incident',
+  'pipeline.failed',
+]);
 
 interface WSMessage {
   type: string;
@@ -24,8 +37,25 @@ export function useWebSocket() {
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const attemptRef = useRef(0);
   const intentionalCloseRef = useRef(false);
+  const queryClient = useQueryClient();
+
   const { setConnectionStatus, addNotification, markAsRead, setUnreadCount } =
     useNotificationStore.getState();
+
+  const invalidateForTopic = useCallback(
+    (topic: string) => {
+      const keys = useRealtimeStore.getState().getKeysForTopic(topic);
+      for (const key of keys) {
+        try {
+          const parsed = JSON.parse(key) as unknown[];
+          queryClient.invalidateQueries({ queryKey: parsed });
+        } catch {
+          // ignore parse errors
+        }
+      }
+    },
+    [queryClient],
+  );
 
   const connect = useCallback(() => {
     const token = getAccessToken();
@@ -49,9 +79,18 @@ export function useWebSocket() {
     ws.onmessage = (event: MessageEvent) => {
       try {
         const msg: WSMessage = JSON.parse(event.data as string);
+
+        // 1. Dispatch to notification store
         switch (msg.type) {
           case 'notification.new':
             addNotification(msg.data as Notification);
+            // Show toast for critical events
+            if (TOAST_TYPES.has((msg.data as Notification)?.category ?? '')) {
+              // Lazy import to avoid circular deps
+              import('@/lib/toast').then(({ showNotificationToast }) => {
+                showNotificationToast(msg.data as Notification);
+              }).catch(() => undefined);
+            }
             break;
           case 'notification.read':
             markAsRead((msg.data as { id: string }).id);
@@ -62,12 +101,15 @@ export function useWebSocket() {
           case 'connection.ack':
             break;
         }
+
+        // 2. Dispatch to realtime store → invalidate react-query caches
+        invalidateForTopic(msg.type);
       } catch {
         // Ignore malformed messages
       }
     };
 
-    ws.onclose = (event) => {
+    ws.onclose = () => {
       wsRef.current = null;
       if (intentionalCloseRef.current) return;
 
@@ -84,7 +126,7 @@ export function useWebSocket() {
     ws.onerror = () => {
       setConnectionStatus('error' as ConnectionStatus);
     };
-  }, [setConnectionStatus, addNotification, markAsRead, setUnreadCount]);
+  }, [setConnectionStatus, addNotification, markAsRead, setUnreadCount, invalidateForTopic]);
 
   useEffect(() => {
     connect();

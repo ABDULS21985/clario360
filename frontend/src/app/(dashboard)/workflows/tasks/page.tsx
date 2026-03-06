@@ -1,96 +1,112 @@
 'use client';
 
-import { useState } from 'react';
-import Link from 'next/link';
-import { CheckSquare } from 'lucide-react';
-import { useQuery } from '@tanstack/react-query';
+import { useState, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiGet } from '@/lib/api';
 import { API_ENDPOINTS } from '@/lib/constants';
-import { formatDate, cn } from '@/lib/utils';
-import { isAfter, parseISO } from 'date-fns';
 import { PageHeader } from '@/components/common/page-header';
-import { LoadingSkeleton } from '@/components/common/loading-skeleton';
+import { DataTable } from '@/components/shared/data-table/data-table';
+import { TaskStatusTabs } from '@/components/workflows/task-status-tabs';
+import { TaskDelegateDialog } from '@/components/workflows/task-delegate-dialog';
+import { getTaskColumns } from '@/components/workflows/task-table-columns';
 import { ErrorState } from '@/components/common/error-state';
-import { EmptyState } from '@/components/common/empty-state';
-import { Badge } from '@/components/ui/badge';
+import { useAuth } from '@/hooks/use-auth';
+import type { HumanTask, TaskCounts } from '@/types/models';
 import type { PaginatedResponse } from '@/types/api';
-import type { WorkflowTask } from '@/types/models';
+
+const TAB_PARAMS: Record<string, Record<string, unknown>> = {
+  all: { sort: 'created_at', order: 'desc' },
+  pending: { status: 'pending' },
+  claimed: { status: 'claimed' },
+  completed: { status: 'completed' },
+  overdue: { status: 'pending,claimed', sla_breached: 'true' },
+};
 
 export default function WorkflowTasksPage() {
+  const router = useRouter();
+  const queryClient = useQueryClient();
+  const { user } = useAuth();
+  const [activeTab, setActiveTab] = useState('all');
   const [page, setPage] = useState(1);
+  const [delegateTask, setDelegateTask] = useState<HumanTask | null>(null);
+
+  const { data: counts } = useQuery({
+    queryKey: ['tasks', 'count'],
+    queryFn: () => apiGet<TaskCounts>(API_ENDPOINTS.WORKFLOWS_TASKS_COUNT),
+    refetchInterval: 30000,
+  });
 
   const { data, isLoading, isError, refetch } = useQuery({
-    queryKey: ['workflows', 'tasks', page],
+    queryKey: ['tasks', 'list', activeTab, page],
     queryFn: () =>
-      apiGet<PaginatedResponse<WorkflowTask>>(API_ENDPOINTS.WORKFLOWS_TASKS, {
+      apiGet<PaginatedResponse<HumanTask>>(API_ENDPOINTS.WORKFLOWS_TASKS, {
+        ...TAB_PARAMS[activeTab],
         page,
         per_page: 25,
-        sort: 'created_at',
-        order: 'desc',
       }),
     refetchInterval: 30000,
   });
 
+  const handleTabChange = useCallback((tab: string) => {
+    setActiveTab(tab);
+    setPage(1);
+  }, []);
+
+  const columns = getTaskColumns({
+    onOpen: (task) => router.push(`/workflows/tasks/${task.id}`),
+    onClaim: (task) => router.push(`/workflows/tasks/${task.id}`),
+    onDelegate: (task) => setDelegateTask(task),
+    currentUserId: user?.id,
+  });
+
+  if (isError) {
+    return (
+      <div className="space-y-6">
+        <PageHeader title="My Tasks" description="Tasks assigned to you across all workflows." />
+        <ErrorState message="Failed to load tasks" onRetry={() => refetch()} />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
-      <PageHeader title="My Tasks" description="Tasks assigned to you" />
+      <PageHeader
+        title="My Tasks"
+        description="Tasks assigned to you across all workflows."
+      />
 
-      {isLoading ? (
-        <LoadingSkeleton variant="table-row" count={10} />
-      ) : isError ? (
-        <ErrorState message="Failed to load tasks" onRetry={() => refetch()} />
-      ) : !data || data.data.length === 0 ? (
-        <EmptyState icon={CheckSquare} title="No tasks" description="You have no assigned tasks." />
-      ) : (
-        <div className="rounded-lg border bg-card overflow-hidden">
-          <table className="w-full text-sm">
-            <thead className="border-b bg-muted/30">
-              <tr>
-                <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground">Task</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground hidden md:table-cell">Workflow</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground">Status</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground hidden lg:table-cell">Due</th>
-              </tr>
-            </thead>
-            <tbody>
-              {data.data.map((task) => {
-                const isOverdue = task.due_at ? isAfter(new Date(), parseISO(task.due_at)) : false;
-                return (
-                  <tr key={task.id} className="border-b last:border-0 hover:bg-muted/30">
-                    <td className="px-4 py-3">
-                      <Link href={`/workflows/tasks/${task.id}`} className="font-medium hover:underline">
-                        {task.name}
-                      </Link>
-                    </td>
-                    <td className="px-4 py-3 text-muted-foreground hidden md:table-cell">{task.workflow_name}</td>
-                    <td className="px-4 py-3">
-                      <Badge variant={
-                        isOverdue ? 'destructive' :
-                        task.status === 'claimed' ? 'default' : 'outline'
-                      }>
-                        {isOverdue ? 'overdue' : task.status}
-                      </Badge>
-                    </td>
-                    <td className={cn('px-4 py-3 hidden lg:table-cell text-xs', isOverdue && 'text-destructive font-medium')}>
-                      {task.due_at ? formatDate(task.due_at) : '—'}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-          {data.meta.total_pages > 1 && (
-            <div className="flex items-center justify-between border-t px-4 py-3">
-              <p className="text-xs text-muted-foreground">Page {page} of {data.meta.total_pages}</p>
-              <div className="flex gap-2">
-                <button disabled={page <= 1} onClick={() => setPage((p) => p - 1)}
-                  className="rounded border px-3 py-1 text-xs disabled:opacity-50 hover:bg-accent">Previous</button>
-                <button disabled={page >= data.meta.total_pages} onClick={() => setPage((p) => p + 1)}
-                  className="rounded border px-3 py-1 text-xs disabled:opacity-50 hover:bg-accent">Next</button>
-              </div>
-            </div>
-          )}
-        </div>
+      <TaskStatusTabs
+        activeTab={activeTab}
+        onTabChange={handleTabChange}
+        counts={counts}
+      />
+
+      <DataTable
+        columns={columns}
+        data={data?.data ?? []}
+        totalRows={data?.meta.total ?? 0}
+        page={page}
+        pageSize={25}
+        onPageChange={setPage}
+        onPageSizeChange={() => undefined}
+        onSortChange={() => undefined}
+        isLoading={isLoading}
+        onRowClick={(row) => router.push(`/workflows/tasks/${row.id}`)}
+      />
+
+      {delegateTask && (
+        <TaskDelegateDialog
+          task={delegateTask}
+          open={!!delegateTask}
+          onOpenChange={(open) => {
+            if (!open) setDelegateTask(null);
+          }}
+          onSuccess={() => {
+            setDelegateTask(null);
+            queryClient.invalidateQueries({ queryKey: ['tasks'] });
+          }}
+        />
       )}
     </div>
   );
