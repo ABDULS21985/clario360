@@ -34,17 +34,18 @@ func WithLogging(logger zerolog.Logger) ConsumerMiddleware {
 
 			err := next.Handle(ctx, event)
 
-			logCtx := logger.With().
+			l := logger.With().
 				Str("event_id", event.ID).
 				Str("event_type", event.Type).
 				Str("tenant_id", event.TenantID).
 				Str("source", event.Source).
-				Dur("duration", time.Since(start))
+				Dur("duration", time.Since(start)).
+				Logger()
 
 			if err != nil {
-				logCtx.Err(err).Logger().Error().Msg("event processing failed")
+				l.Error().Err(err).Msg("event processing failed")
 			} else {
-				logCtx.Logger().Debug().Msg("event processed")
+				l.Debug().Msg("event processed")
 			}
 
 			return err
