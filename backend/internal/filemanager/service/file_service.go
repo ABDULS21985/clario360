@@ -563,6 +563,16 @@ func (s *FileService) GetStorageStats(ctx context.Context) ([]repository.Storage
 	return s.repo.GetStorageStats(ctx)
 }
 
+// ListQuarantined lists unresolved quarantine entries.
+func (s *FileService) ListQuarantined(ctx context.Context, page, perPage int) ([]*model.QuarantineLog, int, error) {
+	return s.repo.ListQuarantined(ctx, page, perPage)
+}
+
+// ResolveQuarantine marks a quarantine entry as resolved.
+func (s *FileService) ResolveQuarantine(ctx context.Context, quarantineID, resolvedBy, action string) error {
+	return s.repo.ResolveQuarantine(ctx, quarantineID, resolvedBy, action)
+}
+
 func (s *FileService) bucketName(suite string) string {
 	return s.bucketPrefix + "-" + suite
 }

@@ -137,6 +137,30 @@ func (s *RoleService) AssignRole(ctx context.Context, userID string, req *dto.As
 	return nil
 }
 
+func (s *RoleService) GetUserRoles(ctx context.Context, userID string) ([]dto.RoleResponse, error) {
+	roles, err := s.roleRepo.GetUserRoles(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	return dto.RolesToResponse(roles), nil
+}
+
+func (s *RoleService) ListUsersByRole(ctx context.Context, tenantID, roleSlug string) ([]dto.UserResponse, error) {
+	userIDs, err := s.roleRepo.ListUserIDsByRole(ctx, tenantID, roleSlug)
+	if err != nil {
+		return nil, err
+	}
+	var users []dto.UserResponse
+	for _, id := range userIDs {
+		user, err := s.userRepo.GetByID(ctx, id)
+		if err != nil {
+			continue
+		}
+		users = append(users, dto.UserToResponse(user))
+	}
+	return users, nil
+}
+
 func (s *RoleService) RemoveRole(ctx context.Context, userID, roleID string) error {
 	if err := s.roleRepo.RemoveFromUser(ctx, userID, roleID); err != nil {
 		return err

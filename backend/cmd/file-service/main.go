@@ -119,7 +119,12 @@ func main() {
 	}
 
 	// Initialize Kafka producer
-	producer, err := events.NewProducer(cfg.ServiceConfig.Kafka.Brokers, logger)
+	kafkaCfg := config.KafkaConfig{
+		Brokers:         cfg.ServiceConfig.Kafka.Brokers,
+		GroupID:         cfg.ServiceConfig.Kafka.GroupID,
+		AutoOffsetReset: "earliest",
+	}
+	producer, err := events.NewProducer(kafkaCfg, logger)
 	if err != nil {
 		logger.Fatal().Err(err).Msg("failed to create Kafka producer")
 	}
@@ -154,11 +159,7 @@ func main() {
 	_ = health.NewCompositeHealthChecker(5*time.Second, fileCheckers...)
 
 	// 7. Initialize Kafka consumer
-	kafkaConsumer, err := events.NewConsumer(events.ConsumerConfig{
-		Brokers:         cfg.ServiceConfig.Kafka.Brokers,
-		GroupID:         cfg.ServiceConfig.Kafka.GroupID,
-		AutoOffsetReset: "earliest",
-	}, logger)
+	kafkaConsumer, err := events.NewConsumer(kafkaCfg, logger)
 	if err != nil {
 		logger.Fatal().Err(err).Msg("failed to create Kafka consumer")
 	}

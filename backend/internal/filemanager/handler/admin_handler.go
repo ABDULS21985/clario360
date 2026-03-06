@@ -39,9 +39,25 @@ func (h *AdminHandler) ListQuarantined(w http.ResponseWriter, r *http.Request) {
 		perPage = v
 	}
 
-	// Access repository directly through file service's stats method
-	// Using the quarantine listing from repository via service
-	writeError(w, http.StatusNotImplemented, "NOT_IMPLEMENTED", "use admin API", r)
+	entries, total, err := h.fileSvc.ListQuarantined(r.Context(), page, perPage)
+	if err != nil {
+		h.logger.Error().Err(err).Msg("failed to list quarantined files")
+		writeError(w, http.StatusInternalServerError, "INTERNAL_ERROR", "failed to list quarantined files", r)
+		return
+	}
+
+	totalPages := total / perPage
+	if total%perPage > 0 {
+		totalPages++
+	}
+
+	writeJSON(w, http.StatusOK, dto.ListResponse{
+		Data:       entries,
+		Total:      total,
+		Page:       page,
+		PerPage:    perPage,
+		TotalPages: totalPages,
+	})
 }
 
 // ResolveQuarantine handles POST /api/v1/files/quarantine/:id/resolve
@@ -67,6 +83,11 @@ func (h *AdminHandler) ResolveQuarantine(w http.ResponseWriter, r *http.Request)
 	}
 
 	user := auth.UserFromContext(r.Context())
+
+	if err := h.fileSvc.ResolveQuarantine(r.Context(), quarantineID, user.ID, req.Action); err != nil {
+		handleServiceError(w, r, err, h.logger)
+		return
+	}
 
 	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"quarantine_id": quarantineID,

@@ -21,6 +21,7 @@ type RoleRepository interface {
 	AssignToUser(ctx context.Context, userID, roleID, tenantID, assignedBy string) error
 	RemoveFromUser(ctx context.Context, userID, roleID string) error
 	GetUserRoles(ctx context.Context, userID string) ([]model.Role, error)
+	ListUserIDsByRole(ctx context.Context, tenantID, roleSlug string) ([]string, error)
 	SeedSystemRoles(ctx context.Context, tenantID string) error
 }
 
@@ -212,6 +213,32 @@ func (r *roleRepo) GetUserRoles(ctx context.Context, userID string) ([]model.Rol
 		roles = append(roles, role)
 	}
 	return roles, nil
+}
+
+func (r *roleRepo) ListUserIDsByRole(ctx context.Context, tenantID, roleSlug string) ([]string, error) {
+	query := `
+		SELECT u.id
+		FROM users u
+		INNER JOIN user_roles ur ON ur.user_id = u.id
+		INNER JOIN roles ro ON ro.id = ur.role_id
+		WHERE ro.tenant_id = $1 AND ro.slug = $2 AND u.deleted_at IS NULL
+		ORDER BY u.created_at`
+
+	rows, err := r.pool.Query(ctx, query, tenantID, roleSlug)
+	if err != nil {
+		return nil, fmt.Errorf("listing users by role: %w", err)
+	}
+	defer rows.Close()
+
+	var ids []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, fmt.Errorf("scanning user id: %w", err)
+		}
+		ids = append(ids, id)
+	}
+	return ids, nil
 }
 
 func (r *roleRepo) SeedSystemRoles(ctx context.Context, tenantID string) error {
