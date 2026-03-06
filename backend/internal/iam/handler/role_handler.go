@@ -27,6 +27,7 @@ func (h *RoleHandler) Routes() chi.Router {
 	r.Get("/{id}", h.GetByID)
 	r.Put("/{id}", h.Update)
 	r.Delete("/{id}", h.Delete)
+	r.Get("/{roleSlug}/users", h.ListUsersByRole)
 	return r
 }
 
@@ -138,6 +139,36 @@ func (h *RoleHandler) AssignRole(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, dto.MessageResponse{Message: "role assigned"})
+}
+
+func (h *RoleHandler) ListUsersByRole(w http.ResponseWriter, r *http.Request) {
+	user := iamauth.UserFromContext(r.Context())
+	if user == nil {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
+	roleSlug := urlParam(r, "roleSlug")
+
+	users, err := h.roleSvc.ListUsersByRole(r.Context(), user.TenantID, roleSlug)
+	if err != nil {
+		handleServiceError(w, err)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, users)
+}
+
+func (h *RoleHandler) GetUserRoles(w http.ResponseWriter, r *http.Request) {
+	userID := urlParam(r, "id")
+
+	roles, err := h.roleSvc.GetUserRoles(r.Context(), userID)
+	if err != nil {
+		handleServiceError(w, err)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, roles)
 }
 
 func (h *RoleHandler) RemoveRole(w http.ResponseWriter, r *http.Request) {

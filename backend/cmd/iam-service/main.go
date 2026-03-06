@@ -145,6 +145,7 @@ func main() {
 			r.Mount("/api-keys", apiKeyHandler.Routes())
 
 			r.Route("/users/{id}/roles", func(r chi.Router) {
+				r.Get("/", roleHandler.GetUserRoles)
 				r.Post("/", roleHandler.AssignRole)
 				r.Delete("/{roleId}", roleHandler.RemoveRole)
 			})

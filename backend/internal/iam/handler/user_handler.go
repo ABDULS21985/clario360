@@ -27,6 +27,7 @@ func (h *UserHandler) Routes() chi.Router {
 	r.Get("/me", h.GetProfile)
 	r.Put("/me/password", h.ChangePassword)
 	r.Post("/me/mfa/enable", h.EnableMFA)
+	r.Post("/me/mfa/verify-setup", h.VerifyMFASetup)
 	r.Post("/me/mfa/disable", h.DisableMFA)
 
 	// /users CRUD
@@ -192,6 +193,27 @@ func (h *UserHandler) EnableMFA(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, resp)
+}
+
+func (h *UserHandler) VerifyMFASetup(w http.ResponseWriter, r *http.Request) {
+	currentUser := iamauth.UserFromContext(r.Context())
+	if currentUser == nil {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
+	var req dto.DisableMFARequest // reuse — same shape: {code: "123456"}
+	if err := parseBody(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	if err := h.userSvc.VerifyMFASetup(r.Context(), currentUser.ID, req.Code); err != nil {
+		handleServiceError(w, err)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, dto.MessageResponse{Message: "MFA enabled successfully"})
 }
 
 func (h *UserHandler) DisableMFA(w http.ResponseWriter, r *http.Request) {

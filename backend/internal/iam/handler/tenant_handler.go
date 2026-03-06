@@ -26,6 +26,7 @@ func (h *TenantHandler) Routes() chi.Router {
 	r.Post("/", h.Create)
 	r.Get("/{id}", h.GetByID)
 	r.Put("/{id}", h.Update)
+	r.Put("/{id}/status", h.UpdateStatus)
 	return r
 }
 
@@ -97,6 +98,32 @@ func (h *TenantHandler) Update(w http.ResponseWriter, r *http.Request) {
 	}
 
 	resp, err := h.tenantSvc.Update(r.Context(), tenantID, &req)
+	if err != nil {
+		handleServiceError(w, err)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, resp)
+}
+
+func (h *TenantHandler) UpdateStatus(w http.ResponseWriter, r *http.Request) {
+	currentUser := iamauth.UserFromContext(r.Context())
+	tenantID := urlParam(r, "id")
+
+	// Only super-admin can change tenant status
+	if currentUser == nil || !iamauth.HasPermission(currentUser.Roles, "*") {
+		writeError(w, http.StatusForbidden, "forbidden")
+		return
+	}
+
+	var req dto.UpdateStatusRequest
+	if err := parseBody(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	statusReq := &dto.UpdateTenantRequest{Status: &req.Status}
+	resp, err := h.tenantSvc.Update(r.Context(), tenantID, statusReq)
 	if err != nil {
 		handleServiceError(w, err)
 		return

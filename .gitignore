@@ -55,3 +55,28 @@ minio-data/
 
 # Temp
 tmp/
+
+# Infrastructure data
+kafka-data/
+redis-data/
+postgres-data/
+prometheus-data/
+grafana-data/
+zookeeper-data/
+elasticsearch-data/
+
+# Security / secrets
+*.pem
+*.key
+*.crt
+*.p12
+*.jks
+secrets/
+
+# Build / coverage / debug
+coverage/
+dist/
+build/
+*.bak
+debug
+__debug_bin*

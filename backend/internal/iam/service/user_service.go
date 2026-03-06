@@ -13,6 +13,7 @@ import (
 	"github.com/clario360/platform/internal/iam/dto"
 	"github.com/clario360/platform/internal/iam/model"
 	"github.com/clario360/platform/internal/iam/repository"
+	"github.com/clario360/platform/pkg/crypto"
 )
 
 type UserService struct {
@@ -23,6 +24,7 @@ type UserService struct {
 	producer    *events.Producer
 	logger      zerolog.Logger
 	bcryptCost  int
+	mfaKey      []byte // 32-byte AES-256 key for MFA secret encryption
 }
 
 func NewUserService(
@@ -43,6 +45,11 @@ func NewUserService(
 		logger:      logger,
 		bcryptCost:  bcryptCost,
 	}
+}
+
+// SetMFAEncryptionKey sets the AES-256 key used to encrypt MFA secrets at rest.
+func (s *UserService) SetMFAEncryptionKey(key []byte) {
+	s.mfaKey = key
 }
 
 func (s *UserService) List(ctx context.Context, tenantID string, page, perPage int, search, status string) ([]dto.UserResponse, int, error) {
@@ -171,6 +178,8 @@ func (s *UserService) ChangePassword(ctx context.Context, userID string, req *dt
 	return nil
 }
 
+// EnableMFA generates a TOTP secret and recovery codes but does NOT enable MFA yet.
+// The user must call VerifyMFASetup with a valid code to confirm their authenticator is configured.
 func (s *UserService) EnableMFA(ctx context.Context, userID string) (*dto.MFASetupResponse, error) {
 	user, err := s.userRepo.GetByID(ctx, userID)
 	if err != nil {
@@ -190,11 +199,23 @@ func (s *UserService) EnableMFA(ctx context.Context, userID string) (*dto.MFASet
 	}
 
 	secret := key.Secret()
-	if err := s.userRepo.UpdateMFA(ctx, userID, true, &secret); err != nil {
+
+	// Encrypt MFA secret before storing
+	storedSecret := secret
+	if len(s.mfaKey) == 32 {
+		encrypted, err := crypto.Encrypt([]byte(secret), s.mfaKey)
+		if err != nil {
+			return nil, fmt.Errorf("encrypting MFA secret: %w", err)
+		}
+		storedSecret = encrypted
+	}
+
+	// Store the secret but do NOT enable MFA yet (two-step flow)
+	if err := s.userRepo.UpdateMFA(ctx, userID, false, &storedSecret); err != nil {
 		return nil, err
 	}
 
-	// Generate recovery codes
+	// Generate recovery codes (bcrypt hashed)
 	codes := make([]string, recoveryCodeCount)
 	recoveryKey := recoveryPrefix + userID
 	s.redis.Del(ctx, recoveryKey)
@@ -205,18 +226,59 @@ func (s *UserService) EnableMFA(ctx context.Context, userID string) (*dto.MFASet
 			return nil, fmt.Errorf("generating recovery code: %w", err)
 		}
 		codes[i] = code
-		s.redis.SAdd(ctx, recoveryKey, sha256Hex(code))
+		hash, err := bcrypt.GenerateFromPassword([]byte(code), bcrypt.MinCost)
+		if err != nil {
+			return nil, fmt.Errorf("hashing recovery code: %w", err)
+		}
+		s.redis.SAdd(ctx, recoveryKey, string(hash))
 	}
-	// Recovery codes persist indefinitely
 	s.redis.Persist(ctx, recoveryKey)
-
-	s.publishEvent(ctx, "user.mfa.enabled", user.TenantID, user.ID)
 
 	return &dto.MFASetupResponse{
 		Secret:        secret,
 		OTPURL:        key.URL(),
 		RecoveryCodes: codes,
 	}, nil
+}
+
+// VerifyMFASetup confirms the user's authenticator is correctly configured by validating a TOTP code.
+// Only after this succeeds is MFA actually enabled on the account.
+func (s *UserService) VerifyMFASetup(ctx context.Context, userID string, code string) error {
+	user, err := s.userRepo.GetByID(ctx, userID)
+	if err != nil {
+		return err
+	}
+
+	if user.MFAEnabled {
+		return fmt.Errorf("MFA is already enabled: %w", model.ErrConflict)
+	}
+
+	if user.MFASecret == nil {
+		return fmt.Errorf("MFA setup not initiated — call enable first: %w", model.ErrValidation)
+	}
+
+	// Decrypt the stored secret
+	secret := *user.MFASecret
+	if len(s.mfaKey) == 32 {
+		decrypted, err := crypto.Decrypt(secret, s.mfaKey)
+		if err != nil {
+			return fmt.Errorf("decrypting MFA secret: %w", err)
+		}
+		secret = string(decrypted)
+	}
+
+	if !totp.Validate(code, secret) {
+		return fmt.Errorf("invalid code — please re-scan QR code and try again: %w", model.ErrInvalidMFA)
+	}
+
+	// Code is valid — enable MFA
+	storedSecret := *user.MFASecret // keep the encrypted version
+	if err := s.userRepo.UpdateMFA(ctx, userID, true, &storedSecret); err != nil {
+		return err
+	}
+
+	s.publishEvent(ctx, "user.mfa.enabled", user.TenantID, user.ID)
+	return nil
 }
 
 func (s *UserService) DisableMFA(ctx context.Context, userID string, req *dto.DisableMFARequest) error {
@@ -229,7 +291,17 @@ func (s *UserService) DisableMFA(ctx context.Context, userID string, req *dto.Di
 		return fmt.Errorf("MFA is not enabled: %w", model.ErrValidation)
 	}
 
-	if !totp.Validate(req.Code, *user.MFASecret) {
+	// Decrypt secret for TOTP validation
+	secret := *user.MFASecret
+	if len(s.mfaKey) == 32 {
+		decrypted, err := crypto.Decrypt(secret, s.mfaKey)
+		if err != nil {
+			return fmt.Errorf("decrypting MFA secret: %w", err)
+		}
+		secret = string(decrypted)
+	}
+
+	if !totp.Validate(req.Code, secret) {
 		return model.ErrInvalidMFA
 	}
 
@@ -242,6 +314,18 @@ func (s *UserService) DisableMFA(ctx context.Context, userID string, req *dto.Di
 
 	s.publishEvent(ctx, "user.mfa.disabled", user.TenantID, user.ID)
 	return nil
+}
+
+// decryptMFASecret decrypts a stored MFA secret for TOTP validation.
+func (s *UserService) decryptMFASecret(stored string) (string, error) {
+	if len(s.mfaKey) == 32 {
+		decrypted, err := crypto.Decrypt(stored, s.mfaKey)
+		if err != nil {
+			return "", fmt.Errorf("decrypting MFA secret: %w", err)
+		}
+		return string(decrypted), nil
+	}
+	return stored, nil
 }
 
 func (s *UserService) publishEvent(ctx context.Context, eventType, tenantID, userID string) {
