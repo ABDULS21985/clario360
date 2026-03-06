@@ -1,7 +1,7 @@
 'use client';
 
 import { create } from 'zustand';
-import { apiGet, apiPut } from '@/lib/api';
+import { apiGet } from '@/lib/api';
 import { API_ENDPOINTS } from '@/lib/constants';
 import type { Notification, ConnectionStatus } from '@/types/models';
 import type { PaginatedResponse } from '@/types/api';

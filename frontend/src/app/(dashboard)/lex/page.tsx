@@ -1,15 +1,19 @@
+import { Gavel } from 'lucide-react';
+import { PageHeader } from '@/components/common/page-header';
+import { EmptyState } from '@/components/common/empty-state';
+import { PermissionRedirect } from '@/components/common/permission-redirect';
+
 export default function LexPage() {
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">Clario Lex</h1>
-        <p className="text-muted-foreground">
-          Legal case management, compliance tracking, and regulations
-        </p>
+    <PermissionRedirect permission="lex:read">
+      <div className="space-y-6">
+        <PageHeader title="Legal" description="Contract management, documents, and compliance" />
+        <EmptyState
+          icon={Gavel}
+          title="Legal"
+          description="Legal management module will be available in a future build."
+        />
       </div>
-      <div className="rounded-lg border bg-card p-12 text-center">
-        <p className="text-muted-foreground">Lex module will be implemented in Batch 6</p>
-      </div>
-    </div>
+    </PermissionRedirect>
   );
 }

@@ -1,15 +1,19 @@
+import { BarChart3 } from 'lucide-react';
+import { PageHeader } from '@/components/common/page-header';
+import { EmptyState } from '@/components/common/empty-state';
+import { PermissionRedirect } from '@/components/common/permission-redirect';
+
 export default function DataPage() {
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">Data Suite</h1>
-        <p className="text-muted-foreground">
-          Data pipelines, quality monitoring, and dataset management
-        </p>
+    <PermissionRedirect permission="data:read">
+      <div className="space-y-6">
+        <PageHeader title="Data Intelligence" description="Data pipelines, quality monitoring, and dataset management" />
+        <EmptyState
+          icon={BarChart3}
+          title="Data Intelligence"
+          description="Data intelligence capabilities will be available in a future module."
+        />
       </div>
-      <div className="rounded-lg border bg-card p-12 text-center">
-        <p className="text-muted-foreground">Data suite dashboard will be implemented in Batch 4</p>
-      </div>
-    </div>
+    </PermissionRedirect>
   );
 }

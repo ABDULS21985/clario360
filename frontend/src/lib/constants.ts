@@ -40,6 +40,12 @@ export const API_ENDPOINTS = {
 
   // Audit
   AUDIT_LOGS: '/api/v1/audit/logs',
+
+  // Files
+  FILES: '/api/v1/files',
+
+  // Workflows
+  WORKFLOWS_INSTANCES: '/api/v1/workflows/instances',
 } as const;
 
 // Route paths

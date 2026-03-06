@@ -1,15 +1,19 @@
+import { Shield } from 'lucide-react';
+import { PageHeader } from '@/components/common/page-header';
+import { EmptyState } from '@/components/common/empty-state';
+import { PermissionRedirect } from '@/components/common/permission-redirect';
+
 export default function CyberPage() {
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">Cybersecurity Suite</h1>
-        <p className="text-muted-foreground">
-          Threat detection, vulnerability management, and security monitoring
-        </p>
+    <PermissionRedirect permission="cyber:read">
+      <div className="space-y-6">
+        <PageHeader title="Cybersecurity" description="Threat detection, vulnerability management, and security monitoring" />
+        <EmptyState
+          icon={Shield}
+          title="Cybersecurity Overview"
+          description="Cybersecurity module details will be available in a future build."
+        />
       </div>
-      <div className="rounded-lg border bg-card p-12 text-center">
-        <p className="text-muted-foreground">Cybersecurity dashboard will be implemented in Batch 3</p>
-      </div>
-    </div>
+    </PermissionRedirect>
   );
 }

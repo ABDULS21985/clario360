@@ -1,15 +1,19 @@
+import { Building2 } from 'lucide-react';
+import { PageHeader } from '@/components/common/page-header';
+import { EmptyState } from '@/components/common/empty-state';
+import { PermissionRedirect } from '@/components/common/permission-redirect';
+
 export default function ActaPage() {
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">Clario Acta</h1>
-        <p className="text-muted-foreground">
-          Document management, templates, and digital signatures
-        </p>
+    <PermissionRedirect permission="acta:read">
+      <div className="space-y-6">
+        <PageHeader title="Board Governance" description="Board committees, meetings, and action items" />
+        <EmptyState
+          icon={Building2}
+          title="Board Governance"
+          description="Board governance module will be available in a future build."
+        />
       </div>
-      <div className="rounded-lg border bg-card p-12 text-center">
-        <p className="text-muted-foreground">Acta module will be implemented in Batch 5</p>
-      </div>
-    </div>
+    </PermissionRedirect>
   );
 }
