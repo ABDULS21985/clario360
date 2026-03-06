@@ -171,7 +171,7 @@ func main() {
 
 		sub.HandleFunc("/{service}/*", func(w http.ResponseWriter, r *http.Request) {
 			serviceName := chi.URLParam(r, "service") + "-service"
-			target, ok := registry.Resolve(serviceName)
+			target, _, ok := registry.Resolve(serviceName)
 			if !ok {
 				w.Header().Set("Content-Type", "application/json")
 				w.WriteHeader(http.StatusNotFound)

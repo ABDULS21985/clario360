@@ -95,7 +95,7 @@ func (c *Checker) checkService(ctx context.Context, serviceName string) ServiceH
 		sh.Circuit = rp.CircuitState().String()
 	}
 
-	target, ok := c.registry.Resolve(serviceName)
+	target, _, ok := c.registry.Resolve(serviceName)
 	if !ok {
 		sh.Status = "unhealthy"
 		sh.Error = "service not registered"
