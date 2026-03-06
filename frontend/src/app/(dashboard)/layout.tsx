@@ -1,37 +1,27 @@
-"use client";
+'use client';
 
-import { useEffect } from "react";
-import { useRouter } from "next/navigation";
-import { getAccessToken } from "@/lib/auth";
-import { Sidebar } from "@/components/layout/sidebar";
-import { Header } from "@/components/layout/header";
-import { Breadcrumbs } from "@/components/layout/breadcrumbs";
+import { Sidebar } from '@/components/layout/sidebar';
+import { Header } from '@/components/layout/header';
+import { MobileSidebar } from '@/components/layout/mobile-sidebar';
+import { CommandPalette } from '@/components/layout/command-palette';
+import { WebSocketProvider } from '@/components/providers/websocket-provider';
 
-export default function DashboardLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
-  const router = useRouter();
-
-  useEffect(() => {
-    if (!getAccessToken()) {
-      router.push("/login");
-    }
-  }, [router]);
-
+export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex h-screen overflow-hidden">
-      <Sidebar />
-      <div className="flex flex-1 flex-col overflow-hidden">
-        <Header />
-        <main className="flex-1 overflow-auto p-6">
-          <div className="mb-4">
-            <Breadcrumbs />
-          </div>
-          {children}
-        </main>
+    <WebSocketProvider>
+      <div className="flex h-screen overflow-hidden bg-background">
+        <Sidebar />
+        <MobileSidebar />
+        <div className="flex flex-1 flex-col overflow-hidden min-w-0">
+          <Header />
+          <main className="flex-1 overflow-auto">
+            <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+              {children}
+            </div>
+          </main>
+        </div>
+        <CommandPalette />
       </div>
-    </div>
+    </WebSocketProvider>
   );
 }
