@@ -71,7 +71,7 @@ func TestMaskUserAgent(t *testing.T) {
 		input    string
 		expected string
 	}{
-		{"Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36", "Mozilla/5.0 (X11; Lin..."},
+		{"Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36", "Mozilla/5.0 (X11; Li..."},
 		{"short", "short"},
 		{"", ""},
 		{"exactly20characters!", "exactly20characters!"},

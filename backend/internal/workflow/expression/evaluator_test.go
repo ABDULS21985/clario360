@@ -783,8 +783,9 @@ func TestEvaluator_ShortCircuit(t *testing.T) {
 	eval := NewEvaluator()
 
 	t.Run("and short circuits on false left", func(t *testing.T) {
-		// 'b' doesn't exist, but short-circuit should prevent accessing it.
-		got, err := eval.Evaluate("a == false && b == 1", map[string]interface{}{"a": false})
+		// 'b' doesn't exist, but short-circuit should prevent accessing it
+		// because the left side (a == true, where a is false) evaluates to false.
+		got, err := eval.Evaluate("a == true && b == 1", map[string]interface{}{"a": false})
 		if err != nil {
 			t.Fatalf("Evaluate() error = %v", err)
 		}
