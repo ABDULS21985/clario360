@@ -1,25 +1,48 @@
--- Initialize per-service databases for local development
-CREATE DATABASE IF NOT EXISTS keycloak;
--- All Clario services share the clario360 database with separate schemas
--- This keeps local dev simple while supporting schema-level isolation
+-- =============================================================================
+-- Clario 360 — Database Initialization Script
+-- Creates all service databases for the database-per-service pattern
+-- Run automatically by docker-compose on first PostgreSQL start
+-- =============================================================================
 
-\c clario360;
+-- Create service databases
+CREATE DATABASE platform_core;
+CREATE DATABASE cyber_db;
+CREATE DATABASE data_db;
+CREATE DATABASE acta_db;
+CREATE DATABASE lex_db;
+CREATE DATABASE visus_db;
+CREATE DATABASE keycloak;
 
-CREATE SCHEMA IF NOT EXISTS iam;
-CREATE SCHEMA IF NOT EXISTS audit;
-CREATE SCHEMA IF NOT EXISTS cyber;
-CREATE SCHEMA IF NOT EXISTS data_suite;
-CREATE SCHEMA IF NOT EXISTS acta;
-CREATE SCHEMA IF NOT EXISTS lex;
-CREATE SCHEMA IF NOT EXISTS visus;
-CREATE SCHEMA IF NOT EXISTS workflow;
+-- Grant full privileges to the clario user on each database
+GRANT ALL PRIVILEGES ON DATABASE platform_core TO clario;
+GRANT ALL PRIVILEGES ON DATABASE cyber_db TO clario;
+GRANT ALL PRIVILEGES ON DATABASE data_db TO clario;
+GRANT ALL PRIVILEGES ON DATABASE acta_db TO clario;
+GRANT ALL PRIVILEGES ON DATABASE lex_db TO clario;
+GRANT ALL PRIVILEGES ON DATABASE visus_db TO clario;
+GRANT ALL PRIVILEGES ON DATABASE keycloak TO clario;
 
--- Grant usage to the clario user
-GRANT ALL PRIVILEGES ON SCHEMA iam TO clario;
-GRANT ALL PRIVILEGES ON SCHEMA audit TO clario;
-GRANT ALL PRIVILEGES ON SCHEMA cyber TO clario;
-GRANT ALL PRIVILEGES ON SCHEMA data_suite TO clario;
-GRANT ALL PRIVILEGES ON SCHEMA acta TO clario;
-GRANT ALL PRIVILEGES ON SCHEMA lex TO clario;
-GRANT ALL PRIVILEGES ON SCHEMA visus TO clario;
-GRANT ALL PRIVILEGES ON SCHEMA workflow TO clario;
+-- Enable required extensions on each database
+\c platform_core;
+CREATE EXTENSION IF NOT EXISTS "pgcrypto";
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+
+\c cyber_db;
+CREATE EXTENSION IF NOT EXISTS "pgcrypto";
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+
+\c data_db;
+CREATE EXTENSION IF NOT EXISTS "pgcrypto";
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+
+\c acta_db;
+CREATE EXTENSION IF NOT EXISTS "pgcrypto";
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+
+\c lex_db;
+CREATE EXTENSION IF NOT EXISTS "pgcrypto";
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+
+\c visus_db;
+CREATE EXTENSION IF NOT EXISTS "pgcrypto";
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";

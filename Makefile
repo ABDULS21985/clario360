@@ -71,6 +71,17 @@ migrate-create: ## Create a new migration (usage: make migrate-create NAME=creat
 	migrate create -ext sql -dir backend/migrations -seq $(NAME)
 
 # ---------------------------------------------------------------------------
+# Proto
+# ---------------------------------------------------------------------------
+proto-gen: ## Generate protobuf Go code from .proto files
+	@echo "==> Generating protobuf code..."
+	@find backend/proto -name '*.proto' -print0 2>/dev/null | xargs -0 -r protoc \
+		--go_out=backend --go_opt=paths=source_relative \
+		--go-grpc_out=backend --go-grpc_opt=paths=source_relative \
+		-I backend/proto
+	@echo "==> Done."
+
+# ---------------------------------------------------------------------------
 # Seed
 # ---------------------------------------------------------------------------
 seed: ## Seed the database with development data
