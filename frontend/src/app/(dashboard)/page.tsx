@@ -1,34 +1,27 @@
+'use client';
+
+import { WelcomeHeader } from '@/components/dashboard/welcome-header';
+import { KpiGrid } from '@/components/dashboard/kpi-grid';
+import { RecentAlertsTable } from '@/components/dashboard/recent-alerts-table';
+import { MyTasksList } from '@/components/dashboard/my-tasks-list';
+import { ActivityTimeline } from '@/components/dashboard/activity-timeline';
+import { useAuth } from '@/hooks/use-auth';
+
 export default function DashboardHome() {
+  const { hasPermission } = useAuth();
+  const hasCyber = hasPermission('cyber:read');
+
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">Dashboard</h1>
-        <p className="text-muted-foreground">
-          Welcome to Clario 360 Enterprise AI Platform
-        </p>
+      <WelcomeHeader />
+      <KpiGrid />
+
+      <div className="grid gap-6 lg:grid-cols-2">
+        {hasCyber && <RecentAlertsTable />}
+        <MyTasksList />
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        {[
-          { title: "Cybersecurity", description: "Active alerts and threat monitoring", count: "—" },
-          { title: "Data Suite", description: "Data pipelines and quality metrics", count: "—" },
-          { title: "Acta", description: "Document management and signatures", count: "—" },
-          { title: "Visus360", description: "Dashboards and visual reports", count: "—" },
-        ].map((card) => (
-          <div
-            key={card.title}
-            className="rounded-lg border bg-card p-6 shadow-sm"
-          >
-            <h3 className="text-sm font-medium text-muted-foreground">
-              {card.title}
-            </h3>
-            <p className="mt-2 text-3xl font-bold">{card.count}</p>
-            <p className="mt-1 text-xs text-muted-foreground">
-              {card.description}
-            </p>
-          </div>
-        ))}
-      </div>
+      <ActivityTimeline />
     </div>
   );
 }
