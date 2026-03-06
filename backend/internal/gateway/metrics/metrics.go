@@ -18,8 +18,8 @@ type GatewayMetrics struct {
 	ActiveRequests  *prometheus.GaugeVec
 
 	// Circuit breaker
-	CircuitBreakerState  *prometheus.GaugeVec
-	CircuitBreakerTrips  *prometheus.CounterVec
+	CircuitBreakerState *prometheus.GaugeVec
+	CircuitBreakerTrips *prometheus.CounterVec
 
 	// Rate limiting
 	RateLimitExceeded    *prometheus.CounterVec
@@ -35,19 +35,28 @@ type GatewayMetrics struct {
 
 	// Upstream errors
 	UpstreamErrors *prometheus.CounterVec
+
+	// Registry used for /metrics endpoint in production (isolated from the default registry).
+	Registry *prometheus.Registry
 }
 
-// NewGatewayMetrics creates and registers all gateway Prometheus metrics.
+// NewGatewayMetrics creates and registers all gateway Prometheus metrics using a
+// fresh per-instance registry. This avoids "duplicate registration" panics in tests
+// and allows each gateway instance to serve its own /metrics endpoint.
 func NewGatewayMetrics() *GatewayMetrics {
+	reg := prometheus.NewRegistry()
+	f := promauto.With(reg)
+
 	return &GatewayMetrics{
-		RequestsTotal: promauto.NewCounterVec(
+		Registry: reg,
+		RequestsTotal: f.NewCounterVec(
 			prometheus.CounterOpts{
 				Name: "gw_requests_total",
 				Help: "Total gateway requests by service, method, and status code.",
 			},
 			[]string{"service", "method", "status_code"},
 		),
-		RequestDuration: promauto.NewHistogramVec(
+		RequestDuration: f.NewHistogramVec(
 			prometheus.HistogramOpts{
 				Name:    "gw_request_duration_seconds",
 				Help:    "Request latency through the gateway.",
@@ -55,7 +64,7 @@ func NewGatewayMetrics() *GatewayMetrics {
 			},
 			[]string{"service", "method"},
 		),
-		RequestSize: promauto.NewHistogramVec(
+		RequestSize: f.NewHistogramVec(
 			prometheus.HistogramOpts{
 				Name:    "gw_request_size_bytes",
 				Help:    "Request body size in bytes.",
@@ -63,7 +72,7 @@ func NewGatewayMetrics() *GatewayMetrics {
 			},
 			[]string{"service"},
 		),
-		ResponseSize: promauto.NewHistogramVec(
+		ResponseSize: f.NewHistogramVec(
 			prometheus.HistogramOpts{
 				Name:    "gw_response_size_bytes",
 				Help:    "Response body size in bytes.",
@@ -71,55 +80,55 @@ func NewGatewayMetrics() *GatewayMetrics {
 			},
 			[]string{"service"},
 		),
-		ActiveRequests: promauto.NewGaugeVec(
+		ActiveRequests: f.NewGaugeVec(
 			prometheus.GaugeOpts{
 				Name: "gw_active_requests",
 				Help: "Number of active in-flight requests per backend service.",
 			},
 			[]string{"service"},
 		),
-		CircuitBreakerState: promauto.NewGaugeVec(
+		CircuitBreakerState: f.NewGaugeVec(
 			prometheus.GaugeOpts{
 				Name: "gw_circuit_breaker_state",
 				Help: "Circuit breaker state per service (0=closed, 1=half-open, 2=open).",
 			},
 			[]string{"service"},
 		),
-		CircuitBreakerTrips: promauto.NewCounterVec(
+		CircuitBreakerTrips: f.NewCounterVec(
 			prometheus.CounterOpts{
 				Name: "gw_circuit_breaker_trips_total",
 				Help: "Number of times a circuit breaker has opened.",
 			},
 			[]string{"service"},
 		),
-		RateLimitExceeded: promauto.NewCounterVec(
+		RateLimitExceeded: f.NewCounterVec(
 			prometheus.CounterOpts{
 				Name: "gw_ratelimit_exceeded_total",
 				Help: "Number of requests rejected due to rate limiting.",
 			},
 			[]string{"group"},
 		),
-		RateLimitRedisErrors: promauto.NewCounter(
+		RateLimitRedisErrors: f.NewCounter(
 			prometheus.CounterOpts{
 				Name: "gw_ratelimit_redis_failures_total",
 				Help: "Number of Redis failures during rate limit checks (fail-open).",
 			},
 		),
-		WebSocketConnectionsActive: promauto.NewGaugeVec(
+		WebSocketConnectionsActive: f.NewGaugeVec(
 			prometheus.GaugeOpts{
 				Name: "gw_websocket_connections_active",
 				Help: "Number of active WebSocket connections per backend service.",
 			},
 			[]string{"service"},
 		),
-		WebSocketConnectionsTotal: promauto.NewCounterVec(
+		WebSocketConnectionsTotal: f.NewCounterVec(
 			prometheus.CounterOpts{
 				Name: "gw_websocket_connections_total",
 				Help: "Total WebSocket connections established per backend service.",
 			},
 			[]string{"service"},
 		),
-		WebSocketDuration: promauto.NewHistogramVec(
+		WebSocketDuration: f.NewHistogramVec(
 			prometheus.HistogramOpts{
 				Name:    "gw_websocket_duration_seconds",
 				Help:    "WebSocket connection duration in seconds.",
@@ -127,14 +136,14 @@ func NewGatewayMetrics() *GatewayMetrics {
 			},
 			[]string{"service"},
 		),
-		AuthFailures: promauto.NewCounterVec(
+		AuthFailures: f.NewCounterVec(
 			prometheus.CounterOpts{
 				Name: "gw_auth_failures_total",
 				Help: "Number of authentication failures at the gateway.",
 			},
 			[]string{"reason"}, // "expired", "invalid", "missing", "api_key"
 		),
-		UpstreamErrors: promauto.NewCounterVec(
+		UpstreamErrors: f.NewCounterVec(
 			prometheus.CounterOpts{
 				Name: "gw_upstream_errors_total",
 				Help: "Number of upstream errors by service and error type.",

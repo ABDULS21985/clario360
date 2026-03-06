@@ -96,7 +96,8 @@ func ProxyLogging(logger zerolog.Logger, serviceName string) func(http.Handler) 
 	}
 }
 
-// redactQuery replaces the values of sensitive query params with "[REDACTED]".
+// redactQuery replaces the values of sensitive query params with [REDACTED].
+// It builds the output string manually to preserve the placeholder without URL-encoding.
 func redactQuery(raw string) string {
 	if raw == "" {
 		return ""
@@ -106,12 +107,33 @@ func redactQuery(raw string) string {
 		return "[PARSE_ERROR]"
 	}
 
-	for _, param := range sensitiveQueryParams {
-		if vals.Has(param) {
-			vals.Set(param, "[REDACTED]")
+	sensitiveSet := make(map[string]bool, len(sensitiveQueryParams))
+	for _, p := range sensitiveQueryParams {
+		sensitiveSet[p] = true
+	}
+
+	var parts []string
+	for key, values := range vals {
+		for _, v := range values {
+			if sensitiveSet[key] {
+				parts = append(parts, key+"=[REDACTED]")
+			} else {
+				parts = append(parts, key+"="+url.QueryEscape(v))
+			}
 		}
 	}
-	return vals.Encode()
+	return joinParts(parts)
+}
+
+func joinParts(parts []string) string {
+	result := ""
+	for i, p := range parts {
+		if i > 0 {
+			result += "&"
+		}
+		result += p
+	}
+	return result
 }
 
 // getClientIP extracts the real client IP from proxy headers.

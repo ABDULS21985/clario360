@@ -40,6 +40,16 @@ func (l *Limiter) Check(ctx context.Context, key string, group gwconfig.Endpoint
 	windowStart := now.Add(-limit.Window)
 	resetAt := now.Add(limit.Window)
 
+	// Fail open when Redis is unavailable (nil client or error).
+	if l.rdb == nil {
+		return Result{
+			Allowed:   true,
+			Limit:     limit.RequestsPerWindow,
+			Remaining: limit.RequestsPerWindow,
+			ResetAt:   resetAt,
+		}
+	}
+
 	allowed, remaining, err := l.slidingWindowCheck(ctx, redisKey, now, windowStart, limit.RequestsPerWindow, limit.Window)
 	if err != nil {
 		// Fail open on Redis error
