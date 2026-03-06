@@ -180,6 +180,24 @@ services:
         condition: service_healthy
 
   # ---------------------------------------------------------------------------
+  # ClamAV (Virus Scanner)
+  # ---------------------------------------------------------------------------
+  clamav:
+    image: clamav/clamav:stable
+    container_name: clario360-clamav
+    restart: unless-stopped
+    ports:
+      - "3310:3310"
+    volumes:
+      - clamav-data:/var/lib/clamav
+    healthcheck:
+      test: ["CMD-SHELL", "clamdscan --ping || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 120s
+
+  # ---------------------------------------------------------------------------
   # Jaeger (Distributed Tracing)
   # ---------------------------------------------------------------------------
   jaeger:
@@ -202,5 +220,6 @@ volumes:
   redis-data:
   kafka-data:
   minio-data:
+  clamav-data:
   prometheus-data:
   grafana-data:
