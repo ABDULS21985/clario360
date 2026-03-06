@@ -11,6 +11,7 @@ import (
 	"github.com/rs/zerolog"
 
 	"github.com/clario360/platform/internal/events"
+	"github.com/clario360/platform/internal/workflow/model"
 )
 
 const (
