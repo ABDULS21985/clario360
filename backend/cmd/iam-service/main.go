@@ -2,15 +2,19 @@ package main
 
 import (
 	"context"
-	"encoding/json"
-	"net/http"
 	"os"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/redis/go-redis/v9"
 
 	"github.com/clario360/platform/internal/config"
 	"github.com/clario360/platform/internal/database"
+	"github.com/clario360/platform/internal/events"
+	"github.com/clario360/platform/internal/iam/handler"
+	"github.com/clario360/platform/internal/iam/repository"
+	"github.com/clario360/platform/internal/iam/service"
+	"github.com/clario360/platform/internal/middleware"
 	"github.com/clario360/platform/internal/observability"
 	"github.com/clario360/platform/internal/server"
 )
@@ -21,6 +25,7 @@ func main() {
 		panic("loading config: " + err.Error())
 	}
 	cfg.Server.Port = 8081
+	cfg.Database.Name = "platform_core"
 
 	logger := observability.NewLogger(
 		cfg.Observability.LogLevel,
@@ -50,42 +55,79 @@ func main() {
 	})
 	defer rdb.Close()
 
+	// Initialize Kafka producer (optional — graceful degradation if unavailable)
+	var producer *events.Producer
+	kafkaProducer, err := events.NewProducer(cfg.Kafka, logger)
+	if err != nil {
+		logger.Warn().Err(err).Msg("kafka producer unavailable — events will not be published")
+	} else {
+		producer = kafkaProducer
+		defer producer.Close()
+	}
+
+	// ---- Repositories ----
+	userRepo := repository.NewUserRepository(db)
+	roleRepo := repository.NewRoleRepository(db)
+	sessionRepo := repository.NewSessionRepository(db)
+	tenantRepo := repository.NewTenantRepository(db)
+	apiKeyRepo := repository.NewAPIKeyRepository(db)
+
+	// ---- Services ----
 	srv := server.New(cfg, db, rdb, logger)
 
-	srv.Router.Route("/api/v1/iam", func(r chi.Router) {
-		// Public auth routes
-		r.Post("/auth/login", stubHandler("login"))
-		r.Post("/auth/refresh", stubHandler("refresh"))
+	authSvc := service.NewAuthService(
+		userRepo, sessionRepo, roleRepo, tenantRepo,
+		srv.JWTManager, rdb, producer, logger,
+		cfg.Auth.BcryptCost, cfg.Auth.RefreshTokenTTL,
+	)
+	userSvc := service.NewUserService(userRepo, roleRepo, sessionRepo, rdb, producer, logger, cfg.Auth.BcryptCost)
+	roleSvc := service.NewRoleService(roleRepo, userRepo, producer, logger)
+	tenantSvc := service.NewTenantService(tenantRepo, roleRepo, producer, logger)
+	apiKeySvc := service.NewAPIKeyService(apiKeyRepo, producer, logger)
 
-		// Protected routes
-		auth := srv.AuthenticatedRoutes()
-		auth.Get("/users", stubHandler("list_users"))
-		auth.Post("/users", stubHandler("create_user"))
-		auth.Get("/users/{id}", stubHandler("get_user"))
-		auth.Put("/users/{id}", stubHandler("update_user"))
-		auth.Delete("/users/{id}", stubHandler("delete_user"))
-		auth.Get("/roles", stubHandler("list_roles"))
-		auth.Post("/roles", stubHandler("create_role"))
-		auth.Get("/tenants", stubHandler("list_tenants"))
-		auth.Post("/tenants", stubHandler("create_tenant"))
+	// ---- Handlers ----
+	authHandler := handler.NewAuthHandler(authSvc, logger)
+	userHandler := handler.NewUserHandler(userSvc, logger)
+	roleHandler := handler.NewRoleHandler(roleSvc, logger)
+	tenantHandler := handler.NewTenantHandler(tenantSvc, logger)
+	apiKeyHandler := handler.NewAPIKeyHandler(apiKeySvc, logger)
 
-		r.Mount("/", auth)
+	// ---- Routes ----
+	srv.Router.Route("/api/v1", func(r chi.Router) {
+		// Public auth routes (no auth middleware)
+		r.Mount("/auth", authHandler.Routes())
+
+		// Login rate limiting on auth routes
+		r.Group(func(r chi.Router) {
+			r.Use(middleware.RateLimit(rdb, middleware.RateLimitConfig{
+				RequestsPerWindow: 20,
+				Window:            1 * time.Minute,
+				KeyPrefix:         "ratelimit:auth",
+			}))
+		})
+
+		// Protected routes (require authentication)
+		r.Group(func(r chi.Router) {
+			r.Use(middleware.Auth(srv.JWTManager))
+			r.Use(middleware.RateLimit(rdb, middleware.DefaultRateLimitConfig()))
+			r.Use(middleware.Tenant)
+
+			r.Mount("/users", userHandler.Routes())
+			r.Mount("/roles", roleHandler.Routes())
+			r.Mount("/tenants", tenantHandler.Routes())
+			r.Mount("/api-keys", apiKeyHandler.Routes())
+
+			// Nested user role routes: POST /users/{id}/roles, DELETE /users/{id}/roles/{roleId}
+			r.Route("/users/{id}/roles", func(r chi.Router) {
+				r.Post("/", roleHandler.AssignRole)
+				r.Delete("/{roleId}", roleHandler.RemoveRole)
+			})
+		})
 	})
 
 	logger.Info().Int("port", cfg.Server.Port).Msg("iam-service starting")
 	if err := srv.Start(); err != nil {
 		logger.Fatal().Err(err).Msg("server failed")
 		os.Exit(1)
-	}
-}
-
-func stubHandler(operation string) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(map[string]string{
-			"service":   "iam",
-			"operation": operation,
-			"status":    "not_implemented",
-		})
 	}
 }
