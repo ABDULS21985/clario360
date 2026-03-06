@@ -49,8 +49,9 @@ const server = setupServer(
       },
     }),
   ),
-  // BFF session endpoint
+  // BFF session endpoint (Next.js API route — relative path becomes http://localhost:8080 in tests)
   http.post('/api/auth/session', () => HttpResponse.json({ success: true })),
+  http.post(`${API_URL}/api/auth/session`, () => HttpResponse.json({ success: true })),
   http.get('/api/v1/users/me', () =>
     HttpResponse.json({
       id: 'u1',

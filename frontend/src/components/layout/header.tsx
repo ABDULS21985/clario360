@@ -10,44 +10,49 @@ import { UserMenu } from './user-menu';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 export function Header() {
-  const { user, logout } = useAuth();
+  const { toggleMobileOpen } = useSidebar();
+  const isMobile = useIsMobile();
+  const { setOpen } = useCommandPalette();
+
+  const isMac = typeof window !== 'undefined'
+    ? navigator.platform.toUpperCase().includes('MAC')
+    : true;
+  const shortcutLabel = isMac ? '⌘K' : 'Ctrl+K';
 
   return (
-    <header className="flex h-14 items-center justify-between border-b bg-card px-6">
-      <div className="flex items-center gap-4">
-        <h2 className="text-sm font-medium text-muted-foreground">
-          Enterprise AI Platform
-        </h2>
-      </div>
-
-      <div className="flex items-center gap-4">
-        {/* Notifications */}
-        <button
-          className="rounded-md p-2 text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-          aria-label="Notifications"
-        >
-          <span className="text-sm">Bell</span>
-        </button>
-
-        {/* User menu */}
-        <div className="flex items-center gap-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-xs font-medium text-primary-foreground">
-            {user?.email?.charAt(0).toUpperCase() || "U"}
-          </div>
-          <div className="hidden md:block">
-            <p className="text-sm font-medium">{user?.email || "User"}</p>
-            <p className="text-xs text-muted-foreground">
-              {user?.roles?.[0]?.name ?? 'viewer'}
-            </p>
-          </div>
-          <button
-            onClick={logout}
-            className="ml-2 rounded-md px-3 py-1.5 text-xs font-medium text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-          >
-            Sign out
-          </button>
+    <TooltipProvider>
+      <header className="sticky top-0 z-30 flex h-16 shrink-0 items-center justify-between border-b bg-card px-4 shadow-sm">
+        <div className="flex items-center gap-3 min-w-0 flex-1">
+          {isMobile && (
+            <button
+              onClick={toggleMobileOpen}
+              aria-label="Open navigation menu"
+              className="rounded-md p-2 text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+            >
+              <Menu className="h-5 w-5" />
+            </button>
+          )}
+          <Breadcrumbs />
         </div>
-      </div>
-    </header>
+
+        <div className="flex items-center gap-1 shrink-0">
+          <Tooltip delayDuration={300}>
+            <TooltipTrigger asChild>
+              <button
+                onClick={() => setOpen(true)}
+                aria-label={`Search (${shortcutLabel})`}
+                className="rounded-md p-2 text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+              >
+                <Search className="h-4 w-4" />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent>Search ({shortcutLabel})</TooltipContent>
+          </Tooltip>
+
+          <NotificationDropdown />
+          <UserMenu />
+        </div>
+      </header>
+    </TooltipProvider>
   );
 }
