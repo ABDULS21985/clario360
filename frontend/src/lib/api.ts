@@ -188,7 +188,7 @@ function buildApiError(error: AxiosError): ApiError {
 
 // ── Typed helpers ─────────────────────────────────────────────────────────────
 
-export async function apiGet<T>(url: string, params?: Record<string, unknown>): Promise<T> {
+export async function apiGet<T>(url: string, params?: Record<string, unknown> | object): Promise<T> {
   const response = await api.get<T>(url, { params });
   return response.data;
 }

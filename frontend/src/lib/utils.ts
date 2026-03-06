@@ -70,3 +70,8 @@ export function downloadTextFile(content: string, filename: string): void {
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
 }
+
+/** Promise-based delay — use only for staggered animations, never for fake loading states. */
+export function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}

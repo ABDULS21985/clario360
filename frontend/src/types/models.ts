@@ -109,13 +109,20 @@ export interface WorkflowTask {
 export interface AuditLog {
   id: string;
   tenant_id: string;
-  user_id: string;
+  user_id: string | null;
   user_email: string;
   action: string;
+  service?: string;
   resource_type: string;
   resource_id: string | null;
+  old_value?: Record<string, unknown> | null;
+  new_value?: Record<string, unknown> | null;
+  severity?: 'info' | 'warning' | 'high' | 'critical';
   ip_address: string;
   user_agent: string;
+  correlation_id?: string;
+  entry_hash?: string;
+  prev_hash?: string;
   metadata: Record<string, unknown>;
   created_at: string;
 }

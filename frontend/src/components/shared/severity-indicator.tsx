@@ -1,7 +1,7 @@
 import { AlertTriangle, AlertCircle, Info, ArrowDown, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-type Severity = "critical" | "high" | "medium" | "low" | "info";
+export type Severity = "critical" | "high" | "medium" | "low" | "info";
 
 interface SeverityIndicatorProps {
   severity: Severity;
