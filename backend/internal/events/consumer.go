@@ -106,7 +106,7 @@ func NewConsumerWithConfig(cfg ConsumerConfig, logger zerolog.Logger) (*Consumer
 		groupID: cfg.GroupID,
 		handler: &consumerGroupHandler{
 			logger:   logger,
-			handlers: make(map[string]EventHandler),
+			handlers: make(map[string][]EventHandler),
 			ready:    make(chan struct{}),
 		},
 		logger:    logger,
@@ -120,7 +120,7 @@ func NewConsumerWithConfig(cfg ConsumerConfig, logger zerolog.Logger) (*Consumer
 func (c *Consumer) Subscribe(topic string, handler EventHandler) {
 	c.handler.mu.Lock()
 	defer c.handler.mu.Unlock()
-	c.handler.handlers[topic] = handler
+	c.handler.handlers[topic] = append(c.handler.handlers[topic], handler)
 	c.logger.Info().Str("topic", topic).Msg("handler registered")
 }
 
@@ -188,7 +188,7 @@ func (c *Consumer) GroupID() string {
 // consumerGroupHandler implements sarama.ConsumerGroupHandler with manual offset commit.
 type consumerGroupHandler struct {
 	logger   zerolog.Logger
-	handlers map[string]EventHandler
+	handlers map[string][]EventHandler
 	mu       sync.RWMutex
 	ready    chan struct{}
 }
@@ -230,10 +230,10 @@ func (h *consumerGroupHandler) ConsumeClaim(session sarama.ConsumerGroupSession,
 		}
 
 		h.mu.RLock()
-		handler, ok := h.handlers[msg.Topic]
+		handlers, ok := h.handlers[msg.Topic]
 		h.mu.RUnlock()
 
-		if !ok {
+		if !ok || len(handlers) == 0 {
 			h.logger.Warn().
 				Str("topic", msg.Topic).
 				Str("event_id", event.ID).
@@ -243,15 +243,17 @@ func (h *consumerGroupHandler) ConsumeClaim(session sarama.ConsumerGroupSession,
 			continue
 		}
 
-		if err := handler.Handle(ctx, &event); err != nil {
-			h.logger.Error().
-				Err(err).
-				Str("topic", msg.Topic).
-				Str("event_id", event.ID).
-				Str("event_type", event.Type).
-				Str("tenant_id", event.TenantID).
-				Msg("failed to handle event")
-			// Still mark the message — middleware chain handles retries/DLQ
+		for _, handler := range handlers {
+			if err := handler.Handle(ctx, &event); err != nil {
+				h.logger.Error().
+					Err(err).
+					Str("topic", msg.Topic).
+					Str("event_id", event.ID).
+					Str("event_type", event.Type).
+					Str("tenant_id", event.TenantID).
+					Msg("failed to handle event")
+				// Still mark the message — middleware chain handles retries/DLQ
+			}
 		}
 
 		// Manual offset commit after processing

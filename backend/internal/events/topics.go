@@ -19,6 +19,8 @@ var Topics = struct {
 	CtemEvents          string
 	RiskEvents          string
 	RemediationEvents   string
+	DSPMEvents          string
+	VCISOEvents         string
 
 	// Data
 	DataSourceEvents    string
@@ -51,6 +53,8 @@ var Topics = struct {
 	CtemEvents:          "cyber.ctem.events",
 	RiskEvents:          "cyber.risk.events",
 	RemediationEvents:   "cyber.remediation.events",
+	DSPMEvents:          "cyber.dspm.events",
+	VCISOEvents:         "cyber.vciso.events",
 
 	// Data
 	DataSourceEvents:    "data.source.events",
@@ -101,6 +105,8 @@ func AllTopics() []string {
 		Topics.CtemEvents,
 		Topics.RiskEvents,
 		Topics.RemediationEvents,
+		Topics.DSPMEvents,
+		Topics.VCISOEvents,
 		Topics.DataSourceEvents,
 		Topics.PipelineEvents,
 		Topics.QualityEvents,

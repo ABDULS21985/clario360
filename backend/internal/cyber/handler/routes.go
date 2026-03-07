@@ -24,6 +24,9 @@ func RegisterRoutes(
 	riskHandler *RiskHandler,
 	dashboardHandler *DashboardHandler,
 	vulnerabilityHandler *VulnerabilityHandler,
+	remediationHandler *RemediationHandler,
+	dspmHandler *DSPMHandler,
+	vcisoHandler *VCISOHandler,
 	jwtMgr *auth.JWTManager,
 	rdb *redis.Client,
 ) {
@@ -137,6 +140,46 @@ func RegisterRoutes(
 			r.Get("/dashboard/top-attacked-assets", dashboardHandler.GetTopAttackedAssets)
 			r.Get("/dashboard/mitre-heatmap", dashboardHandler.GetMITREHeatmap)
 			r.Get("/dashboard/trends", dashboardHandler.GetTrends)
+		}
+
+		if remediationHandler != nil {
+			r.Get("/remediation/stats", remediationHandler.Stats)
+			r.Post("/remediation", remediationHandler.Create)
+			r.Get("/remediation", remediationHandler.List)
+			r.Get("/remediation/{id}", remediationHandler.Get)
+			r.Put("/remediation/{id}", remediationHandler.Update)
+			r.Delete("/remediation/{id}", remediationHandler.Delete)
+			r.Post("/remediation/{id}/submit", remediationHandler.Submit)
+			r.Post("/remediation/{id}/approve", remediationHandler.Approve)
+			r.Post("/remediation/{id}/reject", remediationHandler.Reject)
+			r.Post("/remediation/{id}/request-revision", remediationHandler.RequestRevision)
+			r.Post("/remediation/{id}/dry-run", remediationHandler.DryRun)
+			r.Get("/remediation/{id}/dry-run", remediationHandler.GetDryRun)
+			r.Post("/remediation/{id}/execute", remediationHandler.Execute)
+			r.Post("/remediation/{id}/verify", remediationHandler.Verify)
+			r.Post("/remediation/{id}/rollback", remediationHandler.Rollback)
+			r.Post("/remediation/{id}/close", remediationHandler.Close)
+			r.Get("/remediation/{id}/audit-trail", remediationHandler.AuditTrail)
+		}
+
+		if dspmHandler != nil {
+			r.Get("/dspm/data-assets", dspmHandler.ListDataAssets)
+			r.Get("/dspm/data-assets/{id}", dspmHandler.GetDataAsset)
+			r.Post("/dspm/scan", dspmHandler.TriggerScan)
+			r.Get("/dspm/scans", dspmHandler.ListScans)
+			r.Get("/dspm/scans/{id}", dspmHandler.GetScan)
+			r.Get("/dspm/classification", dspmHandler.Classification)
+			r.Get("/dspm/exposure", dspmHandler.Exposure)
+			r.Get("/dspm/dependencies", dspmHandler.Dependencies)
+			r.Get("/dspm/dashboard", dspmHandler.Dashboard)
+		}
+
+		if vcisoHandler != nil {
+			r.Get("/vciso/briefing", vcisoHandler.Briefing)
+			r.Get("/vciso/briefing/history", vcisoHandler.BriefingHistory)
+			r.Get("/vciso/recommendations", vcisoHandler.Recommendations)
+			r.Post("/vciso/report", vcisoHandler.Report)
+			r.Get("/vciso/posture-summary", vcisoHandler.PostureSummary)
 		}
 
 		if ctemHandler != nil && ctemReportHandler != nil {

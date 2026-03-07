@@ -25,15 +25,20 @@ import (
 	cyberctem "github.com/clario360/platform/internal/cyber/ctem"
 	cyberdashboard "github.com/clario360/platform/internal/cyber/dashboard"
 	"github.com/clario360/platform/internal/cyber/detection"
+	cyberdspm "github.com/clario360/platform/internal/cyber/dspm"
 	"github.com/clario360/platform/internal/cyber/enrichment"
 	"github.com/clario360/platform/internal/cyber/handler"
 	"github.com/clario360/platform/internal/cyber/indicator"
 	cybermetrics "github.com/clario360/platform/internal/cyber/metrics"
+	"github.com/clario360/platform/internal/cyber/model"
+	cyberremediation "github.com/clario360/platform/internal/cyber/remediation"
+	remediationstrategy "github.com/clario360/platform/internal/cyber/remediation/strategy"
 	"github.com/clario360/platform/internal/cyber/repository"
 	cyberrisk "github.com/clario360/platform/internal/cyber/risk"
 	riskcomponents "github.com/clario360/platform/internal/cyber/risk/components"
 	"github.com/clario360/platform/internal/cyber/scanner"
 	"github.com/clario360/platform/internal/cyber/service"
+	cybervciso "github.com/clario360/platform/internal/cyber/vciso"
 	"github.com/clario360/platform/internal/database"
 	"github.com/clario360/platform/internal/events"
 	bootstrap "github.com/clario360/platform/internal/observability/bootstrap"
@@ -129,6 +134,10 @@ func main() {
 	ctemFindingRepo := repository.NewCTEMFindingRepository(db, logger)
 	ctemRemGroupRepo := repository.NewCTEMRemediationGroupRepository(db, logger)
 	ctemSnapshotRepo := repository.NewCTEMSnapshotRepository(db, logger)
+	remediationRepo := repository.NewRemediationRepository(db, logger)
+	remediationAuditRepo := repository.NewRemediationAuditRepository(db, logger)
+	dspmRepo := repository.NewDSPMRepository(db, logger)
+	vcisoRepo := repository.NewVCISORepository(db, logger)
 
 	workflowDefRepo := workflowrepo.NewDefinitionRepository(db)
 	workflowInstRepo := workflowrepo.NewInstanceRepository(db)
@@ -243,17 +252,56 @@ func main() {
 	riskSnapshotSvc := cyberrisk.NewSnapshotService(db, riskScorer, riskHistoryRepo, producer, m, logger)
 	riskSvc := service.NewRiskService(riskScorer, riskSnapshotSvc, riskHistoryRepo, vulnRepo, producer, logger)
 	vulnerabilitySvc := service.NewVulnerabilityService(vulnRepo, producer, m, logger)
+	mttrCalc := cyberdashboard.NewMTTRCalculator(db, m)
 	dashboardSvc := service.NewDashboardService(
 		cyberdashboard.NewCache(rdb),
 		dashboardRepo,
 		cyberdashboard.NewKPICalculator(db),
 		cyberdashboard.NewTimelineCalculator(db),
 		cyberdashboard.NewTrendCalculator(db),
-		cyberdashboard.NewMTTRCalculator(db, m),
+		mttrCalc,
 		cyberdashboard.NewWorkloadCalculator(db),
 		cyberdashboard.NewMITREHeatmapCalculator(db),
 		riskScorer,
 		m,
+		logger,
+	)
+	dspmClassifier := cyberdspm.NewDSPMClassifier()
+	dspmPosture := cyberdspm.NewPostureAssessor()
+	dspmDependency := cyberdspm.NewDependencyMapper(db)
+	dspmScanner := cyberdspm.NewDSPMScanner(db, dspmRepo, dspmClassifier, dspmPosture, dspmDependency, logger)
+	dspmSvc := service.NewDSPMService(dspmRepo, dspmScanner, dspmDependency, producer, logger)
+	vcisoRecommender := cybervciso.NewRecommendationAggregator(db, recommendationEngine, logger)
+	vcisoBriefing := cybervciso.NewBriefingGenerator(db, riskScorer, mttrCalc, vcisoRecommender, logger)
+	vcisoReporter := cybervciso.NewReportGenerator(vcisoBriefing, logger)
+	vcisoSvc := service.NewVCISOService(vcisoRepo, vcisoBriefing, vcisoRecommender, vcisoReporter, riskScorer, producer, logger)
+	remediationAuditTrail := cyberremediation.NewAuditTrail(remediationAuditRepo, logger)
+	remediationStrategies := map[model.RemediationType]remediationstrategy.RemediationStrategy{
+		model.RemediationTypePatch:        remediationstrategy.NewPatchStrategy(db, logger),
+		model.RemediationTypeConfigChange: remediationstrategy.NewConfigStrategy(db, logger),
+		model.RemediationTypeBlockIP:      remediationstrategy.NewBlockStrategy(db, logger),
+		model.RemediationTypeFirewallRule: remediationstrategy.NewBlockStrategy(db, logger),
+		model.RemediationTypeIsolateAsset: remediationstrategy.NewIsolateStrategy(db, logger),
+		model.RemediationTypeAccessRevoke: remediationstrategy.NewConfigStrategy(db, logger),
+		model.RemediationTypeCertRenew:    remediationstrategy.NewConfigStrategy(db, logger),
+		model.RemediationTypeCustom:       remediationstrategy.NewCustomStrategy(),
+	}
+	remediationExecutor := cyberremediation.NewRemediationExecutor(
+		remediationStrategies,
+		remediationAuditTrail,
+		remediationRepo,
+		alertRepo,
+		vulnRepo,
+		producer,
+		logger,
+	)
+	remediationSvc := service.NewRemediationService(
+		remediationRepo,
+		remediationAuditRepo,
+		assetRepo,
+		remediationExecutor,
+		remediationAuditTrail,
+		producer,
 		logger,
 	)
 
@@ -275,6 +323,9 @@ func main() {
 	riskHandler := handler.NewRiskHandler(riskSvc)
 	dashboardHandler := handler.NewDashboardHandler(dashboardSvc)
 	vulnerabilityHandler := handler.NewVulnerabilityHandler(vulnerabilitySvc)
+	remediationHandler := handler.NewRemediationHandler(remediationSvc)
+	dspmHandler := handler.NewDSPMHandler(dspmSvc)
+	vcisoHandler := handler.NewVCISOHandler(vcisoSvc)
 	handler.RegisterRoutes(
 		svc.Router,
 		assetHandler,
@@ -287,6 +338,9 @@ func main() {
 		riskHandler,
 		dashboardHandler,
 		vulnerabilityHandler,
+		remediationHandler,
+		dspmHandler,
+		vcisoHandler,
 		jwtMgr,
 		rdb,
 	)
@@ -301,6 +355,7 @@ func main() {
 			cyberConsumer = consumer.NewCyberConsumer(assetSvc, detectionSvc, cyberCfg.SecurityEventTopic, kafkaConsumer, logger)
 			_ = consumer.NewCTEMConsumer(ctemSvc, kafkaConsumer, logger)
 			_ = consumer.NewRiskConsumer(riskSvc, dashboardSvc, rdb, kafkaConsumer, logger)
+			_ = consumer.NewRemediationConsumer(remediationSvc, remediationRepo, ctemRemGroupRepo, ctemFindingRepo, kafkaConsumer, logger)
 		}
 	}
 
