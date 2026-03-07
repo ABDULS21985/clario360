@@ -11,10 +11,14 @@ interface NotificationListProps {
   isLoading: boolean;
   isLoadingMore: boolean;
   hasMore: boolean;
+  limitReached?: boolean;
+  error?: string | null;
   onLoadMore: () => void;
   onMarkRead: (id: string) => void;
   onDelete: (id: string) => void;
+  onNavigate?: (url: string) => void;
   sentinelRef: (el: HTMLDivElement | null) => void;
+  newIds?: string[];
   category?: string;
 }
 
@@ -37,10 +41,14 @@ export function NotificationList({
   isLoading,
   isLoadingMore,
   hasMore,
+  limitReached = false,
+  error,
   onLoadMore,
   onMarkRead,
   onDelete,
+  onNavigate,
   sentinelRef,
+  newIds = [],
   category = 'all',
 }: NotificationListProps) {
   if (isLoading) {
@@ -55,6 +63,14 @@ export function NotificationList({
 
   if (notifications.length === 0) {
     return <NotificationEmpty category={category} />;
+  }
+
+  if (error) {
+    return (
+      <div className="px-4 py-8 text-center text-sm text-destructive">
+        {error}
+      </div>
+    );
   }
 
   const groups = groupNotificationsByDate(notifications);
@@ -75,6 +91,8 @@ export function NotificationList({
                 notification={notif}
                 onMarkRead={onMarkRead}
                 onDelete={onDelete}
+                onNavigate={onNavigate}
+                isNew={newIds.includes(notif.id)}
               />
             ))}
           </div>
@@ -97,7 +115,11 @@ export function NotificationList({
 
       {!hasMore && notifications.length > 0 && (
         <div className="px-4 py-6 text-center">
-          <p className="text-xs text-muted-foreground">No more notifications.</p>
+          <p className="text-xs text-muted-foreground">
+            {limitReached
+              ? `Showing most recent ${notifications.length} notifications.`
+              : 'No more notifications.'}
+          </p>
         </div>
       )}
 

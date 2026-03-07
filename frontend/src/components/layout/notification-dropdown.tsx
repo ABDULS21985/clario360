@@ -4,11 +4,13 @@ import { useState, useRef, useEffect } from 'react';
 import { Bell, Shield, Database, Workflow, Settings, Gavel, AlertTriangle } from 'lucide-react';
 import Link from 'next/link';
 import { useNotificationStore } from '@/stores/notification-store';
-import { apiPut } from '@/lib/api';
 import { timeAgo } from '@/lib/utils';
 import { cn } from '@/lib/utils';
 import { LoadingSkeleton } from '@/components/common/loading-skeleton';
 import type { Notification, NotificationCategory } from '@/types/models';
+import { useNotificationActions } from '@/hooks/use-notification-actions';
+import { LiveIndicator } from '@/components/realtime/live-indicator';
+import { isNotificationRead } from '@/lib/notification-utils';
 
 function getCategoryIcon(category: NotificationCategory) {
   const icons: Record<NotificationCategory, React.ElementType> = {
@@ -37,28 +39,30 @@ function NotificationItem({
   onRead,
 }: {
   notification: Notification;
-  onRead: (id: string, url?: string) => void;
+  onRead: (id: string, url?: string | null) => void;
 }) {
   const Icon = getCategoryIcon(notification.category);
   const iconColor = getPriorityColor(notification.priority);
+  const unread = !isNotificationRead(notification);
 
   return (
     <button
       onClick={() => onRead(notification.id, notification.action_url)}
       className={cn(
         'flex w-full items-start gap-3 px-4 py-3 text-left transition-colors hover:bg-accent/50',
-        !notification.read && 'bg-primary/5',
+        unread && 'bg-primary/5',
       )}
+      type="button"
     >
       <div className={cn('mt-0.5 shrink-0', iconColor)}>
         <Icon className="h-4 w-4" />
       </div>
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
-          {!notification.read && (
+          {unread && (
             <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-primary" aria-hidden="true" />
           )}
-          <p className={cn('truncate text-sm', !notification.read && 'font-medium')}>
+          <p className={cn('truncate text-sm', unread && 'font-medium')}>
             {notification.title}
           </p>
         </div>
@@ -73,18 +77,25 @@ export function NotificationDropdown() {
   const [open, setOpen] = useState(false);
   const [markingAll, setMarkingAll] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
-  const { unreadCount, recentNotifications, isInitialized, markAsRead, markAllAsRead } =
-    useNotificationStore();
+  const {
+    unreadCount,
+    recentNotifications,
+    isInitialized,
+    connectionStatus,
+    reconnectAttempt,
+    requestReconnect,
+  } = useNotificationStore();
+  const { markAsRead, markAllAsRead } = useNotificationActions();
 
   useEffect(() => {
     if (!open) return;
-    const handleClickOutside = (e: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
         setOpen(false);
       }
     };
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setOpen(false);
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setOpen(false);
     };
     document.addEventListener('mousedown', handleClickOutside);
     document.addEventListener('keydown', handleKeyDown);
@@ -94,24 +105,18 @@ export function NotificationDropdown() {
     };
   }, [open]);
 
-  const handleRead = async (id: string, url?: string) => {
-    try {
-      await apiPut(`/api/v1/notifications/${id}/read`);
-      markAsRead(id);
-    } catch {
-      markAsRead(id);
-    }
+  const handleRead = async (id: string, url?: string | null) => {
+    await markAsRead(id);
     setOpen(false);
-    if (url) window.location.href = url;
+    if (url) {
+      window.location.href = url;
+    }
   };
 
   const handleMarkAllRead = async () => {
     setMarkingAll(true);
     try {
-      await apiPut('/api/v1/notifications/read-all');
-      markAllAsRead();
-    } catch {
-      markAllAsRead();
+      await markAllAsRead();
     } finally {
       setMarkingAll(false);
     }
@@ -120,12 +125,20 @@ export function NotificationDropdown() {
   return (
     <div ref={dropdownRef} className="relative">
       <button
-        onClick={() => setOpen((v) => !v)}
+        onClick={() => setOpen((value) => !value)}
         aria-label={`Notifications${unreadCount > 0 ? ` (${unreadCount} unread)` : ''}`}
         aria-expanded={open}
         className="relative rounded-md p-2 text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+        type="button"
       >
         <Bell className="h-4 w-4" />
+        <span className="absolute -right-0.5 -top-0.5">
+          <LiveIndicator
+            status={connectionStatus}
+            attempt={reconnectAttempt}
+            onReconnect={requestReconnect}
+          />
+        </span>
         {unreadCount > 0 && (
           <span className="absolute right-1 top-1 flex h-4 w-4 items-center justify-center rounded-full bg-destructive text-[10px] font-bold text-destructive-foreground">
             {unreadCount > 9 ? '9+' : unreadCount}
@@ -134,8 +147,7 @@ export function NotificationDropdown() {
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full mt-1 w-80 max-h-[70vh] overflow-hidden rounded-lg border bg-popover shadow-lg flex flex-col z-50">
-          {/* Header */}
+        <div className="absolute right-0 top-full z-50 mt-1 flex max-h-[70vh] w-80 flex-col overflow-hidden rounded-lg border bg-popover shadow-lg">
           <div className="flex items-center justify-between border-b px-4 py-3">
             <h3 className="text-sm font-semibold">Notifications</h3>
             {unreadCount > 0 && (
@@ -143,35 +155,38 @@ export function NotificationDropdown() {
                 onClick={handleMarkAllRead}
                 disabled={markingAll}
                 className="text-xs text-primary hover:underline disabled:opacity-50"
+                type="button"
               >
                 Mark all read
               </button>
             )}
           </div>
 
-          {/* Body */}
-          <div className="overflow-y-auto flex-1">
+          <div className="flex-1 overflow-y-auto">
             {!isInitialized ? (
               <div className="p-4">
                 <LoadingSkeleton variant="list-item" count={3} />
               </div>
             ) : recentNotifications.length === 0 ? (
-              <div className="flex flex-col items-center py-10 text-center px-4">
-                <Bell className="h-8 w-8 text-muted-foreground mb-2" />
+              <div className="flex flex-col items-center px-4 py-10 text-center">
+                <Bell className="mb-2 h-8 w-8 text-muted-foreground" />
                 <p className="text-sm text-muted-foreground">
                   {"You're all caught up! No new notifications."}
                 </p>
               </div>
             ) : (
               <div className="divide-y">
-                {recentNotifications.map((n) => (
-                  <NotificationItem key={n.id} notification={n} onRead={handleRead} />
+                {recentNotifications.map((notification) => (
+                  <NotificationItem
+                    key={notification.id}
+                    notification={notification}
+                    onRead={handleRead}
+                  />
                 ))}
               </div>
             )}
           </div>
 
-          {/* Footer */}
           <div className="border-t px-4 py-2">
             <Link
               href="/notifications"

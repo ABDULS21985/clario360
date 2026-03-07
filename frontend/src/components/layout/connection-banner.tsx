@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { WifiOff, RefreshCw, X, CheckCircle2 } from 'lucide-react';
 import { useNotificationStore } from '@/stores/notification-store';
 import { cn } from '@/lib/utils';
@@ -9,13 +9,16 @@ const BANNER_DISMISSED_KEY = 'clario360_banner_dismissed';
 
 export function ConnectionBanner() {
   const connectionStatus = useNotificationStore((s) => s.connectionStatus);
+  const reconnectAttempt = useNotificationStore((s) => s.reconnectAttempt);
+  const nextRetryAt = useNotificationStore((s) => s.nextRetryAt);
   const [dismissed, setDismissed] = useState(false);
   const [showRestored, setShowRestored] = useState(false);
-  const prevStatusRef = useState<string | null>(null);
+  const [countdown, setCountdown] = useState(0);
+  const prevStatusRef = useRef<string | null>(null);
 
   // Show "Connection restored" briefly when transitioning back to connected
   useEffect(() => {
-    const prev = prevStatusRef[0];
+    const prev = prevStatusRef.current;
     if (
       connectionStatus === 'connected' &&
       prev !== null &&
@@ -26,16 +29,34 @@ export function ConnectionBanner() {
       const timer = setTimeout(() => setShowRestored(false), 3000);
       return () => clearTimeout(timer);
     }
-    prevStatusRef[1](connectionStatus);
-  }, [connectionStatus, prevStatusRef]);
+    prevStatusRef.current = connectionStatus;
+  }, [connectionStatus]);
 
   // Dismiss resets on new disconnect cycle
   useEffect(() => {
     if (connectionStatus !== 'connected' && connectionStatus !== 'connecting') {
       const wasDismissed = sessionStorage.getItem(BANNER_DISMISSED_KEY) === '1';
       setDismissed(wasDismissed);
+    } else if (connectionStatus === 'connected') {
+      sessionStorage.removeItem(BANNER_DISMISSED_KEY);
+      setDismissed(false);
     }
   }, [connectionStatus]);
+
+  useEffect(() => {
+    if (connectionStatus !== 'reconnecting' || !nextRetryAt) {
+      setCountdown(0);
+      return;
+    }
+
+    const updateCountdown = () => {
+      setCountdown(Math.max(0, Math.ceil((nextRetryAt - Date.now()) / 1000)));
+    };
+
+    updateCountdown();
+    const interval = setInterval(updateCountdown, 1000);
+    return () => clearInterval(interval);
+  }, [connectionStatus, nextRetryAt]);
 
   const handleDismiss = () => {
     setDismissed(true);
@@ -77,9 +98,14 @@ export function ConnectionBanner() {
       <WifiOff className="h-4 w-4 shrink-0" />
       <span className="flex-1 text-center">
         {isReconnecting
-          ? 'Connection lost. Attempting to reconnect...'
+          ? `Connection lost. Attempting to reconnect${countdown > 0 ? ` in ${countdown}s` : '...'}`
           : 'Unable to establish real-time connection. Some features may not update automatically.'}
       </span>
+      {isReconnecting && (
+        <span className="hidden text-xs sm:inline">
+          Attempt {reconnectAttempt}
+        </span>
+      )}
       {isFailed && (
         <div className="flex items-center gap-2">
           <button

@@ -22,19 +22,19 @@ const TABS: CategoryTab[] = [
 interface NotificationCategoryTabsProps {
   activeTab: string;
   onTabChange: (tab: string) => void;
-  unreadCount?: number;
+  counts?: Partial<Record<string, number>>;
 }
 
 export function NotificationCategoryTabs({
   activeTab,
   onTabChange,
-  unreadCount = 0,
+  counts = {},
 }: NotificationCategoryTabsProps) {
   return (
     <Tabs value={activeTab} onValueChange={onTabChange}>
       <TabsList className="flex h-auto w-full flex-wrap justify-start gap-1 bg-transparent p-0">
         {TABS.map((tab) => {
-          const count = tab.key === 'unread' ? unreadCount : tab.count;
+          const count = counts[tab.key] ?? tab.count;
           return (
             <TabsTrigger
               key={tab.key}

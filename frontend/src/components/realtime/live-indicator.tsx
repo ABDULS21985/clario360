@@ -1,16 +1,18 @@
 'use client';
 
 import { useCallback } from 'react';
+import { X } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 import type { ConnectionStatus } from '@/types/models';
 
 interface LiveIndicatorProps {
   status: ConnectionStatus;
+  attempt?: number;
   onReconnect?: () => void;
 }
 
-export function LiveIndicator({ status, onReconnect }: LiveIndicatorProps) {
+export function LiveIndicator({ status, attempt, onReconnect }: LiveIndicatorProps) {
   const handleClick = useCallback(() => {
     if ((status === 'disconnected' || status === 'failed') && onReconnect) {
       onReconnect();
@@ -20,7 +22,7 @@ export function LiveIndicator({ status, onReconnect }: LiveIndicatorProps) {
   const tooltipText: Record<ConnectionStatus, string> = {
     connected: 'Real-time updates active',
     connecting: 'Connecting...',
-    reconnecting: 'Reconnecting...',
+    reconnecting: `Reconnecting...${attempt ? ` (attempt ${attempt})` : ''}`,
     disconnected: 'Disconnected. Click to reconnect.',
     failed: 'Connection failed. Refresh page to retry.',
   };
@@ -35,10 +37,11 @@ export function LiveIndicator({ status, onReconnect }: LiveIndicatorProps) {
           disabled={!isClickable}
           aria-label={tooltipText[status]}
           className={cn(
-            'relative flex h-2 w-2 shrink-0 rounded-full',
+            'relative flex h-2.5 w-2.5 shrink-0 items-center justify-center rounded-full',
             isClickable && 'cursor-pointer',
             !isClickable && 'cursor-default',
           )}
+          type="button"
         >
           <span
             className={cn(
@@ -57,6 +60,9 @@ export function LiveIndicator({ status, onReconnect }: LiveIndicatorProps) {
               status === 'failed' && 'bg-red-600',
             )}
           />
+          {status === 'failed' && (
+            <X className="absolute h-2 w-2 text-white" />
+          )}
         </button>
       </TooltipTrigger>
       <TooltipContent side="bottom">
