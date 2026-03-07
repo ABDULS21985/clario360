@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef } from 'react';
-import { useForm } from 'react-hook-form';
+import { useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { buildDynamicZodSchema } from '@/lib/workflow-utils';
 import type { FormField } from '@/types/models';
@@ -41,21 +41,33 @@ export function useTaskForm({
   });
 
   const autoSaveTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const latestValuesRef = useRef<Record<string, unknown>>(defaultValues);
+  const isDirtyRef = useRef(false);
+  const watchedValues = useWatch({ control: form.control });
+
+  useEffect(() => {
+    latestValuesRef.current = (watchedValues as Record<string, unknown> | undefined) ?? {};
+    isDirtyRef.current = form.formState.isDirty;
+  }, [form.formState.isDirty, watchedValues]);
 
   // Auto-save draft every 30 seconds if form is dirty
   useEffect(() => {
     if (!onDraftSave || readOnly) return;
 
-    autoSaveTimerRef.current = setInterval(() => {
-      if (form.formState.isDirty) {
-        onDraftSave(form.getValues());
+    const saveDraftIfDirty = () => {
+      if (isDirtyRef.current) {
+        onDraftSave(latestValuesRef.current);
       }
+    };
+
+    autoSaveTimerRef.current = setInterval(() => {
+      saveDraftIfDirty();
     }, 30000);
 
     // Also save on page visibility change
     const handleVisibilityChange = () => {
-      if (document.hidden && form.formState.isDirty) {
-        onDraftSave(form.getValues());
+      if (document.hidden) {
+        saveDraftIfDirty();
       }
     };
     document.addEventListener('visibilitychange', handleVisibilityChange);
@@ -64,9 +76,11 @@ export function useTaskForm({
       if (autoSaveTimerRef.current) clearInterval(autoSaveTimerRef.current);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [form, onDraftSave, readOnly]);
+  }, [onDraftSave, readOnly]);
 
   useEffect(() => {
+    latestValuesRef.current = defaultValues;
+    isDirtyRef.current = false;
     form.reset(defaultValues);
   }, [defaultValues, form]);
 
