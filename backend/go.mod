@@ -4,6 +4,7 @@ go 1.25
 
 require (
 	github.com/IBM/sarama v1.43.0
+	github.com/go-sql-driver/mysql v1.8.1
 	github.com/go-chi/chi/v5 v5.0.12
 	github.com/go-playground/validator/v10 v10.22.0
 	github.com/golang-jwt/jwt/v5 v5.2.1
@@ -21,6 +22,7 @@ require (
 	go.opentelemetry.io/otel/trace v1.24.0
 	golang.org/x/crypto v0.46.0
 	golang.org/x/sync v0.19.0
+	golang.org/x/time v0.14.0
 )
 
 require (
