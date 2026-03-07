@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { ArrowLeft, X, AlertCircle } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -145,8 +145,12 @@ export default function TaskDetailPage() {
   const sla = formatSLAStatus(task);
   const priorityLabel = PRIORITY_LABELS[task.priority] ?? 'Normal';
   const hasForm = task.form_schema.length > 0;
-  const currentInitialValues =
-    draftData?.values ?? (isCompleted && task.form_data ? task.form_data : task.form_data ?? {});
+  const currentInitialValues = useMemo(
+    () =>
+      draftData?.values ??
+      (isCompleted && task.form_data ? task.form_data : task.form_data ?? {}),
+    [draftData?.values, isCompleted, task.form_data],
+  );
 
   return (
     <div className="space-y-6">

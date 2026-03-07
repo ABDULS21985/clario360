@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { Check, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { DateRangePicker } from "@/components/shared/forms/date-range-picker";
 import {
   Popover,
   PopoverContent,
@@ -32,6 +33,33 @@ export function DataTableFilter({
     : isActive
       ? 1
       : 0;
+
+  if (config.type === "date-range") {
+    const [fromValue, toValue] = typeof value === "string" ? value.split(",") : [];
+    const range = {
+      from: fromValue ? new Date(fromValue) : undefined,
+      to: toValue ? new Date(toValue) : undefined,
+    };
+
+    return (
+      <DateRangePicker
+        value={range}
+        onChange={(nextRange) => {
+          if (!nextRange.from && !nextRange.to) {
+            onChange(config.key, undefined);
+            return;
+          }
+
+          const serializedFrom = nextRange.from
+            ? nextRange.from.toISOString()
+            : "";
+          const serializedTo = nextRange.to ? nextRange.to.toISOString() : "";
+          onChange(config.key, `${serializedFrom},${serializedTo}`);
+        }}
+        className={cn("h-8", isActive && "border-primary")}
+      />
+    );
+  }
 
   if (config.type === "select" || config.type === "multi-select") {
     const isMulti = config.type === "multi-select";

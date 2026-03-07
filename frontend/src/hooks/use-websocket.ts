@@ -149,16 +149,17 @@ export function useWebSocket() {
       return;
     }
 
-    intentionalCloseRef.current = false;
     if (reconnectTimerRef.current) {
       clearTimeout(reconnectTimerRef.current);
       reconnectTimerRef.current = null;
     }
     if (wsRef.current) {
+      intentionalCloseRef.current = true;
       wsRef.current.close(1000, 'Manual reconnect');
       wsRef.current = null;
     }
     attemptRef.current = 0;
+    intentionalCloseRef.current = false;
     connect();
   }, [connect, reconnectToken]);
 }

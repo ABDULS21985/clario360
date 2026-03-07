@@ -13,4 +13,9 @@ export const workflowInstanceFilters: FilterConfig[] = [
       { label: 'Suspended', value: 'suspended' },
     ],
   },
+  {
+    key: 'started_at',
+    label: 'Started',
+    type: 'date-range',
+  },
 ];

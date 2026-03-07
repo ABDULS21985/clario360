@@ -26,20 +26,29 @@ export default function WorkflowsPage() {
     defaultPageSize: 25,
     defaultSort: { column: 'started_at', direction: 'desc' },
     fetchFn: (params) =>
-      apiGet<PaginatedResponse<WorkflowInstance>>('/api/v1/workflows/instances', {
-        page: params.page,
-        per_page: params.per_page,
-        sort: params.sort ?? 'started_at',
-        order: params.order ?? 'desc',
-        search: params.search,
-        ...(params.filters?.status
-          ? {
-              status: Array.isArray(params.filters.status)
-                ? params.filters.status.join(',')
-                : params.filters.status,
-            }
-          : {}),
-      }),
+      {
+        const startedRange =
+          typeof params.filters?.started_at === 'string'
+            ? params.filters.started_at.split(',')
+            : [];
+
+        return apiGet<PaginatedResponse<WorkflowInstance>>('/api/v1/workflows/instances', {
+          page: params.page,
+          per_page: params.per_page,
+          sort: params.sort ?? 'started_at',
+          order: params.order ?? 'desc',
+          search: params.search,
+          ...(params.filters?.status
+            ? {
+                status: Array.isArray(params.filters.status)
+                  ? params.filters.status.join(',')
+                  : params.filters.status,
+              }
+            : {}),
+          ...(startedRange[0] ? { date_from: startedRange[0] } : {}),
+          ...(startedRange[1] ? { date_to: startedRange[1] } : {}),
+        });
+      },
   });
 
   const retryMutation = useMutation({
