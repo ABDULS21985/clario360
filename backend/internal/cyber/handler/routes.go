@@ -21,6 +21,9 @@ func RegisterRoutes(
 	mitreHandler *MITREHandler,
 	ctemHandler *CTEMHandler,
 	ctemReportHandler *CTEMReportHandler,
+	riskHandler *RiskHandler,
+	dashboardHandler *DashboardHandler,
+	vulnerabilityHandler *VulnerabilityHandler,
 	jwtMgr *auth.JWTManager,
 	rdb *redis.Client,
 ) {
@@ -105,6 +108,36 @@ func RegisterRoutes(
 		r.Get("/mitre/techniques/{id}", mitreHandler.GetTechnique)
 		r.Get("/mitre/techniques", mitreHandler.ListTechniques)
 		r.Get("/mitre/coverage", mitreHandler.Coverage)
+
+		if vulnerabilityHandler != nil {
+			r.Get("/vulnerabilities/stats", vulnerabilityHandler.Stats)
+			r.Get("/vulnerabilities/aging", vulnerabilityHandler.Aging)
+			r.Get("/vulnerabilities/top-cves", vulnerabilityHandler.TopCVEs)
+			r.Get("/vulnerabilities/{id}", vulnerabilityHandler.Get)
+			r.Get("/vulnerabilities", vulnerabilityHandler.List)
+			r.Put("/vulnerabilities/{id}/status", vulnerabilityHandler.UpdateStatus)
+		}
+
+		if riskHandler != nil {
+			r.Get("/risk/score", riskHandler.GetScore)
+			r.Get("/risk/score/trend", riskHandler.GetTrend)
+			r.Get("/risk/score/recalculate", riskHandler.Recalculate)
+			r.Get("/risk/heatmap", riskHandler.GetHeatmap)
+			r.Get("/risk/top-risks", riskHandler.GetTopRisks)
+			r.Get("/risk/recommendations", riskHandler.GetRecommendations)
+		}
+
+		if dashboardHandler != nil {
+			r.Get("/dashboard", dashboardHandler.GetDashboard)
+			r.Get("/dashboard/kpis", dashboardHandler.GetKPIs)
+			r.Get("/dashboard/alerts-timeline", dashboardHandler.GetAlertsTimeline)
+			r.Get("/dashboard/severity-distribution", dashboardHandler.GetSeverityDistribution)
+			r.Get("/dashboard/mttr", dashboardHandler.GetMTTR)
+			r.Get("/dashboard/analyst-workload", dashboardHandler.GetAnalystWorkload)
+			r.Get("/dashboard/top-attacked-assets", dashboardHandler.GetTopAttackedAssets)
+			r.Get("/dashboard/mitre-heatmap", dashboardHandler.GetMITREHeatmap)
+			r.Get("/dashboard/trends", dashboardHandler.GetTrends)
+		}
 
 		if ctemHandler != nil && ctemReportHandler != nil {
 			r.Route("/ctem", func(r chi.Router) {

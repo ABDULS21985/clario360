@@ -173,6 +173,89 @@ func parseIndicatorListParams(r *http.Request) (*dto.IndicatorListParams, error)
 	return params, nil
 }
 
+func parseRiskTrendParams(r *http.Request) *dto.RiskTrendParams {
+	params := &dto.RiskTrendParams{}
+	if v := r.URL.Query().Get("days"); v != "" {
+		params.Days, _ = strconv.Atoi(v)
+	}
+	params.SetDefaults()
+	return params
+}
+
+func parseDashboardTrendParams(r *http.Request) *dto.DashboardTrendParams {
+	params := &dto.DashboardTrendParams{}
+	if v := r.URL.Query().Get("days"); v != "" {
+		params.Days, _ = strconv.Atoi(v)
+	}
+	params.SetDefaults()
+	return params
+}
+
+func parseVulnerabilityQueryParams(r *http.Request) (*dto.VulnerabilityQueryParams, error) {
+	q := r.URL.Query()
+	params := &dto.VulnerabilityQueryParams{
+		Severities: splitQueryValues(q, "severity"),
+		Statuses:   splitQueryValues(q, "status"),
+		Sort:       q.Get("sort"),
+		Order:      q.Get("order"),
+	}
+	if v := q.Get("search"); v != "" {
+		params.Search = &v
+	}
+	if v := q.Get("asset_id"); v != "" {
+		id, err := uuid.Parse(v)
+		if err != nil {
+			return nil, fmt.Errorf("invalid asset_id: %w", err)
+		}
+		params.AssetID = &id
+	}
+	if v := q.Get("asset_type"); v != "" {
+		params.AssetType = &v
+	}
+	if v := q.Get("cve_id"); v != "" {
+		params.CVEID = &v
+	}
+	if v := q.Get("source"); v != "" {
+		params.Source = &v
+	}
+	if v := q.Get("detected_after"); v != "" {
+		ts, err := parseFlexibleTime(v)
+		if err != nil {
+			return nil, fmt.Errorf("invalid detected_after: %w", err)
+		}
+		params.DetectedAfter = &ts
+	}
+	if v := q.Get("detected_before"); v != "" {
+		ts, err := parseFlexibleTime(v)
+		if err != nil {
+			return nil, fmt.Errorf("invalid detected_before: %w", err)
+		}
+		params.DetectedBefore = &ts
+	}
+	if v := q.Get("min_cvss"); v != "" {
+		score, err := strconv.ParseFloat(v, 64)
+		if err != nil {
+			return nil, fmt.Errorf("invalid min_cvss: %w", err)
+		}
+		params.MinCVSS = &score
+	}
+	if v := q.Get("has_exploit"); v != "" {
+		flag, err := strconv.ParseBool(v)
+		if err != nil {
+			return nil, fmt.Errorf("invalid has_exploit: %w", err)
+		}
+		params.HasExploit = &flag
+	}
+	if v := q.Get("page"); v != "" {
+		params.Page, _ = strconv.Atoi(v)
+	}
+	if v := q.Get("per_page"); v != "" {
+		params.PerPage, _ = strconv.Atoi(v)
+	}
+	params.SetDefaults()
+	return params, params.Validate()
+}
+
 func parseFlexibleTime(value string) (time.Time, error) {
 	if ts, err := time.Parse(time.RFC3339, value); err == nil {
 		return ts, nil

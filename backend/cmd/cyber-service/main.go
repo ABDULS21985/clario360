@@ -23,12 +23,15 @@ import (
 	cyberconfig "github.com/clario360/platform/internal/cyber/config"
 	"github.com/clario360/platform/internal/cyber/consumer"
 	cyberctem "github.com/clario360/platform/internal/cyber/ctem"
+	cyberdashboard "github.com/clario360/platform/internal/cyber/dashboard"
 	"github.com/clario360/platform/internal/cyber/detection"
 	"github.com/clario360/platform/internal/cyber/enrichment"
 	"github.com/clario360/platform/internal/cyber/handler"
 	"github.com/clario360/platform/internal/cyber/indicator"
 	cybermetrics "github.com/clario360/platform/internal/cyber/metrics"
 	"github.com/clario360/platform/internal/cyber/repository"
+	cyberrisk "github.com/clario360/platform/internal/cyber/risk"
+	riskcomponents "github.com/clario360/platform/internal/cyber/risk/components"
 	"github.com/clario360/platform/internal/cyber/scanner"
 	"github.com/clario360/platform/internal/cyber/service"
 	"github.com/clario360/platform/internal/database"
@@ -120,6 +123,8 @@ func main() {
 	ruleRepo := repository.NewRuleRepository(db, logger)
 	threatRepo := repository.NewThreatRepository(db, logger)
 	indicatorRepo := repository.NewIndicatorRepository(db, logger)
+	dashboardRepo := repository.NewDashboardRepository(db, logger)
+	riskHistoryRepo := repository.NewRiskHistoryRepository(db, logger)
 	ctemAssessmentRepo := repository.NewCTEMAssessmentRepository(db, logger)
 	ctemFindingRepo := repository.NewCTEMFindingRepository(db, logger)
 	ctemRemGroupRepo := repository.NewCTEMRemediationGroupRepository(db, logger)
@@ -214,6 +219,43 @@ func main() {
 		workflowLauncher,
 		logger,
 	)
+	vulnerabilityRisk := riskcomponents.NewVulnerabilityRisk(db, logger)
+	threatExposure := riskcomponents.NewThreatExposure(db, logger)
+	configurationRisk := riskcomponents.NewConfigurationRisk(db, logger)
+	attackSurfaceRisk := riskcomponents.NewAttackSurface(db, logger)
+	complianceGapRisk := riskcomponents.NewComplianceGap(db, logger)
+	contributorAnalyzer := cyberrisk.NewContributorAnalyzer(db, logger)
+	recommendationEngine := cyberrisk.NewRecommendationEngine(db, logger)
+	riskScorer := cyberrisk.NewRiskScorer(
+		db,
+		rdb,
+		riskHistoryRepo,
+		contributorAnalyzer,
+		recommendationEngine,
+		m,
+		logger,
+		vulnerabilityRisk,
+		threatExposure,
+		configurationRisk,
+		attackSurfaceRisk,
+		complianceGapRisk,
+	)
+	riskSnapshotSvc := cyberrisk.NewSnapshotService(db, riskScorer, riskHistoryRepo, producer, m, logger)
+	riskSvc := service.NewRiskService(riskScorer, riskSnapshotSvc, riskHistoryRepo, vulnRepo, producer, logger)
+	vulnerabilitySvc := service.NewVulnerabilityService(vulnRepo, producer, m, logger)
+	dashboardSvc := service.NewDashboardService(
+		cyberdashboard.NewCache(rdb),
+		dashboardRepo,
+		cyberdashboard.NewKPICalculator(db),
+		cyberdashboard.NewTimelineCalculator(db),
+		cyberdashboard.NewTrendCalculator(db),
+		cyberdashboard.NewMTTRCalculator(db, m),
+		cyberdashboard.NewWorkloadCalculator(db),
+		cyberdashboard.NewMITREHeatmapCalculator(db),
+		riskScorer,
+		m,
+		logger,
+	)
 
 	// ── 12. Route registration ─────────────────────────────────────────────────
 	svc.Router.Handle("/metrics", promhttp.HandlerFor(promGatherers, promhttp.HandlerOpts{}))
@@ -230,7 +272,24 @@ func main() {
 	ruleHandler := handler.NewRuleHandler(ruleSvc)
 	threatHandler := handler.NewThreatHandler(threatSvc)
 	mitreHandler := handler.NewMITREHandler(ruleSvc)
-	handler.RegisterRoutes(svc.Router, assetHandler, alertHandler, ruleHandler, threatHandler, mitreHandler, ctemHandler, ctemReportHandler, jwtMgr, rdb)
+	riskHandler := handler.NewRiskHandler(riskSvc)
+	dashboardHandler := handler.NewDashboardHandler(dashboardSvc)
+	vulnerabilityHandler := handler.NewVulnerabilityHandler(vulnerabilitySvc)
+	handler.RegisterRoutes(
+		svc.Router,
+		assetHandler,
+		alertHandler,
+		ruleHandler,
+		threatHandler,
+		mitreHandler,
+		ctemHandler,
+		ctemReportHandler,
+		riskHandler,
+		dashboardHandler,
+		vulnerabilityHandler,
+		jwtMgr,
+		rdb,
+	)
 
 	// ── 13. Kafka consumer ─────────────────────────────────────────────────────
 	var cyberConsumer *consumer.CyberConsumer
@@ -241,6 +300,7 @@ func main() {
 		} else {
 			cyberConsumer = consumer.NewCyberConsumer(assetSvc, detectionSvc, cyberCfg.SecurityEventTopic, kafkaConsumer, logger)
 			_ = consumer.NewCTEMConsumer(ctemSvc, kafkaConsumer, logger)
+			_ = consumer.NewRiskConsumer(riskSvc, dashboardSvc, rdb, kafkaConsumer, logger)
 		}
 	}
 
@@ -265,6 +325,14 @@ func main() {
 	// Scheduler (no-op until scans are registered)
 	g.Go(func() error {
 		err := sched.Start(gCtx)
+		if err != nil && !errors.Is(err, context.Canceled) {
+			return err
+		}
+		return nil
+	})
+
+	g.Go(func() error {
+		err := riskSnapshotSvc.RunDailySnapshot(gCtx)
 		if err != nil && !errors.Is(err, context.Canceled) {
 			return err
 		}

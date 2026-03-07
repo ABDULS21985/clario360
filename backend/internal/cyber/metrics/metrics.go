@@ -85,6 +85,24 @@ type Metrics struct {
 	CTEMValidationDuration        prometheus.Histogram
 	CTEMMobilizationDuration      prometheus.Histogram
 
+	// Risk and dashboard metrics
+	RiskScoreCurrent          *prometheus.GaugeVec
+	RiskComponentScore        *prometheus.GaugeVec
+	RiskCalculationDuration   prometheus.Histogram
+	RiskSnapshotDuration      prometheus.Histogram
+	RiskCacheHitTotal         prometheus.Counter
+	RiskCacheMissTotal        prometheus.Counter
+	DashboardRequestDuration  *prometheus.HistogramVec
+	DashboardCacheHitTotal    prometheus.Counter
+	DashboardCacheMissTotal   prometheus.Counter
+	DashboardQueryDuration    *prometheus.HistogramVec
+	DashboardPartialFailureTotal prometheus.Counter
+	VulnOperationsTotal       *prometheus.CounterVec
+	VulnStatusChangesTotal    *prometheus.CounterVec
+	VulnAgingAvgDays          *prometheus.GaugeVec
+	MTTRHours                 *prometheus.GaugeVec
+	SLAComplianceRate         *prometheus.GaugeVec
+
 	Registry *prometheus.Registry
 }
 
@@ -459,6 +477,106 @@ func New() *Metrics {
 		Help:      "Duration of CTEM mobilization phase.",
 		Buckets:   prometheus.DefBuckets,
 	})
+
+	m.RiskScoreCurrent = factory.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: "risk",
+		Name:      "score_current",
+		Help:      "Current organization risk score by tenant and grade.",
+	}, []string{"tenant_id", "grade"})
+
+	m.RiskComponentScore = factory.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: "risk",
+		Name:      "component_score",
+		Help:      "Current organization risk component scores by tenant and component.",
+	}, []string{"tenant_id", "component"})
+
+	m.RiskCalculationDuration = factory.NewHistogram(prometheus.HistogramOpts{
+		Namespace: "risk",
+		Name:      "calculation_duration_seconds",
+		Help:      "Duration of risk score calculations.",
+		Buckets:   prometheus.DefBuckets,
+	})
+
+	m.RiskSnapshotDuration = factory.NewHistogram(prometheus.HistogramOpts{
+		Namespace: "risk",
+		Name:      "snapshot_duration_seconds",
+		Help:      "Duration of risk snapshot jobs.",
+		Buckets:   prometheus.DefBuckets,
+	})
+
+	m.RiskCacheHitTotal = factory.NewCounter(prometheus.CounterOpts{
+		Namespace: "risk",
+		Name:      "cache_hit_total",
+		Help:      "Total risk cache hits.",
+	})
+
+	m.RiskCacheMissTotal = factory.NewCounter(prometheus.CounterOpts{
+		Namespace: "risk",
+		Name:      "cache_miss_total",
+		Help:      "Total risk cache misses.",
+	})
+
+	m.DashboardRequestDuration = factory.NewHistogramVec(prometheus.HistogramOpts{
+		Namespace: "dashboard",
+		Name:      "request_duration_seconds",
+		Help:      "SOC dashboard endpoint duration in seconds.",
+		Buckets:   prometheus.DefBuckets,
+	}, []string{"endpoint"})
+
+	m.DashboardCacheHitTotal = factory.NewCounter(prometheus.CounterOpts{
+		Namespace: "dashboard",
+		Name:      "cache_hit_total",
+		Help:      "Total SOC dashboard cache hits.",
+	})
+
+	m.DashboardCacheMissTotal = factory.NewCounter(prometheus.CounterOpts{
+		Namespace: "dashboard",
+		Name:      "cache_miss_total",
+		Help:      "Total SOC dashboard cache misses.",
+	})
+
+	m.DashboardQueryDuration = factory.NewHistogramVec(prometheus.HistogramOpts{
+		Namespace: "dashboard",
+		Name:      "query_duration_seconds",
+		Help:      "Per-section dashboard query duration in seconds.",
+		Buckets:   prometheus.DefBuckets,
+	}, []string{"query_name"})
+
+	m.DashboardPartialFailureTotal = factory.NewCounter(prometheus.CounterOpts{
+		Namespace: "dashboard",
+		Name:      "partial_failure_total",
+		Help:      "Total number of partial dashboard responses due to section failures.",
+	})
+
+	m.VulnOperationsTotal = factory.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "vuln",
+		Name:      "operations_total",
+		Help:      "Total vulnerability management operations.",
+	}, []string{"operation"})
+
+	m.VulnStatusChangesTotal = factory.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "vuln",
+		Name:      "status_changes_total",
+		Help:      "Total vulnerability status transitions.",
+	}, []string{"from", "to"})
+
+	m.VulnAgingAvgDays = factory.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: "vuln",
+		Name:      "aging_avg_days",
+		Help:      "Average age in days of vulnerabilities by severity.",
+	}, []string{"severity"})
+
+	m.MTTRHours = factory.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: "dashboard",
+		Name:      "mttr_hours",
+		Help:      "MTTR response hours by severity and percentile.",
+	}, []string{"severity", "percentile"})
+
+	m.SLAComplianceRate = factory.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: "dashboard",
+		Name:      "sla_compliance_rate",
+		Help:      "Alert response SLA compliance rate by severity.",
+	}, []string{"severity"})
 
 	return m
 }
