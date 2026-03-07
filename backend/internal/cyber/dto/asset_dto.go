@@ -14,9 +14,10 @@ type CreateAssetRequest struct {
 	Type            model.AssetType `json:"type" validate:"required,asset_type"`
 	IPAddress       *string         `json:"ip_address,omitempty" validate:"omitempty,ip"`
 	Hostname        *string         `json:"hostname,omitempty" validate:"omitempty,min=1,max=255"`
-	MACAddress      *string         `json:"mac_address,omitempty" validate:"omitempty,mac_addr"`
+	MACAddress      *string         `json:"mac_address,omitempty" validate:"omitempty,mac"`
 	OS              *string         `json:"os,omitempty" validate:"omitempty,max=100"`
 	OSVersion       *string         `json:"os_version,omitempty" validate:"omitempty,max=100"`
+	Owner           *string         `json:"owner,omitempty" validate:"omitempty,max=255"`
 	Department      *string         `json:"department,omitempty" validate:"omitempty,max=255"`
 	Location        *string         `json:"location,omitempty" validate:"omitempty,max=255"`
 	Criticality     model.Criticality `json:"criticality" validate:"required,criticality"`
@@ -31,9 +32,10 @@ type UpdateAssetRequest struct {
 	Type            *model.AssetType `json:"type,omitempty" validate:"omitempty,asset_type"`
 	IPAddress       *string          `json:"ip_address,omitempty" validate:"omitempty,ip"`
 	Hostname        *string          `json:"hostname,omitempty" validate:"omitempty,min=1,max=255"`
-	MACAddress      *string          `json:"mac_address,omitempty" validate:"omitempty,mac_addr"`
+	MACAddress      *string          `json:"mac_address,omitempty" validate:"omitempty,mac"`
 	OS              *string          `json:"os,omitempty" validate:"omitempty,max=100"`
 	OSVersion       *string          `json:"os_version,omitempty" validate:"omitempty,max=100"`
+	Owner           *string          `json:"owner,omitempty" validate:"omitempty,max=255"`
 	Department      *string          `json:"department,omitempty" validate:"omitempty,max=255"`
 	Location        *string          `json:"location,omitempty" validate:"omitempty,max=255"`
 	Criticality     *model.Criticality `json:"criticality,omitempty" validate:"omitempty,criticality"`
@@ -56,6 +58,7 @@ type AssetListParams struct {
 	Statuses             []string   `form:"status"`
 	OS                   *string    `form:"os"`
 	Department           *string    `form:"department"`
+	Owner                *string    `form:"owner"`
 	Location             *string    `form:"location"`
 	Tags                 []string   `form:"tag"`
 	DiscoverySource      *string    `form:"discovery_source"`
@@ -102,6 +105,26 @@ func (p *AssetListParams) Validate() error {
 	for _, s := range p.Statuses {
 		if !model.AssetStatus(s).IsValid() {
 			return fmt.Errorf("invalid status: %q", s)
+		}
+	}
+	if p.DiscoverySource != nil {
+		valid := false
+		for _, source := range model.ValidDiscoverySources {
+			if *p.DiscoverySource == source {
+				valid = true
+				break
+			}
+		}
+		if !valid {
+			return fmt.Errorf("invalid discovery_source: %q", *p.DiscoverySource)
+		}
+	}
+	if len(p.Tags) > 20 {
+		return fmt.Errorf("tag filter supports at most 20 values")
+	}
+	for _, tag := range p.Tags {
+		if len(tag) == 0 || len(tag) > 50 {
+			return fmt.Errorf("invalid tag length for %q", tag)
 		}
 	}
 	if p.MinVulnCount != nil && (*p.MinVulnCount < 0 || *p.MinVulnCount > 10000) {

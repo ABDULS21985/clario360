@@ -122,7 +122,7 @@ type Asset struct {
 	MACAddress      *string         `json:"mac_address,omitempty" db:"mac_address"`
 	OS              *string         `json:"os,omitempty" db:"os"`
 	OSVersion       *string         `json:"os_version,omitempty" db:"os_version"`
-	Owner           *uuid.UUID      `json:"owner,omitempty" db:"owner"`
+	Owner           *string         `json:"owner,omitempty" db:"owner"`
 	Department      *string         `json:"department,omitempty" db:"department"`
 	Location        *string         `json:"location,omitempty" db:"location"`
 	Criticality     Criticality     `json:"criticality" db:"criticality"`
@@ -141,4 +141,10 @@ type Asset struct {
 	OpenVulnerabilityCount  int     `json:"open_vulnerability_count" db:"open_vulnerability_count"`
 	HighestVulnSeverity     *string `json:"highest_vulnerability_severity,omitempty" db:"highest_vulnerability_severity"`
 	RelationshipCount       int     `json:"relationship_count" db:"relationship_count"`
+}
+
+// AssetCountByName is used in aggregated responses such as top departments and OS families.
+type AssetCountByName struct {
+	Name  string `json:"name"`
+	Count int    `json:"count"`
 }

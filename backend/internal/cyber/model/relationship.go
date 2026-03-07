@@ -49,6 +49,11 @@ type AssetRelationship struct {
 	CreatedAt        time.Time        `json:"created_at" db:"created_at"`
 
 	// Populated via JOIN when fetching asset relationships
-	SourceAssetName *string `json:"source_asset_name,omitempty" db:"source_asset_name"`
-	TargetAssetName *string `json:"target_asset_name,omitempty" db:"target_asset_name"`
+	SourceAssetName        *string       `json:"source_asset_name,omitempty" db:"source_asset_name"`
+	SourceAssetType        *AssetType    `json:"source_asset_type,omitempty" db:"source_asset_type"`
+	SourceAssetCriticality *Criticality  `json:"source_asset_criticality,omitempty" db:"source_asset_criticality"`
+	TargetAssetName        *string       `json:"target_asset_name,omitempty" db:"target_asset_name"`
+	TargetAssetType        *AssetType    `json:"target_asset_type,omitempty" db:"target_asset_type"`
+	TargetAssetCriticality *Criticality  `json:"target_asset_criticality,omitempty" db:"target_asset_criticality"`
+	Direction              *string       `json:"direction,omitempty" db:"direction"`
 }

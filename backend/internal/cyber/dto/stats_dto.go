@@ -1,5 +1,7 @@
 package dto
 
+import "github.com/clario360/platform/internal/cyber/model"
+
 // AssetStats is the aggregated stats response for GET /api/v1/cyber/assets/stats.
 type AssetStats struct {
 	TotalAssets        int            `json:"total_assets"`
@@ -10,6 +12,8 @@ type AssetStats struct {
 	ByOS               map[string]int `json:"by_os"`
 	ByDepartment       map[string]int `json:"by_department"`
 	ByDiscoverySource  map[string]int `json:"by_discovery_source"`
+	TopDepartments     []model.AssetCountByName `json:"top_departments"`
+	TopOS              []model.AssetCountByName `json:"top_os"`
 	TotalVulnerabilities  int         `json:"total_vulnerabilities"`
 	OpenVulnerabilities   int         `json:"open_vulnerabilities"`
 	VulnsBySeverity    map[string]int `json:"vulns_by_severity"`

@@ -2,11 +2,14 @@ package validator
 
 import (
 	"fmt"
+	"net"
 	"reflect"
 	"regexp"
 	"strings"
 
 	"github.com/go-playground/validator/v10"
+
+	"github.com/clario360/platform/internal/cyber/model"
 )
 
 // V is the package-level validator instance.
@@ -27,58 +30,43 @@ func init() {
 		return name
 	})
 
-	// asset_type: validates that the value is one of the recognized asset type strings
-	_ = V.RegisterValidation("asset_type", func(fl validator.FieldLevel) bool {
-		val := fl.Field().String()
-		valid := []string{"server", "endpoint", "network_device", "cloud_resource", "iot_device", "application", "database", "container"}
-		for _, v := range valid {
-			if val == v {
-				return true
-			}
-		}
-		return false
-	})
+	_ = RegisterCustomValidators(V)
+}
 
-	// criticality: validates that the value is one of the recognized criticality strings
-	_ = V.RegisterValidation("criticality", func(fl validator.FieldLevel) bool {
-		val := fl.Field().String()
-		valid := []string{"critical", "high", "medium", "low"}
-		for _, v := range valid {
-			if val == v {
-				return true
-			}
-		}
-		return false
-	})
-
-	// asset_status: validates that the value is one of the recognized asset status strings
-	_ = V.RegisterValidation("asset_status", func(fl validator.FieldLevel) bool {
-		val := fl.Field().String()
-		valid := []string{"active", "inactive", "decommissioned", "unknown"}
-		for _, v := range valid {
-			if val == v {
-				return true
-			}
-		}
-		return false
-	})
-
-	// relationship_type: validates that the value is one of the recognized relationship type strings
-	_ = V.RegisterValidation("relationship_type", func(fl validator.FieldLevel) bool {
-		val := fl.Field().String()
-		valid := []string{"hosts", "runs_on", "connects_to", "depends_on", "managed_by", "backs_up", "load_balances"}
-		for _, v := range valid {
-			if val == v {
-				return true
-			}
-		}
-		return false
-	})
-
-	// alphanumdash: alphanumeric characters, hyphens, and underscores only (suitable for tags/slugs)
-	_ = V.RegisterValidation("alphanumdash", func(fl validator.FieldLevel) bool {
+// RegisterCustomValidators registers all Clario-specific validators on the provided validator instance.
+func RegisterCustomValidators(v *validator.Validate) error {
+	if err := v.RegisterValidation("asset_type", func(fl validator.FieldLevel) bool {
+		return model.AssetType(fl.Field().String()).IsValid()
+	}); err != nil {
+		return err
+	}
+	if err := v.RegisterValidation("criticality", func(fl validator.FieldLevel) bool {
+		return model.Criticality(fl.Field().String()).IsValid()
+	}); err != nil {
+		return err
+	}
+	if err := v.RegisterValidation("asset_status", func(fl validator.FieldLevel) bool {
+		return model.AssetStatus(fl.Field().String()).IsValid()
+	}); err != nil {
+		return err
+	}
+	if err := v.RegisterValidation("relationship_type", func(fl validator.FieldLevel) bool {
+		return model.RelationshipType(fl.Field().String()).IsValid()
+	}); err != nil {
+		return err
+	}
+	if err := v.RegisterValidation("alphanumdash", func(fl validator.FieldLevel) bool {
 		return alphanumDashRe.MatchString(fl.Field().String())
-	})
+	}); err != nil {
+		return err
+	}
+	if err := v.RegisterValidation("mac", func(fl validator.FieldLevel) bool {
+		_, err := net.ParseMAC(fl.Field().String())
+		return err == nil
+	}); err != nil {
+		return err
+	}
+	return nil
 }
 
 // Validate validates a struct and returns a map of field-level errors.
