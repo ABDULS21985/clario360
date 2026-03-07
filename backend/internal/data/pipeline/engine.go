@@ -246,6 +246,9 @@ func (e *Engine) ExecutePipeline(ctx context.Context, pipelineID uuid.UUID, trig
 	e.publish(ctx, "data.pipeline.run.completed", pipelineItem.TenantID, map[string]any{
 		"id":                run.ID,
 		"pipeline_id":       pipelineItem.ID,
+		"pipeline_name":     pipelineItem.Name,
+		"tenant_id":         pipelineItem.TenantID,
+		"status":            model.PipelineRunStatusCompleted,
 		"records_extracted": run.RecordsExtracted,
 		"records_loaded":    run.RecordsLoaded,
 		"duration_ms":       durationMs,
@@ -280,10 +283,14 @@ func (e *Engine) failRun(ctx context.Context, pipelineItem *model.Pipeline, run 
 
 	logger.Error(ctx, run.TenantID, run.ID, phase, "Pipeline failed.", map[string]any{"error": message})
 	e.publish(ctx, "data.pipeline.run.failed", pipelineItem.TenantID, map[string]any{
-		"id":          run.ID,
-		"pipeline_id": pipelineItem.ID,
-		"error_phase": phase,
-		"error":       message,
+		"id":            run.ID,
+		"pipeline_id":   pipelineItem.ID,
+		"pipeline_name": pipelineItem.Name,
+		"tenant_id":     pipelineItem.TenantID,
+		"status":        model.PipelineRunStatusFailed,
+		"error_phase":   phase,
+		"error":         message,
+		"error_message": message,
 	})
 
 	if consecutive, err := e.runRepo.ConsecutiveFailures(ctx, pipelineItem.TenantID, pipelineItem.ID, 5); err == nil && consecutive >= 3 {

@@ -1,53 +1,244 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useState } from 'react';
 import { useParams } from 'next/navigation';
-import { useQuery } from '@tanstack/react-query';
-import { BookOpen, ClipboardList, FileText, Link2, MapPin } from 'lucide-react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
+import { BookOpen, ClipboardList, FileText, Link2, MapPin, Paperclip, Users } from 'lucide-react';
 import { ErrorState } from '@/components/common/error-state';
 import { LoadingSkeleton } from '@/components/common/loading-skeleton';
 import { PageHeader } from '@/components/common/page-header';
 import { PermissionRedirect } from '@/components/common/permission-redirect';
-import { RelativeTime } from '@/components/shared/relative-time';
 import { StatusBadge } from '@/components/shared/status-badge';
 import { SectionCard } from '@/components/suites/section-card';
-import { API_ENDPOINTS } from '@/lib/constants';
-import { fetchSuiteData, fetchSuitePaginated } from '@/lib/suite-api';
-import { meetingStatusConfig, minuteStatusConfig } from '@/lib/status-configs';
-import { shortId, summarizeNamedRecords } from '@/lib/suite-utils';
-import { formatDateTime, truncate } from '@/lib/utils';
-import type { ActaActionItem, ActaMeeting, ActaMeetingMinute } from '@/types/suites';
+import { meetingStatusConfig } from '@/lib/status-configs';
+import { enterpriseApi, canApproveMinutes } from '@/lib/enterprise';
+import { formatDateTime } from '@/lib/utils';
+import { useAuth } from '@/hooks/use-auth';
+import { AgendaTab } from './_components/agenda-tab';
+import { AgendaVoteDialog } from './_components/agenda-vote-dialog';
+import { AttendanceTab } from './_components/attendance-tab';
+import { MinutesTab } from './_components/minutes-tab';
+import { ActionItemsTab } from './_components/action-items-tab';
+import { AttachmentsTab } from './_components/attachments-tab';
+import { MeetingStatusControls } from './_components/meeting-status-controls';
+import type {
+  ActaAgendaItem,
+  ActaActionItem,
+  ActaCommittee,
+  ActaMeeting,
+  ActaMeetingMinutes,
+} from '@/types/suites';
+import { showApiError, showSuccess } from '@/lib/toast';
 
 export default function ActaMeetingDetailPage() {
+  const queryClient = useQueryClient();
   const { id } = useParams<{ id: string }>();
+  const { user } = useAuth();
+  const [voteItem, setVoteItem] = useState<ActaAgendaItem | null>(null);
 
   const meetingQuery = useQuery({
     queryKey: ['acta-meeting', id],
-    queryFn: () => fetchSuiteData<ActaMeeting>(`${API_ENDPOINTS.ACTA_MEETINGS}/${id}`),
+    queryFn: () => enterpriseApi.acta.getMeeting(id),
     enabled: Boolean(id),
   });
-
+  const committeeQuery = useQuery({
+    queryKey: ['acta-meeting-committee', id, meetingQuery.data?.committee_id],
+    queryFn: () => enterpriseApi.acta.getCommittee(meetingQuery.data!.committee_id),
+    enabled: Boolean(meetingQuery.data?.committee_id),
+  });
+  const attendanceQuery = useQuery({
+    queryKey: ['acta-meeting-attendance', id],
+    queryFn: () => enterpriseApi.acta.getAttendance(id),
+    enabled: Boolean(id),
+  });
+  const agendaQuery = useQuery({
+    queryKey: ['acta-meeting-agenda', id],
+    queryFn: () => enterpriseApi.acta.listAgenda(id),
+    enabled: Boolean(id),
+  });
+  const minutesQuery = useQuery({
+    queryKey: ['acta-meeting-minutes', id],
+    queryFn: async () => {
+      try {
+        return await enterpriseApi.acta.getMinutes(id);
+      } catch (error) {
+        if (isMissing(error)) {
+          return null;
+        }
+        throw error;
+      }
+    },
+    enabled: Boolean(id),
+  });
+  const versionsQuery = useQuery({
+    queryKey: ['acta-meeting-minutes-versions', id],
+    queryFn: async () => {
+      try {
+        return await enterpriseApi.acta.listMinutesVersions(id);
+      } catch (error) {
+        if (isMissing(error)) {
+          return [];
+        }
+        throw error;
+      }
+    },
+    enabled: Boolean(id),
+  });
   const actionsQuery = useQuery({
     queryKey: ['acta-meeting-actions', id],
-    queryFn: () =>
-      fetchSuitePaginated<ActaActionItem>(API_ENDPOINTS.ACTA_ACTION_ITEMS, {
+    queryFn: async () => {
+      const response = await enterpriseApi.acta.listActionItems({
         page: 1,
-        per_page: 200,
+        per_page: 100,
         order: 'desc',
-      }),
+        filters: { meeting_id: id },
+      });
+      return response.data;
+    },
+    enabled: Boolean(id),
+  });
+  const attachmentsQuery = useQuery({
+    queryKey: ['acta-meeting-attachments', id],
+    queryFn: () => enterpriseApi.acta.listAttachments(id),
+    enabled: Boolean(id),
+  });
+  const usersQuery = useQuery({
+    queryKey: ['acta-meeting-users', id],
+    queryFn: () => enterpriseApi.users.list({ page: 1, per_page: 200, order: 'asc' }),
     enabled: Boolean(id),
   });
 
-  const documentsQuery = useQuery({
-    queryKey: ['acta-meeting-documents', id],
-    queryFn: () =>
-      fetchSuitePaginated<ActaMeetingMinute>(API_ENDPOINTS.ACTA_DOCUMENTS, {
-        page: 1,
-        per_page: 200,
-        order: 'desc',
+  const refreshMeeting = async () => {
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ['acta-meeting', id] }),
+      queryClient.invalidateQueries({ queryKey: ['acta-meeting-committee', id] }),
+      queryClient.invalidateQueries({ queryKey: ['acta-meeting-attendance', id] }),
+      queryClient.invalidateQueries({ queryKey: ['acta-meeting-agenda', id] }),
+      queryClient.invalidateQueries({ queryKey: ['acta-meeting-minutes', id] }),
+      queryClient.invalidateQueries({ queryKey: ['acta-meeting-minutes-versions', id] }),
+      queryClient.invalidateQueries({ queryKey: ['acta-meeting-actions', id] }),
+      queryClient.invalidateQueries({ queryKey: ['acta-meeting-attachments', id] }),
+      queryClient.invalidateQueries({ queryKey: ['acta-dashboard'] }),
+      queryClient.invalidateQueries({ queryKey: ['acta-meetings'] }),
+    ]);
+  };
+
+  const startMutation = useMutation({
+    mutationFn: () => enterpriseApi.acta.startMeeting(id),
+    onSuccess: async () => {
+      showSuccess('Meeting started.');
+      await refreshMeeting();
+    },
+    onError: showApiError,
+  });
+  const endMutation = useMutation({
+    mutationFn: () => enterpriseApi.acta.endMeeting(id),
+    onSuccess: async () => {
+      showSuccess('Meeting completed.');
+      await refreshMeeting();
+    },
+    onError: showApiError,
+  });
+  const cancelMutation = useMutation({
+    mutationFn: (values: { reason: string }) => enterpriseApi.acta.cancelMeeting(id, values),
+    onSuccess: async () => {
+      showSuccess('Meeting cancelled.');
+      await refreshMeeting();
+    },
+    onError: showApiError,
+  });
+  const postponeMutation = useMutation({
+    mutationFn: (values: { new_scheduled_at: string; new_scheduled_end_at?: string | null; reason: string }) =>
+      enterpriseApi.acta.postponeMeeting(id, {
+        ...values,
+        new_scheduled_at: new Date(values.new_scheduled_at).toISOString(),
+        new_scheduled_end_at: values.new_scheduled_end_at
+          ? new Date(values.new_scheduled_end_at).toISOString()
+          : null,
       }),
-    enabled: Boolean(id),
+    onSuccess: async () => {
+      showSuccess('Meeting postponed.');
+      await refreshMeeting();
+    },
+    onError: showApiError,
+  });
+  const attendanceMutation = useMutation({
+    mutationFn: (values: {
+      user_id: string;
+      status: 'present' | 'absent' | 'proxy' | 'excused';
+      proxy_user_name?: string | null;
+      proxy_authorized_by?: string | null;
+    }) => enterpriseApi.acta.recordAttendance(id, values),
+    onSuccess: async () => refreshMeeting(),
+    onError: showApiError,
+  });
+  const bulkAttendanceMutation = useMutation({
+    mutationFn: (values: Array<{ user_id: string; status: 'present' | 'absent' | 'proxy' | 'excused'; proxy_user_name?: string | null; proxy_authorized_by?: string | null }>) =>
+      enterpriseApi.acta.bulkRecordAttendance(id, { attendance: values }),
+    onSuccess: async () => refreshMeeting(),
+    onError: showApiError,
+  });
+  const agendaCreateMutation = useMutation({
+    mutationFn: (values: any) => enterpriseApi.acta.createAgendaItem(id, values),
+    onSuccess: async () => {
+      showSuccess('Agenda item created.');
+      await refreshMeeting();
+    },
+    onError: showApiError,
+  });
+  const agendaDeleteMutation = useMutation({
+    mutationFn: (item: ActaAgendaItem) => enterpriseApi.acta.deleteAgendaItem(id, item.id),
+    onSuccess: async () => refreshMeeting(),
+    onError: showApiError,
+  });
+  const agendaReorderMutation = useMutation({
+    mutationFn: (itemIds: string[]) => enterpriseApi.acta.reorderAgenda(id, itemIds),
+    onSuccess: async () => refreshMeeting(),
+    onError: showApiError,
+  });
+  const agendaNotesMutation = useMutation({
+    mutationFn: ({ itemId, notes }: { itemId: string; notes: string }) =>
+      enterpriseApi.acta.updateAgendaNotes(id, itemId, notes),
+    onError: showApiError,
+  });
+  const voteMutation = useMutation({
+    mutationFn: ({ item, values }: { item: ActaAgendaItem; values: any }) =>
+      enterpriseApi.acta.voteAgendaItem(id, item.id, values),
+    onSuccess: async () => {
+      setVoteItem(null);
+      await refreshMeeting();
+    },
+    onError: showApiError,
+  });
+  const minutesGenerateMutation = useMutation({
+    mutationFn: () => enterpriseApi.acta.generateMinutes(id),
+    onSuccess: async () => {
+      showSuccess('Minutes generated.');
+      await refreshMeeting();
+    },
+    onError: showApiError,
+  });
+  const minutesSaveMutation = useMutation({
+    mutationFn: (content: string) => enterpriseApi.acta.updateMinutes(id, content),
+    onSuccess: async () => refreshMeeting(),
+    onError: showApiError,
+  });
+  const minutesSubmitMutation = useMutation({
+    mutationFn: () => enterpriseApi.acta.submitMinutes(id),
+    onSuccess: async () => refreshMeeting(),
+    onError: showApiError,
+  });
+  const minutesApproveMutation = useMutation({
+    mutationFn: () => enterpriseApi.acta.approveMinutes(id),
+    onSuccess: async () => refreshMeeting(),
+    onError: showApiError,
+  });
+  const minutesPublishMutation = useMutation({
+    mutationFn: () => enterpriseApi.acta.publishMinutes(id),
+    onSuccess: async () => refreshMeeting(),
+    onError: showApiError,
   });
 
   if (meetingQuery.isLoading) {
@@ -70,19 +261,40 @@ export default function ActaMeetingDetailPage() {
   }
 
   const meeting = meetingQuery.data;
-  const actionItems = useMemo(
-    () => (actionsQuery.data?.data ?? []).filter((item) => item.meeting_id === meeting.id),
-    [actionsQuery.data?.data, meeting.id],
-  );
-  const documents = useMemo(
-    () => (documentsQuery.data?.data ?? []).filter((document) => document.meeting_id === meeting.id),
-    [documentsQuery.data?.data, meeting.id],
-  );
+  const committee = committeeQuery.data as ActaCommittee | undefined;
+  const attendance = attendanceQuery.data ?? meeting.attendance ?? [];
+  const agenda = agendaQuery.data ?? meeting.agenda ?? [];
+  const actionItems = actionsQuery.data ?? [];
+  const minutes = minutesQuery.data as ActaMeetingMinutes | null;
+  const versions = versionsQuery.data ?? [];
+  const attachments = attachmentsQuery.data ?? meeting.attachments ?? [];
+  const canManage =
+    Boolean(committee && user?.id && (committee.chair_user_id === user.id || committee.secretary_user_id === user.id));
+  const canApprove = canApproveMinutes(minutes, committee, user?.id);
 
   return (
     <PermissionRedirect permission="acta:read">
       <div className="space-y-6">
-        <PageHeader title={meeting.title} description={`Committee: ${meeting.committee_name}`} />
+        <PageHeader
+          title={meeting.title}
+          description={`Committee: ${meeting.committee_name}`}
+          actions={
+            <MeetingStatusControls
+              meeting={meeting}
+              canManage={canManage}
+              onStart={() => startMutation.mutate()}
+              onEnd={() => endMutation.mutate()}
+              onCancel={(values) => cancelMutation.mutate(values)}
+              onPostpone={(values) => postponeMutation.mutate(values)}
+              pending={
+                startMutation.isPending ||
+                endMutation.isPending ||
+                cancelMutation.isPending ||
+                postponeMutation.isPending
+              }
+            />
+          }
+        />
 
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           <div className="rounded-lg border bg-card p-4">
@@ -96,8 +308,13 @@ export default function ActaMeetingDetailPage() {
             <p className="mt-2 text-lg font-semibold">{formatDateTime(meeting.scheduled_at)}</p>
           </div>
           <div className="rounded-lg border bg-card p-4">
-            <p className="text-sm text-muted-foreground">Attendees</p>
-            <p className="mt-2 text-lg font-semibold">{summarizeNamedRecords(meeting.attendees, 3)}</p>
+            <p className="text-sm text-muted-foreground">Quorum</p>
+            <p className="mt-2 text-lg font-semibold">
+              {meeting.present_count}/{meeting.attendee_count} present
+            </p>
+            <p className="text-xs text-muted-foreground">
+              {meeting.quorum_met ? 'Quorum met' : 'Quorum pending / not met'}
+            </p>
           </div>
           <div className="rounded-lg border bg-card p-4">
             <p className="text-sm text-muted-foreground">Action Items</p>
@@ -136,73 +353,113 @@ export default function ActaMeetingDetailPage() {
             </div>
           </SectionCard>
 
-          <SectionCard title="Attendees" description="Participants resolved from the meeting payload.">
-            <div className="space-y-2">
-              {Array.isArray(meeting.attendees) && meeting.attendees.length > 0 ? (
-                meeting.attendees.map((attendee, index) => (
-                  <div key={`${index}-${JSON.stringify(attendee)}`} className="rounded-lg border px-4 py-3 text-sm">
-                    {summarizeNamedRecords([attendee], 1)}
-                  </div>
-                ))
-              ) : (
-                <p className="text-sm text-muted-foreground">No attendee list is available for this meeting.</p>
-              )}
+          <SectionCard title="Meeting Workspace" description="Conduct the session across agenda, attendance, minutes, and follow-ups.">
+            <div className="grid gap-2 text-sm text-muted-foreground">
+              <div className="inline-flex items-center gap-2">
+                <BookOpen className="h-4 w-4" />
+                Agenda items: {agenda.length}
+              </div>
+              <div className="inline-flex items-center gap-2">
+                <Users className="h-4 w-4" />
+                Attendance records: {attendance.length}
+              </div>
+              <div className="inline-flex items-center gap-2">
+                <FileText className="h-4 w-4" />
+                Minutes: {minutes ? `v${minutes.version}` : 'Not started'}
+              </div>
+              <div className="inline-flex items-center gap-2">
+                <Paperclip className="h-4 w-4" />
+                Attachments: {attachments.length}
+              </div>
             </div>
           </SectionCard>
         </div>
 
-        <div className="grid gap-4 xl:grid-cols-2">
-          <SectionCard title="Action Items" description="Follow-ups tied to this meeting.">
-            <div className="space-y-3">
-              {actionItems.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No action items are linked to this meeting.</p>
-              ) : (
-                actionItems.map((item) => (
-                  <div key={item.id} className="rounded-lg border px-4 py-3">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <p className="font-medium">{item.title}</p>
-                        <p className="text-xs text-muted-foreground">{truncate(item.description, 140)}</p>
-                      </div>
-                      <Badge variant="outline" className="capitalize">{item.status.replace(/_/g, ' ')}</Badge>
-                    </div>
-                    <div className="mt-2 flex flex-wrap gap-3 text-xs text-muted-foreground">
-                      <span>Owner: {shortId(item.assigned_to)}</span>
-                      <span>Due: {item.due_date ? formatDateTime(item.due_date) : 'No due date'}</span>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-          </SectionCard>
+        <Tabs defaultValue="agenda" className="space-y-4">
+          <TabsList className="w-full justify-start">
+            <TabsTrigger value="agenda">Agenda</TabsTrigger>
+            <TabsTrigger value="attendance">Attendance</TabsTrigger>
+            <TabsTrigger value="minutes">Minutes</TabsTrigger>
+            <TabsTrigger value="actions">Action Items</TabsTrigger>
+            <TabsTrigger value="attachments">Attachments</TabsTrigger>
+          </TabsList>
 
-          <SectionCard title="Minutes & Outcomes" description="Minute records and AI-generated summaries linked to this meeting.">
-            <div className="space-y-3">
-              {documents.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No minutes have been published for this meeting.</p>
-              ) : (
-                documents.map((document) => (
-                  <div key={document.id} className="rounded-lg border px-4 py-3">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-2">
-                          <FileText className="h-4 w-4 text-muted-foreground" />
-                          <p className="font-medium">{document.meeting_title}</p>
-                        </div>
-                        <p className="mt-2 text-sm text-muted-foreground">{document.ai_summary ?? truncate(document.content, 160)}</p>
-                      </div>
-                      <StatusBadge status={document.status} config={minuteStatusConfig} size="sm" />
-                    </div>
-                    <div className="mt-2 text-xs text-muted-foreground">
-                      <RelativeTime date={document.updated_at} />
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-          </SectionCard>
-        </div>
+          <TabsContent value="agenda">
+            <AgendaTab
+              meeting={meeting}
+              items={agenda}
+              presentCount={meeting.present_count}
+              users={usersQuery.data?.data ?? []}
+              onCreate={(values) => agendaCreateMutation.mutate(values)}
+              onDelete={(item) => agendaDeleteMutation.mutate(item)}
+              onReorder={(itemIds) => agendaReorderMutation.mutate(itemIds)}
+              onRecordVote={(item) => setVoteItem(item)}
+              onSaveNotes={(itemId, notes) => agendaNotesMutation.mutate({ itemId, notes })}
+            />
+          </TabsContent>
+          <TabsContent value="attendance">
+            <AttendanceTab
+              meeting={meeting}
+              attendance={attendance}
+              currentUserId={user?.id}
+              onSaveAttendance={(values) => attendanceMutation.mutate(values)}
+              onBulkAbsent={(values) => bulkAttendanceMutation.mutate(values)}
+            />
+          </TabsContent>
+          <TabsContent value="minutes">
+            {committee ? (
+              <MinutesTab
+                meeting={meeting}
+                committee={committee}
+                minutes={minutes}
+                versions={versions}
+                actionItems={actionItems}
+                canApprove={canApprove}
+                pending={
+                  minutesGenerateMutation.isPending ||
+                  minutesSaveMutation.isPending ||
+                  minutesSubmitMutation.isPending ||
+                  minutesApproveMutation.isPending ||
+                  minutesPublishMutation.isPending
+                }
+                onGenerate={() => minutesGenerateMutation.mutate()}
+                onSave={(content) => minutesSaveMutation.mutate(content)}
+                onSubmitReview={() => minutesSubmitMutation.mutate()}
+                onApprove={() => minutesApproveMutation.mutate()}
+                onPublish={() => minutesPublishMutation.mutate()}
+              />
+            ) : (
+              <LoadingSkeleton variant="card" count={2} />
+            )}
+          </TabsContent>
+          <TabsContent value="actions">
+            {committee ? (
+              <ActionItemsTab meeting={meeting} committee={committee} items={actionItems} />
+            ) : null}
+          </TabsContent>
+          <TabsContent value="attachments">
+            <AttachmentsTab
+              meetingId={meeting.id}
+              attachments={attachments}
+              currentUserId={user?.id}
+              onRefresh={refreshMeeting}
+            />
+          </TabsContent>
+        </Tabs>
+
+        <AgendaVoteDialog
+          open={Boolean(voteItem)}
+          onOpenChange={(open) => !open && setVoteItem(null)}
+          item={voteItem}
+          presentCount={meeting.present_count}
+          onSubmit={(values) => voteItem && voteMutation.mutate({ item: voteItem, values })}
+          pending={voteMutation.isPending}
+        />
       </div>
     </PermissionRedirect>
   );
+}
+
+function isMissing(error: unknown) {
+  return typeof error === 'object' && error !== null && 'status' in error && (error as { status?: number }).status === 404;
 }
