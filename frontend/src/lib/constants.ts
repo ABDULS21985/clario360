@@ -21,9 +21,62 @@ export const API_ENDPOINTS = {
   BFF_SESSION: '/api/auth/session',
   BFF_REFRESH: '/api/auth/refresh',
 
-  // Cyber
+  // Cyber — Dashboard
+  CYBER_DASHBOARD: '/api/v1/cyber/dashboard',
+  CYBER_DASHBOARD_KPIS: '/api/v1/cyber/dashboard/kpis',
+  CYBER_DASHBOARD_ALERTS_TIMELINE: '/api/v1/cyber/dashboard/alerts-timeline',
+  CYBER_DASHBOARD_SEVERITY_DISTRIBUTION: '/api/v1/cyber/dashboard/severity-distribution',
+  CYBER_DASHBOARD_MITRE_HEATMAP: '/api/v1/cyber/dashboard/mitre-heatmap',
+  CYBER_DASHBOARD_TOP_ATTACKED_ASSETS: '/api/v1/cyber/dashboard/top-attacked-assets',
+  CYBER_DASHBOARD_ANALYST_WORKLOAD: '/api/v1/cyber/dashboard/analyst-workload',
+
+  // Cyber — Assets
+  CYBER_ASSETS: '/api/v1/cyber/assets',
+  CYBER_ASSETS_STATS: '/api/v1/cyber/assets/stats',
+  CYBER_ASSETS_SCAN: '/api/v1/cyber/assets/scan',
+  CYBER_ASSETS_SCANS: '/api/v1/cyber/assets/scans',
+  CYBER_ASSETS_BULK: '/api/v1/cyber/assets/bulk',
+  CYBER_ASSETS_BULK_TAGS: '/api/v1/cyber/assets/bulk/tags',
+
+  // Cyber — Alerts
   CYBER_ALERTS_COUNT: '/api/v1/cyber/alerts/count',
+  CYBER_ALERTS_STATS: '/api/v1/cyber/alerts/stats',
   CYBER_ALERTS: '/api/v1/cyber/alerts',
+
+  // Cyber — Vulnerabilities
+  CYBER_VULNERABILITIES_AGING: '/api/v1/cyber/vulnerabilities/aging',
+
+  // Cyber — Threats
+  CYBER_THREATS: '/api/v1/cyber/threats',
+  CYBER_INDICATORS_CHECK: '/api/v1/cyber/indicators/check',
+
+  // Cyber — Detection Rules
+  CYBER_RULES: '/api/v1/cyber/rules',
+  CYBER_RULE_TEMPLATES: '/api/v1/cyber/rules/templates',
+
+  // Cyber — CTEM
+  CYBER_CTEM_ASSESSMENTS: '/api/v1/cyber/ctem/assessments',
+  CYBER_CTEM_EXPOSURE_SCORE: '/api/v1/cyber/ctem/exposure-score',
+  CYBER_CTEM_EXPOSURE_HISTORY: '/api/v1/cyber/ctem/exposure-score/history',
+
+  // Cyber — Remediation
+  CYBER_REMEDIATION: '/api/v1/cyber/remediation',
+  CYBER_REMEDIATION_STATS: '/api/v1/cyber/remediation/stats',
+
+  // Cyber — DSPM
+  CYBER_DSPM_DASHBOARD: '/api/v1/cyber/dspm/dashboard',
+  CYBER_DSPM_DATA_ASSETS: '/api/v1/cyber/dspm/data-assets',
+  CYBER_DSPM_SCAN: '/api/v1/cyber/dspm/scan',
+
+  // Cyber — vCISO
+  CYBER_VCISO_BRIEFING: '/api/v1/cyber/vciso/briefing',
+  CYBER_VCISO_REPORT: '/api/v1/cyber/vciso/report',
+
+  // Cyber — MITRE
+  CYBER_MITRE_COVERAGE: '/api/v1/cyber/mitre/coverage',
+
+  // Cyber — Risk
+  CYBER_RISK_SCORE: '/api/v1/cyber/risk/score',
 
   // Data
   DATA_PIPELINES: '/api/v1/data/pipelines',

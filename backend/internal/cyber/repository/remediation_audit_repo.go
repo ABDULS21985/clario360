@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"time"
@@ -35,6 +36,26 @@ func (r *RemediationAuditRepository) RecordEntry(ctx context.Context, entry *mod
 	if err != nil {
 		detailsJSON = []byte("{}")
 	}
+	var stepAction any
+	if entry.StepAction != "" {
+		stepAction = entry.StepAction
+	}
+	var stepResult any
+	if entry.StepResult != "" {
+		stepResult = entry.StepResult
+	}
+	var oldStatus any
+	if entry.OldStatus != "" {
+		oldStatus = entry.OldStatus
+	}
+	var newStatus any
+	if entry.NewStatus != "" {
+		newStatus = entry.NewStatus
+	}
+	var errorMessage any
+	if entry.ErrorMessage != "" {
+		errorMessage = entry.ErrorMessage
+	}
 
 	_, err = r.db.Exec(ctx, `
 		INSERT INTO remediation_audit_trail (
@@ -43,9 +64,9 @@ func (r *RemediationAuditRepository) RecordEntry(ctx context.Context, entry *mod
 			details, error_message, duration_ms, created_at
 		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)`,
 		entry.ID, entry.TenantID, entry.RemediationID, entry.Action,
-		entry.ActorID, entry.ActorName, entry.OldStatus, entry.NewStatus,
-		entry.StepNumber, entry.StepAction, entry.StepResult,
-		detailsJSON, entry.ErrorMessage, entry.DurationMs, entry.CreatedAt,
+		entry.ActorID, entry.ActorName, oldStatus, newStatus,
+		entry.StepNumber, stepAction, stepResult,
+		detailsJSON, errorMessage, entry.DurationMs, entry.CreatedAt,
 	)
 	if err != nil {
 		return fmt.Errorf("record audit entry: %w", err)
@@ -73,14 +94,38 @@ func (r *RemediationAuditRepository) ListByRemediation(ctx context.Context, tena
 	for rows.Next() {
 		var entry model.RemediationAuditEntry
 		var detailsJSON []byte
+		var actorName sql.NullString
+		var oldStatus sql.NullString
+		var newStatus sql.NullString
+		var stepAction sql.NullString
+		var stepResult sql.NullString
+		var errorMessage sql.NullString
 		err := rows.Scan(
 			&entry.ID, &entry.TenantID, &entry.RemediationID, &entry.Action,
-			&entry.ActorID, &entry.ActorName, &entry.OldStatus, &entry.NewStatus,
-			&entry.StepNumber, &entry.StepAction, &entry.StepResult,
-			&detailsJSON, &entry.ErrorMessage, &entry.DurationMs, &entry.CreatedAt,
+			&entry.ActorID, &actorName, &oldStatus, &newStatus,
+			&entry.StepNumber, &stepAction, &stepResult,
+			&detailsJSON, &errorMessage, &entry.DurationMs, &entry.CreatedAt,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("scan audit entry: %w", err)
+		}
+		if actorName.Valid {
+			entry.ActorName = actorName.String
+		}
+		if oldStatus.Valid {
+			entry.OldStatus = oldStatus.String
+		}
+		if newStatus.Valid {
+			entry.NewStatus = newStatus.String
+		}
+		if stepAction.Valid {
+			entry.StepAction = stepAction.String
+		}
+		if stepResult.Valid {
+			entry.StepResult = stepResult.String
+		}
+		if errorMessage.Valid {
+			entry.ErrorMessage = errorMessage.String
 		}
 		if detailsJSON != nil {
 			_ = json.Unmarshal(detailsJSON, &entry.Details)

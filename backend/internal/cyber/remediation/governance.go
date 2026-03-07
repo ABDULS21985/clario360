@@ -10,9 +10,9 @@ import (
 
 // Governance errors — used as sentinel values for HTTP response mapping.
 var (
-	ErrInvalidTransition    = errors.New("invalid state transition")
+	ErrInvalidTransition      = errors.New("invalid state transition")
 	ErrInsufficientPermission = errors.New("insufficient permission for this action")
-	ErrPreConditionFailed   = errors.New("pre-condition check failed")
+	ErrPreConditionFailed     = errors.New("pre-condition check failed")
 )
 
 // roleLevel maps role names to numeric levels for comparison.
@@ -31,10 +31,10 @@ func hasMinRole(role, minimum string) bool {
 
 // transitionDef defines one valid state transition.
 type transitionDef struct {
-	From        model.RemediationStatus
-	To          model.RemediationStatus
-	Action      string
-	MinRole     string
+	From         model.RemediationStatus
+	To           model.RemediationStatus
+	Action       string
+	MinRole      string
 	PreCondition func(a *model.RemediationAction) error
 }
 
@@ -70,14 +70,14 @@ var validTransitions = []transitionDef{
 }
 
 func checkExecutePreConditions(a *model.RemediationAction) error {
+	if a.ApprovedBy == nil || a.ApprovedAt == nil {
+		return fmt.Errorf("%w: approval is required before execution", ErrPreConditionFailed)
+	}
 	if a.DryRunResult == nil || a.DryRunAt == nil {
 		return fmt.Errorf("%w: dry-run must be completed before execution", ErrPreConditionFailed)
 	}
 	if !a.DryRunResult.Success {
 		return fmt.Errorf("%w: cannot execute — dry-run reported failures, fix issues and re-run dry-run", ErrPreConditionFailed)
-	}
-	if a.ApprovedBy == nil || a.ApprovedAt == nil {
-		return fmt.Errorf("%w: approval is required before execution", ErrPreConditionFailed)
 	}
 	return nil
 }

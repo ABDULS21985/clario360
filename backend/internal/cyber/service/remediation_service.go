@@ -305,6 +305,19 @@ func (s *RemediationService) Execute(ctx context.Context, tenantID, remediationI
 			return nil, fmt.Errorf("%w: manual confirmation is required for custom remediations", remediation.ErrPreConditionFailed)
 		}
 	}
+	switch action.Status {
+	case model.StatusDraft, model.StatusPendingApproval, model.StatusRejected, model.StatusRevisionRequested:
+		return nil, fmt.Errorf("%w: approval is required before execution", remediation.ErrInsufficientPermission)
+	}
+	if action.ApprovedBy == nil || action.ApprovedAt == nil {
+		return nil, fmt.Errorf("%w: approval is required before execution", remediation.ErrInsufficientPermission)
+	}
+	if action.DryRunResult == nil || action.DryRunAt == nil {
+		return nil, fmt.Errorf("%w: dry-run must be completed before execution", remediation.ErrPreConditionFailed)
+	}
+	if !action.DryRunResult.Success {
+		return nil, fmt.Errorf("%w: cannot execute: dry-run reported failures. Fix issues and re-run dry-run.", remediation.ErrPreConditionFailed)
+	}
 	if action.Status == model.StatusDryRunCompleted {
 		if err := remediation.ValidateTransition(action, model.StatusExecutionPending, actorRole); err != nil {
 			return nil, err

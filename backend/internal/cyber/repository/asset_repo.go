@@ -92,7 +92,7 @@ func (r *AssetRepository) GetByID(ctx context.Context, tenantID, assetID uuid.UU
 				SELECT v.severity FROM vulnerabilities v
 				WHERE v.asset_id = a.id AND v.status NOT IN ('resolved','accepted','false_positive')
 				  AND v.deleted_at IS NULL
-				ORDER BY severity_order(v.severity) DESC LIMIT 1
+				ORDER BY severity_order(v.severity::text) DESC LIMIT 1
 			) AS highest_vulnerability_severity,
 			COALESCE((
 				SELECT COUNT(*) FROM asset_relationships r
@@ -122,7 +122,7 @@ func (r *AssetRepository) List(ctx context.Context, tenantID uuid.UUID, params *
 			SELECT COUNT(*) AS open_count,
 			       (SELECT v2.severity FROM vulnerabilities v2 WHERE v2.asset_id = a.id
 			          AND v2.status NOT IN ('resolved','accepted','false_positive') AND v2.deleted_at IS NULL
-			          ORDER BY severity_order(v2.severity) DESC LIMIT 1) AS highest_severity
+			          ORDER BY severity_order(v2.severity::text) DESC LIMIT 1) AS highest_severity
 			FROM vulnerabilities v
 			WHERE v.asset_id = a.id AND v.status NOT IN ('resolved','accepted','false_positive') AND v.deleted_at IS NULL
 		) vc ON true

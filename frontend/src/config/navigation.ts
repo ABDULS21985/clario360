@@ -8,6 +8,8 @@ import {
   Wrench,
   Database,
   Bot,
+  ShieldCheck,
+  Grid3X3,
   BarChart3,
   FolderOpen,
   Boxes,
@@ -101,6 +103,8 @@ export const navigation: NavSection[] = [
       },
       { id: 'cyber-dspm', label: 'DSPM', href: '/cyber/dspm', icon: Database },
       { id: 'cyber-vciso', label: 'Virtual CISO', href: '/cyber/vciso', icon: Bot },
+      { id: 'cyber-rules', label: 'Detection Rules', href: '/cyber/rules', icon: ShieldCheck, permission: 'cyber:read' },
+      { id: 'cyber-mitre', label: 'MITRE Coverage', href: '/cyber/mitre', icon: Grid3X3, permission: 'cyber:read' },
     ],
   },
   {

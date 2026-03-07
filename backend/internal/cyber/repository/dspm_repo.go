@@ -34,6 +34,19 @@ func (r *DSPMRepository) UpsertDataAsset(ctx context.Context, asset *model.DSPMD
 	}
 	now := time.Now().UTC()
 	asset.UpdatedAt = now
+	legacyName := asset.AssetName
+	if legacyName == "" {
+		legacyName = asset.AssetID.String()
+	}
+	legacyType := asset.AssetType
+	if legacyType == "" {
+		legacyType = "database"
+	}
+	legacyLocation := ""
+	if v, ok := asset.Metadata["location"].(string); ok {
+		legacyLocation = strings.TrimSpace(v)
+	}
+	legacyClassification := asset.DataClassification
 
 	riskFactorsJSON, _ := json.Marshal(asset.RiskFactors)
 	postureJSON, _ := json.Marshal(asset.PostureFindings)
@@ -45,7 +58,8 @@ func (r *DSPMRepository) UpsertDataAsset(ctx context.Context, asset *model.DSPMD
 
 	_, err := r.db.Exec(ctx, `
 		INSERT INTO dspm_data_assets (
-			id, tenant_id, asset_id, scan_id, data_classification, sensitivity_score,
+			id, tenant_id, name, type, location, classification,
+			asset_id, scan_id, data_classification, sensitivity_score,
 			contains_pii, pii_types, pii_column_count, estimated_record_count,
 			encrypted_at_rest, encrypted_in_transit, access_control_type, network_exposure,
 			backup_configured, audit_logging, last_access_review,
@@ -53,17 +67,19 @@ func (r *DSPMRepository) UpsertDataAsset(ctx context.Context, asset *model.DSPMD
 			consumer_count, producer_count, database_type, schema_info, metadata,
 			last_scanned_at, created_at, updated_at
 		) VALUES (
-			$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$28
+			$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$32
 		)
 		ON CONFLICT (tenant_id, asset_id) DO UPDATE SET
-			scan_id=$4, data_classification=$5, sensitivity_score=$6,
-			contains_pii=$7, pii_types=$8, pii_column_count=$9, estimated_record_count=$10,
-			encrypted_at_rest=$11, encrypted_in_transit=$12, access_control_type=$13, network_exposure=$14,
-			backup_configured=$15, audit_logging=$16, last_access_review=$17,
-			risk_score=$18, risk_factors=$19, posture_score=$20, posture_findings=$21,
-			consumer_count=$22, producer_count=$23, database_type=$24, schema_info=$25, metadata=$26,
-			last_scanned_at=$27, updated_at=$28`,
-		asset.ID, asset.TenantID, asset.AssetID, asset.ScanID, asset.DataClassification, asset.SensitivityScore,
+			name=EXCLUDED.name, type=EXCLUDED.type, location=EXCLUDED.location, classification=EXCLUDED.classification,
+			scan_id=$8, data_classification=$9, sensitivity_score=$10,
+			contains_pii=$11, pii_types=$12, pii_column_count=$13, estimated_record_count=$14,
+			encrypted_at_rest=$15, encrypted_in_transit=$16, access_control_type=$17, network_exposure=$18,
+			backup_configured=$19, audit_logging=$20, last_access_review=$21,
+			risk_score=$22, risk_factors=$23, posture_score=$24, posture_findings=$25,
+			consumer_count=$26, producer_count=$27, database_type=$28, schema_info=$29, metadata=$30,
+			last_scanned_at=$31, updated_at=$32`,
+		asset.ID, asset.TenantID, legacyName, legacyType, legacyLocation, legacyClassification,
+		asset.AssetID, asset.ScanID, asset.DataClassification, asset.SensitivityScore,
 		asset.ContainsPII, asset.PIITypes, asset.PIIColumnCount, asset.EstimatedRecordCount,
 		asset.EncryptedAtRest, asset.EncryptedInTransit, asset.AccessControlType, asset.NetworkExposure,
 		asset.BackupConfigured, asset.AuditLogging, asset.LastAccessReview,

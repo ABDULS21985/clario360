@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -100,11 +101,12 @@ func (r *VCISORepository) ListBriefings(ctx context.Context, tenantID uuid.UUID,
 func scanBriefing(row interface{ Scan(...interface{}) error }) (*model.VCISOBriefingRecord, error) {
 	var rec model.VCISOBriefingRecord
 	var contentJSON []byte
-	var periodStart, periodEnd string
+	var periodStart, periodEnd time.Time
+	var riskScore sql.NullFloat64
 
 	err := row.Scan(
 		&rec.ID, &rec.TenantID, &rec.Type, &periodStart, &periodEnd,
-		&contentJSON, &rec.RiskScoreAtTime, &rec.GeneratedBy, &rec.CreatedAt,
+		&contentJSON, &riskScore, &rec.GeneratedBy, &rec.CreatedAt,
 	)
 	if err != nil {
 		if err == pgx.ErrNoRows {
@@ -113,16 +115,17 @@ func scanBriefing(row interface{ Scan(...interface{}) error }) (*model.VCISOBrie
 		return nil, fmt.Errorf("scan briefing: %w", err)
 	}
 
-	if t, err := time.Parse("2006-01-02", periodStart); err == nil {
-		rec.PeriodStart = t
-	}
-	if t, err := time.Parse("2006-01-02", periodEnd); err == nil {
-		rec.PeriodEnd = t
+	rec.PeriodStart = periodStart
+	rec.PeriodEnd = periodEnd
+	if riskScore.Valid {
+		rec.RiskScoreAtTime = &riskScore.Float64
 	}
 
 	if contentJSON != nil {
 		rec.Content = &model.ExecutiveBriefing{}
-		_ = json.Unmarshal(contentJSON, rec.Content)
+		if err := json.Unmarshal(contentJSON, rec.Content); err != nil {
+			return nil, fmt.Errorf("unmarshal briefing content: %w", err)
+		}
 	}
 	return &rec, nil
 }
