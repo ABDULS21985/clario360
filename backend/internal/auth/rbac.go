@@ -16,6 +16,9 @@ const (
 	PermCyberWrite  = "cyber:write"
 	PermDataRead    = "data:read"
 	PermDataWrite   = "data:write"
+	PermDataPII     = "data:pii"
+	PermDataConfidential = "data:confidential"
+	PermDataRestricted   = "data:restricted"
 	PermActaRead    = "acta:read"
 	PermActaWrite   = "acta:write"
 	PermLexRead     = "lex:read"
@@ -34,7 +37,7 @@ var RolePermissions = map[string][]string{
 		PermTenantRead, PermTenantWrite,
 		PermAuditRead,
 		PermCyberRead, PermCyberWrite,
-		PermDataRead, PermDataWrite,
+		PermDataRead, PermDataWrite, PermDataPII, PermDataConfidential, PermDataRestricted,
 		PermActaRead, PermActaWrite,
 		PermLexRead, PermLexWrite,
 		PermVisusRead, PermVisusWrite,
