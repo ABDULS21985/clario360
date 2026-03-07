@@ -10,6 +10,15 @@ CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 -- ALERTS
 -- =============================================================================
 
+DROP INDEX IF EXISTS idx_alerts_assigned;
+DROP INDEX IF EXISTS idx_alerts_tenant_status;
+DROP INDEX IF EXISTS idx_alerts_tenant_severity;
+DROP INDEX IF EXISTS idx_alerts_tenant_created;
+DROP INDEX IF EXISTS idx_alerts_rule;
+DROP INDEX IF EXISTS idx_alerts_affected_assets;
+DROP INDEX IF EXISTS idx_alerts_explanation;
+DROP INDEX IF EXISTS idx_alerts_factors;
+
 ALTER TABLE alerts
     ALTER COLUMN title TYPE TEXT,
     ALTER COLUMN description TYPE TEXT,
@@ -458,4 +467,3 @@ $$ LANGUAGE plpgsql;
 SELECT create_security_events_partition((date_trunc('month', now()) - INTERVAL '1 month')::DATE);
 SELECT create_security_events_partition(date_trunc('month', now())::DATE);
 SELECT create_security_events_partition((date_trunc('month', now()) + INTERVAL '1 month')::DATE);
-

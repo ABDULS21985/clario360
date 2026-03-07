@@ -214,7 +214,7 @@ func copyVulnerabilities(ctx context.Context, tx pgx.Tx, vulnerabilities []vulne
 	}
 	_, err := tx.CopyFrom(ctx, pgx.Identifier{"vulnerabilities"}, []string{
 		"id", "tenant_id", "asset_id", "cve_id", "title", "description", "severity", "cvss_score", "cvss_vector", "status",
-		"detected_at", "resolved_at", "source", "remediation", "proof", "metadata", "created_at", "updated_at",
+		"discovered_at", "resolved_at", "source", "remediation", "proof", "metadata", "created_at", "updated_at",
 	}, pgx.CopyFromRows(rows))
 	if err != nil {
 		return fmt.Errorf("copy vulnerabilities: %w", err)

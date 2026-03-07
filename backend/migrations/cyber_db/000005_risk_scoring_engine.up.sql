@@ -18,11 +18,12 @@ CREATE TABLE IF NOT EXISTS risk_score_history (
     snapshot_type        TEXT         NOT NULL DEFAULT 'daily'
                                      CHECK (snapshot_type IN ('daily', 'on_demand', 'event_triggered')),
     trigger_event        TEXT,
+    calculated_on        DATE         NOT NULL,
     calculated_at        TIMESTAMPTZ  NOT NULL DEFAULT now()
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_risk_history_daily_unique
-    ON risk_score_history (tenant_id, snapshot_type, (calculated_at::date))
+    ON risk_score_history (tenant_id, snapshot_type, calculated_on)
     WHERE snapshot_type = 'daily';
 
 CREATE INDEX IF NOT EXISTS idx_risk_history_tenant
@@ -31,8 +32,8 @@ CREATE INDEX IF NOT EXISTS idx_risk_history_tenant
 CREATE INDEX IF NOT EXISTS idx_risk_history_trend
     ON risk_score_history (tenant_id, snapshot_type, calculated_at DESC);
 
-CREATE INDEX IF NOT EXISTS idx_alerts_tenant_created_hour
-    ON alerts (tenant_id, date_trunc('hour', created_at))
+CREATE INDEX IF NOT EXISTS idx_alerts_tenant_created_window
+    ON alerts (tenant_id, created_at DESC)
     WHERE deleted_at IS NULL;
 
 CREATE INDEX IF NOT EXISTS idx_alerts_response_time

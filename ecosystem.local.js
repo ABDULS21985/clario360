@@ -1,0 +1,71 @@
+module.exports = {
+  apps: [
+    {
+      name: "clario360-cyber-service",
+      cwd: "/Users/mac/clario360/backend",
+      script: "go",
+      args: "run ./cmd/cyber-service",
+      interpreter: "none",
+      env: {
+        ENVIRONMENT: "development",
+        LOG_LEVEL: "info",
+        LOG_FORMAT: "console",
+        OTEL_EXPORTER_OTLP_ENDPOINT: "",
+        SERVER_HOST: "0.0.0.0",
+        SERVER_PORT: "8090",
+        METRICS_PORT: "9091",
+        DATABASE_HOST: "localhost",
+        DATABASE_PORT: "5432",
+        DATABASE_USER: "clario",
+        DATABASE_PASSWORD: "clario_dev_pass",
+        DATABASE_NAME: "cyber_db",
+        DATABASE_SSL_MODE: "disable",
+        REDIS_HOST: "127.0.0.1",
+        REDIS_PORT: "6379",
+        REDIS_DB: "0",
+        KAFKA_BROKERS: "localhost:9094",
+        KAFKA_GROUP_ID: "clario360-cyber-local",
+        AUTH_JWT_ISSUER: "clario360-local",
+        AUTH_JWT_ACCESS_TOKEN_TTL: "15m",
+        AUTH_JWT_REFRESH_TOKEN_TTL: "168h",
+        ENCRYPTION_KEY: "0123456789abcdef0123456789abcdef",
+        CYBER_HTTP_PORT: "8090",
+        CYBER_DB_URL: "postgres://clario:clario_dev_pass@localhost:5432/cyber_db?sslmode=disable",
+        CYBER_REDIS_URL: "redis://127.0.0.1:6379/0",
+        CYBER_KAFKA_BROKERS: "localhost:9094",
+        CYBER_KAFKA_GROUP_ID: "cyber-service-cg-local",
+        CYBER_JWT_PUBLIC_KEY_PATH: "/tmp/clario360-perf/jwt-public.pem",
+        CYBER_DB_MIN_CONNS: "5",
+        CYBER_DB_MAX_CONNS: "20",
+        CYBER_SCAN_NETWORK_WORKERS: "50",
+        CYBER_SCAN_NETWORK_TIMEOUT_SEC: "2",
+        CYBER_SCAN_NETWORK_MAX_IPS: "65536",
+        CYBER_ENRICHMENT_CVE_ENABLED: "true",
+        CYBER_ENRICHMENT_GEO_ENABLED: "false",
+        CYBER_CLASSIFY_ON_CREATE: "true",
+        CYBER_CLASSIFY_ON_SCAN: "true",
+        CYBER_DETECTION_RULE_REFRESH_SEC: "60"
+      }
+    },
+    {
+      name: "clario360-frontend",
+      cwd: "/Users/mac/clario360/frontend",
+      script: "npm",
+      args: "run start -- -H 0.0.0.0 -p 3000",
+      interpreter: "none",
+      env: {
+        NODE_ENV: "production",
+        NEXT_PUBLIC_API_URL: "http://localhost:8090",
+        NEXT_PUBLIC_APP_NAME: "Clario 360",
+        NEXT_PUBLIC_APP_URL: "http://localhost:3000",
+        NEXT_PUBLIC_APP_VERSION: "0.1.0",
+        AUTH_COOKIE_NAME: "clario360",
+        AUTH_COOKIE_SECURE: "false",
+        AUTH_COOKIE_DOMAIN: "localhost",
+        AUTH_COOKIE_SAMESITE: "strict",
+        AUTH_ACCESS_TOKEN_MAX_AGE: "900",
+        AUTH_REFRESH_TOKEN_MAX_AGE: "604800"
+      }
+    }
+  ]
+};

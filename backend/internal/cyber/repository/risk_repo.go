@@ -59,6 +59,7 @@ func (r *RiskHistoryRepository) Upsert(ctx context.Context, tenantID uuid.UUID, 
 		recommendationsJSON,
 		snapshotType,
 		triggerEvent,
+		score.CalculatedAt.UTC().Truncate(24 * time.Hour),
 		score.CalculatedAt,
 	}
 
@@ -68,11 +69,11 @@ func (r *RiskHistoryRepository) Upsert(ctx context.Context, tenantID uuid.UUID, 
 				id, tenant_id, overall_score, grade, vulnerability_score, threat_score,
 				config_score, surface_score, compliance_score, total_assets, total_open_vulns,
 				total_open_alerts, total_active_threats, components, top_contributors,
-				recommendations, snapshot_type, trigger_event, calculated_at
+				recommendations, snapshot_type, trigger_event, calculated_on, calculated_at
 			) VALUES (
-				$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19
+				$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20
 			)
-			ON CONFLICT (tenant_id, snapshot_type, (calculated_at::date)) WHERE snapshot_type = 'daily'
+			ON CONFLICT (tenant_id, snapshot_type, calculated_on) WHERE snapshot_type = 'daily'
 			DO UPDATE SET
 				overall_score = EXCLUDED.overall_score,
 				grade = EXCLUDED.grade,
@@ -89,6 +90,7 @@ func (r *RiskHistoryRepository) Upsert(ctx context.Context, tenantID uuid.UUID, 
 				top_contributors = EXCLUDED.top_contributors,
 				recommendations = EXCLUDED.recommendations,
 				trigger_event = EXCLUDED.trigger_event,
+				calculated_on = EXCLUDED.calculated_on,
 				calculated_at = EXCLUDED.calculated_at`,
 			args...,
 		)
@@ -100,9 +102,9 @@ func (r *RiskHistoryRepository) Upsert(ctx context.Context, tenantID uuid.UUID, 
 			id, tenant_id, overall_score, grade, vulnerability_score, threat_score,
 			config_score, surface_score, compliance_score, total_assets, total_open_vulns,
 			total_open_alerts, total_active_threats, components, top_contributors,
-			recommendations, snapshot_type, trigger_event, calculated_at
+			recommendations, snapshot_type, trigger_event, calculated_on, calculated_at
 		) VALUES (
-			$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19
+			$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20
 		)`,
 		args...,
 	)

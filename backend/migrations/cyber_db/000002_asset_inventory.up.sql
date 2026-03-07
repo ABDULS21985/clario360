@@ -133,7 +133,7 @@ CREATE TABLE IF NOT EXISTS cve_database (
     affected_products JSONB       NOT NULL DEFAULT '[]',
     published_at      TIMESTAMPTZ NOT NULL,
     modified_at       TIMESTAMPTZ NOT NULL,
-    references        JSONB       NOT NULL DEFAULT '[]',
+    "references"      JSONB       NOT NULL DEFAULT '[]',
     created_at        TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
