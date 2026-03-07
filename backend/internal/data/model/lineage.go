@@ -143,13 +143,13 @@ type AffectedSuite struct {
 }
 
 type ImpactAnalysis struct {
-	Entity             LineageNode       `json:"entity"`
-	DirectlyAffected   []ImpactedEntity  `json:"directly_affected"`
-	IndirectlyAffected []ImpactedEntity  `json:"indirectly_affected"`
-	AffectedSuites     []AffectedSuite   `json:"affected_suites"`
-	TotalAffected      int               `json:"total_affected"`
-	Severity           string            `json:"severity"`
-	Summary            string            `json:"summary"`
+	Entity             LineageNode      `json:"entity"`
+	DirectlyAffected   []ImpactedEntity `json:"directly_affected"`
+	IndirectlyAffected []ImpactedEntity `json:"indirectly_affected"`
+	AffectedSuites     []AffectedSuite  `json:"affected_suites"`
+	TotalAffected      int              `json:"total_affected"`
+	Severity           string           `json:"severity"`
+	Summary            string           `json:"summary"`
 }
 
 type LineageStatsSummary struct {
@@ -161,4 +161,13 @@ type LineageStatsSummary struct {
 	NodesByType          map[string]int `json:"nodes_by_type"`
 	CriticalPathNodes    int            `json:"critical_path_nodes"`
 	LastUpdatedAtUnixSec int64          `json:"last_updated_at_unix_sec"`
+}
+
+// LineageSearchResult wraps a LineageNode with the relevance score and the
+// list of fields that contributed to the match. Exposed in the search response
+// so clients can highlight matched terms.
+type LineageSearchResult struct {
+	Node        LineageNode `json:"node"`
+	Score       float64     `json:"score"`
+	MatchFields []string    `json:"match_fields"`
 }

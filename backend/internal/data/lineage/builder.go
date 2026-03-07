@@ -123,32 +123,12 @@ func (b *GraphBuilder) BuildEntityGraph(ctx context.Context, tenantID uuid.UUID,
 	return b.BuildDirectionalGraph(ctx, tenantID, entityType, entityID, depth, "")
 }
 
-func (b *GraphBuilder) Search(ctx context.Context, tenantID uuid.UUID, query string, entityType string, limit int) ([]model.LineageNode, error) {
+func (b *GraphBuilder) Search(ctx context.Context, tenantID uuid.UUID, query string, entityType string, limit int) ([]model.LineageSearchResult, error) {
 	graph, err := b.BuildFullGraph(ctx, tenantID)
 	if err != nil {
 		return nil, err
 	}
-	query = strings.TrimSpace(strings.ToLower(query))
-	entityType = strings.TrimSpace(strings.ToLower(entityType))
-	if limit <= 0 {
-		limit = 25
-	}
-	results := make([]model.LineageNode, 0, limit)
-	for _, node := range graph.Nodes {
-		if entityType != "" && strings.ToLower(node.Type) != entityType {
-			continue
-		}
-		if query != "" {
-			if !strings.Contains(strings.ToLower(node.Name), query) && !strings.Contains(strings.ToLower(node.ID), query) {
-				continue
-			}
-		}
-		results = append(results, node)
-		if len(results) == limit {
-			break
-		}
-	}
-	return results, nil
+	return NewEntitySearcher(b.logger).Search(graph.Nodes, query, entityType, limit), nil
 }
 
 func (b *GraphBuilder) Stats(ctx context.Context, tenantID uuid.UUID) (*model.LineageStatsSummary, error) {

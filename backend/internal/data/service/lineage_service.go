@@ -127,7 +127,7 @@ func (s *LineageService) DeleteEdge(ctx context.Context, tenantID, edgeID uuid.U
 	return nil
 }
 
-func (s *LineageService) Search(ctx context.Context, tenantID uuid.UUID, params dto.SearchLineageParams) ([]model.LineageNode, error) {
+func (s *LineageService) Search(ctx context.Context, tenantID uuid.UUID, params dto.SearchLineageParams) ([]model.LineageSearchResult, error) {
 	return s.builder.Search(ctx, tenantID, params.Query, params.Type, params.Limit)
 }
 
