@@ -2,6 +2,7 @@ package consumer
 
 import (
 	"context"
+	"strings"
 
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
@@ -41,7 +42,8 @@ func (c *CyberConsumer) Stop() error {
 func (c *CyberConsumer) handleAssetEvent(ctx context.Context, event *events.Event) error {
 	c.logger.Debug().Str("type", event.Type).Str("id", event.ID).Msg("received asset event")
 
-	switch event.Type {
+	eventType := strings.TrimPrefix(event.Type, "com.clario360.")
+	switch eventType {
 	case "cyber.asset.bulk_created":
 		return c.handleBulkCreated(ctx, event)
 	case "cyber.asset.created":

@@ -32,6 +32,19 @@ func TestExpandCIDR_PublicBlockedAndTooLarge(t *testing.T) {
 	if _, err := expandCIDR("10.0.0.0/7", false); err == nil {
 		t.Fatal("expected oversized cidr to be rejected")
 	}
+	if _, err := expandCIDR("not-a-cidr", false); err == nil {
+		t.Fatal("expected invalid cidr to be rejected")
+	}
+}
+
+func TestExpandCIDR_16(t *testing.T) {
+	ips, err := expandCIDR("10.1.0.0/16", false)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(ips) != 65534 {
+		t.Fatalf("expected 65534 IPs, got %d", len(ips))
+	}
 }
 
 func TestExpandCIDRs_MaxIPs(t *testing.T) {

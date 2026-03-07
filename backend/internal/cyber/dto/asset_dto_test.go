@@ -57,6 +57,20 @@ func TestCreateAssetValidation_InvalidMACAndTags(t *testing.T) {
 	}
 }
 
+func TestCreateAssetValidation_InvalidIP(t *testing.T) {
+	invalidIP := "not-an-ip"
+	req := CreateAssetRequest{
+		Name:        "asset-1",
+		Type:        model.AssetTypeServer,
+		IPAddress:   &invalidIP,
+		Criticality: model.CriticalityLow,
+	}
+	errMap := pkgvalidator.Validate(req)
+	if errMap["ip_address"] == "" {
+		t.Fatalf("expected ip validation error, got %#v", errMap)
+	}
+}
+
 func TestAssetListParams_DefaultsAndValidate(t *testing.T) {
 	params := &AssetListParams{}
 	params.SetDefaults()
@@ -79,5 +93,21 @@ func TestAssetListParams_DefaultsAndValidate(t *testing.T) {
 	params = &AssetListParams{Types: []string{"DROP TABLE"}}
 	if err := params.Validate(); err == nil {
 		t.Fatal("expected invalid type error")
+	}
+
+	params = &AssetListParams{Sort: "DROP TABLE"}
+	if err := params.Validate(); err == nil {
+		t.Fatal("expected invalid sort error")
+	}
+
+	params = &AssetListParams{Tags: []string{"bad tag!"}}
+	if err := params.Validate(); err == nil {
+		t.Fatal("expected invalid tag filter error")
+	}
+
+	params = &AssetListParams{PerPage: 500}
+	params.SetDefaults()
+	if params.PerPage != 200 {
+		t.Fatalf("expected per-page clamp to 200, got %d", params.PerPage)
 	}
 }

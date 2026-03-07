@@ -271,15 +271,17 @@ func (s *AssetService) BulkCreate(ctx context.Context, tenantID, userID uuid.UUI
 			s.logger.Warn().Err(err).Msg("bulk create: failed to fetch assets for classification")
 			return
 		}
-		results := s.classifier.ClassifyBatch(fetchedAssets)
-		updates := make(map[uuid.UUID]model.Criticality)
-		for _, r := range results {
-			if r.Changed {
-				updates[r.AssetID] = r.Criticality
+		if s.cfg.ClassifyOnCreate {
+			results := s.classifier.ClassifyBatch(fetchedAssets)
+			updates := make(map[uuid.UUID]model.Criticality)
+			for _, r := range results {
+				if r.Changed {
+					updates[r.AssetID] = r.Criticality
+				}
 			}
-		}
-		if len(updates) > 0 {
-			_ = s.assetRepo.BulkUpdateCriticality(bgCtx, tenantID, updates)
+			if len(updates) > 0 {
+				_ = s.assetRepo.BulkUpdateCriticality(bgCtx, tenantID, updates)
+			}
 		}
 		s.enrichSvc.EnrichBatch(bgCtx, tenantID, ids)
 	}()

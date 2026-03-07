@@ -189,7 +189,7 @@ func main() {
 
 	// ── 16. Routes ─────────────────────────────────────────────────────────────
 	assetHandler := handler.NewAssetHandler(assetSvc, logger)
-	handler.RegisterRoutes(srv.Router, assetHandler, jwtMgr)
+	handler.RegisterRoutes(srv.Router, assetHandler, jwtMgr, rdb)
 
 	// ── 17. Kafka consumer ─────────────────────────────────────────────────────
 	var cyberConsumer *consumer.CyberConsumer

@@ -144,3 +144,47 @@ func TestQB_BuildCount_WithHavingWrapsQuery(t *testing.T) {
 		t.Fatalf("expected wrapped count query, got %s", sql)
 	}
 }
+
+func TestQB_ParameterIndexing_ThroughTenConditions(t *testing.T) {
+	qb := NewQueryBuilder("SELECT a.* FROM assets a")
+	for idx := 1; idx <= 10; idx++ {
+		qb.Where("a.metadata->>? = ?", "field", idx)
+	}
+	sql, args := qb.Build()
+	if !strings.Contains(sql, "$10") {
+		t.Fatalf("expected tenth placeholder in sql, got %s", sql)
+	}
+	if len(args) != 20 {
+		t.Fatalf("expected 20 args, got %#v", args)
+	}
+}
+
+func TestQB_ComplexQuery(t *testing.T) {
+	qb := NewQueryBuilder("SELECT a.* FROM assets a")
+	sql, args := qb.
+		Where("a.tenant_id = ?", "tenant-1").
+		WhereFTS([]string{"a.name", "a.hostname"}, "web-prod").
+		WhereIn("a.type", []string{"server", "cloud_resource"}).
+		WhereArrayContainsAll("a.tags", []string{"production", "web"}).
+		WhereExists("SELECT 1 FROM vulnerabilities v WHERE v.asset_id = a.id AND v.severity = ?", "critical").
+		OrderBy("created_at", "desc", []string{"created_at"}).
+		Paginate(2, 25).
+		Build()
+
+	checks := []string{
+		"a.tenant_id = $1",
+		"plainto_tsquery('english', $2)",
+		"a.type IN ($5, $6)",
+		"a.tags @> ARRAY[$7, $8]",
+		"v.severity = $9",
+		"LIMIT 25 OFFSET 25",
+	}
+	for _, check := range checks {
+		if !strings.Contains(sql, check) {
+			t.Fatalf("expected %q in sql, got %s", check, sql)
+		}
+	}
+	if len(args) != 9 {
+		t.Fatalf("expected 9 args, got %#v", args)
+	}
+}

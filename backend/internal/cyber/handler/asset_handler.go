@@ -650,6 +650,11 @@ func writeError(w http.ResponseWriter, status int, code, message string, details
 	if len(details) > 0 {
 		detailValue = details[0]
 	}
+	if status >= http.StatusInternalServerError {
+		code = "INTERNAL_ERROR"
+		message = "internal server error"
+		detailValue = nil
+	}
 	writeJSON(w, status, map[string]any{
 		"error": map[string]any{
 			"code":       code,

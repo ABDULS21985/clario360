@@ -2,17 +2,23 @@ package handler
 
 import (
 	"github.com/go-chi/chi/v5"
+	"github.com/redis/go-redis/v9"
 
 	"github.com/clario360/platform/internal/auth"
+	cyberhealth "github.com/clario360/platform/internal/cyber/health"
+	cybermw "github.com/clario360/platform/internal/cyber/middleware"
 	"github.com/clario360/platform/internal/middleware"
 )
 
 // RegisterRoutes mounts all cyber service routes on the given router.
 // All routes require a valid JWT; tenant isolation is enforced by the Auth middleware.
-func RegisterRoutes(r chi.Router, assetHandler *AssetHandler, jwtMgr *auth.JWTManager) {
+func RegisterRoutes(r chi.Router, assetHandler *AssetHandler, jwtMgr *auth.JWTManager, rdb *redis.Client) {
+	cyberhealth.Register(r)
+
 	r.Route("/api/v1/cyber", func(r chi.Router) {
 		r.Use(middleware.Auth(jwtMgr))
 		r.Use(middleware.Tenant)
+		r.Use(cybermw.RateLimiter(rdb, 1200, assetHandler.logger))
 
 		// ---- Statistics ----
 		r.Get("/assets/stats", assetHandler.GetStats)

@@ -3,9 +3,11 @@ package dto
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/clario360/platform/internal/cyber/model"
+	pkgvalidator "github.com/clario360/platform/pkg/validator"
 )
 
 // CreateAssetRequest is the body for POST /api/v1/cyber/assets.
@@ -41,13 +43,13 @@ type UpdateAssetRequest struct {
 	Criticality *model.Criticality `json:"criticality,omitempty" validate:"omitempty,criticality"`
 	Status      *model.AssetStatus `json:"status,omitempty" validate:"omitempty,asset_status"`
 	Metadata    json.RawMessage    `json:"metadata,omitempty"`
-	Tags        *[]string          `json:"tags,omitempty" validate:"omitempty,max=20,dive,min=1,max=50"`
+	Tags        *[]string          `json:"tags,omitempty" validate:"omitempty,max=20,dive,min=1,max=50,alphanumdash"`
 }
 
 // TagPatchRequest is the body for PATCH /api/v1/cyber/assets/:id/tags.
 type TagPatchRequest struct {
 	Add    []string `json:"add,omitempty" validate:"omitempty,max=20,dive,min=1,max=50,alphanumdash"`
-	Remove []string `json:"remove,omitempty" validate:"omitempty,max=20,dive,min=1,max=50"`
+	Remove []string `json:"remove,omitempty" validate:"omitempty,max=20,dive,min=1,max=50,alphanumdash"`
 }
 
 // AssetListParams holds all query parameters for GET /api/v1/cyber/assets.
@@ -85,13 +87,36 @@ func (p *AssetListParams) SetDefaults() {
 	if p.Page == 0 {
 		p.Page = 1
 	}
-	if p.PerPage == 0 {
+	if p.PerPage <= 0 {
 		p.PerPage = 25
+	}
+	if p.PerPage > 200 {
+		p.PerPage = 200
 	}
 }
 
 // Validate checks enum values and other business rules not covered by struct tags.
 func (p *AssetListParams) Validate() error {
+	allowedSorts := map[string]struct{}{
+		"name": {}, "type": {}, "criticality": {}, "status": {},
+		"discovered_at": {}, "last_seen_at": {}, "vulnerability_count": {}, "created_at": {},
+	}
+	if p.Sort != "" {
+		if _, ok := allowedSorts[p.Sort]; !ok {
+			return fmt.Errorf("invalid sort: %q", p.Sort)
+		}
+	}
+	if p.Order != "" && p.Order != "asc" && p.Order != "desc" {
+		return fmt.Errorf("invalid order: %q", p.Order)
+	}
+	if p.Search != nil {
+		trimmed := strings.TrimSpace(*p.Search)
+		if trimmed == "" {
+			p.Search = nil
+		} else {
+			*p.Search = trimmed
+		}
+	}
 	for _, t := range p.Types {
 		if !model.AssetType(t).IsValid() {
 			return fmt.Errorf("invalid asset type: %q", t)
@@ -125,6 +150,9 @@ func (p *AssetListParams) Validate() error {
 	for _, tag := range p.Tags {
 		if len(tag) == 0 || len(tag) > 50 {
 			return fmt.Errorf("invalid tag length for %q", tag)
+		}
+		if err := pkgvalidator.ValidateVar(tag, "alphanumdash"); err != nil {
+			return fmt.Errorf("invalid tag value: %q", tag)
 		}
 	}
 	if p.MinVulnCount != nil && (*p.MinVulnCount < 0 || *p.MinVulnCount > 10000) {
