@@ -192,9 +192,9 @@ func (qb *QueryBuilder) OrderBy(column, direction string, allowlist []string) *Q
 	// Special column mappings
 	switch strings.ToLower(column) {
 	case "criticality":
-		qb.orderClause = fmt.Sprintf("ORDER BY severity_order(a.criticality) %s", dir)
+		qb.orderClause = fmt.Sprintf("ORDER BY severity_order(a.criticality::text) %s", dir)
 	case "severity":
-		qb.orderClause = fmt.Sprintf("ORDER BY severity_order(a.severity) %s", dir)
+		qb.orderClause = fmt.Sprintf("ORDER BY severity_order(a.severity::text) %s", dir)
 	case "vulnerability_count":
 		qb.orderClause = fmt.Sprintf("ORDER BY open_vulnerability_count %s", dir)
 	default:
@@ -271,9 +271,14 @@ func (qb *QueryBuilder) BuildCount() (string, []any) {
 	var sb strings.Builder
 	sb.WriteString("SELECT COUNT(DISTINCT a.id)")
 
-	// Extract the FROM clause from baseSelect (everything after SELECT … FROM)
-	fromIdx := strings.Index(strings.ToUpper(qb.baseSelect), " FROM ")
+	// Extract the top-level FROM clause from baseSelect (everything after
+	// SELECT … FROM). Nested subqueries in the select-list can also contain
+	// FROM tokens, so we must ignore those while inside parentheses.
+	fromIdx := findTopLevelFromIndex(qb.baseSelect)
 	if fromIdx >= 0 {
+		if sb.Len() > 0 {
+			sb.WriteByte(' ')
+		}
 		sb.WriteString(qb.baseSelect[fromIdx:])
 	}
 
@@ -291,6 +296,70 @@ func (qb *QueryBuilder) BuildCount() (string, []any) {
 	copy(allArgs, qb.args)
 
 	return sb.String(), allArgs
+}
+
+func findTopLevelFromIndex(sql string) int {
+	upper := strings.ToUpper(sql)
+	depth := 0
+	inSingleQuote := false
+	inDoubleQuote := false
+
+	for i := 0; i < len(upper); i++ {
+		ch := upper[i]
+
+		if inSingleQuote {
+			if ch == '\'' {
+				if i+1 < len(upper) && upper[i+1] == '\'' {
+					i++
+					continue
+				}
+				inSingleQuote = false
+			}
+			continue
+		}
+		if inDoubleQuote {
+			if ch == '"' {
+				inDoubleQuote = false
+			}
+			continue
+		}
+
+		switch ch {
+		case '\'':
+			inSingleQuote = true
+			continue
+		case '"':
+			inDoubleQuote = true
+			continue
+		case '(':
+			depth++
+			continue
+		case ')':
+			if depth > 0 {
+				depth--
+			}
+			continue
+		}
+
+		if depth == 0 && i+4 <= len(upper) && upper[i:i+4] == "FROM" {
+			prevOK := i == 0 || isSQLBoundary(upper[i-1])
+			nextOK := i+4 == len(upper) || isSQLBoundary(upper[i+4])
+			if prevOK && nextOK {
+				return i
+			}
+		}
+	}
+
+	return -1
+}
+
+func isSQLBoundary(ch byte) bool {
+	switch ch {
+	case ' ', '\n', '\t', '\r', ',', '(', ')':
+		return true
+	default:
+		return false
+	}
 }
 
 // replacePlaceholders replaces each "?" in s with the next $N placeholder,

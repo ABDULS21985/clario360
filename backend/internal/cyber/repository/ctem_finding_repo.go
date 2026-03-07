@@ -138,7 +138,7 @@ func (r *CTEMFindingRepository) ListAllByAssessment(ctx context.Context, tenantI
 		       attack_path, attack_path_length, metadata, created_at, updated_at
 		FROM ctem_findings
 		WHERE tenant_id = $1 AND assessment_id = $2
-		ORDER BY priority_score DESC, severity_order(severity) DESC, created_at ASC`,
+		ORDER BY priority_score DESC, severity_order(severity::text) DESC, created_at ASC`,
 		tenantID, assessmentID,
 	)
 	if err != nil {
