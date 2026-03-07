@@ -97,29 +97,34 @@ func (e *ActionExtractor) extractDate(text string) *time.Time {
 }
 
 func (e *ActionExtractor) deduplicate(in []model.ExtractedAction) []model.ExtractedAction {
-	merged := make(map[string]model.ExtractedAction, len(in))
+	merged := make([]model.ExtractedAction, 0, len(in))
 	for _, item := range in {
-		key := strings.ToLower(item.AssignedTo) + ":" + e.normalize(item.Title)
-		if existing, ok := merged[key]; ok {
-			if len(item.Description) > len(existing.Description) {
-				existing.Description = item.Description
+		found := false
+		for idx := range merged {
+			if !strings.EqualFold(merged[idx].AssignedTo, item.AssignedTo) || !e.similarTask(merged[idx].Title, item.Title) {
+				continue
 			}
-			if existing.DueDate == nil && item.DueDate != nil {
-				existing.DueDate = item.DueDate
+			if len(item.Description) > len(merged[idx].Description) {
+				merged[idx].Description = item.Description
 			}
-			if priorityWeight(item.Priority) > priorityWeight(existing.Priority) {
-				existing.Priority = item.Priority
+			if len(item.Title) > len(merged[idx].Title) {
+				merged[idx].Title = item.Title
 			}
-			merged[key] = existing
-			continue
+			if merged[idx].DueDate == nil && item.DueDate != nil {
+				merged[idx].DueDate = item.DueDate
+			}
+			if priorityWeight(item.Priority) > priorityWeight(merged[idx].Priority) {
+				merged[idx].Priority = item.Priority
+			}
+			found = true
+			break
 		}
-		merged[key] = item
+		if !found {
+			merged = append(merged, item)
+		}
 	}
-
-	out := make([]model.ExtractedAction, 0, len(merged))
-	for _, item := range merged {
-		out = append(out, item)
-	}
+	out := make([]model.ExtractedAction, len(merged))
+	copy(out, merged)
 	sort.Slice(out, func(i, j int) bool {
 		if out[i].AssignedTo == out[j].AssignedTo {
 			return out[i].Title < out[j].Title
@@ -133,6 +138,34 @@ func (e *ActionExtractor) normalize(input string) string {
 	input = strings.ToLower(strings.TrimSpace(input))
 	input = e.nonWord.ReplaceAllString(input, " ")
 	return strings.Join(strings.Fields(input), " ")
+}
+
+func (e *ActionExtractor) similarTask(a, b string) bool {
+	left := e.normalize(a)
+	right := e.normalize(b)
+	if left == right || strings.Contains(left, right) || strings.Contains(right, left) {
+		return true
+	}
+	leftTokens := strings.Fields(left)
+	rightTokens := strings.Fields(right)
+	if len(leftTokens) == 0 || len(rightTokens) == 0 {
+		return false
+	}
+	tokenSet := make(map[string]struct{}, len(leftTokens))
+	for _, token := range leftTokens {
+		tokenSet[token] = struct{}{}
+	}
+	matches := 0
+	for _, token := range rightTokens {
+		if _, ok := tokenSet[token]; ok {
+			matches++
+		}
+	}
+	threshold := len(leftTokens)
+	if len(rightTokens) > threshold {
+		threshold = len(rightTokens)
+	}
+	return float64(matches)/float64(threshold) >= 0.6
 }
 
 func splitSentences(input string) []string {
