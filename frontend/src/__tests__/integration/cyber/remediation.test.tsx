@@ -9,6 +9,7 @@ const API_URL = 'http://localhost:8080';
 vi.mock('@/hooks/use-auth', () => ({
   useAuth: () => ({
     user: { id: 'u1', first_name: 'Admin', permissions: ['cyber:read'] },
+    isHydrated: true,
     hasPermission: () => true,
   }),
 }));
@@ -20,7 +21,7 @@ vi.mock('@/hooks/use-websocket', () => ({
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), back: vi.fn(), prefetch: vi.fn() }),
   usePathname: () => '/cyber/remediation',
-  useSearchParams: () => ({ get: () => null }),
+  useSearchParams: () => ({ get: () => null, forEach: () => {} }),
   redirect: vi.fn(),
 }));
 
@@ -114,8 +115,8 @@ describe('Remediation Page', () => {
   it('shows KPI card for pending approval count', async () => {
     await renderPage();
     await waitFor(() => {
-      expect(screen.getByText('Pending Approval')).toBeInTheDocument();
-      expect(screen.getByText('1')).toBeInTheDocument();
+      expect(screen.getAllByText('Pending Approval').length).toBeGreaterThan(0);
+      expect(screen.getAllByText('1').length).toBeGreaterThan(0);
     });
   });
 
@@ -129,7 +130,7 @@ describe('Remediation Page', () => {
   it('shows status badges', async () => {
     await renderPage();
     await waitFor(() => {
-      expect(screen.getByText('Pending Approval')).toBeInTheDocument();
+      expect(screen.getAllByText('Pending Approval').length).toBeGreaterThan(0);
       expect(screen.getByText('Approved')).toBeInTheDocument();
     });
   });

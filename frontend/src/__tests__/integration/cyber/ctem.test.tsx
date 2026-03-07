@@ -9,6 +9,7 @@ const API_URL = 'http://localhost:8080';
 vi.mock('@/hooks/use-auth', () => ({
   useAuth: () => ({
     user: { id: 'u1', first_name: 'Admin', permissions: ['cyber:read'] },
+    isHydrated: true,
     hasPermission: () => true,
   }),
 }));
@@ -20,7 +21,7 @@ vi.mock('@/hooks/use-websocket', () => ({
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), back: vi.fn(), prefetch: vi.fn() }),
   usePathname: () => '/cyber/ctem',
-  useSearchParams: () => ({ get: () => null }),
+  useSearchParams: () => ({ get: () => null, forEach: () => {} }),
   redirect: vi.fn(),
 }));
 
@@ -108,9 +109,9 @@ describe('CTEM Page', () => {
     });
   });
 
-  it('shows error state when exposure score fails', async () => {
+  it('shows error state when assessments API fails', async () => {
     server.use(
-      http.get(`${API_URL}/api/v1/cyber/ctem/exposure-score`, () =>
+      http.get(`${API_URL}/api/v1/cyber/ctem/assessments`, () =>
         HttpResponse.json({ error: 'server error' }, { status: 500 }),
       ),
     );

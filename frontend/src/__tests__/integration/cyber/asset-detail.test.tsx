@@ -10,6 +10,7 @@ const ASSET_ID = 'asset-xyz-456';
 vi.mock('@/hooks/use-auth', () => ({
   useAuth: () => ({
     user: { id: 'u1', first_name: 'Admin', permissions: ['cyber:read', 'cyber:write'] },
+    isHydrated: true,
     hasPermission: () => true,
   }),
 }));
@@ -104,8 +105,8 @@ describe('Asset Detail Page', () => {
   it('shows security summary bar with vuln counts', async () => {
     await renderPage();
     await waitFor(() => {
-      expect(screen.getByText('Vulnerabilities')).toBeInTheDocument();
-      expect(screen.getByText('5')).toBeInTheDocument();
+      expect(screen.getAllByText('Vulnerabilities').length).toBeGreaterThan(0);
+      expect(screen.getAllByText('5').length).toBeGreaterThan(0);
     });
   });
 

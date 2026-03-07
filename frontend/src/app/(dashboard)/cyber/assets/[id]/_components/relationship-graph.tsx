@@ -159,9 +159,7 @@ export function RelationshipGraph({
       .join('g')
       .attr('cursor', 'pointer')
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      .call(d3.drag<SVGGElement, GraphNode>() as any)
-      .call(
-        d3.drag<SVGGElement, GraphNode>()
+      .call(d3.drag<SVGGElement, GraphNode>()
           .on('start', (event, d) => {
             if (!event.active) simulation.alphaTarget(0.3).restart();
             d.fx = d.x;
@@ -175,8 +173,7 @@ export function RelationshipGraph({
             if (!event.active) simulation.alphaTarget(0);
             d.fx = null;
             d.fy = null;
-          }),
-      );
+          }) as never);
 
     // Node circles
     node.append('circle')

@@ -10,6 +10,7 @@ const ALERT_ID = 'alert-abc-123';
 vi.mock('@/hooks/use-auth', () => ({
   useAuth: () => ({
     user: { id: 'u1', first_name: 'Admin', permissions: ['cyber:read'] },
+    isHydrated: true,
     hasPermission: () => true,
   }),
 }));

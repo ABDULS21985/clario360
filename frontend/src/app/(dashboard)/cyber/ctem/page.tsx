@@ -8,6 +8,7 @@ import { PageHeader } from '@/components/common/page-header';
 import { PermissionRedirect } from '@/components/common/permission-redirect';
 import { LoadingSkeleton } from '@/components/common/loading-skeleton';
 import { EmptyState } from '@/components/common/empty-state';
+import { ErrorState } from '@/components/common/error-state';
 import { Button } from '@/components/ui/button';
 import { Plus, Target } from 'lucide-react';
 import type { PaginatedResponse } from '@/types/api';
@@ -20,7 +21,7 @@ import { CreateAssessmentDialog } from './_components/create-assessment-dialog';
 export default function CyberCtemPage() {
   const [createOpen, setCreateOpen] = useState(false);
 
-  const { data, isLoading, refetch } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['cyber-ctem-assessments'],
     queryFn: () =>
       apiGet<PaginatedResponse<CTEMAssessment>>(API_ENDPOINTS.CYBER_CTEM_ASSESSMENTS, {
@@ -61,6 +62,8 @@ export default function CyberCtemPage() {
                   <LoadingSkeleton key={i} variant="card" />
                 ))}
               </div>
+            ) : isError ? (
+              <ErrorState message="Failed to load assessments" onRetry={() => void refetch()} />
             ) : assessments.length === 0 ? (
               <EmptyState
                 icon={Target}

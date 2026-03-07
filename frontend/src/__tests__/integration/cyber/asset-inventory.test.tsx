@@ -9,6 +9,7 @@ const API_URL = 'http://localhost:8080';
 vi.mock('@/hooks/use-auth', () => ({
   useAuth: () => ({
     user: { id: 'u1', first_name: 'Admin', permissions: ['cyber:read', 'cyber:write'] },
+    isHydrated: true,
     hasPermission: () => true,
   }),
 }));
@@ -20,7 +21,7 @@ vi.mock('@/hooks/use-websocket', () => ({
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), back: vi.fn(), prefetch: vi.fn() }),
   usePathname: () => '/cyber/assets',
-  useSearchParams: () => ({ get: () => null }),
+  useSearchParams: () => ({ get: () => null, forEach: () => {} }),
   redirect: vi.fn(),
 }));
 

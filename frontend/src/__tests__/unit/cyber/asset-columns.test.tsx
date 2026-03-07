@@ -10,9 +10,9 @@ describe('asset-columns constants', () => {
       });
     });
 
-    it('icons are React components (functions or classes)', () => {
+    it('icons are React components (functions, classes, or objects)', () => {
       Object.values(TYPE_ICONS).forEach((Icon) => {
-        expect(typeof Icon).toBe('function');
+        expect(['function', 'object']).toContain(typeof Icon);
       });
     });
   });

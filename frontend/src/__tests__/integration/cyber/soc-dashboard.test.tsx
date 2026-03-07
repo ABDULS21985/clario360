@@ -9,6 +9,7 @@ const API_URL = 'http://localhost:8080';
 vi.mock('@/hooks/use-auth', () => ({
   useAuth: () => ({
     user: { id: 'u1', first_name: 'Admin', permissions: ['cyber:read'] },
+    isHydrated: true,
     hasPermission: () => true,
   }),
 }));
