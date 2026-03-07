@@ -10,21 +10,24 @@ import { LoadingSkeleton } from '@/components/common/loading-skeleton';
 import { PageHeader } from '@/components/common/page-header';
 import { PermissionRedirect } from '@/components/common/permission-redirect';
 import { SectionCard } from '@/components/suites/section-card';
-import { API_ENDPOINTS } from '@/lib/constants';
-import { fetchSuiteData, fetchSuitePaginated } from '@/lib/suite-api';
-import type { ComplianceDashboard, ComplianceRule } from '@/types/suites';
+import { enterpriseApi } from '@/lib/enterprise';
+import type { ComplianceDashboard, ComplianceRule, LexComplianceAlert } from '@/types/suites';
 
 export default function LexCompliancePage() {
   const dashboardQuery = useQuery({
     queryKey: ['lex-compliance-dashboard'],
-    queryFn: () => fetchSuiteData<ComplianceDashboard>(API_ENDPOINTS.LEX_COMPLIANCE),
+    queryFn: () => enterpriseApi.lex.getComplianceDashboard(),
   });
   const rulesQuery = useQuery({
     queryKey: ['lex-compliance-rules'],
-    queryFn: () => fetchSuitePaginated<ComplianceRule>(API_ENDPOINTS.LEX_REGULATIONS, { page: 1, per_page: 25, order: 'desc' }),
+    queryFn: () => enterpriseApi.lex.listComplianceRules({ page: 1, per_page: 25, order: 'desc' }),
+  });
+  const alertsQuery = useQuery({
+    queryKey: ['lex-compliance-alerts'],
+    queryFn: () => enterpriseApi.lex.listComplianceAlerts({ page: 1, per_page: 10, order: 'desc', filters: { status: 'open' } }),
   });
 
-  if (dashboardQuery.isLoading && rulesQuery.isLoading) {
+  if (dashboardQuery.isLoading && rulesQuery.isLoading && alertsQuery.isLoading) {
     return (
       <PermissionRedirect permission="lex:read">
         <div className="space-y-6">
@@ -35,7 +38,7 @@ export default function LexCompliancePage() {
     );
   }
 
-  if (dashboardQuery.error && rulesQuery.error) {
+  if (dashboardQuery.error && rulesQuery.error && alertsQuery.error) {
     return (
       <PermissionRedirect permission="lex:read">
         <ErrorState
@@ -43,6 +46,7 @@ export default function LexCompliancePage() {
           onRetry={() => {
             void dashboardQuery.refetch();
             void rulesQuery.refetch();
+            void alertsQuery.refetch();
           }}
         />
       </PermissionRedirect>
@@ -51,6 +55,10 @@ export default function LexCompliancePage() {
 
   const dashboard = dashboardQuery.data;
   const rules = rulesQuery.data?.data ?? [];
+  const alerts = alertsQuery.data?.data ?? [];
+  const totalRules = Object.values(dashboard?.rules_by_type ?? {}).reduce((sum, count) => sum + count, 0);
+  const enabledRules = rules.filter((rule) => rule.enabled).length;
+  const expiringContracts = dashboard?.contracts_in_scope ?? 0;
 
   return (
     <PermissionRedirect permission="lex:read">
@@ -58,17 +66,17 @@ export default function LexCompliancePage() {
         <PageHeader title="Compliance" description="Rule coverage, recent alerting, and contract exposure from the live lex-service dashboard." />
 
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          <KpiCard title="Total Rules" value={dashboard?.total_rules ?? 0} icon={Scale} iconColor="text-blue-600" />
-          <KpiCard title="Enabled Rules" value={dashboard?.enabled_rules ?? 0} icon={Scale} iconColor="text-green-600" />
+          <KpiCard title="Total Rules" value={totalRules} icon={Scale} iconColor="text-blue-600" />
+          <KpiCard title="Enabled Rules" value={enabledRules} icon={Scale} iconColor="text-green-600" />
           <KpiCard title="Open Alerts" value={dashboard?.open_alerts ?? 0} icon={Scale} iconColor="text-red-600" />
-          <KpiCard title="Contracts Expiring" value={dashboard?.contracts_expiring_30d ?? 0} icon={Scale} iconColor="text-orange-600" />
+          <KpiCard title="Contracts In Scope" value={expiringContracts} icon={Scale} iconColor="text-orange-600" />
         </div>
 
         <div className="grid gap-4 xl:grid-cols-[0.95fr_1.05fr]">
           <SectionCard title="Recent Compliance Alerts" description="Latest alerts from legal compliance evaluations.">
             <div className="space-y-3">
-              {dashboard?.recent_alerts.length ? (
-                dashboard.recent_alerts.map((alert) => (
+              {alerts.length ? (
+                alerts.map((alert: LexComplianceAlert) => (
                   <div key={alert.id} className="rounded-lg border px-4 py-3">
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">

@@ -30,6 +30,7 @@ func (r *ClauseRepository) ReplaceForContract(ctx context.Context, q Queryer, te
 		return err
 	}
 	for _, clause := range clauses {
+		normalizeExtractedClause(&clause)
 		sectionReference := clause.SectionReference
 		pageNumber := clause.PageNumber
 		analysisSummary := clause.AnalysisSummary
@@ -51,6 +52,24 @@ func (r *ClauseRepository) ReplaceForContract(ctx context.Context, q Queryer, te
 		}
 	}
 	return nil
+}
+
+func normalizeExtractedClause(clause *model.ExtractedClause) {
+	if clause == nil {
+		return
+	}
+	if clause.MatchedTypes == nil {
+		clause.MatchedTypes = []model.ClauseType{}
+	}
+	if clause.RiskKeywords == nil {
+		clause.RiskKeywords = []string{}
+	}
+	if clause.Recommendations == nil {
+		clause.Recommendations = []string{}
+	}
+	if clause.ComplianceFlags == nil {
+		clause.ComplianceFlags = []string{}
+	}
 }
 
 func (r *ClauseRepository) ListByContract(ctx context.Context, tenantID, contractID uuid.UUID) ([]model.Clause, error) {

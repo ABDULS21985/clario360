@@ -26,6 +26,7 @@ func (r *DashboardRepository) Create(ctx context.Context, dashboard *model.Dashb
 	if dashboard == nil {
 		return nil, ErrValidation
 	}
+	normalizeDashboardFields(dashboard)
 	var id uuid.UUID
 	err := r.db.QueryRow(ctx, `
 		INSERT INTO visus_dashboards (
@@ -128,6 +129,7 @@ func (r *DashboardRepository) Update(ctx context.Context, dashboard *model.Dashb
 	if dashboard == nil {
 		return nil, ErrValidation
 	}
+	normalizeDashboardFields(dashboard)
 	tag, err := r.db.Exec(ctx, `
 		UPDATE visus_dashboards
 		SET name = $3,
@@ -237,4 +239,16 @@ func scanDashboard(row interface{ Scan(...any) error }) (*model.Dashboard, int, 
 		item.Tags = []string{}
 	}
 	return item, widgetCount, nil
+}
+
+func normalizeDashboardFields(dashboard *model.Dashboard) {
+	if dashboard.SharedWith == nil {
+		dashboard.SharedWith = []uuid.UUID{}
+	}
+	if dashboard.Tags == nil {
+		dashboard.Tags = []string{}
+	}
+	if dashboard.Metadata == nil {
+		dashboard.Metadata = map[string]any{}
+	}
 }

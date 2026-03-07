@@ -9,9 +9,7 @@ import { RelativeTime } from '@/components/shared/relative-time';
 import { DataTable } from '@/components/shared/data-table/data-table';
 import { Button } from '@/components/ui/button';
 import { useDataTable } from '@/hooks/use-data-table';
-import { apiPost } from '@/lib/api';
-import { API_ENDPOINTS } from '@/lib/constants';
-import { fetchSuitePaginated, type SuiteEnvelope } from '@/lib/suite-api';
+import { enterpriseApi } from '@/lib/enterprise';
 import { showApiError, showSuccess } from '@/lib/toast';
 import type { VisusReport, VisusReportGeneration } from '@/types/suites';
 
@@ -20,7 +18,7 @@ export default function VisusReportsPage() {
 
   const { tableProps, refetch } = useDataTable<VisusReport>({
     queryKey: 'visus-reports',
-    fetchFn: (params) => fetchSuitePaginated<VisusReport>(API_ENDPOINTS.VISUS_REPORTS, params),
+    fetchFn: (params) => enterpriseApi.visus.listReports(params),
     defaultPageSize: 25,
     defaultSort: { column: 'updated_at', direction: 'desc' },
   });
@@ -28,10 +26,8 @@ export default function VisusReportsPage() {
   const generateReport = async (report: VisusReport) => {
     try {
       setRunningId(report.id);
-      const response = await apiPost<SuiteEnvelope<VisusReportGeneration>>(
-        `${API_ENDPOINTS.VISUS_REPORTS}/${report.id}/generate`,
-      );
-      showSuccess('Report generation started.', `Snapshot ${response.data.snapshot_id.slice(0, 8)} queued for ${report.name}.`);
+      const response: VisusReportGeneration = await enterpriseApi.visus.generateReport(report.id);
+      showSuccess('Report generation started.', `Snapshot ${(response.snapshot_id ?? response.id).slice(0, 8)} queued for ${report.name}.`);
       refetch();
     } catch (error) {
       showApiError(error);
@@ -49,7 +45,7 @@ export default function VisusReportsPage() {
       cell: ({ row }) => (
         <div>
           <p className="font-medium">{row.original.name}</p>
-          <p className="text-xs capitalize text-muted-foreground">{row.original.type.replace(/_/g, ' ')}</p>
+          <p className="text-xs capitalize text-muted-foreground">{(row.original.report_type ?? row.original.type ?? 'custom').replace(/_/g, ' ')}</p>
         </div>
       ),
     },

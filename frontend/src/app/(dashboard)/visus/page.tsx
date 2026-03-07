@@ -11,23 +11,37 @@ import { PageHeader } from '@/components/common/page-header';
 import { PermissionRedirect } from '@/components/common/permission-redirect';
 import { RelativeTime } from '@/components/shared/relative-time';
 import { SectionCard } from '@/components/suites/section-card';
-import { API_ENDPOINTS } from '@/lib/constants';
-import { fetchSuitePaginated } from '@/lib/suite-api';
+import { enterpriseApi } from '@/lib/enterprise';
 import type { VisusDashboard, VisusReport, VisusWidget } from '@/types/suites';
 import { Badge } from '@/components/ui/badge';
 
 export default function VisusPage() {
   const dashboardsQuery = useQuery({
     queryKey: ['visus-overview', 'dashboards'],
-    queryFn: () => fetchSuitePaginated<VisusDashboard>(API_ENDPOINTS.VISUS_DASHBOARDS, { page: 1, per_page: 10, order: 'desc' }),
+    queryFn: () => enterpriseApi.visus.listDashboards({ page: 1, per_page: 10, order: 'desc' }),
   });
   const reportsQuery = useQuery({
     queryKey: ['visus-overview', 'reports'],
-    queryFn: () => fetchSuitePaginated<VisusReport>(API_ENDPOINTS.VISUS_REPORTS, { page: 1, per_page: 10, order: 'desc' }),
+    queryFn: () => enterpriseApi.visus.listReports({ page: 1, per_page: 10, order: 'desc' }),
   });
   const widgetsQuery = useQuery({
     queryKey: ['visus-overview', 'widgets'],
-    queryFn: () => fetchSuitePaginated<VisusWidget>(API_ENDPOINTS.VISUS_WIDGETS, { page: 1, per_page: 100, order: 'desc' }),
+    queryFn: async () => {
+      const dashboards = await enterpriseApi.visus.listDashboards({ page: 1, per_page: 50, order: 'desc' });
+      const widgetLists = await Promise.all(
+        dashboards.data.map((dashboard) => enterpriseApi.visus.listWidgets(dashboard.id)),
+      );
+      const widgets = widgetLists.flat();
+      return {
+        data: widgets,
+        meta: {
+          page: 1,
+          per_page: widgets.length || 1,
+          total: widgets.length,
+          total_pages: 1,
+        },
+      };
+    },
   });
 
   if (dashboardsQuery.isLoading && reportsQuery.isLoading && widgetsQuery.isLoading) {
@@ -149,7 +163,7 @@ export default function VisusPage() {
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
                       <p className="font-medium">{report.name}</p>
-                      <p className="text-xs text-muted-foreground capitalize">{report.type.replace(/_/g, ' ')}</p>
+                      <p className="text-xs text-muted-foreground capitalize">{(report.report_type ?? report.type ?? 'custom').replace(/_/g, ' ')}</p>
                     </div>
                     {report.schedule ? <Badge variant="outline">{report.schedule}</Badge> : null}
                   </div>

@@ -20,6 +20,7 @@ import {
   Building2,
   File,
   GitBranch,
+  Scale,
   Workflow,
 } from "lucide-react";
 
@@ -106,30 +107,39 @@ export const workflowStatusConfig: StatusConfig = {
 export const contractStatusConfig: StatusConfig = {
   draft: { label: "Draft", color: "gray", icon: FileEdit },
   review: { label: "In Review", color: "yellow", icon: Eye },
+  internal_review: { label: "Internal Review", color: "yellow", icon: Eye },
+  legal_review: { label: "Legal Review", color: "orange", icon: Scale },
   negotiation: { label: 'Negotiation', color: 'orange', icon: Workflow },
+  pending_signature: { label: 'Pending Signature', color: 'blue', icon: FileEdit },
   active: { label: 'Active', color: 'green', icon: CheckCircle },
+  suspended: { label: 'Suspended', color: 'yellow', icon: Pause },
   approved: { label: "Approved", color: "green", icon: CheckCircle },
   signed: { label: "Signed", color: "blue", icon: CheckCheck },
   expired: { label: "Expired", color: "red", icon: AlertCircle },
+  renewed: { label: 'Renewed', color: 'teal', icon: CheckCheck },
   terminated: { label: "Terminated", color: "gray", icon: XCircle },
+  cancelled: { label: 'Cancelled', color: 'gray', icon: Ban },
 };
 
 export const committeeStatusConfig: StatusConfig = {
   active: { label: 'Active', color: 'green', icon: CheckCircle },
   inactive: { label: 'Inactive', color: 'gray', icon: Pause },
-  archived: { label: 'Archived', color: 'gray', icon: XCircle },
+  dissolved: { label: 'Dissolved', color: 'red', icon: XCircle },
 };
 
 export const meetingStatusConfig: StatusConfig = {
+  draft: { label: 'Draft', color: 'gray', icon: FileEdit },
   scheduled: { label: 'Scheduled', color: 'blue', icon: Clock },
   in_progress: { label: 'In Progress', color: 'yellow', icon: Play },
   completed: { label: 'Completed', color: 'green', icon: CheckCircle },
   cancelled: { label: 'Cancelled', color: 'gray', icon: Ban },
+  postponed: { label: 'Postponed', color: 'orange', icon: Pause },
 };
 
 export const minuteStatusConfig: StatusConfig = {
   draft: { label: 'Draft', color: 'gray', icon: FileEdit },
   review: { label: 'In Review', color: 'yellow', icon: Eye },
+  revision_requested: { label: 'Revision Requested', color: 'orange', icon: AlertTriangle },
   approved: { label: 'Approved', color: 'green', icon: CheckCircle },
   published: { label: 'Published', color: 'blue', icon: CheckCheck },
 };
@@ -138,7 +148,42 @@ export const documentStatusConfig: StatusConfig = {
   draft: { label: 'Draft', color: 'gray', icon: FileEdit },
   review: { label: 'In Review', color: 'yellow', icon: Eye },
   approved: { label: 'Approved', color: 'green', icon: CheckCircle },
+  active: { label: 'Active', color: 'green', icon: CheckCircle },
   archived: { label: 'Archived', color: 'gray', icon: XCircle },
+  superseded: { label: 'Superseded', color: 'orange', icon: AlertTriangle },
+};
+
+export const actionItemStatusConfig: StatusConfig = {
+  pending: { label: 'Pending', color: 'gray', icon: Clock },
+  in_progress: { label: 'In Progress', color: 'blue', icon: Play },
+  completed: { label: 'Completed', color: 'green', icon: CheckCircle },
+  overdue: { label: 'Overdue', color: 'red', icon: AlertCircle },
+  cancelled: { label: 'Cancelled', color: 'gray', icon: Ban },
+  deferred: { label: 'Deferred', color: 'yellow', icon: Pause },
+};
+
+export const clauseReviewStatusConfig: StatusConfig = {
+  pending: { label: 'Pending', color: 'gray', icon: Clock },
+  reviewed: { label: 'Reviewed', color: 'blue', icon: Eye },
+  flagged: { label: 'Flagged', color: 'red', icon: AlertTriangle },
+  accepted: { label: 'Accepted', color: 'green', icon: CheckCircle },
+  rejected: { label: 'Rejected', color: 'orange', icon: XCircle },
+};
+
+export const complianceStatusConfig: StatusConfig = {
+  compliant: { label: 'Compliant', color: 'green', icon: CheckCircle },
+  non_compliant: { label: 'Non-Compliant', color: 'red', icon: AlertTriangle },
+  warning: { label: 'Warning', color: 'yellow', icon: AlertCircle },
+  not_applicable: { label: 'Not Applicable', color: 'gray', icon: MinusCircle },
+};
+
+export const visusAlertStatusConfig: StatusConfig = {
+  new: { label: 'New', color: 'red', icon: AlertCircle },
+  viewed: { label: 'Viewed', color: 'blue', icon: Eye },
+  acknowledged: { label: 'Acknowledged', color: 'yellow', icon: Search },
+  actioned: { label: 'Actioned', color: 'green', icon: CheckCircle },
+  dismissed: { label: 'Dismissed', color: 'gray', icon: XCircle },
+  escalated: { label: 'Escalated', color: 'purple', icon: ArrowUpCircle },
 };
 
 // Re-export icons that are referenced in status configs for convenience

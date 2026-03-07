@@ -273,6 +273,7 @@ func (r *ContractRepository) GetLatestVersion(ctx context.Context, tenantID, con
 }
 
 func (r *ContractRepository) InsertAnalysis(ctx context.Context, q Queryer, analysis *model.ContractRiskAnalysis) error {
+	normalizeContractAnalysis(analysis)
 	query := `
 		INSERT INTO contract_analyses (
 			id, tenant_id, contract_id, contract_version, overall_risk, risk_score,
@@ -292,6 +293,33 @@ func (r *ContractRepository) InsertAnalysis(ctx context.Context, q Queryer, anal
 		analysis.ComplianceFlags, analysis.ExtractedParties, analysis.ExtractedDates, analysis.ExtractedAmounts,
 		analysis.AnalysisDurationMS, analysis.AnalyzedBy, analysis.AnalyzedAt,
 	).Scan(&analysis.CreatedAt)
+}
+
+func normalizeContractAnalysis(analysis *model.ContractRiskAnalysis) {
+	if analysis == nil {
+		return
+	}
+	if analysis.MissingClauses == nil {
+		analysis.MissingClauses = []model.ClauseType{}
+	}
+	if analysis.KeyFindings == nil {
+		analysis.KeyFindings = []model.RiskFinding{}
+	}
+	if analysis.Recommendations == nil {
+		analysis.Recommendations = []string{}
+	}
+	if analysis.ComplianceFlags == nil {
+		analysis.ComplianceFlags = []model.ComplianceFlag{}
+	}
+	if analysis.ExtractedParties == nil {
+		analysis.ExtractedParties = []model.PartyExtraction{}
+	}
+	if analysis.ExtractedDates == nil {
+		analysis.ExtractedDates = []model.ExtractedDate{}
+	}
+	if analysis.ExtractedAmounts == nil {
+		analysis.ExtractedAmounts = []model.ExtractedAmount{}
+	}
 }
 
 func (r *ContractRepository) GetLatestAnalysis(ctx context.Context, tenantID, contractID uuid.UUID) (*model.ContractRiskAnalysis, error) {

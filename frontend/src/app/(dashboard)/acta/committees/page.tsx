@@ -1,89 +1,61 @@
 'use client';
 
-import { type ColumnDef } from '@tanstack/react-table';
-import { Users } from 'lucide-react';
+import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { PageHeader } from '@/components/common/page-header';
 import { PermissionRedirect } from '@/components/common/permission-redirect';
-import { RelativeTime } from '@/components/shared/relative-time';
-import { StatusBadge } from '@/components/shared/status-badge';
-import { DataTable } from '@/components/shared/data-table/data-table';
 import { SearchInput } from '@/components/shared/forms/search-input';
-import { useDataTable } from '@/hooks/use-data-table';
-import { API_ENDPOINTS } from '@/lib/constants';
-import { fetchSuitePaginated } from '@/lib/suite-api';
-import { committeeStatusConfig } from '@/lib/status-configs';
-import { summarizeNamedRecords } from '@/lib/suite-utils';
-import type { ActaCommittee } from '@/types/suites';
+import { LoadingSkeleton } from '@/components/common/loading-skeleton';
+import { ErrorState } from '@/components/common/error-state';
+import { enterpriseApi } from '@/lib/enterprise';
+import { CommitteeGrid } from './_components/committee-grid';
+import { CreateCommitteeDialog } from './_components/create-committee-dialog';
 
 export default function ActaCommitteesPage() {
-  const { tableProps, searchValue, setSearch } = useDataTable<ActaCommittee>({
-    queryKey: 'acta-committees',
-    fetchFn: (params) => fetchSuitePaginated<ActaCommittee>(API_ENDPOINTS.ACTA_COMMITTEES, params),
-    defaultPageSize: 25,
-    defaultSort: { column: 'updated_at', direction: 'desc' },
+  const [search, setSearch] = useState('');
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const committeesQuery = useQuery({
+    queryKey: ['acta-committees', search],
+    queryFn: () =>
+      enterpriseApi.acta.listCommittees({
+        page: 1,
+        per_page: 100,
+        order: 'desc',
+        search: search || undefined,
+      }),
   });
 
-  const columns: ColumnDef<ActaCommittee>[] = [
-    {
-      id: 'name',
-      accessorKey: 'name',
-      header: 'Committee',
-      enableSorting: true,
-      cell: ({ row }) => (
-        <div>
-          <p className="font-medium">{row.original.name}</p>
-          <p className="text-xs text-muted-foreground capitalize">{row.original.type.replace(/_/g, ' ')}</p>
-        </div>
-      ),
-    },
-    {
-      id: 'members',
-      header: 'Members',
-      cell: ({ row }) => <span className="text-sm text-muted-foreground">{summarizeNamedRecords(row.original.members)}</span>,
-    },
-    {
-      id: 'meeting_frequency',
-      accessorKey: 'meeting_frequency',
-      header: 'Frequency',
-      cell: ({ row }) => <span className="text-sm text-muted-foreground">{row.original.meeting_frequency ?? 'Unscheduled'}</span>,
-    },
-    {
-      id: 'status',
-      accessorKey: 'status',
-      header: 'Status',
-      enableSorting: true,
-      cell: ({ row }) => <StatusBadge status={row.original.status} config={committeeStatusConfig} size="sm" />,
-    },
-    {
-      id: 'updated_at',
-      accessorKey: 'updated_at',
-      header: 'Updated',
-      enableSorting: true,
-      cell: ({ row }) => <RelativeTime date={row.original.updated_at} />,
-    },
-  ];
+  if (committeesQuery.isLoading) {
+    return (
+      <PermissionRedirect permission="acta:read">
+        <LoadingSkeleton variant="card" count={6} />
+      </PermissionRedirect>
+    );
+  }
+
+  if (committeesQuery.error) {
+    return (
+      <PermissionRedirect permission="acta:read">
+        <ErrorState message="Failed to load committees." onRetry={() => void committeesQuery.refetch()} />
+      </PermissionRedirect>
+    );
+  }
 
   return (
     <PermissionRedirect permission="acta:read">
       <div className="space-y-6">
-        <PageHeader title="Committees" description="Board and governance committees with membership and cadence visibility." />
-        <DataTable
-          {...tableProps}
-          columns={columns}
-          searchSlot={
-            <SearchInput
-              value={searchValue}
-              onChange={setSearch}
-              placeholder="Search committees..."
-              loading={tableProps.isLoading}
-            />
-          }
-          emptyState={{
-            icon: Users,
-            title: 'No committees found',
-            description: 'No committees matched the current search.',
-          }}
+        <PageHeader
+          title="Committees"
+          description="Board and governance committee roster, cadence, and operating profile."
+          actions={<CreateCommitteeDialog open={dialogOpen} onOpenChange={setDialogOpen} />}
         />
+        <SearchInput
+          value={search}
+          onChange={setSearch}
+          placeholder="Search committees..."
+          loading={committeesQuery.isFetching}
+        />
+        <CommitteeGrid committees={committeesQuery.data?.data ?? []} />
       </div>
     </PermissionRedirect>
   );

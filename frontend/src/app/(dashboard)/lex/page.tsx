@@ -12,31 +12,34 @@ import { LoadingSkeleton } from '@/components/common/loading-skeleton';
 import { PageHeader } from '@/components/common/page-header';
 import { PermissionRedirect } from '@/components/common/permission-redirect';
 import { SectionCard } from '@/components/suites/section-card';
-import { API_ENDPOINTS } from '@/lib/constants';
-import { fetchSuiteData, fetchSuitePaginated } from '@/lib/suite-api';
 import { contractStatusConfig } from '@/lib/status-configs';
-import type { ComplianceDashboard, ComplianceRule, LexContract, LexDocument } from '@/types/suites';
+import { enterpriseApi } from '@/lib/enterprise';
+import type { ComplianceDashboard, ComplianceRule, LexComplianceAlert, LexContract, LexDocument } from '@/types/suites';
 import { StatusBadge } from '@/components/shared/status-badge';
 
 export default function LexPage() {
   const contractsQuery = useQuery({
     queryKey: ['lex-overview', 'contracts'],
-    queryFn: () => fetchSuitePaginated<LexContract>(API_ENDPOINTS.LEX_CONTRACTS, { page: 1, per_page: 6, order: 'desc' }),
+    queryFn: () => enterpriseApi.lex.listContracts({ page: 1, per_page: 6, order: 'desc' }),
   });
   const documentsQuery = useQuery({
     queryKey: ['lex-overview', 'documents'],
-    queryFn: () => fetchSuitePaginated<LexDocument>(API_ENDPOINTS.LEX_DOCUMENTS, { page: 1, per_page: 6, order: 'desc' }),
+    queryFn: () => enterpriseApi.lex.listDocuments({ page: 1, per_page: 6, order: 'desc' }),
   });
   const regulationsQuery = useQuery({
     queryKey: ['lex-overview', 'regulations'],
-    queryFn: () => fetchSuitePaginated<ComplianceRule>(API_ENDPOINTS.LEX_REGULATIONS, { page: 1, per_page: 6, order: 'desc' }),
+    queryFn: () => enterpriseApi.lex.listComplianceRules({ page: 1, per_page: 6, order: 'desc' }),
   });
   const complianceQuery = useQuery({
     queryKey: ['lex-overview', 'compliance'],
-    queryFn: () => fetchSuiteData<ComplianceDashboard>(API_ENDPOINTS.LEX_COMPLIANCE),
+    queryFn: () => enterpriseApi.lex.getComplianceDashboard(),
+  });
+  const alertsQuery = useQuery({
+    queryKey: ['lex-overview', 'alerts'],
+    queryFn: () => enterpriseApi.lex.listComplianceAlerts({ page: 1, per_page: 6, order: 'desc' }),
   });
 
-  if (contractsQuery.isLoading && documentsQuery.isLoading && regulationsQuery.isLoading && complianceQuery.isLoading) {
+  if (contractsQuery.isLoading && documentsQuery.isLoading && regulationsQuery.isLoading && complianceQuery.isLoading && alertsQuery.isLoading) {
     return (
       <PermissionRedirect permission="lex:read">
         <div className="space-y-6">
@@ -47,7 +50,7 @@ export default function LexPage() {
     );
   }
 
-  if (contractsQuery.error && documentsQuery.error && regulationsQuery.error && complianceQuery.error) {
+  if (contractsQuery.error && documentsQuery.error && regulationsQuery.error && complianceQuery.error && alertsQuery.error) {
     return (
       <PermissionRedirect permission="lex:read">
         <ErrorState
@@ -57,6 +60,7 @@ export default function LexPage() {
             void documentsQuery.refetch();
             void regulationsQuery.refetch();
             void complianceQuery.refetch();
+            void alertsQuery.refetch();
           }}
         />
       </PermissionRedirect>
@@ -65,7 +69,7 @@ export default function LexPage() {
 
   const compliance = complianceQuery.data;
   const recentContracts = contractsQuery.data?.data ?? [];
-  const recentAlerts = compliance?.recent_alerts ?? [];
+  const recentAlerts = alertsQuery.data?.data ?? [];
   const regulations = regulationsQuery.data?.data ?? [];
 
   return (
@@ -90,7 +94,7 @@ export default function LexPage() {
           <KpiCard title="Contracts" value={contractsQuery.data?.meta.total ?? 0} icon={FileText} iconColor="text-blue-600" />
           <KpiCard title="Documents" value={documentsQuery.data?.meta.total ?? 0} icon={Gavel} iconColor="text-violet-600" />
           <KpiCard title="Open Compliance Alerts" value={compliance?.open_alerts ?? 0} icon={ShieldCheck} iconColor="text-red-600" />
-          <KpiCard title="Expiring in 30d" value={compliance?.contracts_expiring_30d ?? 0} icon={Scale} iconColor="text-orange-600" />
+          <KpiCard title="Compliance Score" value={`${Math.round(compliance?.compliance_score ?? 0)}%`} icon={Scale} iconColor="text-orange-600" />
         </div>
 
         <div className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
@@ -136,7 +140,7 @@ export default function LexPage() {
               {recentAlerts.length === 0 ? (
                 <p className="text-sm text-muted-foreground">No active compliance alerts are currently open.</p>
               ) : (
-                recentAlerts.map((alert) => (
+                recentAlerts.map((alert: LexComplianceAlert) => (
                   <div key={alert.id} className="rounded-lg border px-4 py-3">
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
