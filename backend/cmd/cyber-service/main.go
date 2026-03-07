@@ -79,12 +79,14 @@ func main() {
 	})
 	defer rdb.Close()
 
-	// ── 7. Prometheus registry (per-instance to avoid duplicate reg panics) ───
-	promReg := prometheus.NewRegistry()
+	// ── 7. Prometheus registries ───────────────────────────────────────────────
+	// Use a Gatherers to merge the standard Go/process metrics with the
+	// cyber-service application metrics so both are exposed at /metrics.
 	m := cybermetrics.New()
-	// Register standard Go + process collectors
-	promReg.MustRegister(prometheus.NewGoCollector())
-	promReg.MustRegister(prometheus.NewProcessCollector(prometheus.ProcessCollectorOpts{}))
+	runtimeReg := prometheus.NewRegistry()
+	runtimeReg.MustRegister(prometheus.NewGoCollector())
+	runtimeReg.MustRegister(prometheus.NewProcessCollector(prometheus.ProcessCollectorOpts{}))
+	promGatherers := prometheus.Gatherers{runtimeReg, m.Registry}
 
 	// ── 8. Kafka producer ──────────────────────────────────────────────────────
 	var producer *events.Producer
@@ -145,8 +147,8 @@ func main() {
 		logger.Fatal().Err(err).Msg("failed to create HTTP server")
 	}
 
-	// Override /metrics to use per-instance registry
-	srv.Router.Handle("/metrics", promhttp.HandlerFor(promReg, promhttp.HandlerOpts{}))
+	// Expose both runtime and cyber-service application metrics at /metrics.
+	srv.Router.Handle("/metrics", promhttp.HandlerFor(promGatherers, promhttp.HandlerOpts{}))
 
 	// Register JWT manager for route middleware
 	jwtMgr, err := auth.NewJWTManager(cfg.Auth)

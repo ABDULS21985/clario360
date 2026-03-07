@@ -4,7 +4,9 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Loader2 } from 'lucide-react';
 import { apiPost } from '@/lib/api';
-import { showSuccess, showError } from '@/lib/toast';
+import { showSuccess, showApiError } from '@/lib/toast';
+import { useAuth } from '@/hooks/use-auth';
+import { canClaimTask } from '@/lib/workflow-utils';
 import type { HumanTask } from '@/types/models';
 
 interface TaskClaimButtonProps {
@@ -14,6 +16,11 @@ interface TaskClaimButtonProps {
 
 export function TaskClaimButton({ task, onSuccess }: TaskClaimButtonProps) {
   const [isClaiming, setIsClaiming] = useState(false);
+  const { user } = useAuth();
+
+  if (!canClaimTask(task, user)) {
+    return null;
+  }
 
   const handleClaim = async () => {
     setIsClaiming(true);
@@ -24,12 +31,12 @@ export function TaskClaimButton({ task, onSuccess }: TaskClaimButtonProps) {
     } catch (err: unknown) {
       const status = (err as { status?: number })?.status;
       if (status === 409) {
-        showError('This task was already claimed by someone else.');
+        showApiError(new Error('This task was claimed by someone else.'));
         onSuccess(); // refetch to get updated state
       } else if (status === 403) {
-        showError("You don't have the required role to claim this task.");
+        showApiError(new Error("You don't have the required role to claim this task."));
       } else {
-        showError('Failed to claim task. Please try again.');
+        showApiError(err);
       }
     } finally {
       setIsClaiming(false);

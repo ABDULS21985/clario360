@@ -17,7 +17,7 @@ import { Combobox } from '@/components/shared/forms/combobox';
 import { useQuery } from '@tanstack/react-query';
 import { apiGet, apiPost } from '@/lib/api';
 import { useAuth } from '@/hooks/use-auth';
-import { showSuccess, showError } from '@/lib/toast';
+import { showSuccess, showApiError } from '@/lib/toast';
 import type { HumanTask, User } from '@/types/models';
 import type { PaginatedResponse } from '@/types/api';
 
@@ -44,7 +44,7 @@ export function TaskDelegateDialog({
     queryFn: () =>
       apiGet<PaginatedResponse<User>>(
         `/api/v1/roles/${task.assignee_role}/users`,
-        { per_page: 100 },
+        { per_page: 100, tenant_id: user?.tenant_id },
       ),
     enabled: open && !!task.assignee_role,
   });
@@ -62,8 +62,7 @@ export function TaskDelegateDialog({
     try {
       const selectedUser = usersData?.data.find((u) => u.id === selectedUserId);
       await apiPost(`/api/v1/workflows/tasks/${task.id}/delegate`, {
-        user_id: selectedUserId,
-        reason: reason.trim() || undefined,
+        delegate_to: selectedUserId,
       });
       const name = selectedUser ? `${selectedUser.first_name} ${selectedUser.last_name}` : 'user';
       showSuccess(`Task delegated to ${name}.`);
@@ -72,7 +71,7 @@ export function TaskDelegateDialog({
       setReason('');
       onSuccess();
     } catch {
-      showError('Failed to delegate task. Please try again.');
+      showApiError(new Error('Failed to delegate task.'));
     } finally {
       setIsSubmitting(false);
     }

@@ -47,13 +47,12 @@ function StepRow({ step, execution, isCurrent, isLast }: StepRowProps) {
   const StepIcon = getStepIcon(step.type);
   const status = isCurrent ? 'running' : execution?.status ?? 'pending';
 
-  const lineColor = cn(
-    'absolute left-2.5 top-6 -ml-px w-0.5',
-    !isLast && 'h-full',
-    status === 'completed' && 'bg-green-300',
-    isCurrent && 'bg-blue-300',
-    status === 'pending' && 'bg-gray-200 bg-dashed',
-  );
+  const lineColor = cn('absolute left-[11px] top-6 h-[calc(100%-8px)] border-l', {
+    'border-green-300': status === 'completed',
+    'border-blue-300': isCurrent,
+    'border-red-300': status === 'failed',
+    'border-dashed border-gray-300': status === 'pending' || status === 'skipped',
+  });
 
   const hasOutput = execution?.output && Object.keys(execution.output).length > 0;
 
@@ -128,6 +127,7 @@ function StepRow({ step, execution, isCurrent, isLast }: StepRowProps) {
             {status === 'failed' && execution.error && (
               <span className="text-red-600">Failed: {execution.error}</span>
             )}
+            {status === 'skipped' && <span>Skipped</span>}
           </div>
         )}
 

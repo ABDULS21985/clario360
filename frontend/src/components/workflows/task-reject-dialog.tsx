@@ -14,7 +14,7 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { apiPost } from '@/lib/api';
-import { showSuccess, showError } from '@/lib/toast';
+import { showSuccess, showApiError } from '@/lib/toast';
 import type { HumanTask } from '@/types/models';
 
 interface TaskRejectDialogProps {
@@ -45,7 +45,7 @@ export function TaskRejectDialog({
       setReason('');
       onSuccess();
     } catch {
-      showError('Failed to reject task. Please try again.');
+      showApiError(new Error('Failed to reject task.'));
     } finally {
       setIsSubmitting(false);
     }

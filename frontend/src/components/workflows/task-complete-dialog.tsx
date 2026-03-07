@@ -12,7 +12,7 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { apiPost } from '@/lib/api';
-import { showSuccess, showError } from '@/lib/toast';
+import { showSuccess, showApiError } from '@/lib/toast';
 import type { HumanTask } from '@/types/models';
 
 interface TaskCompleteDialogProps {
@@ -40,16 +40,17 @@ export function TaskCompleteDialog({
       onOpenChange(false);
       onSuccess();
     } catch {
-      showError('Failed to complete task. Please try again.');
+      showApiError(new Error('Failed to complete task.'));
     } finally {
       setIsSubmitting(false);
     }
   };
 
   // Show a summary of filled form fields
-  const filledEntries = Object.entries(formData).filter(
-    ([, v]) => v !== undefined && v !== null && v !== '',
-  );
+  const fields = task.form_schema.map((field) => ({
+    field,
+    value: formData[field.name],
+  }));
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -68,21 +69,25 @@ export function TaskCompleteDialog({
           </div>
         </DialogHeader>
 
-        {filledEntries.length > 0 && (
+        {fields.length > 0 && (
           <div className="rounded-lg border bg-muted/30 p-3">
             <p className="mb-2 text-xs font-medium text-muted-foreground">Your answers:</p>
             <dl className="space-y-1.5">
-              {filledEntries.slice(0, 5).map(([key, value]) => (
-                <div key={key} className="flex gap-2 text-sm">
+              {fields.slice(0, 6).map(({ field, value }) => (
+                <div key={field.name} className="flex gap-2 text-sm">
                   <dt className="shrink-0 font-medium capitalize">
-                    {key.replace(/_/g, ' ')}:
+                    {field.label}:
                   </dt>
                   <dd className="truncate text-muted-foreground">
-                    {typeof value === 'boolean'
-                      ? value
-                        ? 'Yes'
-                        : 'No'
-                      : String(value)}
+                    {value === undefined || value === null || value === ''
+                      ? field.required
+                        ? 'Required'
+                        : 'Optional'
+                      : typeof value === 'boolean'
+                        ? value
+                          ? 'Yes'
+                          : 'No'
+                        : String(value)}
                   </dd>
                 </div>
               ))}

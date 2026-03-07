@@ -1,6 +1,5 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
 import type { ColumnDef } from '@tanstack/react-table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -12,15 +11,21 @@ import {
 } from '@/components/shared/data-table/columns/common-columns';
 import { taskStatusConfig } from '@/lib/status-configs';
 import { cn } from '@/lib/utils';
-import { formatSLAStatus, PRIORITY_LABELS, PRIORITY_COLORS } from '@/lib/workflow-utils';
-import { useAuth } from '@/hooks/use-auth';
-import type { HumanTask } from '@/types/models';
+import {
+  canClaimTask,
+  canDelegateTask,
+  formatSLAStatus,
+  PRIORITY_LABELS,
+  PRIORITY_COLORS,
+} from '@/lib/workflow-utils';
+import type { HumanTask, User } from '@/types/models';
 
 interface TaskColumnOptions {
   onOpen: (task: HumanTask) => void;
   onClaim: (task: HumanTask) => void;
   onDelegate: (task: HumanTask) => void;
-  currentUserId?: string;
+  onViewWorkflow: (task: HumanTask) => void;
+  currentUser?: User | null;
 }
 
 function PriorityCell({ priority }: { priority: number }) {
@@ -31,38 +36,42 @@ function PriorityCell({ priority }: { priority: number }) {
       <TooltipTrigger asChild>
         <span className={cn('block h-2.5 w-2.5 rounded-full', color)} aria-label={label} />
       </TooltipTrigger>
-      <TooltipContent><p className="text-xs">{label}</p></TooltipContent>
+      <TooltipContent>
+        <p className="text-xs">{label}</p>
+      </TooltipContent>
     </Tooltip>
   );
 }
 
 function SLACell({ task }: { task: HumanTask }) {
   const { text, color } = formatSLAStatus(task);
+  const deadlineText = task.sla_deadline ? new Date(task.sla_deadline).toLocaleString() : 'None';
+
   if (task.sla_breached) {
     return (
       <Tooltip>
         <TooltipTrigger asChild>
-          <Badge variant="destructive" className="text-xs">
-            {text}
-          </Badge>
+          <div className="space-y-1">
+            <Badge variant="destructive" className="text-xs">
+              Overdue
+            </Badge>
+            <p className="text-xs text-destructive">{text}</p>
+          </div>
         </TooltipTrigger>
         <TooltipContent>
-          <p className="text-xs">
-            Deadline: {task.sla_deadline ? new Date(task.sla_deadline).toLocaleString() : '—'}
-          </p>
+          <p className="text-xs">Deadline: {deadlineText}</p>
         </TooltipContent>
       </Tooltip>
     );
   }
+
   return (
     <Tooltip>
       <TooltipTrigger asChild>
         <span className={cn('text-xs', color)}>{text}</span>
       </TooltipTrigger>
       <TooltipContent>
-        <p className="text-xs">
-          Deadline: {task.sla_deadline ? new Date(task.sla_deadline).toLocaleString() : 'None'}
-        </p>
+        <p className="text-xs">Deadline: {deadlineText}</p>
       </TooltipContent>
     </Tooltip>
   );
@@ -70,22 +79,20 @@ function SLACell({ task }: { task: HumanTask }) {
 
 function AssignedCell({
   task,
-  currentUserId,
+  currentUser,
   onClaim,
 }: {
   task: HumanTask;
-  currentUserId?: string;
+  currentUser?: User | null;
   onClaim: (task: HumanTask) => void;
 }) {
-  const { hasPermission } = useAuth();
-  const isMe = task.claimed_by === currentUserId;
+  const isMe = task.claimed_by === currentUser?.id;
 
   if (!task.claimed_by) {
-    const canClaim =
-      !task.assignee_role || hasPermission(`${task.assignee_role}:*`) || hasPermission('*:*');
+    const canClaim = canClaimTask(task, currentUser);
     return (
       <div className="flex items-center gap-2">
-        <Badge variant="outline" className="text-xs text-orange-600 border-orange-300">
+        <Badge variant="outline" className="border-orange-300 text-xs text-orange-600">
           Unassigned
         </Badge>
         {canClaim && (
@@ -93,8 +100,8 @@ function AssignedCell({
             size="sm"
             variant="ghost"
             className="h-5 px-1 text-xs"
-            onClick={(e) => {
-              e.stopPropagation();
+            onClick={(event) => {
+              event.stopPropagation();
               onClaim(task);
             }}
           >
@@ -114,11 +121,15 @@ function AssignedCell({
     );
   }
 
-  return <span className="text-xs text-muted-foreground">{task.claimed_by_name ?? task.claimed_by}</span>;
+  return (
+    <span className="text-xs text-muted-foreground">
+      {task.claimed_by_name ?? task.claimed_by}
+    </span>
+  );
 }
 
 export function getTaskColumns(options: TaskColumnOptions): ColumnDef<HumanTask>[] {
-  const { onOpen, onClaim, onDelegate, currentUserId } = options;
+  const { onOpen, onClaim, onDelegate, onViewWorkflow, currentUser } = options;
 
   return [
     {
@@ -132,7 +143,7 @@ export function getTaskColumns(options: TaskColumnOptions): ColumnDef<HumanTask>
     {
       id: 'name',
       accessorKey: 'name',
-      header: 'Task',
+      header: 'Task Name',
       cell: ({ row }) => {
         const task = row.original;
         return (
@@ -141,16 +152,18 @@ export function getTaskColumns(options: TaskColumnOptions): ColumnDef<HumanTask>
             onClick={() => onOpen(task)}
             role="button"
             tabIndex={0}
-            onKeyDown={(e) => e.key === 'Enter' && onOpen(task)}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') {
+                onOpen(task);
+              }
+            }}
           >
-            <span className="block font-medium text-sm">{task.name}</span>
-            {task.description && (
-              <span className="block text-xs text-muted-foreground">
-                {task.description.length > 80
-                  ? `${task.description.slice(0, 80)}...`
-                  : task.description}
-              </span>
-            )}
+            <span className="block text-sm font-medium">{task.name}</span>
+            <span className="block text-xs text-muted-foreground">
+              {task.description.length > 80
+                ? `${task.description.slice(0, 80)}...`
+                : task.description || '—'}
+            </span>
           </div>
         );
       },
@@ -160,10 +173,16 @@ export function getTaskColumns(options: TaskColumnOptions): ColumnDef<HumanTask>
       id: 'workflow_name',
       accessorKey: 'workflow_name',
       header: 'Workflow',
-      cell: ({ getValue }) => {
-        const val = getValue() as string | null;
-        if (!val) return <span className="text-muted-foreground">—</span>;
-        return <Badge variant="outline" className="text-xs">{val}</Badge>;
+      cell: ({ row }) => {
+        const value = row.original.workflow_name || row.original.definition_name;
+        if (!value) {
+          return <span className="text-muted-foreground">—</span>;
+        }
+        return (
+          <Badge variant="outline" className="text-xs">
+            {value}
+          </Badge>
+        );
       },
       size: 160,
     },
@@ -171,7 +190,7 @@ export function getTaskColumns(options: TaskColumnOptions): ColumnDef<HumanTask>
     {
       id: 'sla_deadline',
       accessorKey: 'sla_deadline',
-      header: 'Due (SLA)',
+      header: 'Due Date',
       cell: ({ row }) => <SLACell task={row.original} />,
       enableSorting: true,
       size: 130,
@@ -181,11 +200,7 @@ export function getTaskColumns(options: TaskColumnOptions): ColumnDef<HumanTask>
       accessorKey: 'claimed_by',
       header: 'Assigned',
       cell: ({ row }) => (
-        <AssignedCell
-          task={row.original}
-          currentUserId={currentUserId}
-          onClaim={onClaim}
-        />
+        <AssignedCell task={row.original} currentUser={currentUser} onClaim={onClaim} />
       ),
       size: 140,
     },
@@ -195,40 +210,16 @@ export function getTaskColumns(options: TaskColumnOptions): ColumnDef<HumanTask>
         label: 'Open Task',
         onClick: () => onOpen(task),
       },
-      ...(task.claimed_by === null
+      ...(canClaimTask(task, currentUser)
         ? [{ label: 'Claim', onClick: () => onClaim(task) }]
         : []),
-      ...(task.claimed_by === currentUserId
+      ...(canDelegateTask(task, currentUser)
         ? [{ label: 'Delegate', onClick: () => onDelegate(task) }]
         : []),
       {
         label: 'View Workflow',
-        onClick: () => {
-          if (typeof window !== 'undefined') {
-            window.location.href = `/workflows/${task.instance_id}`;
-          }
-        },
+        onClick: () => onViewWorkflow(task),
       },
     ]),
   ];
-}
-
-// Re-export so pages can use this component
-export function TaskTableColumnWrapper({
-  task,
-  onOpen,
-  onClaim,
-  onDelegate,
-  currentUserId,
-}: {
-  task: HumanTask;
-} & TaskColumnOptions) {
-  const router = useRouter();
-  void router;
-  void task;
-  void onOpen;
-  void onClaim;
-  void onDelegate;
-  void currentUserId;
-  return null;
 }

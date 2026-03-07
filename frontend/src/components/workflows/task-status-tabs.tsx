@@ -13,7 +13,11 @@ interface TaskStatusTabsProps {
 
 export function TaskStatusTabs({ activeTab, onTabChange, counts }: TaskStatusTabsProps) {
   const allCount = counts
-    ? counts.pending + counts.claimed_by_me + counts.completed + counts.overdue
+    ? counts.pending +
+      counts.claimed_by_me +
+      counts.completed +
+      counts.overdue +
+      counts.escalated
     : undefined;
 
   const tabs = [
@@ -37,7 +41,7 @@ export function TaskStatusTabs({ activeTab, onTabChange, counts }: TaskStatusTab
             )}
           >
             {tab.label}
-            {tab.count !== undefined && tab.count > 0 && (
+            {tab.count !== undefined && (
               <Badge
                 variant={tab.urgent && tab.count > 0 ? 'destructive' : 'secondary'}
                 className="h-4 min-w-4 px-1 text-[10px]"
