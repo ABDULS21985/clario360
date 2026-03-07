@@ -8,6 +8,57 @@ import { useRealtimeStore } from "@/stores/realtime-store";
 import type { FetchParams, DataTableControlledProps } from "@/types/table";
 import type { PaginatedResponse } from "@/types/api";
 
+const RESERVED_SEARCH_PARAMS = ["page", "per_page", "sort", "order", "search"] as const;
+const RESERVED_SEARCH_PARAM_SET = new Set<string>(RESERVED_SEARCH_PARAMS);
+
+type SearchParamLike = ReturnType<typeof useSearchParams>;
+
+function getSearchParam(searchParams: SearchParamLike, key: string): string | null {
+  if (!searchParams || typeof searchParams.get !== "function") {
+    return null;
+  }
+
+  return searchParams.get(key);
+}
+
+function cloneSearchParams(searchParams: SearchParamLike): URLSearchParams {
+  const params = new URLSearchParams();
+
+  if (!searchParams) {
+    return params;
+  }
+
+  if (typeof searchParams.forEach === "function") {
+    searchParams.forEach((value, key) => {
+      params.append(key, value);
+    });
+    return params;
+  }
+
+  if (typeof searchParams.entries === "function") {
+    for (const [key, value] of searchParams.entries()) {
+      params.append(key, value);
+    }
+    return params;
+  }
+
+  if (typeof searchParams.toString === "function") {
+    const raw = searchParams.toString();
+    if (raw && raw !== "[object Object]") {
+      return new URLSearchParams(raw);
+    }
+  }
+
+  for (const key of RESERVED_SEARCH_PARAMS) {
+    const value = getSearchParam(searchParams, key);
+    if (value) {
+      params.set(key, value);
+    }
+  }
+
+  return params;
+}
+
 interface UseDataTableOptions<TData> {
   fetchFn: (params: FetchParams) => Promise<PaginatedResponse<TData>>;
   queryKey: string; // unique key for React Query caching
@@ -55,26 +106,26 @@ export function useDataTable<TData>(
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const urlSearchParams = useMemo(() => cloneSearchParams(searchParams), [searchParams]);
 
   // Read state from URL
-  const page = parseInt(searchParams.get("page") ?? "1", 10);
+  const page = parseInt(getSearchParam(searchParams, "page") ?? "1", 10);
   const pageSize = parseInt(
-    searchParams.get("per_page") ?? String(defaultPageSize),
+    getSearchParam(searchParams, "per_page") ?? String(defaultPageSize),
     10
   );
-  const sortColumn = searchParams.get("sort") ?? defaultSort?.column;
-  const sortDirection = (searchParams.get("order") ??
+  const sortColumn = getSearchParam(searchParams, "sort") ?? defaultSort?.column;
+  const sortDirection = (getSearchParam(searchParams, "order") ??
     defaultSort?.direction ??
     "desc") as "asc" | "desc";
-  const rawSearch = searchParams.get("search") ?? "";
+  const rawSearch = getSearchParam(searchParams, "search") ?? "";
   const debouncedSearch = useDebounce(rawSearch, 300);
 
   // Collect all other params as filters
   const activeFilters = useMemo(() => {
-    const reserved = new Set(["page", "per_page", "sort", "order", "search"]);
     const filters: Record<string, string | string[]> = {};
-    searchParams.forEach((value, key) => {
-      if (!reserved.has(key)) {
+    urlSearchParams.forEach((value, key) => {
+      if (!RESERVED_SEARCH_PARAM_SET.has(key)) {
         const existing = filters[key];
         if (existing) {
           filters[key] = Array.isArray(existing)
@@ -86,11 +137,11 @@ export function useDataTable<TData>(
       }
     });
     return filters;
-  }, [searchParams]);
+  }, [urlSearchParams]);
 
   const updateParams = useCallback(
     (updates: Record<string, string | string[] | undefined>) => {
-      const params = new URLSearchParams(searchParams.toString());
+      const params = cloneSearchParams(searchParams);
       for (const [key, value] of Object.entries(updates)) {
         if (
           value === undefined ||
@@ -133,10 +184,9 @@ export function useDataTable<TData>(
     [updateParams]
   );
   const clearFilters = useCallback(() => {
-    const reserved = ["page", "per_page", "sort", "order", "search"];
     const params = new URLSearchParams();
-    reserved.forEach((k) => {
-      const v = searchParams.get(k);
+    RESERVED_SEARCH_PARAMS.forEach((k) => {
+      const v = getSearchParam(searchParams, k);
       if (v) params.set(k, v);
     });
     params.set("page", "1");
