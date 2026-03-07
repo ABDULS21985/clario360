@@ -28,7 +28,7 @@ export function DeleteAssetDialog({ open, onOpenChange, asset, onSuccess }: Dele
   const [confirmation, setConfirmation] = useState('');
 
   const { mutate, isPending } = useApiMutation<void, void>(
-    'delete' as 'put',
+    'delete',
     `${API_ENDPOINTS.CYBER_ASSETS}/${asset.id}`,
     {
       successMessage: 'Asset deleted',
