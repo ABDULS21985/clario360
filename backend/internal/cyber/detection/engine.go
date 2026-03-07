@@ -250,9 +250,6 @@ func (e *DetectionEngine) ProcessEvents(ctx context.Context, tenantID uuid.UUID,
 
 func (e *DetectionEngine) processRuleMatch(ctx context.Context, tenantID uuid.UUID, rule *model.DetectionRule, match model.RuleMatch) (*model.Alert, error) {
 	asset, assetIDs := e.primaryAssetForMatch(ctx, tenantID, match)
-	if e.isSuppressed(ctx, tenantID, rule.ID, asset) {
-		return nil, nil
-	}
 	technique, tactic := mitre.MapRuleToPrimaryTechnique(rule)
 	expl := explanation.BuildExplanation(rule, match, assetSlice(asset), nil)
 	confidence := confidenceScore(expl)
@@ -288,9 +285,7 @@ func (e *DetectionEngine) processRuleMatch(ctx context.Context, tenantID uuid.UU
 	if err != nil {
 		return nil, err
 	}
-	if isNew {
-		e.setRecentKey(ctx, tenantID, rule.ID, alert.AssetID, cooldownForRule(rule))
-	}
+	_ = isNew
 	return created, nil
 }
 
@@ -370,49 +365,6 @@ func (e *DetectionEngine) lookupAsset(ctx context.Context, tenantID uuid.UUID, a
 		return nil
 	}
 	return asset
-}
-
-func (e *DetectionEngine) isSuppressed(ctx context.Context, tenantID, ruleID uuid.UUID, asset *model.Asset) bool {
-	if e.redis == nil || asset == nil {
-		return false
-	}
-	key := dedupKey(tenantID, ruleID, &asset.ID)
-	exists, err := e.redis.Exists(ctx, key).Result()
-	if err != nil {
-		return false
-	}
-	return exists > 0
-}
-
-func (e *DetectionEngine) setRecentKey(ctx context.Context, tenantID, ruleID uuid.UUID, assetID *uuid.UUID, ttl time.Duration) {
-	if e.redis == nil || assetID == nil {
-		return
-	}
-	if ttl <= 0 {
-		ttl = 5 * time.Minute
-	}
-	key := dedupKey(tenantID, ruleID, assetID)
-	_ = e.redis.Set(ctx, key, "1", ttl).Err()
-}
-
-func dedupKey(tenantID, ruleID uuid.UUID, assetID *uuid.UUID) string {
-	if assetID == nil {
-		return fmt.Sprintf("detect:recent:%s:%s:global", tenantID, ruleID)
-	}
-	return fmt.Sprintf("detect:recent:%s:%s:%s", tenantID, ruleID, assetID.String())
-}
-
-func cooldownForRule(rule *model.DetectionRule) time.Duration {
-	var payload map[string]interface{}
-	if err := json.Unmarshal(rule.RuleContent, &payload); err != nil {
-		return 5 * time.Minute
-	}
-	if rawCooldown, ok := payload["cooldown"].(string); ok {
-		if duration, err := time.ParseDuration(rawCooldown); err == nil && duration > 0 {
-			return duration
-		}
-	}
-	return 5 * time.Minute
 }
 
 func matchWindow(events []model.SecurityEvent) (time.Time, time.Time) {
