@@ -13,8 +13,8 @@ import (
 )
 
 type ExposureService struct {
-	scoring      *ctem.ScoringEngine
-	snapshotRepo *repository.CTEMSnapshotRepository
+	scoring        *ctem.ScoringEngine
+	snapshotRepo   *repository.CTEMSnapshotRepository
 	assessmentRepo *repository.CTEMAssessmentRepository
 }
 

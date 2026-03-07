@@ -135,16 +135,16 @@ func (t DetectionRuleType) IsValid() bool {
 type ThreatType string
 
 const (
-	ThreatTypeMalware       ThreatType = "malware"
-	ThreatTypePhishing      ThreatType = "phishing"
-	ThreatTypeAPT           ThreatType = "apt"
-	ThreatTypeRansomware    ThreatType = "ransomware"
-	ThreatTypeDDoS          ThreatType = "ddos"
-	ThreatTypeInsider       ThreatType = "insider_threat"
-	ThreatTypeSupplyChain   ThreatType = "supply_chain"
-	ThreatTypeZeroDay       ThreatType = "zero_day"
-	ThreatTypeBruteForce    ThreatType = "brute_force"
-	ThreatTypeOther         ThreatType = "other"
+	ThreatTypeMalware     ThreatType = "malware"
+	ThreatTypePhishing    ThreatType = "phishing"
+	ThreatTypeAPT         ThreatType = "apt"
+	ThreatTypeRansomware  ThreatType = "ransomware"
+	ThreatTypeDDoS        ThreatType = "ddos"
+	ThreatTypeInsider     ThreatType = "insider_threat"
+	ThreatTypeSupplyChain ThreatType = "supply_chain"
+	ThreatTypeZeroDay     ThreatType = "zero_day"
+	ThreatTypeBruteForce  ThreatType = "brute_force"
+	ThreatTypeOther       ThreatType = "other"
 )
 
 // ValidThreatTypes contains the allowed threat categories.
@@ -175,11 +175,11 @@ func (t ThreatType) IsValid() bool {
 type ThreatStatus string
 
 const (
-	ThreatStatusActive      ThreatStatus = "active"
-	ThreatStatusContained   ThreatStatus = "contained"
-	ThreatStatusEradicated  ThreatStatus = "eradicated"
-	ThreatStatusMonitoring  ThreatStatus = "monitoring"
-	ThreatStatusClosed      ThreatStatus = "closed"
+	ThreatStatusActive     ThreatStatus = "active"
+	ThreatStatusContained  ThreatStatus = "contained"
+	ThreatStatusEradicated ThreatStatus = "eradicated"
+	ThreatStatusMonitoring ThreatStatus = "monitoring"
+	ThreatStatusClosed     ThreatStatus = "closed"
 )
 
 // ValidThreatStatuses contains the supported threat statuses.
@@ -205,17 +205,17 @@ func (s ThreatStatus) IsValid() bool {
 type IndicatorType string
 
 const (
-	IndicatorTypeIP             IndicatorType = "ip"
-	IndicatorTypeDomain         IndicatorType = "domain"
-	IndicatorTypeURL            IndicatorType = "url"
-	IndicatorTypeEmail          IndicatorType = "email"
-	IndicatorTypeHashMD5        IndicatorType = "file_hash_md5"
-	IndicatorTypeHashSHA1       IndicatorType = "file_hash_sha1"
-	IndicatorTypeHashSHA256     IndicatorType = "file_hash_sha256"
-	IndicatorTypeCertificate    IndicatorType = "certificate"
-	IndicatorTypeRegistryKey    IndicatorType = "registry_key"
-	IndicatorTypeUserAgent      IndicatorType = "user_agent"
-	IndicatorTypeCIDR           IndicatorType = "cidr"
+	IndicatorTypeIP          IndicatorType = "ip"
+	IndicatorTypeDomain      IndicatorType = "domain"
+	IndicatorTypeURL         IndicatorType = "url"
+	IndicatorTypeEmail       IndicatorType = "email"
+	IndicatorTypeHashMD5     IndicatorType = "file_hash_md5"
+	IndicatorTypeHashSHA1    IndicatorType = "file_hash_sha1"
+	IndicatorTypeHashSHA256  IndicatorType = "file_hash_sha256"
+	IndicatorTypeCertificate IndicatorType = "certificate"
+	IndicatorTypeRegistryKey IndicatorType = "registry_key"
+	IndicatorTypeUserAgent   IndicatorType = "user_agent"
+	IndicatorTypeCIDR        IndicatorType = "cidr"
 )
 
 // ValidIndicatorTypes contains the supported IOC types.

@@ -40,9 +40,9 @@ type CTEMService struct {
 	workflow       ctem.WorkflowLauncher
 	logger         zerolog.Logger
 
-	mu          sync.Mutex
-	running     map[uuid.UUID]context.CancelFunc
-	exportJobs  map[string]exportJob
+	mu         sync.Mutex
+	running    map[uuid.UUID]context.CancelFunc
+	exportJobs map[string]exportJob
 }
 
 type repositoryQueryer interface {
@@ -282,9 +282,9 @@ func (s *CTEMService) UpdateFindingStatus(ctx context.Context, tenantID, finding
 		return nil, err
 	}
 	s.publishEvent(ctx, "cyber.ctem.finding.status_changed", tenantID.String(), map[string]any{
-		"finding_id":  finding.ID.String(),
-		"new_status":  finding.Status,
-		"changed_by":  userID.String(),
+		"finding_id": finding.ID.String(),
+		"new_status": finding.Status,
+		"changed_by": userID.String(),
 	})
 	return finding, nil
 }

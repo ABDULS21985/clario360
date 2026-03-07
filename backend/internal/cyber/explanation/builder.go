@@ -60,11 +60,11 @@ func BuildExplanation(
 		FalsePositiveIndicators: uniqueStrings(falsePositiveIndicators),
 		IndicatorMatches:        indicatorEvidence,
 		Details: map[string]interface{}{
-			"event_count":       len(match.Events),
-			"confidence_score":  confidenceScore,
-			"match_details":     match.MatchDetails,
-			"asset_count":       len(assets),
-			"indicator_count":   len(indicators),
+			"event_count":      len(match.Events),
+			"confidence_score": confidenceScore,
+			"match_details":    match.MatchDetails,
+			"asset_count":      len(assets),
+			"indicator_count":  len(indicators),
 		},
 	}
 }

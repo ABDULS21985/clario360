@@ -47,9 +47,9 @@ func ensureRawMessage(value json.RawMessage, fallback string) json.RawMessage {
 
 func scanAlert(row scanner) (*model.Alert, error) {
 	var (
-		alert           model.Alert
-		explanationRaw  []byte
-		metadataRaw     []byte
+		alert          model.Alert
+		explanationRaw []byte
+		metadataRaw    []byte
 	)
 	if err := row.Scan(
 		&alert.ID,

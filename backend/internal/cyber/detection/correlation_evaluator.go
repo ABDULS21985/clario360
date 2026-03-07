@@ -18,11 +18,11 @@ type correlationEventDefinition struct {
 }
 
 type compiledCorrelationRule struct {
-	Selections      map[string]*CompiledSelection
-	Sequence        []string
-	GroupBy         string
-	Window          time.Duration
-	MinFailedCount  int
+	Selections     map[string]*CompiledSelection
+	Sequence       []string
+	GroupBy        string
+	Window         time.Duration
+	MinFailedCount int
 }
 
 type correlatedEvent struct {
@@ -147,11 +147,11 @@ func (c *CorrelationEvaluator) Evaluate(compiled interface{}, events []model.Sec
 						Events:    append([]model.SecurityEvent(nil), collected...),
 						Timestamp: items[next].Event.Timestamp,
 						MatchDetails: map[string]interface{}{
-							"group_value":       groupKey,
-							"sequence":          rule.Sequence,
-							"min_failed_count":  rule.MinFailedCount,
+							"group_value":        groupKey,
+							"sequence":           rule.Sequence,
+							"min_failed_count":   rule.MinFailedCount,
 							"matched_step_count": len(rule.Sequence),
-							"window":            rule.Window.String(),
+							"window":             rule.Window.String(),
 						},
 					})
 					start = next

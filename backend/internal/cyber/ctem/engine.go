@@ -21,18 +21,18 @@ type WorkflowLauncher interface {
 }
 
 type CTEMEngine struct {
-	db            *pgxpool.Pool
+	db             *pgxpool.Pool
 	assessmentRepo *repository.CTEMAssessmentRepository
-	findingRepo   *repository.CTEMFindingRepository
-	snapshotRepo  *repository.CTEMSnapshotRepository
-	remGroupRepo  *repository.CTEMRemediationGroupRepository
-	assetRepo     *repository.AssetRepository
-	vulnRepo      *repository.VulnerabilityRepository
-	relationRepo  *repository.RelationshipRepository
-	scoring       *ScoringEngine
-	producer      *events.Producer
-	workflow      WorkflowLauncher
-	logger        zerolog.Logger
+	findingRepo    *repository.CTEMFindingRepository
+	snapshotRepo   *repository.CTEMSnapshotRepository
+	remGroupRepo   *repository.CTEMRemediationGroupRepository
+	assetRepo      *repository.AssetRepository
+	vulnRepo       *repository.VulnerabilityRepository
+	relationRepo   *repository.RelationshipRepository
+	scoring        *ScoringEngine
+	producer       *events.Producer
+	workflow       WorkflowLauncher
+	logger         zerolog.Logger
 }
 
 func NewEngine(
@@ -155,9 +155,9 @@ func (e *CTEMEngine) RunAssessment(ctx context.Context, assessmentID uuid.UUID) 
 			return err
 		}
 		e.publishEvent(ctx, "cyber.ctem.phase.completed", assessment.TenantID.String(), map[string]any{
-			"assessment_id": assessment.ID.String(),
-			"phase":         phase.Name,
-			"duration_ms":   durationBetween(progress.StartedAt, progress.CompletedAt),
+			"assessment_id":   assessment.ID.String(),
+			"phase":           phase.Name,
+			"duration_ms":     durationBetween(progress.StartedAt, progress.CompletedAt),
 			"items_processed": progress.ItemsProcessed,
 		})
 	}
@@ -218,10 +218,10 @@ func (e *CTEMEngine) UpdatePhaseProgress(ctx context.Context, assessment *model.
 		return err
 	}
 	e.publishEvent(ctx, "cyber.ctem.phase.progress", assessment.TenantID.String(), map[string]any{
-		"assessment_id":  assessment.ID.String(),
-		"phase":          phase,
+		"assessment_id":   assessment.ID.String(),
+		"phase":           phase,
 		"items_processed": processed,
-		"items_total":    total,
+		"items_total":     total,
 	})
 	return nil
 }

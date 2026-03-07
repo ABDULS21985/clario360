@@ -310,21 +310,21 @@ func (r *CTEMAssessmentRepository) LatestCompleted(ctx context.Context, tenantID
 
 func defaultPhaseProgress() map[string]model.PhaseProgress {
 	return map[string]model.PhaseProgress{
-		"scoping":       {Status: model.CTEMPhaseStatusPending},
-		"discovery":     {Status: model.CTEMPhaseStatusPending},
-		"prioritizing":  {Status: model.CTEMPhaseStatusPending},
-		"validating":    {Status: model.CTEMPhaseStatusPending},
-		"mobilizing":    {Status: model.CTEMPhaseStatusPending},
+		"scoping":      {Status: model.CTEMPhaseStatusPending},
+		"discovery":    {Status: model.CTEMPhaseStatusPending},
+		"prioritizing": {Status: model.CTEMPhaseStatusPending},
+		"validating":   {Status: model.CTEMPhaseStatusPending},
+		"mobilizing":   {Status: model.CTEMPhaseStatusPending},
 	}
 }
 
 func scanCTEMAssessment(row interface{ Scan(dest ...any) error }) (*model.CTEMAssessment, error) {
 	var (
-		item              model.CTEMAssessment
-		scopeJSON         []byte
-		phasesJSON        []byte
-		scoreBreakdown    []byte
-		findingsSummary   []byte
+		item            model.CTEMAssessment
+		scopeJSON       []byte
+		phasesJSON      []byte
+		scoreBreakdown  []byte
+		findingsSummary []byte
 	)
 	err := row.Scan(
 		&item.ID, &item.TenantID, &item.Name, &item.Description, &item.Status, &scopeJSON, &item.ResolvedAssetIDs,

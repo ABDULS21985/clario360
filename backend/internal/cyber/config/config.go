@@ -23,9 +23,9 @@ type Config struct {
 	RedisURL string
 
 	// Kafka
-	KafkaBrokers []string
-	KafkaGroupID string
-	KafkaTopic   string
+	KafkaBrokers       []string
+	KafkaGroupID       string
+	KafkaTopic         string
 	SecurityEventTopic string
 
 	// JWT

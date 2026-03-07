@@ -11,14 +11,14 @@ import (
 )
 
 var (
-	stixIPPattern       = regexp.MustCompile(`(?i)\[(?:ipv4-addr|ipv6-addr):value\s*=\s*'([^']+)'\]`)
-	stixCIDRPattern     = regexp.MustCompile(`(?i)\[(?:ipv4-addr|ipv6-addr):value\s+ISSUBSET\s+'([^']+)'\]`)
-	stixDomainPattern   = regexp.MustCompile(`(?i)\[domain-name:value\s*=\s*'([^']+)'\]`)
-	stixURLPattern      = regexp.MustCompile(`(?i)\[url:value\s*=\s*'([^']+)'\]`)
-	stixEmailPattern    = regexp.MustCompile(`(?i)\[email-addr:value\s*=\s*'([^']+)'\]`)
-	stixMD5Pattern      = regexp.MustCompile(`(?i)\[file:hashes\.'MD5'\s*=\s*'([^']+)'\]`)
-	stixSHA1Pattern     = regexp.MustCompile(`(?i)\[file:hashes\.'SHA-1'\s*=\s*'([^']+)'\]`)
-	stixSHA256Pattern   = regexp.MustCompile(`(?i)\[file:hashes\.'SHA-256'\s*=\s*'([^']+)'\]`)
+	stixIPPattern        = regexp.MustCompile(`(?i)\[(?:ipv4-addr|ipv6-addr):value\s*=\s*'([^']+)'\]`)
+	stixCIDRPattern      = regexp.MustCompile(`(?i)\[(?:ipv4-addr|ipv6-addr):value\s+ISSUBSET\s+'([^']+)'\]`)
+	stixDomainPattern    = regexp.MustCompile(`(?i)\[domain-name:value\s*=\s*'([^']+)'\]`)
+	stixURLPattern       = regexp.MustCompile(`(?i)\[url:value\s*=\s*'([^']+)'\]`)
+	stixEmailPattern     = regexp.MustCompile(`(?i)\[email-addr:value\s*=\s*'([^']+)'\]`)
+	stixMD5Pattern       = regexp.MustCompile(`(?i)\[file:hashes\.'MD5'\s*=\s*'([^']+)'\]`)
+	stixSHA1Pattern      = regexp.MustCompile(`(?i)\[file:hashes\.'SHA-1'\s*=\s*'([^']+)'\]`)
+	stixSHA256Pattern    = regexp.MustCompile(`(?i)\[file:hashes\.'SHA-256'\s*=\s*'([^']+)'\]`)
 	stixUserAgentPattern = regexp.MustCompile(`(?i)\[network-traffic:extensions\.'http-request-ext'\.request_header\.'User-Agent'\s*=\s*'([^']+)'\]`)
 )
 
@@ -30,24 +30,24 @@ type ParsedBundle struct {
 
 // ParsedThreat captures a threat object and its external reference ID.
 type ParsedThreat struct {
-	ExternalID string
-	Name       string
+	ExternalID  string
+	Name        string
 	Description string
-	Type       model.ThreatType
-	Tags       []string
+	Type        model.ThreatType
+	Tags        []string
 }
 
 // ParsedIndicator captures one parsed indicator and any related threat external IDs.
 type ParsedIndicator struct {
-	Indicator       model.ThreatIndicator
+	Indicator        model.ThreatIndicator
 	RelatedThreatIDs []string
 }
 
 // ParseSTIXBundle parses a STIX 2 bundle into normalized threat and indicator objects.
 func ParseSTIXBundle(payload json.RawMessage, defaultSource string) (*ParsedBundle, error) {
 	var bundle struct {
-		Type    string                     `json:"type"`
-		Objects []map[string]interface{}   `json:"objects"`
+		Type    string                   `json:"type"`
+		Objects []map[string]interface{} `json:"objects"`
 	}
 	if err := json.Unmarshal(payload, &bundle); err != nil {
 		return nil, fmt.Errorf("parse stix bundle: %w", err)

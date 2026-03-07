@@ -301,9 +301,9 @@ func (e *DetectionEngine) processIndicatorMatch(ctx context.Context, tenantID uu
 		assetIDs = append(assetIDs, *event.AssetID)
 	}
 	matchDetails := map[string]interface{}{
-		"indicator_field":      match.Field,
-		"indicator_value":      match.Value,
-		"indicator_age_hours":  indicatorAgeHours(match.Indicator),
+		"indicator_field":     match.Field,
+		"indicator_value":     match.Value,
+		"indicator_age_hours": indicatorAgeHours(match.Indicator),
 	}
 	alertExplanation := explanation.BuildExplanation(nil, model.RuleMatch{
 		Events:       []model.SecurityEvent{event},

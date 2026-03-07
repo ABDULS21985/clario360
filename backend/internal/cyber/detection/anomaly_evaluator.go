@@ -153,15 +153,15 @@ func (a *AnomalyEvaluator) Evaluate(compiled interface{}, events []model.Securit
 				Events:    append([]model.SecurityEvent(nil), windowEvents...),
 				Timestamp: windowEvents[len(windowEvents)-1].Timestamp,
 				MatchDetails: map[string]interface{}{
-					"group_value":        groupValue,
-					"metric":             rule.Metric,
-					"current_value":      value,
-					"mean":               baseline.Mean,
-					"std_dev":            stdDev,
-					"z_score":            zScore,
-					"deviation_percent":  deviationPercent,
-					"baseline_samples":   baseline.Count,
-					"direction":          rule.Direction,
+					"group_value":       groupValue,
+					"metric":            rule.Metric,
+					"current_value":     value,
+					"mean":              baseline.Mean,
+					"std_dev":           stdDev,
+					"z_score":           zScore,
+					"deviation_percent": deviationPercent,
+					"baseline_samples":  baseline.Count,
+					"direction":         rule.Direction,
 				},
 			})
 		}
@@ -277,7 +277,7 @@ func adaptiveBaseline(current *Baseline, value float64) *Baseline {
 	next.Count++
 	delta := value - next.Mean
 	next.Mean = next.Mean + alpha*delta
-	next.Variance = (1-alpha)*(next.Variance+alpha*delta*delta)
+	next.Variance = (1 - alpha) * (next.Variance + alpha*delta*delta)
 	next.LastUpdated = time.Now().UTC()
 	return &next
 }

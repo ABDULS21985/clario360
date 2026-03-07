@@ -310,22 +310,22 @@ func (r *CTEMFindingRepository) Summary(ctx context.Context, tenantID, assessmen
 		total += count
 	}
 	return map[string]any{
-		"total":           total,
-		"severity":        summary["severity"],
-		"type":            summary["type"],
-		"status":          summary["status"],
-		"priority_group":  summary["priority_group"],
+		"total":          total,
+		"severity":       summary["severity"],
+		"type":           summary["type"],
+		"status":         summary["status"],
+		"priority_group": summary["priority_group"],
 	}, rows.Err()
 }
 
 func scanCTEMFinding(row interface{ Scan(dest ...any) error }) (*model.CTEMFinding, error) {
 	var (
-		item                   model.CTEMFinding
-		businessImpactFactors  []byte
-		exploitabilityFactors  []byte
-		remediationType        *string
-		remediationEffort      *string
-		attackPath             []byte
+		item                  model.CTEMFinding
+		businessImpactFactors []byte
+		exploitabilityFactors []byte
+		remediationType       *string
+		remediationEffort     *string
+		attackPath            []byte
 	)
 	err := row.Scan(
 		&item.ID, &item.TenantID, &item.AssessmentID, &item.Type, &item.Category, &item.Severity, &item.Title, &item.Description, &item.Evidence,

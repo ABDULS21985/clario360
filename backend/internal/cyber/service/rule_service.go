@@ -24,11 +24,11 @@ type ruleEvaluator interface {
 
 // RuleService manages detection rules and templates.
 type RuleService struct {
-	ruleRepo    *repository.RuleRepository
-	alertSvc    *AlertService
-	producer    *events.Producer
-	logger      zerolog.Logger
-	evaluators  map[model.DetectionRuleType]ruleEvaluator
+	ruleRepo   *repository.RuleRepository
+	alertSvc   *AlertService
+	producer   *events.Producer
+	logger     zerolog.Logger
+	evaluators map[model.DetectionRuleType]ruleEvaluator
 }
 
 // NewRuleService creates a new RuleService.
@@ -241,9 +241,9 @@ func (s *RuleService) TestRule(ctx context.Context, tenantID, ruleID uuid.UUID, 
 		matches[i].RuleID = rule.ID
 	}
 	_ = publishAuditEvent(ctx, s.producer, "cyber.rule.tested", tenantID, actor, map[string]interface{}{
-		"id":            ruleID.String(),
-		"match_count":   len(matches),
-		"event_count":   len(events),
+		"id":          ruleID.String(),
+		"match_count": len(matches),
+		"event_count": len(events),
 	})
 	return &dto.RuleTestResponse{Matches: matches, Count: len(matches)}, nil
 }

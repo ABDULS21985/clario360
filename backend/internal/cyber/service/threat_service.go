@@ -141,10 +141,10 @@ func (s *ThreatService) AddThreatIndicator(ctx context.Context, tenantID, threat
 		return nil, err
 	}
 	_ = publishEvent(ctx, s.producer, events.Topics.ThreatEvents, "cyber.threat.indicator_added", tenantID, actor, map[string]interface{}{
-		"threat_id":     threatID.String(),
-		"indicator_id":  item.ID.String(),
-		"type":          item.Type,
-		"value":         item.Value,
+		"threat_id":    threatID.String(),
+		"indicator_id": item.ID.String(),
+		"type":         item.Type,
+		"value":        item.Value,
 	})
 	_ = publishAuditEvent(ctx, s.producer, "cyber.threat.indicator_added", tenantID, actor, item)
 	return item, nil

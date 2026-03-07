@@ -16,15 +16,15 @@ type Metrics struct {
 	AssetsBulkImported *prometheus.CounterVec
 
 	// Vulnerability counters
-	VulnerabilitiesTotal  *prometheus.GaugeVec
-	VulnerabilitiesOpened *prometheus.CounterVec
+	VulnerabilitiesTotal    *prometheus.GaugeVec
+	VulnerabilitiesOpened   *prometheus.CounterVec
 	VulnerabilitiesResolved *prometheus.CounterVec
 
 	// Scan metrics
-	ScansTotal     *prometheus.CounterVec
-	ScanDuration   *prometheus.HistogramVec
+	ScansTotal      *prometheus.CounterVec
+	ScanDuration    *prometheus.HistogramVec
 	ScanAssetsFound *prometheus.HistogramVec
-	ScanErrors     *prometheus.CounterVec
+	ScanErrors      *prometheus.CounterVec
 
 	// Enrichment metrics
 	EnrichmentTotal    *prometheus.CounterVec
@@ -68,22 +68,22 @@ type Metrics struct {
 	AlertResolutionDurationSeconds      *prometheus.HistogramVec
 
 	// CTEM metrics
-	CTEMAssessmentsTotal           *prometheus.CounterVec
-	CTEMAssessmentsActive          prometheus.Gauge
-	CTEMAssessmentDuration         *prometheus.HistogramVec
-	CTEMPhaseDuration              *prometheus.HistogramVec
-	CTEMFindingsTotal              *prometheus.CounterVec
-	CTEMFindingsByStatus           *prometheus.GaugeVec
-	CTEMRemediationGroupsTotal     *prometheus.CounterVec
-	CTEMRemediationGroupsByStatus  *prometheus.GaugeVec
-	CTEMExposureScore              *prometheus.GaugeVec
-	CTEMExposureScoreComponent     *prometheus.GaugeVec
-	CTEMAttackPathsFound           prometheus.Counter
-	CTEMScopeResolutionDuration    prometheus.Histogram
-	CTEMDiscoveryDuration          prometheus.Histogram
-	CTEMPrioritizationDuration     prometheus.Histogram
-	CTEMValidationDuration         prometheus.Histogram
-	CTEMMobilizationDuration       prometheus.Histogram
+	CTEMAssessmentsTotal          *prometheus.CounterVec
+	CTEMAssessmentsActive         prometheus.Gauge
+	CTEMAssessmentDuration        *prometheus.HistogramVec
+	CTEMPhaseDuration             *prometheus.HistogramVec
+	CTEMFindingsTotal             *prometheus.CounterVec
+	CTEMFindingsByStatus          *prometheus.GaugeVec
+	CTEMRemediationGroupsTotal    *prometheus.CounterVec
+	CTEMRemediationGroupsByStatus *prometheus.GaugeVec
+	CTEMExposureScore             *prometheus.GaugeVec
+	CTEMExposureScoreComponent    *prometheus.GaugeVec
+	CTEMAttackPathsFound          prometheus.Counter
+	CTEMScopeResolutionDuration   prometheus.Histogram
+	CTEMDiscoveryDuration         prometheus.Histogram
+	CTEMPrioritizationDuration    prometheus.Histogram
+	CTEMValidationDuration        prometheus.Histogram
+	CTEMMobilizationDuration      prometheus.Histogram
 
 	Registry *prometheus.Registry
 }

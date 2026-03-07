@@ -10,13 +10,13 @@ import (
 )
 
 type CreateCTEMAssessmentRequest struct {
-	Name         string                 `json:"name" validate:"required,min=2,max=255"`
-	Description  string                 `json:"description,omitempty" validate:"omitempty,max=5000"`
-	Scope        model.AssessmentScope  `json:"scope" validate:"required"`
-	Scheduled    bool                   `json:"scheduled"`
-	ScheduleCron *string                `json:"schedule_cron,omitempty" validate:"omitempty,max=100"`
-	Tags         []string               `json:"tags,omitempty" validate:"omitempty,max=20,dive,min=1,max=50,alphanumdash"`
-	Start        bool                   `json:"start"`
+	Name         string                `json:"name" validate:"required,min=2,max=255"`
+	Description  string                `json:"description,omitempty" validate:"omitempty,max=5000"`
+	Scope        model.AssessmentScope `json:"scope" validate:"required"`
+	Scheduled    bool                  `json:"scheduled"`
+	ScheduleCron *string               `json:"schedule_cron,omitempty" validate:"omitempty,max=100"`
+	Tags         []string              `json:"tags,omitempty" validate:"omitempty,max=20,dive,min=1,max=50,alphanumdash"`
+	Start        bool                  `json:"start"`
 }
 
 type UpdateCTEMAssessmentRequest struct {
@@ -137,10 +137,10 @@ type UpdateCTEMFindingStatusRequest struct {
 }
 
 type ValidationFindingOverride struct {
-	FindingID            uuid.UUID                    `json:"finding_id" validate:"required"`
-	ValidationStatus     model.CTEMValidationStatus   `json:"validation_status" validate:"required,oneof=pending validated compensated not_exploitable requires_manual"`
-	ValidationNotes      *string                      `json:"validation_notes,omitempty" validate:"omitempty,max=5000"`
-	CompensatingControls []string                     `json:"compensating_controls,omitempty" validate:"omitempty,max=20,dive,min=1,max=255"`
+	FindingID            uuid.UUID                  `json:"finding_id" validate:"required"`
+	ValidationStatus     model.CTEMValidationStatus `json:"validation_status" validate:"required,oneof=pending validated compensated not_exploitable requires_manual"`
+	ValidationNotes      *string                    `json:"validation_notes,omitempty" validate:"omitempty,max=5000"`
+	CompensatingControls []string                   `json:"compensating_controls,omitempty" validate:"omitempty,max=20,dive,min=1,max=255"`
 }
 
 type ValidateAssessmentRequest struct {

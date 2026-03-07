@@ -16,7 +16,9 @@ type MITREHandler struct {
 }
 
 // NewMITREHandler creates a new MITREHandler.
-func NewMITREHandler(ruleSvc *service.RuleService) *MITREHandler { return &MITREHandler{ruleSvc: ruleSvc} }
+func NewMITREHandler(ruleSvc *service.RuleService) *MITREHandler {
+	return &MITREHandler{ruleSvc: ruleSvc}
+}
 
 func (h *MITREHandler) ListTactics(w http.ResponseWriter, r *http.Request) {
 	items := mitre.AllTactics()

@@ -36,26 +36,26 @@ type ScanConfig struct {
 
 // ScanHistory is a record of a completed or in-progress discovery scan.
 type ScanHistory struct {
-	ID               uuid.UUID      `json:"id" db:"id"`
-	TenantID         uuid.UUID      `json:"tenant_id" db:"tenant_id"`
-	ScanType         ScanType       `json:"scan_type" db:"scan_type"`
+	ID               uuid.UUID       `json:"id" db:"id"`
+	TenantID         uuid.UUID       `json:"tenant_id" db:"tenant_id"`
+	ScanType         ScanType        `json:"scan_type" db:"scan_type"`
 	Config           json.RawMessage `json:"config" db:"config"`
-	Status           ScanStatus     `json:"status" db:"status"`
-	AssetsDiscovered int            `json:"assets_discovered" db:"assets_discovered"`
-	AssetsNew        int            `json:"assets_new" db:"assets_new"`
-	AssetsUpdated    int            `json:"assets_updated" db:"assets_updated"`
-	ErrorCount       int            `json:"error_count" db:"error_count"`
+	Status           ScanStatus      `json:"status" db:"status"`
+	AssetsDiscovered int             `json:"assets_discovered" db:"assets_discovered"`
+	AssetsNew        int             `json:"assets_new" db:"assets_new"`
+	AssetsUpdated    int             `json:"assets_updated" db:"assets_updated"`
+	ErrorCount       int             `json:"error_count" db:"error_count"`
 	Errors           json.RawMessage `json:"errors,omitempty" db:"errors"`
-	StartedAt        time.Time      `json:"started_at" db:"started_at"`
-	CompletedAt      *time.Time     `json:"completed_at,omitempty" db:"completed_at"`
-	DurationMs       *int64         `json:"duration_ms,omitempty" db:"duration_ms"`
-	CreatedBy        uuid.UUID      `json:"created_by" db:"created_by"`
-	CreatedAt        time.Time      `json:"created_at" db:"created_at"`
+	StartedAt        time.Time       `json:"started_at" db:"started_at"`
+	CompletedAt      *time.Time      `json:"completed_at,omitempty" db:"completed_at"`
+	DurationMs       *int64          `json:"duration_ms,omitempty" db:"duration_ms"`
+	CreatedBy        uuid.UUID       `json:"created_by" db:"created_by"`
+	CreatedAt        time.Time       `json:"created_at" db:"created_at"`
 }
 
 // ScanResult is the in-memory result returned after a scan completes.
 type ScanResult struct {
-	ScanID           uuid.UUID `json:"scan_id"`
+	ScanID           uuid.UUID  `json:"scan_id"`
 	Status           ScanStatus `json:"status"`
 	AssetsDiscovered int        `json:"assets_discovered"`
 	AssetsNew        int        `json:"assets_new"`
@@ -70,7 +70,7 @@ type DiscoveredAsset struct {
 	Hostname        *string
 	OS              *string
 	OSVersion       *string
-	MACAddress      *string        // populated by agent collector
+	MACAddress      *string // populated by agent collector
 	AssetType       AssetType
 	OpenPorts       []int
 	Banners         map[int]string // port → banner

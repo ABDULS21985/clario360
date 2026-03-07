@@ -9,28 +9,28 @@ import (
 
 // Threat models a tracked threat campaign or malicious activity cluster.
 type Threat struct {
-	ID                 uuid.UUID       `json:"id" db:"id"`
-	TenantID           uuid.UUID       `json:"tenant_id" db:"tenant_id"`
-	Name               string          `json:"name" db:"name"`
-	Description        string          `json:"description" db:"description"`
-	Type               ThreatType      `json:"type" db:"type"`
-	Severity           Severity        `json:"severity" db:"severity"`
-	Status             ThreatStatus    `json:"status" db:"status"`
-	ThreatActor        *string         `json:"threat_actor,omitempty" db:"threat_actor"`
-	Campaign           *string         `json:"campaign,omitempty" db:"campaign"`
-	MITRETacticIDs     []string        `json:"mitre_tactic_ids" db:"mitre_tactic_ids"`
-	MITRETechniqueIDs  []string        `json:"mitre_technique_ids" db:"mitre_technique_ids"`
-	AffectedAssetCount int             `json:"affected_asset_count" db:"affected_asset_count"`
-	AlertCount         int             `json:"alert_count" db:"alert_count"`
-	FirstSeenAt        time.Time       `json:"first_seen_at" db:"first_seen_at"`
-	LastSeenAt         time.Time       `json:"last_seen_at" db:"last_seen_at"`
-	ContainedAt        *time.Time      `json:"contained_at,omitempty" db:"contained_at"`
-	Tags               []string        `json:"tags" db:"tags"`
-	Metadata           json.RawMessage `json:"metadata" db:"metadata"`
-	CreatedBy          *uuid.UUID      `json:"created_by,omitempty" db:"created_by"`
-	CreatedAt          time.Time       `json:"created_at" db:"created_at"`
-	UpdatedAt          time.Time       `json:"updated_at" db:"updated_at"`
-	DeletedAt          *time.Time      `json:"-" db:"deleted_at"`
+	ID                 uuid.UUID          `json:"id" db:"id"`
+	TenantID           uuid.UUID          `json:"tenant_id" db:"tenant_id"`
+	Name               string             `json:"name" db:"name"`
+	Description        string             `json:"description" db:"description"`
+	Type               ThreatType         `json:"type" db:"type"`
+	Severity           Severity           `json:"severity" db:"severity"`
+	Status             ThreatStatus       `json:"status" db:"status"`
+	ThreatActor        *string            `json:"threat_actor,omitempty" db:"threat_actor"`
+	Campaign           *string            `json:"campaign,omitempty" db:"campaign"`
+	MITRETacticIDs     []string           `json:"mitre_tactic_ids" db:"mitre_tactic_ids"`
+	MITRETechniqueIDs  []string           `json:"mitre_technique_ids" db:"mitre_technique_ids"`
+	AffectedAssetCount int                `json:"affected_asset_count" db:"affected_asset_count"`
+	AlertCount         int                `json:"alert_count" db:"alert_count"`
+	FirstSeenAt        time.Time          `json:"first_seen_at" db:"first_seen_at"`
+	LastSeenAt         time.Time          `json:"last_seen_at" db:"last_seen_at"`
+	ContainedAt        *time.Time         `json:"contained_at,omitempty" db:"contained_at"`
+	Tags               []string           `json:"tags" db:"tags"`
+	Metadata           json.RawMessage    `json:"metadata" db:"metadata"`
+	CreatedBy          *uuid.UUID         `json:"created_by,omitempty" db:"created_by"`
+	CreatedAt          time.Time          `json:"created_at" db:"created_at"`
+	UpdatedAt          time.Time          `json:"updated_at" db:"updated_at"`
+	DeletedAt          *time.Time         `json:"-" db:"deleted_at"`
 	Indicators         []*ThreatIndicator `json:"indicators,omitempty" db:"-"`
 }
 

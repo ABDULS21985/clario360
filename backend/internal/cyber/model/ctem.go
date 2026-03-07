@@ -73,32 +73,32 @@ type PhaseProgress struct {
 }
 
 type CTEMAssessment struct {
-	ID                 uuid.UUID             `json:"id" db:"id"`
-	TenantID           uuid.UUID             `json:"tenant_id" db:"tenant_id"`
-	Name               string                `json:"name" db:"name"`
-	Description        string                `json:"description" db:"description"`
-	Status             CTEMAssessmentStatus  `json:"status" db:"status"`
-	Scope              AssessmentScope       `json:"scope" db:"scope"`
-	ResolvedAssetIDs   []uuid.UUID           `json:"resolved_asset_ids" db:"resolved_asset_ids"`
-	ResolvedAssetCount int                   `json:"resolved_asset_count" db:"resolved_asset_count"`
+	ID                 uuid.UUID                `json:"id" db:"id"`
+	TenantID           uuid.UUID                `json:"tenant_id" db:"tenant_id"`
+	Name               string                   `json:"name" db:"name"`
+	Description        string                   `json:"description" db:"description"`
+	Status             CTEMAssessmentStatus     `json:"status" db:"status"`
+	Scope              AssessmentScope          `json:"scope" db:"scope"`
+	ResolvedAssetIDs   []uuid.UUID              `json:"resolved_asset_ids" db:"resolved_asset_ids"`
+	ResolvedAssetCount int                      `json:"resolved_asset_count" db:"resolved_asset_count"`
 	Phases             map[string]PhaseProgress `json:"phases" db:"phases"`
-	CurrentPhase       *string               `json:"current_phase,omitempty" db:"current_phase"`
-	ExposureScore      *float64              `json:"exposure_score,omitempty" db:"exposure_score"`
-	ScoreBreakdown     json.RawMessage       `json:"score_breakdown,omitempty" db:"score_breakdown"`
-	FindingsSummary    json.RawMessage       `json:"findings_summary,omitempty" db:"findings_summary"`
-	StartedAt          *time.Time            `json:"started_at,omitempty" db:"started_at"`
-	CompletedAt        *time.Time            `json:"completed_at,omitempty" db:"completed_at"`
-	DurationMs         *int64                `json:"duration_ms,omitempty" db:"duration_ms"`
-	ErrorMessage       *string               `json:"error_message,omitempty" db:"error_message"`
-	ErrorPhase         *string               `json:"error_phase,omitempty" db:"error_phase"`
-	Scheduled          bool                  `json:"scheduled" db:"scheduled"`
-	ScheduleCron       *string               `json:"schedule_cron,omitempty" db:"schedule_cron"`
-	ParentAssessmentID *uuid.UUID            `json:"parent_assessment_id,omitempty" db:"parent_assessment_id"`
-	Tags               []string              `json:"tags" db:"tags"`
-	CreatedBy          *uuid.UUID            `json:"created_by,omitempty" db:"created_by"`
-	CreatedAt          time.Time             `json:"created_at" db:"created_at"`
-	UpdatedAt          time.Time             `json:"updated_at" db:"updated_at"`
-	DeletedAt          *time.Time            `json:"-" db:"deleted_at"`
+	CurrentPhase       *string                  `json:"current_phase,omitempty" db:"current_phase"`
+	ExposureScore      *float64                 `json:"exposure_score,omitempty" db:"exposure_score"`
+	ScoreBreakdown     json.RawMessage          `json:"score_breakdown,omitempty" db:"score_breakdown"`
+	FindingsSummary    json.RawMessage          `json:"findings_summary,omitempty" db:"findings_summary"`
+	StartedAt          *time.Time               `json:"started_at,omitempty" db:"started_at"`
+	CompletedAt        *time.Time               `json:"completed_at,omitempty" db:"completed_at"`
+	DurationMs         *int64                   `json:"duration_ms,omitempty" db:"duration_ms"`
+	ErrorMessage       *string                  `json:"error_message,omitempty" db:"error_message"`
+	ErrorPhase         *string                  `json:"error_phase,omitempty" db:"error_phase"`
+	Scheduled          bool                     `json:"scheduled" db:"scheduled"`
+	ScheduleCron       *string                  `json:"schedule_cron,omitempty" db:"schedule_cron"`
+	ParentAssessmentID *uuid.UUID               `json:"parent_assessment_id,omitempty" db:"parent_assessment_id"`
+	Tags               []string                 `json:"tags" db:"tags"`
+	CreatedBy          *uuid.UUID               `json:"created_by,omitempty" db:"created_by"`
+	CreatedAt          time.Time                `json:"created_at" db:"created_at"`
+	UpdatedAt          time.Time                `json:"updated_at" db:"updated_at"`
+	DeletedAt          *time.Time               `json:"-" db:"deleted_at"`
 }
 
 type CTEMFindingType string
@@ -137,18 +137,18 @@ func (t CTEMFindingType) IsValid() bool {
 type CTEMFindingCategory string
 
 const (
-	CTEMFindingCategoryTechnical      CTEMFindingCategory = "technical"
-	CTEMFindingCategoryConfiguration  CTEMFindingCategory = "configuration"
-	CTEMFindingCategoryArchitectural  CTEMFindingCategory = "architectural"
-	CTEMFindingCategoryOperational    CTEMFindingCategory = "operational"
+	CTEMFindingCategoryTechnical     CTEMFindingCategory = "technical"
+	CTEMFindingCategoryConfiguration CTEMFindingCategory = "configuration"
+	CTEMFindingCategoryArchitectural CTEMFindingCategory = "architectural"
+	CTEMFindingCategoryOperational   CTEMFindingCategory = "operational"
 )
 
 type CTEMValidationStatus string
 
 const (
-	CTEMValidationPending       CTEMValidationStatus = "pending"
-	CTEMValidationValidated     CTEMValidationStatus = "validated"
-	CTEMValidationCompensated   CTEMValidationStatus = "compensated"
+	CTEMValidationPending        CTEMValidationStatus = "pending"
+	CTEMValidationValidated      CTEMValidationStatus = "validated"
+	CTEMValidationCompensated    CTEMValidationStatus = "compensated"
 	CTEMValidationNotExploitable CTEMValidationStatus = "not_exploitable"
 	CTEMValidationRequiresManual CTEMValidationStatus = "requires_manual"
 )
@@ -184,45 +184,45 @@ const (
 )
 
 type CTEMFinding struct {
-	ID                    uuid.UUID            `json:"id" db:"id"`
-	TenantID              uuid.UUID            `json:"tenant_id" db:"tenant_id"`
-	AssessmentID          uuid.UUID            `json:"assessment_id" db:"assessment_id"`
-	Type                  CTEMFindingType      `json:"type" db:"type"`
-	Category              CTEMFindingCategory  `json:"category" db:"category"`
-	Severity              string               `json:"severity" db:"severity"`
-	Title                 string               `json:"title" db:"title"`
-	Description           string               `json:"description" db:"description"`
-	Evidence              json.RawMessage      `json:"evidence" db:"evidence"`
-	AffectedAssetIDs      []uuid.UUID          `json:"affected_asset_ids" db:"affected_asset_ids"`
-	AffectedAssetCount    int                  `json:"affected_asset_count" db:"affected_asset_count"`
-	PrimaryAssetID        *uuid.UUID           `json:"primary_asset_id,omitempty" db:"primary_asset_id"`
-	VulnerabilityIDs      []uuid.UUID          `json:"vulnerability_ids" db:"vulnerability_ids"`
-	CVEIDs                []string             `json:"cve_ids" db:"cve_ids"`
-	BusinessImpactScore   float64              `json:"business_impact_score" db:"business_impact_score"`
-	BusinessImpactFactors json.RawMessage      `json:"business_impact_factors" db:"business_impact_factors"`
-	ExploitabilityScore   float64              `json:"exploitability_score" db:"exploitability_score"`
-	ExploitabilityFactors json.RawMessage      `json:"exploitability_factors" db:"exploitability_factors"`
-	PriorityScore         float64              `json:"priority_score" db:"priority_score"`
-	PriorityGroup         int                  `json:"priority_group" db:"priority_group"`
-	PriorityRank          *int                 `json:"priority_rank,omitempty" db:"priority_rank"`
-	ValidationStatus      CTEMValidationStatus `json:"validation_status" db:"validation_status"`
-	CompensatingControls  []string             `json:"compensating_controls" db:"compensating_controls"`
-	ValidationNotes       *string              `json:"validation_notes,omitempty" db:"validation_notes"`
-	ValidatedAt           *time.Time           `json:"validated_at,omitempty" db:"validated_at"`
-	RemediationType       *CTEMRemediationType `json:"remediation_type,omitempty" db:"remediation_type"`
-	RemediationDescription *string             `json:"remediation_description,omitempty" db:"remediation_description"`
-	RemediationEffort     *CTEMRemediationEffort `json:"remediation_effort,omitempty" db:"remediation_effort"`
-	RemediationGroupID    *uuid.UUID           `json:"remediation_group_id,omitempty" db:"remediation_group_id"`
-	EstimatedDays         *int                 `json:"estimated_days,omitempty" db:"estimated_days"`
-	Status                CTEMFindingStatus    `json:"status" db:"status"`
-	StatusChangedBy       *uuid.UUID           `json:"status_changed_by,omitempty" db:"status_changed_by"`
-	StatusChangedAt       *time.Time           `json:"status_changed_at,omitempty" db:"status_changed_at"`
-	StatusNotes           *string              `json:"status_notes,omitempty" db:"status_notes"`
-	AttackPath            json.RawMessage      `json:"attack_path,omitempty" db:"attack_path"`
-	AttackPathLength      *int                 `json:"attack_path_length,omitempty" db:"attack_path_length"`
-	Metadata              json.RawMessage      `json:"metadata" db:"metadata"`
-	CreatedAt             time.Time            `json:"created_at" db:"created_at"`
-	UpdatedAt             time.Time            `json:"updated_at" db:"updated_at"`
+	ID                     uuid.UUID              `json:"id" db:"id"`
+	TenantID               uuid.UUID              `json:"tenant_id" db:"tenant_id"`
+	AssessmentID           uuid.UUID              `json:"assessment_id" db:"assessment_id"`
+	Type                   CTEMFindingType        `json:"type" db:"type"`
+	Category               CTEMFindingCategory    `json:"category" db:"category"`
+	Severity               string                 `json:"severity" db:"severity"`
+	Title                  string                 `json:"title" db:"title"`
+	Description            string                 `json:"description" db:"description"`
+	Evidence               json.RawMessage        `json:"evidence" db:"evidence"`
+	AffectedAssetIDs       []uuid.UUID            `json:"affected_asset_ids" db:"affected_asset_ids"`
+	AffectedAssetCount     int                    `json:"affected_asset_count" db:"affected_asset_count"`
+	PrimaryAssetID         *uuid.UUID             `json:"primary_asset_id,omitempty" db:"primary_asset_id"`
+	VulnerabilityIDs       []uuid.UUID            `json:"vulnerability_ids" db:"vulnerability_ids"`
+	CVEIDs                 []string               `json:"cve_ids" db:"cve_ids"`
+	BusinessImpactScore    float64                `json:"business_impact_score" db:"business_impact_score"`
+	BusinessImpactFactors  json.RawMessage        `json:"business_impact_factors" db:"business_impact_factors"`
+	ExploitabilityScore    float64                `json:"exploitability_score" db:"exploitability_score"`
+	ExploitabilityFactors  json.RawMessage        `json:"exploitability_factors" db:"exploitability_factors"`
+	PriorityScore          float64                `json:"priority_score" db:"priority_score"`
+	PriorityGroup          int                    `json:"priority_group" db:"priority_group"`
+	PriorityRank           *int                   `json:"priority_rank,omitempty" db:"priority_rank"`
+	ValidationStatus       CTEMValidationStatus   `json:"validation_status" db:"validation_status"`
+	CompensatingControls   []string               `json:"compensating_controls" db:"compensating_controls"`
+	ValidationNotes        *string                `json:"validation_notes,omitempty" db:"validation_notes"`
+	ValidatedAt            *time.Time             `json:"validated_at,omitempty" db:"validated_at"`
+	RemediationType        *CTEMRemediationType   `json:"remediation_type,omitempty" db:"remediation_type"`
+	RemediationDescription *string                `json:"remediation_description,omitempty" db:"remediation_description"`
+	RemediationEffort      *CTEMRemediationEffort `json:"remediation_effort,omitempty" db:"remediation_effort"`
+	RemediationGroupID     *uuid.UUID             `json:"remediation_group_id,omitempty" db:"remediation_group_id"`
+	EstimatedDays          *int                   `json:"estimated_days,omitempty" db:"estimated_days"`
+	Status                 CTEMFindingStatus      `json:"status" db:"status"`
+	StatusChangedBy        *uuid.UUID             `json:"status_changed_by,omitempty" db:"status_changed_by"`
+	StatusChangedAt        *time.Time             `json:"status_changed_at,omitempty" db:"status_changed_at"`
+	StatusNotes            *string                `json:"status_notes,omitempty" db:"status_notes"`
+	AttackPath             json.RawMessage        `json:"attack_path,omitempty" db:"attack_path"`
+	AttackPathLength       *int                   `json:"attack_path_length,omitempty" db:"attack_path_length"`
+	Metadata               json.RawMessage        `json:"metadata" db:"metadata"`
+	CreatedAt              time.Time              `json:"created_at" db:"created_at"`
+	UpdatedAt              time.Time              `json:"updated_at" db:"updated_at"`
 }
 
 type CTEMRemediationGroupStatus string
@@ -269,10 +269,10 @@ type ExposureScore struct {
 }
 
 type ScoreBreakdown struct {
-	VulnerabilityScore   float64 `json:"vulnerability_score"`
-	AttackSurfaceScore   float64 `json:"attack_surface_score"`
-	ThreatExposureScore  float64 `json:"threat_exposure_score"`
-	RemediationVelocity  float64 `json:"remediation_velocity_score"`
+	VulnerabilityScore  float64 `json:"vulnerability_score"`
+	AttackSurfaceScore  float64 `json:"attack_surface_score"`
+	ThreatExposureScore float64 `json:"threat_exposure_score"`
+	RemediationVelocity float64 `json:"remediation_velocity_score"`
 }
 
 type ExposureScoreSnapshot struct {
@@ -327,20 +327,20 @@ type ComplianceSummary struct {
 }
 
 type CTEMDashboard struct {
-	ExposureScore           ExposureScore         `json:"exposure_score"`
-	ExposureScoreTrend      []TimeSeriesPoint     `json:"exposure_score_trend"`
-	FindingsByPriorityGroup map[int]int           `json:"findings_by_priority_group"`
-	FindingsBySeverity      map[string]int        `json:"findings_by_severity"`
-	FindingsByType          map[string]int        `json:"findings_by_type"`
-	FindingsByStatus        map[string]int        `json:"findings_by_status"`
-	RemediationRate         float64               `json:"remediation_rate"`
-	MeanTimeToRemediate     map[string]float64    `json:"mttr_by_severity"`
+	ExposureScore           ExposureScore          `json:"exposure_score"`
+	ExposureScoreTrend      []TimeSeriesPoint      `json:"exposure_score_trend"`
+	FindingsByPriorityGroup map[int]int            `json:"findings_by_priority_group"`
+	FindingsBySeverity      map[string]int         `json:"findings_by_severity"`
+	FindingsByType          map[string]int         `json:"findings_by_type"`
+	FindingsByStatus        map[string]int         `json:"findings_by_status"`
+	RemediationRate         float64                `json:"remediation_rate"`
+	MeanTimeToRemediate     map[string]float64     `json:"mttr_by_severity"`
 	TopExposedAssets        []AssetExposureSummary `json:"top_exposed_assets"`
-	TopAttackPaths          []AttackPathSummary   `json:"top_attack_paths"`
-	ActiveAssessments       int                   `json:"active_assessments"`
-	LastAssessmentDate      *time.Time            `json:"last_assessment_date"`
-	RemediationGroupStats   RemediationGroupStats `json:"remediation_groups"`
-	ComplianceSummary       ComplianceSummary     `json:"compliance_summary"`
+	TopAttackPaths          []AttackPathSummary    `json:"top_attack_paths"`
+	ActiveAssessments       int                    `json:"active_assessments"`
+	LastAssessmentDate      *time.Time             `json:"last_assessment_date"`
+	RemediationGroupStats   RemediationGroupStats  `json:"remediation_groups"`
+	ComplianceSummary       ComplianceSummary      `json:"compliance_summary"`
 }
 
 type CTEMAssessmentComparison struct {
@@ -350,10 +350,10 @@ type CTEMAssessmentComparison struct {
 }
 
 type CTEMAssessmentComparisonSide struct {
-	ID            uuid.UUID       `json:"id"`
-	Name          string          `json:"name"`
-	ExposureScore *float64        `json:"exposure_score,omitempty"`
-	Findings      map[string]int  `json:"findings"`
+	ID            uuid.UUID      `json:"id"`
+	Name          string         `json:"name"`
+	ExposureScore *float64       `json:"exposure_score,omitempty"`
+	Findings      map[string]int `json:"findings"`
 }
 
 type FindingSummary struct {
@@ -365,12 +365,12 @@ type FindingSummary struct {
 }
 
 type CTEMAssessmentDelta struct {
-	ScoreChange       float64         `json:"score_change"`
-	ScoreDirection    string          `json:"score_direction"`
-	FindingsNew       int             `json:"findings_new"`
-	FindingsResolved  int             `json:"findings_resolved"`
-	FindingsUnchanged int             `json:"findings_unchanged"`
-	FindingsWorsened  int             `json:"findings_worsened"`
+	ScoreChange       float64          `json:"score_change"`
+	ScoreDirection    string           `json:"score_direction"`
+	FindingsNew       int              `json:"findings_new"`
+	FindingsResolved  int              `json:"findings_resolved"`
+	FindingsUnchanged int              `json:"findings_unchanged"`
+	FindingsWorsened  int              `json:"findings_worsened"`
 	NewFindings       []FindingSummary `json:"new_findings"`
 	ResolvedFindings  []FindingSummary `json:"resolved_findings"`
 }

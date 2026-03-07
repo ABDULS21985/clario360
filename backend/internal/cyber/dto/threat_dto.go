@@ -12,12 +12,12 @@ import (
 
 // ThreatListParams captures threat list filters.
 type ThreatListParams struct {
-	Search     *string   `form:"search"`
-	Types      []string  `form:"type"`
-	Statuses   []string  `form:"status"`
-	Severities []string  `form:"severity"`
-	Page       int       `form:"page"`
-	PerPage    int       `form:"per_page"`
+	Search     *string  `form:"search"`
+	Types      []string `form:"type"`
+	Statuses   []string `form:"status"`
+	Severities []string `form:"severity"`
+	Page       int      `form:"page"`
+	PerPage    int      `form:"per_page"`
 }
 
 // SetDefaults applies default paging.
@@ -84,7 +84,7 @@ type IndicatorCheckRequest struct {
 
 // IndicatorCheckResult returns indicator matches for arbitrary values.
 type IndicatorCheckResult struct {
-	Value      string                  `json:"value"`
+	Value      string                   `json:"value"`
 	Indicators []*model.ThreatIndicator `json:"indicators"`
 }
 
@@ -96,12 +96,12 @@ type IndicatorBulkImportRequest struct {
 
 // IndicatorListParams captures filters for GET /cyber/indicators.
 type IndicatorListParams struct {
-	Type      *string    `form:"type"`
-	ThreatID  *uuid.UUID `form:"threat_id"`
-	Active    *bool      `form:"active"`
-	Search    *string    `form:"search"`
-	Page      int        `form:"page"`
-	PerPage   int        `form:"per_page"`
+	Type     *string    `form:"type"`
+	ThreatID *uuid.UUID `form:"threat_id"`
+	Active   *bool      `form:"active"`
+	Search   *string    `form:"search"`
+	Page     int        `form:"page"`
+	PerPage  int        `form:"per_page"`
 }
 
 // SetDefaults applies default paging.

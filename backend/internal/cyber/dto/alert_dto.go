@@ -86,9 +86,9 @@ type AlertListResponse struct {
 
 // AlertStatusUpdateRequest updates the status of an alert.
 type AlertStatusUpdateRequest struct {
-	Status  model.AlertStatus `json:"status" validate:"required"`
-	Notes   *string           `json:"notes,omitempty" validate:"omitempty,max=4000"`
-	Reason  *string           `json:"reason,omitempty" validate:"omitempty,max=1000"`
+	Status model.AlertStatus `json:"status" validate:"required"`
+	Notes  *string           `json:"notes,omitempty" validate:"omitempty,max=4000"`
+	Reason *string           `json:"reason,omitempty" validate:"omitempty,max=1000"`
 }
 
 // AlertAssignRequest assigns or reassigns an alert.

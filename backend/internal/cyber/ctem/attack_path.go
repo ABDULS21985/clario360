@@ -118,9 +118,9 @@ func findPaths(entry, target uuid.UUID, assetIndex map[uuid.UUID]*model.Asset, a
 				continue
 			}
 			nextHop := AttackPathHop{
-				AssetID:       edge.To,
-				AssetName:     safeAssetName(assetIndex[edge.To]),
-				RelationType:  edge.RelationType,
+				AssetID:      edge.To,
+				AssetName:    safeAssetName(assetIndex[edge.To]),
+				RelationType: edge.RelationType,
 			}
 			if vuln := highestSeverityVulnerability(vulnerabilitiesByAsset[edge.To]); vuln != nil {
 				nextHop.VulnerabilityID = &vuln.ID

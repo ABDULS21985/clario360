@@ -14,12 +14,12 @@ import (
 type ThresholdEvaluator struct{}
 
 type compiledThresholdRule struct {
-	Field        string
-	Condition    *CompiledSelection
-	Threshold    float64
-	Window       time.Duration
-	MetricType   string
-	MetricField  string
+	Field       string
+	Condition   *CompiledSelection
+	Threshold   float64
+	Window      time.Duration
+	MetricType  string
+	MetricField string
 }
 
 // Type returns the evaluator type.

@@ -75,11 +75,11 @@ func TestCalculateExploitabilityHighCVSS(t *testing.T) {
 	}
 
 	score, factors := CalculateExploitability(&model.CTEMFinding{
-		Type:               model.CTEMFindingTypeVulnerability,
-		Severity:           "critical",
-		Evidence:           evidence,
-		Metadata:           metadata,
-		ValidationStatus:   model.CTEMValidationPending,
+		Type:             model.CTEMFindingTypeVulnerability,
+		Severity:         "critical",
+		Evidence:         evidence,
+		Metadata:         metadata,
+		ValidationStatus: model.CTEMValidationPending,
 	}, &model.Asset{Tags: []string{"internet-facing"}}, true, true, true)
 
 	if score != 100 {

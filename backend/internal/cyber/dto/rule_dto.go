@@ -12,13 +12,13 @@ import (
 
 // RuleListParams captures filters for GET /cyber/rules.
 type RuleListParams struct {
-	Search    *string   `form:"search"`
-	Types     []string  `form:"type"`
+	Search     *string  `form:"search"`
+	Types      []string `form:"type"`
 	Severities []string `form:"severity"`
-	Enabled   *bool     `form:"enabled"`
-	Tag       *string   `form:"tag"`
-	Page      int       `form:"page"`
-	PerPage   int       `form:"per_page"`
+	Enabled    *bool    `form:"enabled"`
+	Tag        *string  `form:"tag"`
+	Page       int      `form:"page"`
+	PerPage    int      `form:"per_page"`
 }
 
 // SetDefaults applies default paging.
@@ -71,15 +71,15 @@ type CreateRuleRequest struct {
 
 // UpdateRuleRequest updates a detection rule.
 type UpdateRuleRequest struct {
-	Name              *string                 `json:"name,omitempty" validate:"omitempty,min=3,max=255"`
-	Description       *string                 `json:"description,omitempty" validate:"omitempty,max=4000"`
-	Severity          *model.Severity         `json:"severity,omitempty"`
-	Enabled           *bool                   `json:"enabled,omitempty"`
-	RuleContent       json.RawMessage         `json:"rule_content,omitempty"`
-	MITRETacticIDs    *[]string               `json:"mitre_tactic_ids,omitempty"`
-	MITRETechniqueIDs *[]string               `json:"mitre_technique_ids,omitempty"`
-	BaseConfidence    *float64                `json:"base_confidence,omitempty" validate:"omitempty,gte=0,lte=1"`
-	Tags              *[]string               `json:"tags,omitempty"`
+	Name              *string         `json:"name,omitempty" validate:"omitempty,min=3,max=255"`
+	Description       *string         `json:"description,omitempty" validate:"omitempty,max=4000"`
+	Severity          *model.Severity `json:"severity,omitempty"`
+	Enabled           *bool           `json:"enabled,omitempty"`
+	RuleContent       json.RawMessage `json:"rule_content,omitempty"`
+	MITRETacticIDs    *[]string       `json:"mitre_tactic_ids,omitempty"`
+	MITRETechniqueIDs *[]string       `json:"mitre_technique_ids,omitempty"`
+	BaseConfidence    *float64        `json:"base_confidence,omitempty" validate:"omitempty,gte=0,lte=1"`
+	Tags              *[]string       `json:"tags,omitempty"`
 }
 
 // RuleToggleRequest toggles a rule on or off.
@@ -102,6 +102,6 @@ type RuleTestResponse struct {
 
 // RuleFeedbackRequest records analyst TP/FP feedback.
 type RuleFeedbackRequest struct {
-	AlertID   uuid.UUID `json:"alert_id" validate:"required"`
-	Feedback  string    `json:"feedback" validate:"required,oneof=true_positive false_positive"`
+	AlertID  uuid.UUID `json:"alert_id" validate:"required"`
+	Feedback string    `json:"feedback" validate:"required,oneof=true_positive false_positive"`
 }

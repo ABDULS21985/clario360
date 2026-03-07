@@ -256,14 +256,14 @@ func (e *CTEMEngine) loadScopedRelationships(ctx context.Context, tenantID uuid.
 
 func (e *CTEMEngine) newVulnerabilityFinding(assessment *model.CTEMAssessment, asset *model.Asset, vuln *model.Vulnerability) *model.CTEMFinding {
 	evidence := map[string]any{
-		"asset_id":     asset.ID,
-		"asset_name":   asset.Name,
-		"cve_id":       vuln.CVEID,
-		"cvss_score":   vuln.CVSSScore,
-		"cvss_vector":  vuln.CVSSVector,
-		"source":       vuln.Source,
-		"detected_at":  vuln.DetectedAt,
-		"os_version":   asset.OSVersion,
+		"asset_id":    asset.ID,
+		"asset_name":  asset.Name,
+		"cve_id":      vuln.CVEID,
+		"cvss_score":  vuln.CVSSScore,
+		"cvss_vector": vuln.CVSSVector,
+		"source":      vuln.Source,
+		"detected_at": vuln.DetectedAt,
+		"os_version":  asset.OSVersion,
 	}
 	cveIDs := make([]string, 0)
 	if vuln.CVEID != nil {
