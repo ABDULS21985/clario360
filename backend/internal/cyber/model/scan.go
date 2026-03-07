@@ -64,15 +64,18 @@ type ScanResult struct {
 	Errors           []string   `json:"errors,omitempty"`
 }
 
-// DiscoveredAsset carries the raw output of a network probe before DB upsert.
+// DiscoveredAsset carries the raw output of a network probe or agent report before DB upsert.
 type DiscoveredAsset struct {
-	IPAddress   string
-	Hostname    *string
-	OS          *string
-	OSVersion   *string
-	AssetType   AssetType
-	OpenPorts   []int
-	Banners     map[int]string // port → banner
-	IsNew       bool           // set after upsert (xmax=0 means INSERT)
-	AssetID     uuid.UUID      // set after upsert
+	IPAddress       string
+	Hostname        *string
+	OS              *string
+	OSVersion       *string
+	MACAddress      *string        // populated by agent collector
+	AssetType       AssetType
+	OpenPorts       []int
+	Banners         map[int]string // port → banner
+	ExtraMetadata   map[string]any // additional provider/agent-specific fields merged into metadata JSONB
+	DiscoverySource string         // overrides scanner default ("network_scan","cloud_scan","agent","import")
+	IsNew           bool           // set after upsert (xmax=0 means INSERT)
+	AssetID         uuid.UUID      // set after upsert
 }

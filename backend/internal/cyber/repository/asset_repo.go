@@ -383,41 +383,52 @@ func (r *AssetRepository) BulkInsert(ctx context.Context, tx pgx.Tx, tenantID, u
 	return ids, nil
 }
 
-// UpsertFromScan inserts or updates an asset discovered by network scan.
+// UpsertFromScan inserts or updates an asset discovered during scanning (network, cloud, agent).
 // Returns the asset ID and whether it was a new insert.
+// The DiscoveredAsset.ExtraMetadata and MACAddress fields are merged into the stored record.
 func (r *AssetRepository) UpsertFromScan(ctx context.Context, tenantID uuid.UUID, d *model.DiscoveredAsset) (uuid.UUID, bool, error) {
 	var assetID uuid.UUID
 	var isNew bool
 
-	meta, _ := json.Marshal(map[string]any{
+	metaMap := map[string]any{
 		"open_ports": d.OpenPorts,
 		"banners":    d.Banners,
-	})
+	}
+	for k, v := range d.ExtraMetadata {
+		metaMap[k] = v
+	}
+	meta, _ := json.Marshal(metaMap)
+
+	discoverySource := d.DiscoverySource
+	if discoverySource == "" {
+		discoverySource = "network_scan"
+	}
 
 	err := r.db.QueryRow(ctx, `
 		INSERT INTO assets (
 			id, tenant_id, name, type,
-			ip_address, hostname, os, os_version,
+			ip_address, hostname, mac_address, os, os_version,
 			criticality, status, discovered_at, last_seen_at,
 			discovery_source, metadata, tags
 		) VALUES (
 			gen_random_uuid(), $1, $2, $3,
-			$4, $5, $6, $7,
+			$4::inet, $5, $6::macaddr, $7, $8,
 			'low', 'active', now(), now(),
-			'network_scan', $8, '{}'
+			$9, $10, '{}'
 		)
 		ON CONFLICT (tenant_id, ip_address) WHERE ip_address IS NOT NULL AND deleted_at IS NULL
 		DO UPDATE SET
-			last_seen_at = now(),
-			hostname = COALESCE(EXCLUDED.hostname, assets.hostname),
-			os = COALESCE(EXCLUDED.os, assets.os),
-			os_version = COALESCE(EXCLUDED.os_version, assets.os_version),
-			metadata = EXCLUDED.metadata || assets.metadata,
-			updated_at = now()
+			last_seen_at    = now(),
+			hostname        = COALESCE(EXCLUDED.hostname, assets.hostname),
+			mac_address     = COALESCE(EXCLUDED.mac_address, assets.mac_address),
+			os              = COALESCE(EXCLUDED.os, assets.os),
+			os_version      = COALESCE(EXCLUDED.os_version, assets.os_version),
+			metadata        = assets.metadata || EXCLUDED.metadata,
+			updated_at      = now()
 		RETURNING id, (xmax = 0) AS is_new`,
 		tenantID, d.IPAddress, string(d.AssetType),
-		d.IPAddress, d.Hostname, d.OS, d.OSVersion,
-		json.RawMessage(meta),
+		d.IPAddress, d.Hostname, d.MACAddress, d.OS, d.OSVersion,
+		discoverySource, json.RawMessage(meta),
 	).Scan(&assetID, &isNew)
 
 	if err != nil {

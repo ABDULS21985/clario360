@@ -484,6 +484,56 @@ func uuidsToStrings(ids []uuid.UUID) []string {
 	return out
 }
 
+// ListRelationships returns all relationships for an asset.
+func (s *AssetService) ListRelationships(ctx context.Context, tenantID, assetID uuid.UUID) (any, error) {
+	return s.relRepo.ListForAsset(ctx, tenantID, assetID)
+}
+
+// CreateRelationship creates a directed relationship between two assets.
+func (s *AssetService) CreateRelationship(ctx context.Context, tenantID, assetID, userID uuid.UUID, req *dto.CreateRelationshipRequest) (any, error) {
+	return s.relRepo.Create(ctx, tenantID, assetID, userID, req)
+}
+
+// DeleteRelationship removes a relationship.
+func (s *AssetService) DeleteRelationship(ctx context.Context, tenantID, assetID, relID uuid.UUID) error {
+	return s.relRepo.Delete(ctx, tenantID, assetID, relID)
+}
+
+// ListVulnerabilities returns paginated vulns for an asset.
+func (s *AssetService) ListVulnerabilities(ctx context.Context, tenantID, assetID uuid.UUID, params *dto.VulnerabilityListParams) (any, int, error) {
+	return s.vulnRepo.List(ctx, tenantID, assetID, params)
+}
+
+// CreateVulnerability adds a vulnerability to an asset.
+func (s *AssetService) CreateVulnerability(ctx context.Context, tenantID, assetID, userID uuid.UUID, req *dto.CreateVulnerabilityRequest) (any, error) {
+	return s.vulnRepo.Create(ctx, tenantID, assetID, userID, req)
+}
+
+// UpdateVulnerability updates a vulnerability's status.
+func (s *AssetService) UpdateVulnerability(ctx context.Context, tenantID, assetID, vulnID uuid.UUID, req *dto.UpdateVulnerabilityRequest) (any, error) {
+	return s.vulnRepo.UpdateStatus(ctx, tenantID, assetID, vulnID, req)
+}
+
+// ListScans returns paginated scan history.
+func (s *AssetService) ListScans(ctx context.Context, tenantID uuid.UUID, params *dto.ScanListParams) (any, int, error) {
+	return s.scanRepo.List(ctx, tenantID, params)
+}
+
+// GetScan returns a single scan record.
+func (s *AssetService) GetScan(ctx context.Context, tenantID, scanID uuid.UUID) (any, error) {
+	return s.scanRepo.GetByID(ctx, tenantID, scanID)
+}
+
+// CountAssets returns a simple count of assets with optional filters.
+func (s *AssetService) CountAssets(ctx context.Context, tenantID uuid.UUID, assetType, criticality, status *string) (int, error) {
+	return s.assetRepo.Count(ctx, tenantID, assetType, criticality, status)
+}
+
+// EnrichBatch delegates batch enrichment to the EnrichmentService.
+func (s *AssetService) EnrichBatch(ctx context.Context, tenantID uuid.UUID, ids []uuid.UUID) {
+	s.enrichSvc.EnrichBatch(ctx, tenantID, ids)
+}
+
 func (s *AssetService) publishEvent(ctx context.Context, eventType, tenantID string, data any) error {
 	if s.producer == nil {
 		return nil
