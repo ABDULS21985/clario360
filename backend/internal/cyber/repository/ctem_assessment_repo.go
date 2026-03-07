@@ -76,6 +76,27 @@ func (r *CTEMAssessmentRepository) GetByID(ctx context.Context, tenantID, assess
 	return assessment, nil
 }
 
+func (r *CTEMAssessmentRepository) GetByIDAnyTenant(ctx context.Context, assessmentID uuid.UUID) (*model.CTEMAssessment, error) {
+	row := r.db.QueryRow(ctx, `
+		SELECT id, tenant_id, name, description, status, scope, resolved_asset_ids,
+		       resolved_asset_count, phases, current_phase, exposure_score, score_breakdown,
+		       findings_summary, started_at, completed_at, duration_ms, error_message,
+		       error_phase, scheduled, schedule_cron, parent_assessment_id, tags,
+		       created_by, created_at, updated_at, deleted_at
+		FROM ctem_assessments
+		WHERE id = $1 AND deleted_at IS NULL`,
+		assessmentID,
+	)
+	assessment, err := scanCTEMAssessment(row)
+	if err == pgx.ErrNoRows {
+		return nil, ErrNotFound
+	}
+	if err != nil {
+		return nil, fmt.Errorf("get assessment: %w", err)
+	}
+	return assessment, nil
+}
+
 func (r *CTEMAssessmentRepository) List(ctx context.Context, tenantID uuid.UUID, params *dto.CTEMAssessmentListParams) ([]*model.CTEMAssessment, int, error) {
 	qb := database.NewQueryBuilder(`
 		SELECT id, tenant_id, name, description, status, scope, resolved_asset_ids,
