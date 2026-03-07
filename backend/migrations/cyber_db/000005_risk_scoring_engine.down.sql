@@ -1,0 +1,11 @@
+DROP INDEX IF EXISTS idx_alerts_asset_count;
+DROP INDEX IF EXISTS idx_vuln_aging;
+DROP INDEX IF EXISTS idx_alerts_mitre_technique;
+DROP INDEX IF EXISTS idx_alerts_analyst_workload;
+DROP INDEX IF EXISTS idx_alerts_resolve_time;
+DROP INDEX IF EXISTS idx_alerts_response_time;
+DROP INDEX IF EXISTS idx_alerts_tenant_created_hour;
+DROP INDEX IF EXISTS idx_risk_history_trend;
+DROP INDEX IF EXISTS idx_risk_history_tenant;
+DROP INDEX IF EXISTS idx_risk_history_daily_unique;
+DROP TABLE IF EXISTS risk_score_history;
