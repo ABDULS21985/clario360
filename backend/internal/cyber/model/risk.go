@@ -67,16 +67,16 @@ type RiskRecommendation struct {
 }
 
 type OrganizationRiskScore struct {
-	TenantID        uuid.UUID             `json:"tenant_id"`
-	OverallScore    float64               `json:"overall_score"`
-	Grade           string                `json:"grade"`
-	Trend           string                `json:"trend"`
-	TrendDelta      float64               `json:"trend_delta"`
-	Components      RiskComponents        `json:"components"`
-	TopContributors []RiskContributor     `json:"top_contributors"`
-	Recommendations []RiskRecommendation  `json:"recommendations"`
-	Context         RiskContext           `json:"context"`
-	CalculatedAt    time.Time             `json:"calculated_at"`
+	TenantID        uuid.UUID            `json:"tenant_id"`
+	OverallScore    float64              `json:"overall_score"`
+	Grade           string               `json:"grade"`
+	Trend           string               `json:"trend"`
+	TrendDelta      float64              `json:"trend_delta"`
+	Components      RiskComponents       `json:"components"`
+	TopContributors []RiskContributor    `json:"top_contributors"`
+	Recommendations []RiskRecommendation `json:"recommendations"`
+	Context         RiskContext          `json:"context"`
+	CalculatedAt    time.Time            `json:"calculated_at"`
 }
 
 type RiskScoreHistory struct {
@@ -134,12 +134,12 @@ type AgingBucketCell struct {
 }
 
 type AgingBucket struct {
-	Label      string                    `json:"label"`
-	MinDays    int                       `json:"min_days"`
-	MaxDays    *int                      `json:"max_days,omitempty"`
+	Label      string                     `json:"label"`
+	MinDays    int                        `json:"min_days"`
+	MaxDays    *int                       `json:"max_days,omitempty"`
 	BySeverity map[string]AgingBucketCell `json:"by_severity"`
-	Total      int                       `json:"total"`
-	AvgAgeDays float64                   `json:"avg_age_days"`
+	Total      int                        `json:"total"`
+	AvgAgeDays float64                    `json:"avg_age_days"`
 }
 
 type VulnerabilityAgingReport struct {
@@ -176,17 +176,17 @@ type VulnerabilityOverview struct {
 
 type VulnerabilityDetail struct {
 	VulnerabilityOverview
-	Asset     *Asset                 `json:"asset,omitempty"`
-	Findings  []CTEMFindingReference `json:"ctem_findings,omitempty"`
+	Asset    *Asset                 `json:"asset,omitempty"`
+	Findings []CTEMFindingReference `json:"ctem_findings,omitempty"`
 }
 
 type CTEMFindingReference struct {
-	ID            uuid.UUID `json:"id"`
-	AssessmentID  uuid.UUID `json:"assessment_id"`
-	AssessmentName string   `json:"assessment_name"`
-	Title         string    `json:"title"`
-	PriorityScore float64   `json:"priority_score"`
-	Status        string    `json:"status"`
+	ID             uuid.UUID `json:"id"`
+	AssessmentID   uuid.UUID `json:"assessment_id"`
+	AssessmentName string    `json:"assessment_name"`
+	Title          string    `json:"title"`
+	PriorityScore  float64   `json:"priority_score"`
+	Status         string    `json:"status"`
 }
 
 type VulnerabilityStats struct {
@@ -199,12 +199,12 @@ type VulnerabilityStats struct {
 }
 
 type TopCVEEntry struct {
-	CVEID           string  `json:"cve_id"`
-	Title           string  `json:"title"`
-	Severity        string  `json:"severity"`
-	AffectedAssets  int     `json:"affected_assets"`
-	OpenCount       int     `json:"open_count"`
-	AvgCVSS         float64 `json:"avg_cvss"`
+	CVEID          string  `json:"cve_id"`
+	Title          string  `json:"title"`
+	Severity       string  `json:"severity"`
+	AffectedAssets int     `json:"affected_assets"`
+	OpenCount      int     `json:"open_count"`
+	AvgCVSS        float64 `json:"avg_cvss"`
 }
 
 type KPICards struct {
@@ -242,16 +242,16 @@ type DailyMetric struct {
 }
 
 type AlertSummary struct {
-	ID                uuid.UUID `json:"id"`
-	Title             string    `json:"title"`
-	Severity          string    `json:"severity"`
-	Status            string    `json:"status"`
-	AssetID           *uuid.UUID `json:"asset_id,omitempty"`
-	AssetName         *string   `json:"asset_name,omitempty"`
-	AssignedTo        *uuid.UUID `json:"assigned_to,omitempty"`
-	CreatedAt         time.Time `json:"created_at"`
-	MITRETechniqueID  *string   `json:"mitre_technique_id,omitempty"`
-	MITRETechniqueName *string  `json:"mitre_technique_name,omitempty"`
+	ID                 uuid.UUID  `json:"id"`
+	Title              string     `json:"title"`
+	Severity           string     `json:"severity"`
+	Status             string     `json:"status"`
+	AssetID            *uuid.UUID `json:"asset_id,omitempty"`
+	AssetName          *string    `json:"asset_name,omitempty"`
+	AssignedTo         *uuid.UUID `json:"assigned_to,omitempty"`
+	CreatedAt          time.Time  `json:"created_at"`
+	MITRETechniqueID   *string    `json:"mitre_technique_id,omitempty"`
+	MITRETechniqueName *string    `json:"mitre_technique_name,omitempty"`
 }
 
 type AssetAlertSummary struct {
@@ -304,17 +304,17 @@ type MITREHeatmapData struct {
 }
 
 type SOCDashboard struct {
-	KPIs                 KPICards              `json:"kpis"`
-	AlertTimeline        AlertTimelineData     `json:"alert_timeline"`
-	SeverityDistribution SeverityDistribution  `json:"severity_distribution"`
-	AlertTrend           []DailyMetric         `json:"alert_trend"`
-	VulnerabilityTrend   []DailyMetric         `json:"vulnerability_trend"`
-	RecentAlerts         []AlertSummary        `json:"recent_alerts"`
-	TopAttackedAssets    []AssetAlertSummary   `json:"top_attacked_assets"`
+	KPIs                 KPICards               `json:"kpis"`
+	AlertTimeline        AlertTimelineData      `json:"alert_timeline"`
+	SeverityDistribution SeverityDistribution   `json:"severity_distribution"`
+	AlertTrend           []DailyMetric          `json:"alert_trend"`
+	VulnerabilityTrend   []DailyMetric          `json:"vulnerability_trend"`
+	RecentAlerts         []AlertSummary         `json:"recent_alerts"`
+	TopAttackedAssets    []AssetAlertSummary    `json:"top_attacked_assets"`
 	AnalystWorkload      []AnalystWorkloadEntry `json:"analyst_workload"`
-	MITREHeatmap         MITREHeatmapData      `json:"mitre_heatmap"`
+	MITREHeatmap         MITREHeatmapData       `json:"mitre_heatmap"`
 	RiskScore            *OrganizationRiskScore `json:"risk_score"`
-	CachedAt             *time.Time            `json:"cached_at,omitempty"`
-	CalculatedAt         time.Time             `json:"calculated_at"`
-	PartialFailures      []string              `json:"partial_failures,omitempty"`
+	CachedAt             *time.Time             `json:"cached_at,omitempty"`
+	CalculatedAt         time.Time              `json:"calculated_at"`
+	PartialFailures      []string               `json:"partial_failures,omitempty"`
 }

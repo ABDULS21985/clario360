@@ -19,8 +19,8 @@ func (p *DashboardTrendParams) SetDefaults() {
 }
 
 type DashboardTrendsResponse struct {
-	Days            int                 `json:"days"`
-	AlertTrend      []model.DailyMetric `json:"alert_trend"`
-	VulnTrend       []model.DailyMetric `json:"vulnerability_trend"`
-	ThreatTrend     []model.DailyMetric `json:"threat_trend"`
+	Days        int                 `json:"days"`
+	AlertTrend  []model.DailyMetric `json:"alert_trend"`
+	VulnTrend   []model.DailyMetric `json:"vulnerability_trend"`
+	ThreatTrend []model.DailyMetric `json:"threat_trend"`
 }

@@ -11,14 +11,14 @@ var Topics = struct {
 	FileEvents         string
 
 	// Cybersecurity
-	AssetEvents       string
+	AssetEvents         string
 	VulnerabilityEvents string
-	ThreatEvents      string
-	AlertEvents       string
-	RuleEvents        string
-	CtemEvents        string
-	RiskEvents        string
-	RemediationEvents string
+	ThreatEvents        string
+	AlertEvents         string
+	RuleEvents          string
+	CtemEvents          string
+	RiskEvents          string
+	RemediationEvents   string
 
 	// Data
 	DataSourceEvents    string

@@ -31,7 +31,7 @@ func (c *ContributorAnalyzer) Analyze(ctx context.Context, tenantID uuid.UUID) (
 		SELECT
 			v.id, v.title, COALESCE(v.cve_id, ''), v.severity::text, COALESCE(v.cvss_score, 0)::float8,
 			a.id, a.name, a.criticality::text,
-			COALESCE(EXTRACT(EPOCH FROM (now() - v.detected_at)) / 86400.0, 0)::float8
+			COALESCE(EXTRACT(EPOCH FROM (now() - v.discovered_at)) / 86400.0, 0)::float8
 		FROM vulnerabilities v
 		JOIN assets a ON a.id = v.asset_id
 		WHERE v.tenant_id = $1
@@ -40,7 +40,7 @@ func (c *ContributorAnalyzer) Analyze(ctx context.Context, tenantID uuid.UUID) (
 		  AND a.criticality IN ('critical', 'high')
 		  AND v.deleted_at IS NULL
 		  AND a.deleted_at IS NULL
-		ORDER BY severity_order(v.severity) DESC, COALESCE(v.cvss_score, 0) DESC, v.detected_at ASC
+		ORDER BY severity_order(v.severity) DESC, COALESCE(v.cvss_score, 0) DESC, v.discovered_at ASC
 		LIMIT 10`,
 		tenantID,
 	)
@@ -50,13 +50,13 @@ func (c *ContributorAnalyzer) Analyze(ctx context.Context, tenantID uuid.UUID) (
 	defer vulnRows.Close()
 	for vulnRows.Next() {
 		var (
-			item           model.RiskContributor
-			cveID          string
-			cvssScore      float64
-			assetID        uuid.UUID
-			assetName      string
-			assetCrit      string
-			ageDays        float64
+			item      model.RiskContributor
+			cveID     string
+			cvssScore float64
+			assetID   uuid.UUID
+			assetName string
+			assetCrit string
+			ageDays   float64
 		)
 		if err := vulnRows.Scan(&item.ID, &item.Title, &cveID, &item.Severity, &cvssScore, &assetID, &assetName, &assetCrit, &ageDays); err != nil {
 			return nil, err

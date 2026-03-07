@@ -86,22 +86,22 @@ type Metrics struct {
 	CTEMMobilizationDuration      prometheus.Histogram
 
 	// Risk and dashboard metrics
-	RiskScoreCurrent          *prometheus.GaugeVec
-	RiskComponentScore        *prometheus.GaugeVec
-	RiskCalculationDuration   prometheus.Histogram
-	RiskSnapshotDuration      prometheus.Histogram
-	RiskCacheHitTotal         prometheus.Counter
-	RiskCacheMissTotal        prometheus.Counter
-	DashboardRequestDuration  *prometheus.HistogramVec
-	DashboardCacheHitTotal    prometheus.Counter
-	DashboardCacheMissTotal   prometheus.Counter
-	DashboardQueryDuration    *prometheus.HistogramVec
+	RiskScoreCurrent             *prometheus.GaugeVec
+	RiskComponentScore           *prometheus.GaugeVec
+	RiskCalculationDuration      prometheus.Histogram
+	RiskSnapshotDuration         prometheus.Histogram
+	RiskCacheHitTotal            prometheus.Counter
+	RiskCacheMissTotal           prometheus.Counter
+	DashboardRequestDuration     *prometheus.HistogramVec
+	DashboardCacheHitTotal       prometheus.Counter
+	DashboardCacheMissTotal      prometheus.Counter
+	DashboardQueryDuration       *prometheus.HistogramVec
 	DashboardPartialFailureTotal prometheus.Counter
-	VulnOperationsTotal       *prometheus.CounterVec
-	VulnStatusChangesTotal    *prometheus.CounterVec
-	VulnAgingAvgDays          *prometheus.GaugeVec
-	MTTRHours                 *prometheus.GaugeVec
-	SLAComplianceRate         *prometheus.GaugeVec
+	VulnOperationsTotal          *prometheus.CounterVec
+	VulnStatusChangesTotal       *prometheus.CounterVec
+	VulnAgingAvgDays             *prometheus.GaugeVec
+	MTTRHours                    *prometheus.GaugeVec
+	SLAComplianceRate            *prometheus.GaugeVec
 
 	Registry *prometheus.Registry
 }

@@ -5,7 +5,6 @@ import (
 	"net/http"
 
 	"github.com/clario360/platform/internal/auth"
-	"github.com/clario360/platform/internal/cyber/dto"
 	"github.com/clario360/platform/internal/cyber/repository"
 	"github.com/clario360/platform/internal/cyber/service"
 )

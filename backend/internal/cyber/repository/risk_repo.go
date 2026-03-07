@@ -185,7 +185,9 @@ func (r *RiskHistoryRepository) Trend(ctx context.Context, tenantID uuid.UUID, d
 	return points, rows.Err()
 }
 
-func scanRiskHistory(row interface{ Scan(dest ...interface{}) error }) (*model.RiskScoreHistory, error) {
+func scanRiskHistory(row interface {
+	Scan(dest ...interface{}) error
+}) (*model.RiskScoreHistory, error) {
 	var item model.RiskScoreHistory
 	err := row.Scan(
 		&item.ID,

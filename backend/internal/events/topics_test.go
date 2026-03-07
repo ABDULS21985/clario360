@@ -6,8 +6,8 @@ import (
 
 func TestAllTopics(t *testing.T) {
 	topics := AllTopics()
-	if len(topics) != 20 {
-		t.Errorf("expected 20 topics, got %d", len(topics))
+	if len(topics) != 22 {
+		t.Errorf("expected 22 topics, got %d", len(topics))
 	}
 
 	// Verify no duplicates
@@ -65,8 +65,8 @@ func TestLegacyTopicConstants(t *testing.T) {
 
 func TestDefaultTopicConfigs(t *testing.T) {
 	configs := DefaultTopicConfigs()
-	if len(configs) != 20 {
-		t.Errorf("expected 20 topic configs, got %d", len(configs))
+	if len(configs) != 22 {
+		t.Errorf("expected 22 topic configs, got %d", len(configs))
 	}
 
 	// Verify DLQ has 30-day retention

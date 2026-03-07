@@ -14,6 +14,11 @@ import (
 	"github.com/clario360/platform/internal/cyber/model"
 )
 
+var recommendationCriticalTechniques = []string{
+	"T1059", "T1078", "T1110", "T1190", "T1021", "T1486", "T1071", "T1055", "T1003", "T1047",
+	"T1053", "T1036", "T1070", "T1082", "T1105", "T1027", "T1569", "T1543", "T1140", "T1068",
+}
+
 type RecommendationEngine struct {
 	db     *pgxpool.Pool
 	logger zerolog.Logger
@@ -97,7 +102,7 @@ func (r *RecommendationEngine) Generate(ctx context.Context, tenantID uuid.UUID,
 			Title:           "Improve MITRE ATT&CK detection coverage",
 			Description:     fmt.Sprintf("%d critical ATT&CK techniques lack enabled detections and are increasing compliance and monitoring risk.", len(missingCritical)),
 			Component:       "compliance_gap_risk",
-			EstimatedImpact: estimateReduction(score.Components.ComplianceGapRisk.Weighted, float64(len(missingCritical)), float64(len(criticalTechniques))),
+			EstimatedImpact: estimateReduction(score.Components.ComplianceGapRisk.Weighted, float64(len(missingCritical)), float64(len(recommendationCriticalTechniques))),
 			Effort:          effortFromCount(len(missingCritical)),
 			Category:        "detect",
 			Actions: []string{

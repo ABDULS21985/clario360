@@ -77,13 +77,13 @@ func (c *AttackSurface) Calculate(ctx context.Context, tenantID uuid.UUID) (*mod
 			internetFacing, totalActive, internetFacingVulnerable, attackPathCount,
 		),
 		Details: map[string]interface{}{
-			"total_active":                totalActive,
-			"internet_facing":             internetFacing,
-			"internet_facing_vulnerable":  internetFacingVulnerable,
-			"attack_path_count":           attackPathCount,
-			"internet_ratio":              internetRatio,
-			"vulnerable_internet_ratio":   vulnerableRatio,
-			"attack_path_factor":          attackPathFactor,
+			"total_active":               totalActive,
+			"internet_facing":            internetFacing,
+			"internet_facing_vulnerable": internetFacingVulnerable,
+			"attack_path_count":          attackPathCount,
+			"internet_ratio":             internetRatio,
+			"vulnerable_internet_ratio":  vulnerableRatio,
+			"attack_path_factor":         attackPathFactor,
 		},
 	}, nil
 }

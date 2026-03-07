@@ -60,7 +60,7 @@ func (c *ConfigurationRisk) Calculate(ctx context.Context, tenantID uuid.UUID) (
 
 	if totalAssessments == 0 && total == 0 {
 		return &model.RiskComponentResult{
-			Score: 50,
+			Score:       50,
 			Description: "No CTEM assessment has been completed yet. Configuration risk is set to a moderate default until assessment data exists.",
 			Details: map[string]interface{}{
 				"total_misconfigs": total,
@@ -75,7 +75,7 @@ func (c *ConfigurationRisk) Calculate(ctx context.Context, tenantID uuid.UUID) (
 		100,
 	)
 	return &model.RiskComponentResult{
-		Score: score,
+		Score:       score,
 		Description: fmt.Sprintf("%d open misconfigurations across %d assets based on CTEM findings.", total, affectedAssets),
 		Details: map[string]interface{}{
 			"total_misconfigs": total,

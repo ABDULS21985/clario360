@@ -30,9 +30,9 @@ func (c *TrendCalculator) AlertTrend(ctx context.Context, tenantID uuid.UUID, da
 
 func (c *TrendCalculator) VulnTrend(ctx context.Context, tenantID uuid.UUID, days int) ([]model.DailyMetric, error) {
 	return c.dailySeries(ctx, tenantID, days, `
-		SELECT date_trunc('day', detected_at) AS bucket, COUNT(*)::int
+		SELECT date_trunc('day', discovered_at) AS bucket, COUNT(*)::int
 		FROM vulnerabilities
-		WHERE tenant_id = $1 AND detected_at >= $2 AND deleted_at IS NULL
+		WHERE tenant_id = $1 AND discovered_at >= $2 AND deleted_at IS NULL
 		GROUP BY bucket
 		ORDER BY bucket ASC`)
 }

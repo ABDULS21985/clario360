@@ -8,9 +8,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
 
-	cyberrisk "github.com/clario360/platform/internal/cyber/risk"
 	"github.com/clario360/platform/internal/cyber/model"
 	"github.com/clario360/platform/internal/cyber/repository"
+	cyberrisk "github.com/clario360/platform/internal/cyber/risk"
 	"github.com/clario360/platform/internal/events"
 )
 
