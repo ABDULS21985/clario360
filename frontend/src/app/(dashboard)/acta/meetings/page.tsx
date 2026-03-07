@@ -1,98 +1,105 @@
 'use client';
 
-import Link from 'next/link';
-import { type ColumnDef } from '@tanstack/react-table';
-import { BookOpen } from 'lucide-react';
+import { useState } from 'react';
+import { CalendarDays, List } from 'lucide-react';
 import { PageHeader } from '@/components/common/page-header';
 import { PermissionRedirect } from '@/components/common/permission-redirect';
-import { RelativeTime } from '@/components/shared/relative-time';
-import { StatusBadge } from '@/components/shared/status-badge';
 import { DataTable } from '@/components/shared/data-table/data-table';
 import { useDataTable } from '@/hooks/use-data-table';
-import { API_ENDPOINTS } from '@/lib/constants';
-import { fetchSuitePaginated } from '@/lib/suite-api';
-import { meetingStatusConfig } from '@/lib/status-configs';
-import { summarizeNamedRecords } from '@/lib/suite-utils';
+import { Button } from '@/components/ui/button';
+import { useQuery } from '@tanstack/react-query';
+import { enterpriseApi } from '@/lib/enterprise';
+import { actaMonthString } from '@/lib/enterprise';
+import { meetingColumns } from './_components/meeting-columns';
+import { MeetingFilters } from './_components/meeting-filters';
+import { ScheduleMeetingDialog } from './_components/schedule-meeting-dialog';
+import { MeetingCalendar } from './_components/meeting-calendar';
 import type { ActaMeeting } from '@/types/suites';
 
-const MEETING_FILTERS = [
-  {
-    key: 'status',
-    label: 'Status',
-    type: 'select' as const,
-    options: [
-      { label: 'Scheduled', value: 'scheduled' },
-      { label: 'In Progress', value: 'in_progress' },
-      { label: 'Completed', value: 'completed' },
-      { label: 'Cancelled', value: 'cancelled' },
-    ],
-  },
-];
-
 export default function ActaMeetingsPage() {
+  const [view, setView] = useState<'table' | 'calendar'>('table');
+  const [month, setMonth] = useState(actaMonthString(new Date()));
+  const [dialogOpen, setDialogOpen] = useState(false);
   const { tableProps } = useDataTable<ActaMeeting>({
     queryKey: 'acta-meetings',
-    fetchFn: (params) => fetchSuitePaginated<ActaMeeting>(API_ENDPOINTS.ACTA_MEETINGS, params),
+    fetchFn: (params) => enterpriseApi.acta.listMeetings(params),
     defaultPageSize: 25,
     defaultSort: { column: 'scheduled_at', direction: 'desc' },
   });
-
-  const columns: ColumnDef<ActaMeeting>[] = [
-    {
-      id: 'title',
-      accessorKey: 'title',
-      header: 'Meeting',
-      enableSorting: true,
-      cell: ({ row }) => (
-        <div>
-          <Link href={`/acta/meetings/${row.original.id}`} className="font-medium hover:underline">
-            {row.original.title}
-          </Link>
-          <p className="text-xs text-muted-foreground">{row.original.committee_name}</p>
-        </div>
-      ),
-    },
-    {
-      id: 'scheduled_at',
-      accessorKey: 'scheduled_at',
-      header: 'Scheduled',
-      enableSorting: true,
-      cell: ({ row }) => <RelativeTime date={row.original.scheduled_at} />,
-    },
-    {
-      id: 'attendees',
-      header: 'Attendees',
-      cell: ({ row }) => <span className="text-sm text-muted-foreground">{summarizeNamedRecords(row.original.attendees)}</span>,
-    },
-    {
-      id: 'action_item_count',
-      accessorKey: 'action_item_count',
-      header: 'Actions',
-      enableSorting: true,
-      cell: ({ row }) => <span className="text-sm text-muted-foreground">{row.original.action_item_count}</span>,
-    },
-    {
-      id: 'status',
-      accessorKey: 'status',
-      header: 'Status',
-      enableSorting: true,
-      cell: ({ row }) => <StatusBadge status={row.original.status} config={meetingStatusConfig} size="sm" />,
-    },
-  ];
+  const committeesQuery = useQuery({
+    queryKey: ['acta-meeting-committees'],
+    queryFn: () => enterpriseApi.acta.listCommittees({ page: 1, per_page: 100, order: 'asc' }),
+  });
+  const calendarQuery = useQuery({
+    queryKey: ['acta-meeting-calendar', month],
+    queryFn: () => enterpriseApi.acta.getCalendar(month),
+  });
 
   return (
     <PermissionRedirect permission="acta:read">
       <div className="space-y-6">
-        <PageHeader title="Meetings" description="Upcoming and historical board meetings with linked follow-up activity." />
-        <DataTable
-          {...tableProps}
-          columns={columns}
-          filters={MEETING_FILTERS}
-          emptyState={{
-            icon: BookOpen,
-            title: 'No meetings found',
-            description: 'No meetings matched the current filters.',
-          }}
+        <PageHeader
+          title="Meetings"
+          description="Schedule, track, and conduct board and committee meetings."
+          actions={
+            <>
+              <div className="flex rounded-lg border p-1">
+                <Button variant={view === 'table' ? 'default' : 'ghost'} size="sm" onClick={() => setView('table')}>
+                  <List className="mr-1.5 h-4 w-4" />
+                  Table
+                </Button>
+                <Button variant={view === 'calendar' ? 'default' : 'ghost'} size="sm" onClick={() => setView('calendar')}>
+                  <CalendarDays className="mr-1.5 h-4 w-4" />
+                  Calendar
+                </Button>
+              </div>
+              <Button onClick={() => setDialogOpen(true)}>Schedule Meeting</Button>
+            </>
+          }
+        />
+
+        <MeetingFilters
+          search={tableProps.searchValue ?? ''}
+          onSearchChange={(value) => tableProps.onSearchChange?.(value)}
+          committeeId={
+            typeof tableProps.activeFilters?.committee_id === 'string'
+              ? tableProps.activeFilters.committee_id
+              : undefined
+          }
+          onCommitteeChange={(value) => tableProps.onFilterChange?.('committee_id', value)}
+          status={
+            typeof tableProps.activeFilters?.status === 'string'
+              ? tableProps.activeFilters.status
+              : undefined
+          }
+          onStatusChange={(value) => tableProps.onFilterChange?.('status', value)}
+          committees={committeesQuery.data?.data ?? []}
+          loading={tableProps.isLoading}
+        />
+
+        {view === 'table' ? (
+          <DataTable
+            {...tableProps}
+            columns={meetingColumns()}
+            searchSlot={null}
+            emptyState={{
+              icon: CalendarDays,
+              title: 'No meetings found',
+              description: 'No meetings matched the current filters.',
+            }}
+          />
+        ) : (
+          <MeetingCalendar
+            month={month}
+            days={calendarQuery.data ?? []}
+            onMonthChange={setMonth}
+          />
+        )}
+
+        <ScheduleMeetingDialog
+          open={dialogOpen}
+          onOpenChange={setDialogOpen}
+          committees={committeesQuery.data?.data ?? []}
         />
       </div>
     </PermissionRedirect>
