@@ -423,6 +423,84 @@ func (r *AlertRepository) FindRelated(ctx context.Context, tenantID, alertID uui
 	return results, rows.Err()
 }
 
+// FindRecentOpenBySourceAndMetadataValue finds an open event-driven alert by source
+// and a specific metadata field value within the provided time window.
+func (r *AlertRepository) FindRecentOpenBySourceAndMetadataValue(ctx context.Context, tenantID uuid.UUID, source, metadataKey, metadataValue string, since time.Time) (*model.Alert, error) {
+	row := r.db.QueryRow(ctx, `
+		SELECT
+			id, tenant_id, title, description, severity, status,
+			source, rule_id, asset_id, asset_ids, assigned_to, assigned_at,
+			escalated_to, escalated_at, explanation, confidence_score,
+			mitre_tactic_id, mitre_tactic_name, mitre_technique_id, mitre_technique_name,
+			event_count, first_event_at, last_event_at, resolved_at,
+			resolution_notes, false_positive_reason, tags, metadata,
+			created_at, updated_at, deleted_at
+		FROM alerts
+		WHERE tenant_id = $1
+		  AND source = $2
+		  AND status IN ('new', 'acknowledged', 'investigating', 'in_progress', 'escalated')
+		  AND deleted_at IS NULL
+		  AND metadata ->> $3 = $4
+		  AND last_event_at >= $5
+		ORDER BY last_event_at DESC
+		LIMIT 1`,
+		tenantID, source, metadataKey, metadataValue, since,
+	)
+	alert, err := scanAlert(row)
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			return nil, ErrNotFound
+		}
+		return nil, fmt.Errorf("find recent open alert by metadata: %w", err)
+	}
+	return alert, nil
+}
+
+// UpdateEventAlert updates a custom event-driven alert in place.
+func (r *AlertRepository) UpdateEventAlert(ctx context.Context, alert *model.Alert) (*model.Alert, error) {
+	if alert == nil {
+		return nil, ErrInvalidInput
+	}
+
+	explanation, err := marshalJSON(alert.Explanation)
+	if err != nil {
+		return nil, fmt.Errorf("marshal updated event alert explanation: %w", err)
+	}
+
+	tag, err := r.db.Exec(ctx, `
+		UPDATE alerts
+		SET
+			title = $3,
+			description = $4,
+			severity = $5,
+			explanation = $6,
+			confidence_score = $7,
+			event_count = $8,
+			last_event_at = $9,
+			metadata = $10,
+			updated_at = now()
+		WHERE tenant_id = $1 AND id = $2 AND deleted_at IS NULL`,
+		alert.TenantID,
+		alert.ID,
+		alert.Title,
+		alert.Description,
+		alert.Severity,
+		explanation,
+		alert.ConfidenceScore,
+		alert.EventCount,
+		alert.LastEventAt,
+		ensureRawMessage(alert.Metadata, "{}"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("update event alert: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return nil, ErrNotFound
+	}
+
+	return r.GetByID(ctx, alert.TenantID, alert.ID)
+}
+
 // CloneTimeline copies timeline entries from one alert to another for merge operations.
 func (r *AlertRepository) CloneTimeline(ctx context.Context, tenantID, fromAlertID, toAlertID uuid.UUID) error {
 	_, err := r.db.Exec(ctx, `

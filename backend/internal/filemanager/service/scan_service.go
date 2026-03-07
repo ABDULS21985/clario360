@@ -202,12 +202,16 @@ func (s *ScanService) handleInfected(ctx context.Context, record *model.FileReco
 
 	// Publish events
 	s.publishScanEvent(ctx, "com.clario360.file.scan.infected", record.TenantID, map[string]interface{}{
-		"file_id":    record.ID,
-		"virus_name": result.VirusName,
+		"file_id":      record.ID,
+		"virus_name":   result.VirusName,
+		"uploaded_by":  record.UploadedBy,
+		"suite":        record.Suite,
+		"content_type": record.ContentType,
 	})
 	s.publishScanEvent(ctx, "com.clario360.file.quarantined", record.TenantID, map[string]interface{}{
 		"file_id":           record.ID,
 		"virus_name":        result.VirusName,
+		"uploaded_by":       record.UploadedBy,
 		"original_bucket":   record.Bucket,
 		"quarantine_bucket": s.quarantineBucket,
 	})

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -434,6 +435,69 @@ func (s *AlertService) CreateOrMergeDetectionAlert(ctx context.Context, alert *m
 		"asset_id": uuidPtrString(created.AssetID),
 	})
 	return created, true, nil
+}
+
+// CreateFromEvent persists a custom cross-suite alert and emits the standard
+// cyber alert created event without applying the detection-engine merge rules.
+func (s *AlertService) CreateFromEvent(ctx context.Context, alert *model.Alert) (*model.Alert, error) {
+	if alert == nil {
+		return nil, fmt.Errorf("alert is required")
+	}
+	if alert.Status == "" {
+		alert.Status = model.AlertStatusNew
+	}
+	if alert.EventCount == 0 {
+		alert.EventCount = 1
+	}
+	if alert.FirstEventAt.IsZero() {
+		alert.FirstEventAt = time.Now().UTC()
+	}
+	if alert.LastEventAt.IsZero() {
+		alert.LastEventAt = alert.FirstEventAt
+	}
+
+	created, err := s.alertRepo.Create(ctx, alert)
+	if err != nil {
+		return nil, err
+	}
+	_ = s.alertRepo.InsertTimeline(ctx, &model.AlertTimelineEntry{
+		TenantID:    alert.TenantID,
+		AlertID:     created.ID,
+		Action:      "created",
+		Description: fmt.Sprintf("Alert created by event source %q", alert.Source),
+		Metadata:    mustJSON(map[string]interface{}{"event_count": alert.EventCount}),
+	})
+	_ = publishEvent(ctx, s.producer, events.Topics.AlertEvents, "cyber.alert.created", alert.TenantID, nil, map[string]interface{}{
+		"id":                    created.ID.String(),
+		"title":                 created.Title,
+		"severity":              created.Severity,
+		"confidence_score":      created.ConfidenceScore,
+		"affected_asset_count":  len(created.AssetIDs),
+		"source":                created.Source,
+		"mitre_technique_id":    created.MITRETechniqueID,
+		"mitre_tactic_id":       created.MITRETacticID,
+	})
+	return created, nil
+}
+
+func (s *AlertService) FindRecentEventAlert(ctx context.Context, tenantID uuid.UUID, source, metadataKey, metadataValue string, window time.Duration) (*model.Alert, error) {
+	since := time.Now().UTC().Add(-window)
+	return s.alertRepo.FindRecentOpenBySourceAndMetadataValue(ctx, tenantID, source, metadataKey, metadataValue, since)
+}
+
+func (s *AlertService) UpdateEventAlert(ctx context.Context, alert *model.Alert) (*model.Alert, error) {
+	updated, err := s.alertRepo.UpdateEventAlert(ctx, alert)
+	if err != nil {
+		return nil, err
+	}
+	_ = s.alertRepo.InsertTimeline(ctx, &model.AlertTimelineEntry{
+		TenantID:    alert.TenantID,
+		AlertID:     updated.ID,
+		Action:      "correlated",
+		Description: fmt.Sprintf("Cross-suite event alert updated to %d correlated events", updated.EventCount),
+		Metadata:    mustJSON(map[string]interface{}{"event_count": updated.EventCount}),
+	})
+	return updated, nil
 }
 
 func actorUUID(actor *Actor) *uuid.UUID {

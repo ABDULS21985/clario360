@@ -35,16 +35,17 @@ func (f EventHandlerFunc) Handle(ctx context.Context, event *Event) error {
 // Consumer wraps a Sarama consumer group for event consumption with manual offset commit,
 // configurable concurrency, and graceful shutdown support.
 type Consumer struct {
-	group     sarama.ConsumerGroup
-	handler   *consumerGroupHandler
-	logger    zerolog.Logger
-	groupID   string
-	ready     chan struct{}
-	cancel    context.CancelFunc
-	cancelCtx context.Context
-	wg        sync.WaitGroup
-	running   bool
-	mu        sync.Mutex
+	group       sarama.ConsumerGroup
+	handler     *consumerGroupHandler
+	logger      zerolog.Logger
+	groupID     string
+	ready       chan struct{}
+	cancel      context.CancelFunc
+	cancelCtx   context.Context
+	wg          sync.WaitGroup
+	running     bool
+	mu          sync.Mutex
+	dlqProducer *Producer
 }
 
 // ConsumerConfig holds consumer-specific configuration.
@@ -105,9 +106,11 @@ func NewConsumerWithConfig(cfg ConsumerConfig, logger zerolog.Logger) (*Consumer
 		group:   group,
 		groupID: cfg.GroupID,
 		handler: &consumerGroupHandler{
-			logger:   logger,
-			handlers: make(map[string][]EventHandler),
-			ready:    make(chan struct{}),
+			logger:           logger,
+			handlers:         make(map[string][]EventHandler),
+			ready:            make(chan struct{}),
+			maxHandlerErrors: 3,
+			consumerName:     cfg.GroupID,
 		},
 		logger:    logger,
 		ready:     make(chan struct{}),
@@ -122,6 +125,32 @@ func (c *Consumer) Subscribe(topic string, handler EventHandler) {
 	defer c.handler.mu.Unlock()
 	c.handler.handlers[topic] = append(c.handler.handlers[topic], handler)
 	c.logger.Info().Str("topic", topic).Msg("handler registered")
+}
+
+// SetDeadLetterProducer configures per-topic DLQ publishing for this consumer.
+func (c *Consumer) SetDeadLetterProducer(producer *Producer) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.dlqProducer = producer
+	c.handler.dlqProducer = producer
+}
+
+// SetCrossSuiteMetrics configures consumer-level metrics used by cross-suite handlers.
+func (c *Consumer) SetCrossSuiteMetrics(metrics *CrossSuiteMetrics) {
+	c.handler.mu.Lock()
+	defer c.handler.mu.Unlock()
+	c.handler.metrics = metrics
+}
+
+// SetMaxHandlerErrors defines how many failed attempts are allowed before
+// an event is moved to the DLQ. The default is 3.
+func (c *Consumer) SetMaxHandlerErrors(max int) {
+	if max < 1 {
+		max = 1
+	}
+	c.handler.mu.Lock()
+	defer c.handler.mu.Unlock()
+	c.handler.maxHandlerErrors = max
 }
 
 // Start begins consuming messages from all subscribed topics.
@@ -187,10 +216,14 @@ func (c *Consumer) GroupID() string {
 
 // consumerGroupHandler implements sarama.ConsumerGroupHandler with manual offset commit.
 type consumerGroupHandler struct {
-	logger   zerolog.Logger
-	handlers map[string][]EventHandler
-	mu       sync.RWMutex
-	ready    chan struct{}
+	logger           zerolog.Logger
+	handlers         map[string][]EventHandler
+	mu               sync.RWMutex
+	ready            chan struct{}
+	dlqProducer      *Producer
+	maxHandlerErrors int
+	metrics          *CrossSuiteMetrics
+	consumerName     string
 }
 
 func (h *consumerGroupHandler) Setup(session sarama.ConsumerGroupSession) error {
@@ -212,6 +245,8 @@ func (h *consumerGroupHandler) Cleanup(session sarama.ConsumerGroupSession) erro
 
 func (h *consumerGroupHandler) ConsumeClaim(session sarama.ConsumerGroupSession, claim sarama.ConsumerGroupClaim) error {
 	for msg := range claim.Messages() {
+		start := time.Now()
+
 		// Extract trace context from headers
 		ctx := ExtractTraceContext(session.Context(), msg.Headers)
 
@@ -228,23 +263,43 @@ func (h *consumerGroupHandler) ConsumeClaim(session sarama.ConsumerGroupSession,
 			session.Commit()
 			continue
 		}
+		if event.Metadata == nil {
+			event.Metadata = map[string]string{}
+		}
+		event.Metadata["kafka.topic"] = msg.Topic
 
 		h.mu.RLock()
 		handlers, ok := h.handlers[msg.Topic]
+		metrics := h.metrics
+		consumerName := h.consumerName
+		maxHandlerErrors := h.maxHandlerErrors
 		h.mu.RUnlock()
+
+		if metrics != nil {
+			metrics.ReceivedTotal.WithLabelValues(consumerName, sourceSuiteFromEventType(event.Type), event.Type).Inc()
+		}
 
 		if !ok || len(handlers) == 0 {
 			h.logger.Warn().
 				Str("topic", msg.Topic).
 				Str("event_id", event.ID).
 				Msg("no handler registered for topic")
+			if metrics != nil {
+				metrics.ProcessedTotal.WithLabelValues(consumerName, sourceSuiteFromEventType(event.Type), event.Type, "skipped").Inc()
+				metrics.ProcessingDurationSeconds.WithLabelValues(consumerName, event.Type).Observe(time.Since(start).Seconds())
+			}
 			session.MarkMessage(msg, "")
 			session.Commit()
 			continue
 		}
 
+		handlerFailed := false
 		for _, handler := range handlers {
-			if err := handler.Handle(ctx, &event); err != nil {
+			if typed, ok := handler.(TypedEventHandler); ok && !eventTypeAllowed(typed.EventTypes(), event.Type) {
+				continue
+			}
+			if err := h.processWithRetry(ctx, handler, &event, msg.Topic, maxHandlerErrors); err != nil {
+				handlerFailed = true
 				h.logger.Error().
 					Err(err).
 					Str("topic", msg.Topic).
@@ -252,8 +307,16 @@ func (h *consumerGroupHandler) ConsumeClaim(session sarama.ConsumerGroupSession,
 					Str("event_type", event.Type).
 					Str("tenant_id", event.TenantID).
 					Msg("failed to handle event")
-				// Still mark the message — middleware chain handles retries/DLQ
 			}
+		}
+
+		if metrics != nil {
+			result := "success"
+			if handlerFailed {
+				result = "error"
+			}
+			metrics.ProcessedTotal.WithLabelValues(consumerName, sourceSuiteFromEventType(event.Type), event.Type, result).Inc()
+			metrics.ProcessingDurationSeconds.WithLabelValues(consumerName, event.Type).Observe(time.Since(start).Seconds())
 		}
 
 		// Manual offset commit after processing
@@ -261,4 +324,114 @@ func (h *consumerGroupHandler) ConsumeClaim(session sarama.ConsumerGroupSession,
 		session.Commit()
 	}
 	return nil
+}
+
+func (h *consumerGroupHandler) processWithRetry(ctx context.Context, handler EventHandler, event *Event, topic string, maxAttempts int) error {
+	var lastErr error
+
+	for attempt := 1; attempt <= maxAttempts; attempt++ {
+		retryCtx := context.WithValue(ctx, retryContextKey{}, attempt-1)
+		lastErr = handler.Handle(retryCtx, event)
+		if lastErr == nil {
+			return nil
+		}
+		if attempt == maxAttempts {
+			break
+		}
+
+		delay := time.Duration(attempt) * 250 * time.Millisecond
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(delay):
+		}
+	}
+
+	if h.dlqProducer != nil {
+		if err := h.publishToDLQ(ctx, topic, event, lastErr, maxAttempts); err != nil {
+			h.logger.Error().
+				Err(err).
+				Str("topic", topic).
+				Str("event_id", event.ID).
+				Msg("failed to publish dead letter event")
+		}
+	}
+	if h.metrics != nil {
+		h.metrics.DeadLetteredTotal.WithLabelValues(h.consumerName, event.Type).Inc()
+	}
+
+	h.logger.Error().
+		Err(lastErr).
+		Str("topic", topic).
+		Str("event_type", event.Type).
+		Str("event_id", event.ID).
+		Int("retries", maxAttempts).
+		Msg("Event moved to DLQ")
+
+	return lastErr
+}
+
+func (h *consumerGroupHandler) publishToDLQ(ctx context.Context, topic string, event *Event, handlerErr error, retryCount int) error {
+	if h.dlqProducer == nil {
+		return nil
+	}
+
+	payload, err := json.Marshal(map[string]any{
+		"original_event": event,
+		"error":          handlerErr.Error(),
+		"retry_count":    retryCount,
+		"timestamp":      time.Now().UTC(),
+	})
+	if err != nil {
+		return fmt.Errorf("marshal dlq payload: %w", err)
+	}
+
+	dlqEvent := NewEventRaw(event.Type, event.Source, event.TenantID, payload)
+	dlqEvent.CorrelationID = event.CorrelationID
+	dlqEvent.CausationID = event.ID
+	dlqEvent.UserID = event.UserID
+	dlqEvent.Metadata = map[string]string{
+		"dlq.original_event_id": event.ID,
+		"dlq.original_type":     event.Type,
+		"dlq.original_topic":    topic,
+		"dlq.error":             handlerErr.Error(),
+		"dlq.retry_count":       fmt.Sprintf("%d", retryCount),
+		"dlq.failed_at":         time.Now().UTC().Format(time.RFC3339Nano),
+	}
+
+	return h.dlqProducer.Publish(ctx, topic+".dlq", dlqEvent)
+}
+
+func sourceSuiteFromEventType(eventType string) string {
+	switch {
+	case eventType == "":
+		return "unknown"
+	case eventType == "com.clario360.file.uploaded",
+		eventType == "com.clario360.file.scan.infected",
+		eventType == "com.clario360.file.quarantined",
+		eventType == "com.clario360.file.scan.error":
+		return "file"
+	case len(eventType) > len("com.clario360.") && eventType[:len("com.clario360.")] == "com.clario360.":
+		trimmed := eventType[len("com.clario360."):]
+		for idx := 0; idx < len(trimmed); idx++ {
+			if trimmed[idx] == '.' {
+				return trimmed[:idx]
+			}
+		}
+		return trimmed
+	default:
+		return "unknown"
+	}
+}
+
+func eventTypeAllowed(allowed []string, eventType string) bool {
+	if len(allowed) == 0 {
+		return true
+	}
+	for _, candidate := range allowed {
+		if candidate == eventType {
+			return true
+		}
+	}
+	return false
 }
