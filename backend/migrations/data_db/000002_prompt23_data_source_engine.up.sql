@@ -27,6 +27,8 @@ BEGIN
           AND data_type = 'jsonb'
     ) THEN
         ALTER TABLE data_sources
+            ALTER COLUMN connection_config DROP DEFAULT;
+        ALTER TABLE data_sources
             ALTER COLUMN connection_config TYPE BYTEA
             USING convert_to(connection_config::text, 'UTF8');
     END IF;

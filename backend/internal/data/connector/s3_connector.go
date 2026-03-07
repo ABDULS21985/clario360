@@ -129,6 +129,14 @@ func (c *S3Connector) EstimateSize(ctx context.Context) (*SizeEstimate, error) {
 	}, nil
 }
 
+func (c *S3Connector) ReadQuery(ctx context.Context, query string, args []any) (*DataBatch, error) {
+	return nil, fmt.Errorf("%w: S3 connector does not support SQL query execution", ErrCapabilityUnsupported)
+}
+
+func (c *S3Connector) WriteData(ctx context.Context, table string, rows []map[string]any, params WriteParams) (*WriteResult, error) {
+	return nil, fmt.Errorf("%w: S3 connector is read-only", ErrCapabilityUnsupported)
+}
+
 func (c *S3Connector) Close() error { return nil }
 
 func (c *S3Connector) discoverObject(ctx context.Context, objectKey string, objectSize int64) (*model.DiscoveredTable, error) {

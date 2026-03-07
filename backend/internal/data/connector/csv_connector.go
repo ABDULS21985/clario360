@@ -200,6 +200,14 @@ func (c *CSVConnector) EstimateSize(ctx context.Context) (*SizeEstimate, error) 
 	}, nil
 }
 
+func (c *CSVConnector) ReadQuery(ctx context.Context, query string, args []any) (*DataBatch, error) {
+	return nil, fmt.Errorf("%w: CSV connector does not support SQL query execution", ErrCapabilityUnsupported)
+}
+
+func (c *CSVConnector) WriteData(ctx context.Context, table string, rows []map[string]any, params WriteParams) (*WriteResult, error) {
+	return nil, fmt.Errorf("%w: CSV connector is read-only", ErrCapabilityUnsupported)
+}
+
 func (c *CSVConnector) Close() error { return nil }
 
 func (c *CSVConnector) readPreview(ctx context.Context) ([][]string, []string, error) {

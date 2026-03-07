@@ -245,6 +245,14 @@ func (c *APIConnector) EstimateSize(ctx context.Context) (*SizeEstimate, error) 
 	}, nil
 }
 
+func (c *APIConnector) ReadQuery(ctx context.Context, query string, args []any) (*DataBatch, error) {
+	return nil, fmt.Errorf("%w: API connector does not support SQL query execution", ErrCapabilityUnsupported)
+}
+
+func (c *APIConnector) WriteData(ctx context.Context, table string, rows []map[string]any, params WriteParams) (*WriteResult, error) {
+	return nil, fmt.Errorf("%w: API connector does not support write operations", ErrCapabilityUnsupported)
+}
+
 func (c *APIConnector) Close() error { return nil }
 
 func (c *APIConnector) do(req *http.Request) (*http.Response, error) {

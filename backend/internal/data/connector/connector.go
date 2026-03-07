@@ -3,6 +3,7 @@ package connector
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"time"
 
 	"github.com/rs/zerolog"
@@ -14,6 +15,8 @@ type Connector interface {
 	TestConnection(ctx context.Context) (*ConnectionTestResult, error)
 	DiscoverSchema(ctx context.Context, opts DiscoveryOptions) (*model.DiscoveredSchema, error)
 	FetchData(ctx context.Context, table string, params FetchParams) (*DataBatch, error)
+	ReadQuery(ctx context.Context, query string, args []any) (*DataBatch, error)
+	WriteData(ctx context.Context, table string, rows []map[string]any, params WriteParams) (*WriteResult, error)
 	EstimateSize(ctx context.Context) (*SizeEstimate, error)
 	Close() error
 }
@@ -46,6 +49,18 @@ type DataBatch struct {
 	Cursor   string             `json:"cursor,omitempty"`
 }
 
+type WriteParams struct {
+	Strategy string
+	MergeKeys []string
+	Replace   bool
+}
+
+type WriteResult struct {
+	RowsWritten  int64 `json:"rows_written"`
+	RowsFailed   int64 `json:"rows_failed"`
+	BytesWritten int64 `json:"bytes_written"`
+}
+
 type ConnectionTestResult struct {
 	Success     bool          `json:"success"`
 	LatencyMs   int64         `json:"latency_ms"`
@@ -75,3 +90,5 @@ type FactoryOptions struct {
 	Limits ConnectorLimits
 	Logger zerolog.Logger
 }
+
+var ErrCapabilityUnsupported = errors.New("connector capability unsupported")
