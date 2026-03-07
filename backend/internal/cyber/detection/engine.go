@@ -332,7 +332,7 @@ func (e *DetectionEngine) processIndicatorMatch(ctx context.Context, tenantID uu
 	if match.Indicator.ThreatID != nil {
 		_ = e.threatRepo.RecordObservation(ctx, tenantID, *match.Indicator.ThreatID, assetIDs)
 	} else if e.threatRepo != nil {
-		threat, err := e.threatRepo.UpsertSyntheticThreat(ctx, tenantID, "Observed malicious indicator activity", model.ThreatTypeOther, match.Indicator.Severity, []string{"indicator_match"})
+		threat, err := e.threatRepo.UpsertSyntheticThreat(ctx, tenantID, "Observed malicious indicator activity", "Indicator match observed during event evaluation", model.ThreatTypeOther, match.Indicator.Severity, []string{"indicator_match"})
 		if err == nil {
 			_ = e.threatRepo.RecordObservation(ctx, tenantID, threat.ID, assetIDs)
 		}

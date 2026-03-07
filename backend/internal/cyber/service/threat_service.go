@@ -187,7 +187,7 @@ func (s *ThreatService) BulkImport(ctx context.Context, tenantID, userID uuid.UU
 	}
 	threatIDsByExternal := make(map[string]uuid.UUID)
 	for _, parsedThreat := range bundle.Threats {
-		threat, err := s.threatRepo.UpsertSyntheticThreat(ctx, tenantID, parsedThreat.Name, parsedThreat.Type, model.SeverityHigh, parsedThreat.Tags)
+		threat, err := s.threatRepo.UpsertSyntheticThreat(ctx, tenantID, parsedThreat.Name, parsedThreat.Description, parsedThreat.Type, model.SeverityHigh, parsedThreat.Tags)
 		if err != nil {
 			return 0, err
 		}

@@ -43,7 +43,13 @@ func (r *AlertRepository) List(ctx context.Context, tenantID uuid.UUID, params *
 	qb.Where("a.tenant_id = ?", tenantID)
 	qb.Where("a.deleted_at IS NULL")
 	if params.Search != nil && strings.TrimSpace(*params.Search) != "" {
-		qb.WhereFTS([]string{"a.title", "a.description"}, strings.TrimSpace(*params.Search))
+		search := strings.TrimSpace(*params.Search)
+		qb.Where(
+			"(to_tsvector('english', coalesce(a.title, '') || ' ' || coalesce(a.description, '')) @@ plainto_tsquery('english', ?) OR a.title ILIKE ? OR a.description ILIKE ?)",
+			search,
+			"%"+search+"%",
+			"%"+search+"%",
+		)
 	}
 	if len(params.Severities) > 0 {
 		qb.WhereIn("a.severity", params.Severities)

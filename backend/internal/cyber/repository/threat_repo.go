@@ -106,6 +106,15 @@ func (r *ThreatRepository) Create(ctx context.Context, threat *model.Threat) (*m
 	if threat.ID == uuid.Nil {
 		threat.ID = uuid.New()
 	}
+	if threat.MITRETacticIDs == nil {
+		threat.MITRETacticIDs = []string{}
+	}
+	if threat.MITRETechniqueIDs == nil {
+		threat.MITRETechniqueIDs = []string{}
+	}
+	if threat.Tags == nil {
+		threat.Tags = []string{}
+	}
 	now := time.Now().UTC()
 	if threat.FirstSeenAt.IsZero() {
 		threat.FirstSeenAt = now
@@ -157,7 +166,7 @@ func (r *ThreatRepository) UpdateStatus(ctx context.Context, tenantID, threatID 
 }
 
 // UpsertSyntheticThreat ensures there is a threat record associated with an indicator-driven detection.
-func (r *ThreatRepository) UpsertSyntheticThreat(ctx context.Context, tenantID uuid.UUID, name string, threatType model.ThreatType, severity model.Severity, tags []string) (*model.Threat, error) {
+func (r *ThreatRepository) UpsertSyntheticThreat(ctx context.Context, tenantID uuid.UUID, name, description string, threatType model.ThreatType, severity model.Severity, tags []string) (*model.Threat, error) {
 	row := r.db.QueryRow(ctx, `
 		SELECT
 			id, tenant_id, name, description, type, severity, status,
@@ -176,12 +185,15 @@ func (r *ThreatRepository) UpsertSyntheticThreat(ctx context.Context, tenantID u
 		return nil, fmt.Errorf("lookup synthetic threat: %w", err)
 	}
 	return r.Create(ctx, &model.Threat{
-		TenantID: tenantID,
-		Name:     name,
-		Type:     threatType,
-		Severity: severity,
-		Status:   model.ThreatStatusActive,
-		Tags:     tags,
+		TenantID:          tenantID,
+		Name:              name,
+		Description:       description,
+		Type:              threatType,
+		Severity:          severity,
+		Status:            model.ThreatStatusActive,
+		Tags:              tags,
+		MITRETacticIDs:    []string{},
+		MITRETechniqueIDs: []string{},
 	})
 }
 
