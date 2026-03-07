@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { Fragment, useState } from 'react';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 import { formatDateTime } from '@/lib/utils';
 import { formatDuration } from '@/lib/format';
@@ -107,9 +107,8 @@ function StepHistoryTable({ steps }: { steps: StepExecution[] }) {
               const StepIcon = getStepIcon(step.step_type);
               const isExpanded = expandedRow === step.id;
               return (
-                <>
+                <Fragment key={step.id}>
                   <tr
-                    key={step.id}
                     className="border-b last:border-0 hover:bg-muted/30 cursor-pointer"
                     onClick={() => toggle(step.id)}
                   >
@@ -147,7 +146,7 @@ function StepHistoryTable({ steps }: { steps: StepExecution[] }) {
                     </td>
                   </tr>
                   {isExpanded && (step.input || step.output || step.error) && (
-                    <tr key={`${step.id}-expanded`} className="border-b last:border-0 bg-muted/20">
+                    <tr className="border-b last:border-0 bg-muted/20">
                       <td colSpan={6} className="px-3 py-3">
                         <div className="grid gap-3 text-xs sm:grid-cols-2">
                           {step.input && (
@@ -176,7 +175,7 @@ function StepHistoryTable({ steps }: { steps: StepExecution[] }) {
                       </td>
                     </tr>
                   )}
-                </>
+                </Fragment>
               );
             })}
           </tbody>

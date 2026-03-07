@@ -61,16 +61,16 @@ export function NotificationList({
     );
   }
 
-  if (notifications.length === 0) {
-    return <NotificationEmpty category={category} />;
-  }
-
   if (error) {
     return (
       <div className="px-4 py-8 text-center text-sm text-destructive">
         {error}
       </div>
     );
+  }
+
+  if (notifications.length === 0) {
+    return <NotificationEmpty category={category} />;
   }
 
   const groups = groupNotificationsByDate(notifications);
