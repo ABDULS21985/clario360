@@ -7,6 +7,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/clario360/platform/internal/cyber/model"
@@ -17,13 +18,9 @@ type scanner interface {
 }
 
 type dbtx interface {
-	Exec(ctx context.Context, sql string, arguments ...any) (pgconnCommandTag, error)
+	Exec(ctx context.Context, sql string, arguments ...any) (pgconn.CommandTag, error)
 	Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error)
 	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
-}
-
-type pgconnCommandTag interface {
-	RowsAffected() int64
 }
 
 func queryable(pool *pgxpool.Pool) dbtx {

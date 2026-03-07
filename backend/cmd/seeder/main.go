@@ -1,390 +1,695 @@
-// Package main provides a test-data seeder for the cyber_db database.
-// It inserts 500 assets, 200 vulnerabilities, and 50 relationships.
-//
-// Usage:
-//
-//	GOWORK=off go run ./cmd/seeder
 package main
 
 import (
 	"context"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"math/rand"
 	"os"
+	"sort"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/rs/zerolog"
 
-	"github.com/clario360/platform/internal/config"
+	"github.com/clario360/platform/internal/cyber/classifier"
+	"github.com/clario360/platform/internal/cyber/model"
 	"github.com/clario360/platform/internal/observability"
 )
 
-func main() {
-	ctx := context.Background()
+const (
+	defaultSeed             = int64(42)
+	assetTargetCount        = 500
+	vulnTargetCount         = 200
+	relationshipTargetCount = 50
+)
 
-	cfg, err := config.Load()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "loading config: %v\n", err)
+type assetSeed struct {
+	ID              uuid.UUID
+	TenantID        uuid.UUID
+	Name            string
+	Type            model.AssetType
+	IPAddress       string
+	Hostname        string
+	MACAddress      string
+	OS              string
+	OSVersion       string
+	Owner           string
+	Department      string
+	Location        string
+	Criticality     model.Criticality
+	Status          model.AssetStatus
+	DiscoveredAt    time.Time
+	LastSeenAt      time.Time
+	DiscoverySource string
+	Metadata        []byte
+	Tags            []string
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
+	CreatedBy       uuid.UUID
+}
+
+type vulnerabilitySeed struct {
+	ID          uuid.UUID
+	TenantID    uuid.UUID
+	AssetID     uuid.UUID
+	CVEID       *string
+	Title       string
+	Description string
+	Severity    string
+	CVSSScore   *float64
+	CVSSVector  *string
+	Status      string
+	DetectedAt  time.Time
+	ResolvedAt  *time.Time
+	Source      string
+	Remediation string
+	Proof       string
+	Metadata    []byte
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+}
+
+type relationshipSeed struct {
+	ID               uuid.UUID
+	TenantID         uuid.UUID
+	SourceAssetID    uuid.UUID
+	TargetAssetID    uuid.UUID
+	RelationshipType string
+	Metadata         []byte
+	CreatedBy        uuid.UUID
+	CreatedAt        time.Time
+}
+
+type generator struct {
+	rng        *rand.Rand
+	classifier *classifier.AssetClassifier
+	logger     zerolog.Logger
+	now        time.Time
+	usedIPs    map[string]struct{}
+	usedMACs   map[string]struct{}
+	createdBy  uuid.UUID
+}
+
+func main() {
+	var (
+		dbURL        = flag.String("db-url", os.Getenv("CYBER_DB_URL"), "PostgreSQL connection string")
+		tenantIDFlag = flag.String("tenant-id", os.Getenv("CYBER_SEED_TENANT_ID"), "Tenant UUID to seed")
+		seedValue    = flag.Int64("seed", defaultSeed, "Deterministic random seed")
+	)
+	flag.Parse()
+
+	if strings.TrimSpace(*dbURL) == "" {
+		fmt.Fprintln(os.Stderr, "--db-url or CYBER_DB_URL is required")
 		os.Exit(1)
 	}
 
-	logger := observability.NewLogger(
-		cfg.Observability.LogLevel,
-		cfg.Observability.LogFormat,
-		"seeder",
-	)
+	tenantID := uuid.New()
+	if strings.TrimSpace(*tenantIDFlag) != "" {
+		parsed, err := uuid.Parse(strings.TrimSpace(*tenantIDFlag))
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "invalid tenant id: %v\n", err)
+			os.Exit(1)
+		}
+		tenantID = parsed
+	}
 
-	// Connect to cyber_db
-	dsn := fmt.Sprintf(
-		"postgres://%s:%s@%s:%d/cyber_db?sslmode=%s",
-		cfg.Database.User,
-		cfg.Database.Password,
-		cfg.Database.Host,
-		cfg.Database.Port,
-		cfg.Database.SSLMode,
-	)
+	logger := observability.NewLogger("info", "console", "cyber-seeder")
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
 
-	pool, err := pgxpool.New(ctx, dsn)
+	pool, err := pgxpool.New(ctx, *dbURL)
 	if err != nil {
-		logger.Fatal().Err(err).Msg("failed to connect to cyber_db")
+		logger.Fatal().Err(err).Msg("failed to create database pool")
 	}
 	defer pool.Close()
 
 	if err := pool.Ping(ctx); err != nil {
-		logger.Fatal().Err(err).Msg("failed to ping cyber_db")
+		logger.Fatal().Err(err).Msg("failed to connect to database")
 	}
 
-	logger.Info().Msg("connected to cyber_db — starting seed")
+	gen := &generator{
+		rng:        rand.New(rand.NewSource(*seedValue)),
+		classifier: classifier.NewAssetClassifier(logger),
+		logger:     logger,
+		now:        time.Now().UTC().Truncate(time.Second),
+		usedIPs:    make(map[string]struct{}, assetTargetCount),
+		usedMACs:   make(map[string]struct{}, assetTargetCount),
+		createdBy:  uuid.New(),
+	}
 
-	s := &seeder{pool: pool, rng: rand.New(rand.NewSource(42))}
+	assets := gen.generateAssets(tenantID)
+	vulnerabilities := gen.generateVulnerabilities(tenantID, assets)
+	relationships := gen.generateRelationships(tenantID, assets)
 
-	// Resolve or create a tenant ID for seed data
-	tenantID, err := s.resolveOrCreateTenant(ctx)
+	seedCtx, seedCancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer seedCancel()
+	if err := insertSeedData(seedCtx, pool, assets, vulnerabilities, relationships); err != nil {
+		logger.Fatal().Err(err).Msg("failed to seed cybersecurity inventory")
+	}
+
+	logger.Info().
+		Str("tenant_id", tenantID.String()).
+		Int("assets", len(assets)).
+		Int("vulnerabilities", len(vulnerabilities)).
+		Int("relationships", len(relationships)).
+		Msg("cyber seed completed")
+}
+
+func insertSeedData(ctx context.Context, pool *pgxpool.Pool, assets []assetSeed, vulnerabilities []vulnerabilitySeed, relationships []relationshipSeed) error {
+	tx, err := pool.Begin(ctx)
 	if err != nil {
-		logger.Fatal().Err(err).Msg("failed to resolve tenant")
-	}
-	logger.Info().Str("tenant_id", tenantID.String()).Msg("using tenant")
-
-	// Seed assets
-	assetIDs, err := s.seedAssets(ctx, tenantID, 500)
-	if err != nil {
-		logger.Fatal().Err(err).Msg("failed to seed assets")
-	}
-	logger.Info().Int("count", len(assetIDs)).Msg("assets seeded")
-
-	// Seed vulnerabilities
-	vulnCount, err := s.seedVulnerabilities(ctx, tenantID, assetIDs, 200)
-	if err != nil {
-		logger.Fatal().Err(err).Msg("failed to seed vulnerabilities")
-	}
-	logger.Info().Int("count", vulnCount).Msg("vulnerabilities seeded")
-
-	// Seed relationships
-	relCount, err := s.seedRelationships(ctx, tenantID, assetIDs, 50)
-	if err != nil {
-		logger.Fatal().Err(err).Msg("failed to seed relationships")
-	}
-	logger.Info().Int("count", relCount).Msg("relationships seeded")
-
-	logger.Info().Msg("seed complete")
-}
-
-type seeder struct {
-	pool *pgxpool.Pool
-	rng  *rand.Rand
-}
-
-// ── helpers ──────────────────────────────────────────────────────────────────
-
-func (s *seeder) resolveOrCreateTenant(ctx context.Context) (uuid.UUID, error) {
-	// Try to find an existing tenant in platform_core.tenants
-	var id uuid.UUID
-	err := s.pool.QueryRow(ctx, `SELECT id FROM tenants LIMIT 1`).Scan(&id)
-	if err == nil {
-		return id, nil
-	}
-	// Create a seed tenant directly in this DB if no platform_core linkage exists
-	return uuid.New(), nil
-}
-
-func (s *seeder) pick(slice []string) string {
-	return slice[s.rng.Intn(len(slice))]
-}
-
-func (s *seeder) pickN(slice []string, n int) []string {
-	cp := make([]string, len(slice))
-	copy(cp, slice)
-	s.rng.Shuffle(len(cp), func(i, j int) { cp[i], cp[j] = cp[j], cp[i] })
-	if n > len(cp) {
-		n = len(cp)
-	}
-	return cp[:n]
-}
-
-func (s *seeder) randIP() string {
-	return fmt.Sprintf("10.%d.%d.%d", s.rng.Intn(255), s.rng.Intn(255), s.rng.Intn(254)+1)
-}
-
-func (s *seeder) randMAC() string {
-	b := make([]byte, 6)
-	s.rng.Read(b)
-	b[0] = (b[0] | 0x02) & 0xfe // local, unicast
-	return fmt.Sprintf("%02x:%02x:%02x:%02x:%02x:%02x", b[0], b[1], b[2], b[3], b[4], b[5])
-}
-
-func (s *seeder) randPast(maxDaysAgo int) time.Time {
-	days := s.rng.Intn(maxDaysAgo) + 1
-	hours := s.rng.Intn(24)
-	mins := s.rng.Intn(60)
-	return time.Now().UTC().Add(-time.Duration(days)*24*time.Hour - time.Duration(hours)*time.Hour - time.Duration(mins)*time.Minute)
-}
-
-// ── assets ───────────────────────────────────────────────────────────────────
-
-var assetTypes = []string{"server", "endpoint", "network_device", "cloud_resource", "iot_device", "application", "database", "container"}
-var criticalities = []string{"critical", "high", "medium", "low"}
-var assetStatuses = []string{"active", "inactive", "decommissioned"}
-var discoverySources = []string{"manual", "network_scan", "cloud_scan", "agent", "import"}
-
-var osList = []string{"Ubuntu 22.04", "Ubuntu 20.04", "CentOS 8", "RHEL 9", "Debian 12", "Windows Server 2022", "Windows Server 2019", "Alpine 3.18", "macOS 14", "FreeBSD 14"}
-var departments = []string{"Engineering", "IT Operations", "Finance", "HR", "Security", "DevOps", "Data Science", "Product"}
-var locations = []string{"us-east-1", "us-west-2", "eu-west-1", "ap-southeast-1", "on-prem-dc1", "on-prem-dc2", "azure-east-us", "gcp-us-central1"}
-
-var hostnamePrefixes = []string{"web", "db", "api", "cache", "lb", "app", "worker", "monitor", "backup", "proxy"}
-var hostnameSuffixes = []string{"prod", "staging", "dev", "qa", "001", "002", "003"}
-
-var tagPool = []string{
-	"production", "staging", "development", "critical", "pci-scope", "hipaa-scope",
-	"internet-facing", "internal", "dmz", "legacy", "containerized", "high-availability",
-	"backup-enabled", "monitored", "encrypted", "patched",
-}
-
-func (s *seeder) seedAssets(ctx context.Context, tenantID uuid.UUID, count int) ([]uuid.UUID, error) {
-	ids := make([]uuid.UUID, 0, count)
-	now := time.Now().UTC()
-
-	tx, err := s.pool.Begin(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("begin tx: %w", err)
+		return fmt.Errorf("begin transaction: %w", err)
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
 
-	for i := 0; i < count; i++ {
-		id := uuid.New()
-		assetType := s.pick(assetTypes)
-		criticality := s.pick(criticalities)
-		status := s.pick(assetStatuses)
-		discoverySource := s.pick(discoverySources)
+	if err := copyAssets(ctx, tx, assets); err != nil {
+		return err
+	}
+	if err := copyVulnerabilities(ctx, tx, vulnerabilities); err != nil {
+		return err
+	}
+	if err := copyRelationships(ctx, tx, relationships); err != nil {
+		return err
+	}
 
-		hostname := fmt.Sprintf("%s-%s-%03d", s.pick(hostnamePrefixes), s.pick(hostnameSuffixes), i+1)
-		ip := s.randIP()
-		mac := s.randMAC()
-		os_ := s.pick(osList)
-		dept := s.pick(departments)
-		location := s.pick(locations)
-		discoveredAt := s.randPast(365)
-		lastSeenAt := s.randPast(30)
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("commit seed transaction: %w", err)
+	}
+	return nil
+}
 
-		// Random subset of 0–4 tags
-		numTags := s.rng.Intn(5)
-		tags := s.pickN(tagPool, numTags)
-
-		meta, _ := json.Marshal(map[string]interface{}{
-			"open_ports":  randomPorts(s.rng),
-			"environment": s.pick([]string{"prod", "staging", "dev", "qa"}),
+func copyAssets(ctx context.Context, tx pgx.Tx, assets []assetSeed) error {
+	rows := make([][]any, 0, len(assets))
+	for _, asset := range assets {
+		rows = append(rows, []any{
+			asset.ID, asset.TenantID, asset.Name, string(asset.Type), asset.IPAddress, asset.Hostname, asset.MACAddress,
+			asset.OS, asset.OSVersion, asset.Owner, asset.Department, asset.Location, string(asset.Criticality), string(asset.Status),
+			asset.DiscoveredAt, asset.LastSeenAt, asset.DiscoverySource, asset.Metadata, asset.Tags, asset.CreatedBy, asset.CreatedAt, asset.UpdatedAt,
 		})
-
-		_, err = tx.Exec(ctx, `
-			INSERT INTO assets (
-				id, tenant_id, name, type, ip_address, hostname, mac_address,
-				os, criticality, status, discovered_at, last_seen_at,
-				discovery_source, department, location, metadata, tags,
-				created_at, updated_at
-			) VALUES (
-				$1, $2, $3, $4::asset_type, $5, $6, $7,
-				$8, $9::asset_criticality, $10::asset_status, $11, $12,
-				$13, $14, $15, $16, $17,
-				$18, $18
-			) ON CONFLICT DO NOTHING`,
-			id, tenantID,
-			fmt.Sprintf("Asset-%s-%04d", assetType, i+1),
-			assetType, ip, hostname, mac,
-			os_, criticality, status, discoveredAt, lastSeenAt,
-			discoverySource, dept, location, meta, tags,
-			now,
-		)
-		if err != nil {
-			return nil, fmt.Errorf("insert asset %d: %w", i, err)
-		}
-		ids = append(ids, id)
 	}
-
-	if err := tx.Commit(ctx); err != nil {
-		return nil, fmt.Errorf("commit assets tx: %w", err)
-	}
-	return ids, nil
-}
-
-func randomPorts(rng *rand.Rand) []int {
-	allPorts := []int{22, 80, 443, 3306, 5432, 6379, 8080, 8443, 9200, 27017}
-	n := rng.Intn(5)
-	rng.Shuffle(len(allPorts), func(i, j int) { allPorts[i], allPorts[j] = allPorts[j], allPorts[i] })
-	return allPorts[:n]
-}
-
-// ── vulnerabilities ───────────────────────────────────────────────────────────
-
-var severities = []string{"critical", "high", "medium", "low"}
-var vulnStatuses = []string{"open", "remediated", "accepted", "false_positive"}
-
-var cvePool = []string{
-	"CVE-2024-1234", "CVE-2024-2345", "CVE-2024-3456", "CVE-2024-4567", "CVE-2024-5678",
-	"CVE-2023-12345", "CVE-2023-23456", "CVE-2023-34567", "CVE-2023-45678", "CVE-2023-56789",
-	"CVE-2022-22965", "CVE-2022-0847", "CVE-2022-30190", "CVE-2021-44228", "CVE-2021-34527",
-	"CVE-2020-14882", "CVE-2020-1472", "CVE-2019-0708", "CVE-2019-11510", "CVE-2018-13379",
-}
-
-var vulnTitles = []string{
-	"Remote Code Execution via Deserialization",
-	"SQL Injection in Login Endpoint",
-	"Cross-Site Scripting (Reflected)",
-	"Privilege Escalation via Misconfigured SUID Binary",
-	"Unencrypted Sensitive Data in Transit",
-	"Missing Authentication on Admin Endpoint",
-	"Path Traversal in File Upload Handler",
-	"XML External Entity (XXE) Injection",
-	"Server-Side Request Forgery (SSRF)",
-	"Insecure Direct Object Reference",
-	"Log4Shell Remote Code Execution",
-	"PrintNightmare Privilege Escalation",
-	"ProxyShell Exchange Vulnerability",
-	"BlueKeep Remote Desktop Vulnerability",
-	"Zerologon Netlogon Elevation of Privilege",
-}
-
-func (s *seeder) seedVulnerabilities(ctx context.Context, tenantID uuid.UUID, assetIDs []uuid.UUID, count int) (int, error) {
-	now := time.Now().UTC()
-
-	tx, err := s.pool.Begin(ctx)
+	_, err := tx.CopyFrom(ctx, pgx.Identifier{"assets"}, []string{
+		"id", "tenant_id", "name", "type", "ip_address", "hostname", "mac_address", "os", "os_version", "owner",
+		"department", "location", "criticality", "status", "discovered_at", "last_seen_at", "discovery_source", "metadata", "tags",
+		"created_by", "created_at", "updated_at",
+	}, pgx.CopyFromRows(rows))
 	if err != nil {
-		return 0, fmt.Errorf("begin tx: %w", err)
+		return fmt.Errorf("copy assets: %w", err)
 	}
-	defer tx.Rollback(ctx) //nolint:errcheck
-
-	inserted := 0
-	for i := 0; i < count; i++ {
-		id := uuid.New()
-		assetID := assetIDs[s.rng.Intn(len(assetIDs))]
-		cve := s.pick(cvePool)
-		title := s.pick(vulnTitles)
-		severity := s.pick(severities)
-		status := s.pick(vulnStatuses)
-		discoveredAt := s.randPast(180)
-
-		var cvssScore *float64
-		switch severity {
-		case "critical":
-			v := 9.0 + s.rng.Float64()*1.0
-			cvssScore = &v
-		case "high":
-			v := 7.0 + s.rng.Float64()*2.0
-			cvssScore = &v
-		case "medium":
-			v := 4.0 + s.rng.Float64()*3.0
-			cvssScore = &v
-		case "low":
-			v := 1.0 + s.rng.Float64()*3.0
-			cvssScore = &v
-		}
-
-		description := fmt.Sprintf("%s affecting %s component. CVE score: %.1f.", title, assetType(s.rng), *cvssScore)
-		remediation := "Apply vendor-provided patch or upgrade to the latest version."
-
-		_, err = tx.Exec(ctx, `
-			INSERT INTO vulnerabilities (
-				id, tenant_id, asset_id, cve_id, title, description,
-				severity, cvss_score, status, discovered_at, remediation,
-				created_at, updated_at
-			) VALUES (
-				$1, $2, $3, $4, $5, $6,
-				$7::severity_level, $8, $9::vulnerability_status, $10, $11,
-				$12, $12
-			) ON CONFLICT DO NOTHING`,
-			id, tenantID, assetID, cve, title, description,
-			severity, cvssScore, status, discoveredAt, remediation,
-			now,
-		)
-		if err != nil {
-			return inserted, fmt.Errorf("insert vulnerability %d: %w", i, err)
-		}
-		inserted++
-	}
-
-	if err := tx.Commit(ctx); err != nil {
-		return inserted, fmt.Errorf("commit vulns tx: %w", err)
-	}
-	return inserted, nil
+	return nil
 }
 
-func assetType(rng *rand.Rand) string {
-	components := []string{"kernel", "libc", "openssl", "nginx", "apache", "log4j", "spring", "struts", "curl", "libpng"}
-	return components[rng.Intn(len(components))]
-}
-
-// ── relationships ─────────────────────────────────────────────────────────────
-
-var relationshipTypes = []string{"hosts", "runs_on", "connects_to", "depends_on", "managed_by", "backs_up", "load_balances"}
-
-func (s *seeder) seedRelationships(ctx context.Context, tenantID uuid.UUID, assetIDs []uuid.UUID, count int) (int, error) {
-	now := time.Now().UTC()
-
-	tx, err := s.pool.Begin(ctx)
+func copyVulnerabilities(ctx context.Context, tx pgx.Tx, vulnerabilities []vulnerabilitySeed) error {
+	rows := make([][]any, 0, len(vulnerabilities))
+	for _, vuln := range vulnerabilities {
+		rows = append(rows, []any{
+			vuln.ID, vuln.TenantID, vuln.AssetID, vuln.CVEID, vuln.Title, vuln.Description, vuln.Severity, vuln.CVSSScore,
+			vuln.CVSSVector, vuln.Status, vuln.DetectedAt, vuln.ResolvedAt, vuln.Source, vuln.Remediation, vuln.Proof, vuln.Metadata,
+			vuln.CreatedAt, vuln.UpdatedAt,
+		})
+	}
+	_, err := tx.CopyFrom(ctx, pgx.Identifier{"vulnerabilities"}, []string{
+		"id", "tenant_id", "asset_id", "cve_id", "title", "description", "severity", "cvss_score", "cvss_vector", "status",
+		"detected_at", "resolved_at", "source", "remediation", "proof", "metadata", "created_at", "updated_at",
+	}, pgx.CopyFromRows(rows))
 	if err != nil {
-		return 0, fmt.Errorf("begin tx: %w", err)
+		return fmt.Errorf("copy vulnerabilities: %w", err)
 	}
-	defer tx.Rollback(ctx) //nolint:errcheck
+	return nil
+}
 
-	seen := make(map[[2]uuid.UUID]bool, count)
-	inserted := 0
-	attempts := 0
+func copyRelationships(ctx context.Context, tx pgx.Tx, relationships []relationshipSeed) error {
+	rows := make([][]any, 0, len(relationships))
+	for _, rel := range relationships {
+		rows = append(rows, []any{
+			rel.ID, rel.TenantID, rel.SourceAssetID, rel.TargetAssetID, rel.RelationshipType, rel.Metadata, rel.CreatedBy, rel.CreatedAt,
+		})
+	}
+	_, err := tx.CopyFrom(ctx, pgx.Identifier{"asset_relationships"}, []string{
+		"id", "tenant_id", "source_asset_id", "target_asset_id", "relationship_type", "metadata", "created_by", "created_at",
+	}, pgx.CopyFromRows(rows))
+	if err != nil {
+		return fmt.Errorf("copy relationships: %w", err)
+	}
+	return nil
+}
 
-	for inserted < count && attempts < count*10 {
-		attempts++
-		idxA := s.rng.Intn(len(assetIDs))
-		idxB := s.rng.Intn(len(assetIDs))
-		if idxA == idxB {
+func (g *generator) generateAssets(tenantID uuid.UUID) []assetSeed {
+	typeCounts := []struct {
+		assetType model.AssetType
+		count     int
+	}{
+		{model.AssetTypeServer, 200},
+		{model.AssetTypeEndpoint, 150},
+		{model.AssetTypeNetworkDevice, 30},
+		{model.AssetTypeCloudResource, 40},
+		{model.AssetTypeIoTDevice, 20},
+		{model.AssetTypeApplication, 25},
+		{model.AssetTypeDatabase, 20},
+		{model.AssetTypeContainer, 15},
+	}
+
+	assets := make([]assetSeed, 0, assetTargetCount)
+	for _, item := range typeCounts {
+		for index := 0; index < item.count; index++ {
+			assets = append(assets, g.newAssetSeed(tenantID, item.assetType, index))
+		}
+	}
+	return assets
+}
+
+func (g *generator) newAssetSeed(tenantID uuid.UUID, assetType model.AssetType, index int) assetSeed {
+	name, hostname, owner, department, location, tags, osName, osVersion, metadata := g.assetProfile(assetType, index)
+	ip := g.nextIP(assetType, department, index)
+	mac := g.nextMAC()
+	status := g.randomStatus()
+	discoverySource := g.randomDiscoverySource(assetType)
+	discoveredAt := g.randomPast(365)
+	lastSeenAt := discoveredAt.Add(time.Duration(g.rng.Intn(2400)) * time.Hour)
+	if lastSeenAt.After(g.now) {
+		lastSeenAt = g.now.Add(-time.Duration(g.rng.Intn(48)) * time.Hour)
+	}
+	if lastSeenAt.Before(discoveredAt) {
+		lastSeenAt = discoveredAt.Add(6 * time.Hour)
+	}
+
+	asset := &model.Asset{ID: uuid.New(), TenantID: tenantID, Name: name, Type: assetType, Tags: tags, Metadata: metadata, CreatedAt: g.now}
+	if hostname != "" {
+		asset.Hostname = &hostname
+	}
+	crit, _, _ := g.classifier.Classify(asset)
+
+	return assetSeed{
+		ID:              asset.ID,
+		TenantID:        tenantID,
+		Name:            name,
+		Type:            assetType,
+		IPAddress:       ip,
+		Hostname:        hostname,
+		MACAddress:      mac,
+		OS:              osName,
+		OSVersion:       osVersion,
+		Owner:           owner,
+		Department:      department,
+		Location:        location,
+		Criticality:     crit,
+		Status:          status,
+		DiscoveredAt:    discoveredAt,
+		LastSeenAt:      lastSeenAt,
+		DiscoverySource: discoverySource,
+		Metadata:        metadata,
+		Tags:            tags,
+		CreatedBy:       g.createdBy,
+		CreatedAt:       g.now,
+		UpdatedAt:       g.now,
+	}
+}
+
+func (g *generator) assetProfile(assetType model.AssetType, index int) (string, string, string, string, string, []string, string, string, []byte) {
+	departmentPool := []string{"engineering", "finance", "operations", "security", "hr"}
+	ownerPool := []string{"alice.johnson", "bruno.kim", "carla.singh", "dina.owens", "emre.tan", "frank.lopez"}
+	locationPool := []string{"datacenter-01", "datacenter-02", "hq-floor-03", "branch-nyc", "aws-us-east-1", "azure-east-us"}
+	department := departmentPool[index%len(departmentPool)]
+	owner := ownerPool[index%len(ownerPool)]
+	location := locationPool[index%len(locationPool)]
+	tags := []string{department, "internal"}
+	openPorts := []int{}
+	publicIP := ""
+	name := ""
+	hostname := ""
+	osName := "linux"
+	osVersion := "Ubuntu 22.04"
+
+	switch assetType {
+	case model.AssetTypeServer:
+		patterns := []string{"web-prod-%02d", "api-prod-%02d", "k8s-worker-%02d", "batch-stg-%02d"}
+		name = fmt.Sprintf(patterns[index%len(patterns)], index+1)
+		hostname = name + ".corp.local"
+		openPorts = choosePorts(index, []int{22, 80, 443, 8080, 8443})
+		tags = append(tags, envTag(name))
+		if strings.Contains(name, "web") || strings.Contains(name, "api") {
+			tags = append(tags, "internet-facing")
+		}
+	case model.AssetTypeEndpoint:
+		prefix := []string{"laptop", "desktop"}[index%2]
+		name = fmt.Sprintf("%s-%s-%03d", prefix, department, index+1)
+		hostname = name + ".corp.local"
+		osName, osVersion = chooseEndpointOS(index)
+	case model.AssetTypeNetworkDevice:
+		switch index % 3 {
+		case 0:
+			name = fmt.Sprintf("fw-%02d", index+1)
+		case 1:
+			name = fmt.Sprintf("sw-core-%02d", index+1)
+		default:
+			name = fmt.Sprintf("router-edge-%02d", index+1)
+		}
+		hostname = name + ".net.local"
+		openPorts = choosePorts(index, []int{22, 161, 443})
+		osName, osVersion = chooseNetworkOS(index)
+	case model.AssetTypeCloudResource:
+		env := []string{"prod", "staging", "dev"}[index%3]
+		service := []string{"payments", "search", "analytics", "auth"}[index%4]
+		name = fmt.Sprintf("ec2-%s-%s-%02d", env, service, index+1)
+		hostname = name + ".compute.internal"
+		openPorts = choosePorts(index, []int{22, 443, 8443})
+		if env == "prod" {
+			tags = append(tags, "production")
+		}
+		if index%3 == 0 {
+			publicIP = fmt.Sprintf("34.%d.%d.%d", 20+index%100, 10+index%200, 5+index%200)
+			tags = append(tags, "public")
+		}
+	case model.AssetTypeIoTDevice:
+		name = fmt.Sprintf("sensor-%s-%02d", []string{"plant-a", "warehouse-b", "office-c"}[index%3], index+1)
+		hostname = name + ".iot.local"
+		openPorts = choosePorts(index, []int{80, 443, 1883})
+		osName, osVersion = "linux", []string{"OpenWRT 23", "Yocto 4", "Ubuntu Core 22"}[index%3]
+	case model.AssetTypeApplication:
+		if index < 5 {
+			name = fmt.Sprintf("lb-edge-%02d", index+1)
+			tags = append(tags, "internet-facing", "production", "load-balancer")
+			openPorts = []int{80, 443, 8443}
+		} else {
+			name = fmt.Sprintf("app-%s", []string{"payments", "orders", "billing", "risk", "hr-portal"}[index%5])
+			openPorts = []int{443, 8080}
+		}
+		hostname = name + ".apps.local"
+	case model.AssetTypeDatabase:
+		engine := []string{"postgres", "mysql", "mongodb", "redis"}[index%4]
+		name = fmt.Sprintf("db-%s-%02d", engine, index+1)
+		hostname = name + ".data.local"
+		tags = append(tags, "database")
+		openPorts = map[string][]int{"postgres": {5432}, "mysql": {3306}, "mongodb": {27017}, "redis": {6379}}[engine]
+		osName, osVersion = "linux", []string{"Ubuntu 22.04", "RHEL 9", "Debian 12"}[index%3]
+	case model.AssetTypeContainer:
+		name = fmt.Sprintf("pod-%s-%06x", []string{"api", "worker", "ingest", "frontend"}[index%4], index*index+17)
+		hostname = name + ".cluster.local"
+		tags = append(tags, "containerized")
+		openPorts = choosePorts(index, []int{8080, 8443})
+		osName, osVersion = "linux", "Alpine 3.18"
+	}
+
+	metadataMap := map[string]any{"environment": envFromTags(tags), "open_ports": openPorts}
+	if publicIP != "" {
+		metadataMap["public_ip"] = publicIP
+	}
+	metadata, _ := json.Marshal(metadataMap)
+	tags = uniqueStrings(tags)
+	return name, hostname, owner, department, location, tags, osName, osVersion, metadata
+}
+
+func (g *generator) generateVulnerabilities(tenantID uuid.UUID, assets []assetSeed) []vulnerabilitySeed {
+	weightedAssets := make([]assetSeed, 0, len(assets)*2)
+	for _, asset := range assets {
+		weightedAssets = append(weightedAssets, asset)
+		if asset.Criticality == model.CriticalityCritical || asset.Criticality == model.CriticalityHigh {
+			weightedAssets = append(weightedAssets, asset, asset)
+		}
+	}
+
+	severityBag := severityDistribution(vulnTargetCount)
+	statusBag := vulnerabilityStatusDistribution(vulnTargetCount)
+	vulns := make([]vulnerabilitySeed, 0, vulnTargetCount)
+	usedCVEByAsset := make(map[uuid.UUID]map[string]struct{})
+	cvePool := []string{"CVE-2024-3094", "CVE-2023-44487", "CVE-2021-44228", "CVE-2024-3400", "CVE-2023-4966", "CVE-2024-6387", "CVE-2023-3519", "CVE-2024-21762"}
+	manualTitles := []string{"Excessive admin exposure", "Weak TLS cipher support", "Sensitive backup share exposed", "Default credentials detected"}
+
+	for index := 0; index < vulnTargetCount; index++ {
+		asset := weightedAssets[g.rng.Intn(len(weightedAssets))]
+		severity := severityBag[index]
+		status := statusBag[index]
+		source := "manual"
+		var cveID *string
+		title := manualTitles[index%len(manualTitles)]
+		description := fmt.Sprintf("%s on asset %s requires remediation.", title, asset.Name)
+		if index%4 != 0 {
+			source = "cve_enrichment"
+			candidate := cvePool[index%len(cvePool)]
+			for {
+				if _, ok := usedCVEByAsset[asset.ID]; !ok {
+					usedCVEByAsset[asset.ID] = make(map[string]struct{})
+				}
+				if _, exists := usedCVEByAsset[asset.ID][candidate]; !exists {
+					usedCVEByAsset[asset.ID][candidate] = struct{}{}
+					cveID = &candidate
+					break
+				}
+				candidate = cvePool[g.rng.Intn(len(cvePool))]
+			}
+			title = *cveID + " on " + asset.Name
+			description = fmt.Sprintf("Detected %s affecting %s (%s).", *cveID, asset.Name, asset.OSVersion)
+		}
+
+		detectedAt := g.randomPast(180)
+		var resolvedAt *time.Time
+		if status == "resolved" {
+			resolved := detectedAt.Add(time.Duration(24+g.rng.Intn(240)) * time.Hour)
+			resolvedAt = &resolved
+		}
+		cvss := cvssForSeverity(severity, g.rng)
+		vector := cvssVectorForSeverity(severity)
+		proof := fmt.Sprintf("Observed on %s during seeded discovery run.", asset.Name)
+		metadata, _ := json.Marshal(map[string]any{"seeded": true, "asset_type": asset.Type})
+
+		vulns = append(vulns, vulnerabilitySeed{ID: uuid.New(), TenantID: tenantID, AssetID: asset.ID, CVEID: cveID, Title: title, Description: description, Severity: severity, CVSSScore: &cvss, CVSSVector: &vector, Status: status, DetectedAt: detectedAt, ResolvedAt: resolvedAt, Source: source, Remediation: "Apply the recommended patch, rotate exposed credentials, and verify compensating controls.", Proof: proof, Metadata: metadata, CreatedAt: g.now, UpdatedAt: g.now})
+	}
+	return vulns
+}
+
+func (g *generator) generateRelationships(tenantID uuid.UUID, assets []assetSeed) []relationshipSeed {
+	byType := map[model.AssetType][]assetSeed{}
+	loadBalancers := make([]assetSeed, 0)
+	for _, asset := range assets {
+		byType[asset.Type] = append(byType[asset.Type], asset)
+		if contains(asset.Tags, "load-balancer") {
+			loadBalancers = append(loadBalancers, asset)
+		}
+	}
+
+	rels := make([]relationshipSeed, 0, relationshipTargetCount)
+	seen := make(map[string]struct{}, relationshipTargetCount)
+	appendRel := func(source, target assetSeed, relationshipType string, metadata map[string]any) {
+		if len(rels) >= relationshipTargetCount || source.ID == target.ID {
+			return
+		}
+		key := source.ID.String() + ":" + target.ID.String() + ":" + relationshipType
+		if _, exists := seen[key]; exists {
+			return
+		}
+		payload, _ := json.Marshal(metadata)
+		seen[key] = struct{}{}
+		rels = append(rels, relationshipSeed{ID: uuid.New(), TenantID: tenantID, SourceAssetID: source.ID, TargetAssetID: target.ID, RelationshipType: relationshipType, Metadata: payload, CreatedBy: g.createdBy, CreatedAt: g.now})
+	}
+
+	for index, server := range byType[model.AssetTypeServer] {
+		if len(rels) >= 20 || len(byType[model.AssetTypeDatabase]) == 0 {
+			break
+		}
+		database := byType[model.AssetTypeDatabase][index%len(byType[model.AssetTypeDatabase])]
+		appendRel(server, database, string(model.RelationshipDependsOn), map[string]any{"seeded": true, "reason": "application data dependency"})
+	}
+	for index, container := range byType[model.AssetTypeContainer] {
+		if len(rels) >= 35 || len(byType[model.AssetTypeServer]) == 0 {
+			break
+		}
+		server := byType[model.AssetTypeServer][index%len(byType[model.AssetTypeServer])]
+		appendRel(container, server, string(model.RelationshipRunsOn), map[string]any{"seeded": true, "platform": "kubernetes"})
+	}
+	for index, application := range byType[model.AssetTypeApplication] {
+		if len(rels) >= 45 || len(byType[model.AssetTypeServer]) == 0 {
+			break
+		}
+		server := byType[model.AssetTypeServer][(index*3)%len(byType[model.AssetTypeServer])]
+		appendRel(application, server, string(model.RelationshipRunsOn), map[string]any{"seeded": true, "runtime": "app-hosting"})
+	}
+	for index := 0; index < len(loadBalancers) && len(rels) < relationshipTargetCount; index++ {
+		server := byType[model.AssetTypeServer][(index*5)%len(byType[model.AssetTypeServer])]
+		appendRel(loadBalancers[index], server, string(model.RelationshipLoadBalances), map[string]any{"seeded": true, "protocol": "https"})
+	}
+
+	for len(rels) < relationshipTargetCount {
+		source := assets[g.rng.Intn(len(assets))]
+		target := assets[g.rng.Intn(len(assets))]
+		typeValue := []string{string(model.RelationshipConnectsTo), string(model.RelationshipManagedBy), string(model.RelationshipBacksUp)}[g.rng.Intn(3)]
+		appendRel(source, target, typeValue, map[string]any{"seeded": true})
+	}
+
+	return rels
+}
+
+func (g *generator) nextIP(assetType model.AssetType, department string, index int) string {
+	subnetBase := map[model.AssetType]int{model.AssetTypeServer: 1, model.AssetTypeEndpoint: 2, model.AssetTypeNetworkDevice: 3, model.AssetTypeCloudResource: 4, model.AssetTypeIoTDevice: 5, model.AssetTypeApplication: 6, model.AssetTypeDatabase: 7, model.AssetTypeContainer: 8}[assetType]
+	departmentOffset := map[string]int{"engineering": 10, "finance": 20, "operations": 30, "security": 40, "hr": 50}[department]
+	thirdOctet := subnetBase + departmentOffset/10
+	for {
+		host := 10 + (index % 220) + g.rng.Intn(20)
+		ip := fmt.Sprintf("10.0.%d.%d", thirdOctet, host)
+		if _, exists := g.usedIPs[ip]; !exists {
+			g.usedIPs[ip] = struct{}{}
+			return ip
+		}
+		index++
+	}
+}
+
+func (g *generator) nextMAC() string {
+	for {
+		bytes := []byte{0x02, byte(g.rng.Intn(256)), byte(g.rng.Intn(256)), byte(g.rng.Intn(256)), byte(g.rng.Intn(256)), byte(g.rng.Intn(256))}
+		mac := fmt.Sprintf("%02x:%02x:%02x:%02x:%02x:%02x", bytes[0], bytes[1], bytes[2], bytes[3], bytes[4], bytes[5])
+		if _, exists := g.usedMACs[mac]; !exists {
+			g.usedMACs[mac] = struct{}{}
+			return mac
+		}
+	}
+}
+
+func (g *generator) randomStatus() model.AssetStatus {
+	value := g.rng.Intn(100)
+	switch {
+	case value < 88:
+		return model.AssetStatusActive
+	case value < 95:
+		return model.AssetStatusInactive
+	case value < 98:
+		return model.AssetStatusUnknown
+	default:
+		return model.AssetStatusDecommissioned
+	}
+}
+
+func (g *generator) randomDiscoverySource(assetType model.AssetType) string {
+	sources := []string{"manual", "network_scan", "import"}
+	if assetType == model.AssetTypeCloudResource {
+		sources = append(sources, "cloud_scan")
+	}
+	if assetType == model.AssetTypeEndpoint {
+		sources = append(sources, "agent")
+	}
+	return sources[g.rng.Intn(len(sources))]
+}
+
+func (g *generator) randomPast(maxDaysAgo int) time.Time {
+	daysAgo := g.rng.Intn(maxDaysAgo) + 1
+	hoursAgo := g.rng.Intn(24)
+	minutesAgo := g.rng.Intn(60)
+	return g.now.Add(-time.Duration(daysAgo)*24*time.Hour - time.Duration(hoursAgo)*time.Hour - time.Duration(minutesAgo)*time.Minute)
+}
+
+func choosePorts(index int, base []int) []int {
+	ports := append([]int(nil), base...)
+	if len(ports) > 2 && index%3 == 0 {
+		return ports[:2]
+	}
+	return ports
+}
+
+func chooseEndpointOS(index int) (string, string) {
+	options := []struct{ os, version string }{{"windows", "Windows 11"}, {"windows", "Server 2022"}, {"macos", "macOS 14"}, {"linux", "Ubuntu 22.04"}}
+	choice := options[index%len(options)]
+	return choice.os, choice.version
+}
+
+func chooseNetworkOS(index int) (string, string) {
+	options := []string{"Cisco IOS XE", "FortiOS 7.4", "Arista EOS 4.31"}
+	return "network_os", options[index%len(options)]
+}
+
+func envTag(name string) string {
+	switch {
+	case strings.Contains(name, "prod"):
+		return "production"
+	case strings.Contains(name, "stg") || strings.Contains(name, "staging"):
+		return "staging"
+	default:
+		return "development"
+	}
+}
+
+func envFromTags(tags []string) string {
+	for _, tag := range tags {
+		switch tag {
+		case "production", "staging", "development":
+			return tag
+		}
+	}
+	return "development"
+}
+
+func severityDistribution(total int) []string {
+	counts := map[string]int{"critical": total * 10 / 100, "high": total * 20 / 100, "medium": total * 40 / 100, "low": total - (total*10/100 + total*20/100 + total*40/100)}
+	result := make([]string, 0, total)
+	for _, severity := range []string{"critical", "high", "medium", "low"} {
+		for index := 0; index < counts[severity]; index++ {
+			result = append(result, severity)
+		}
+	}
+	return result
+}
+
+func vulnerabilityStatusDistribution(total int) []string {
+	counts := map[string]int{"open": total * 60 / 100, "in_progress": total * 20 / 100, "mitigated": total * 15 / 100, "resolved": total - (total*60/100 + total*20/100 + total*15/100)}
+	result := make([]string, 0, total)
+	for _, status := range []string{"open", "in_progress", "mitigated", "resolved"} {
+		for index := 0; index < counts[status]; index++ {
+			result = append(result, status)
+		}
+	}
+	return result
+}
+
+func cvssForSeverity(severity string, rng *rand.Rand) float64 {
+	switch severity {
+	case "critical":
+		return 9.0 + rng.Float64()
+	case "high":
+		return 7.0 + rng.Float64()*1.9
+	case "medium":
+		return 4.0 + rng.Float64()*2.9
+	default:
+		return 0.1 + rng.Float64()*3.8
+	}
+}
+
+func cvssVectorForSeverity(severity string) string {
+	switch severity {
+	case "critical":
+		return "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:C/C:H/I:H/A:H"
+	case "high":
+		return "CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:L"
+	case "medium":
+		return "CVSS:3.1/AV:N/AC:H/PR:L/UI:R/S:U/C:L/I:L/A:L"
+	default:
+		return "CVSS:3.1/AV:L/AC:H/PR:L/UI:R/S:U/C:L/I:N/A:N"
+	}
+}
+
+func uniqueStrings(values []string) []string {
+	seen := make(map[string]struct{}, len(values))
+	result := make([]string, 0, len(values))
+	for _, value := range values {
+		if value == "" {
 			continue
 		}
-		src := assetIDs[idxA]
-		tgt := assetIDs[idxB]
-		key := [2]uuid.UUID{src, tgt}
-		if seen[key] {
+		if _, exists := seen[value]; exists {
 			continue
 		}
-		seen[key] = true
+		seen[value] = struct{}{}
+		result = append(result, value)
+	}
+	sort.Strings(result)
+	return result
+}
 
-		relType := s.pick(relationshipTypes)
-		meta, _ := json.Marshal(map[string]string{"seeded": "true"})
-
-		_, err := tx.Exec(ctx, `
-			INSERT INTO asset_relationships (
-				id, tenant_id, source_asset_id, target_asset_id,
-				relationship_type, metadata, created_at
-			) VALUES ($1, $2, $3, $4, $5::text, $6, $7)
-			ON CONFLICT DO NOTHING`,
-			uuid.New(), tenantID, src, tgt,
-			relType, meta, now,
-		)
-		if err != nil {
-			return inserted, fmt.Errorf("insert relationship: %w", err)
+func contains(values []string, target string) bool {
+	for _, value := range values {
+		if value == target {
+			return true
 		}
-		inserted++
 	}
-
-	if err := tx.Commit(ctx); err != nil {
-		return inserted, fmt.Errorf("commit relationships tx: %w", err)
-	}
-	return inserted, nil
+	return false
 }

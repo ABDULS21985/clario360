@@ -201,6 +201,14 @@ func (e *CTEMEngine) RunAssessment(ctx context.Context, assessmentID uuid.UUID) 
 	return nil
 }
 
+func (e *CTEMEngine) RunValidationPhase(ctx context.Context, assessmentID uuid.UUID) error {
+	return e.runSinglePhase(ctx, assessmentID, "validating", model.CTEMAssessmentStatusValidating, e.runValidation)
+}
+
+func (e *CTEMEngine) RunMobilizationPhase(ctx context.Context, assessmentID uuid.UUID) error {
+	return e.runSinglePhase(ctx, assessmentID, "mobilizing", model.CTEMAssessmentStatusMobilizing, e.runMobilization)
+}
+
 func (e *CTEMEngine) UpdatePhaseProgress(ctx context.Context, assessment *model.CTEMAssessment, phase string, processed, total int) error {
 	progress := assessment.Phases[phase]
 	progress.ItemsProcessed = processed
@@ -216,6 +224,57 @@ func (e *CTEMEngine) UpdatePhaseProgress(ctx context.Context, assessment *model.
 		"items_total":    total,
 	})
 	return nil
+}
+
+func (e *CTEMEngine) runSinglePhase(
+	ctx context.Context,
+	assessmentID uuid.UUID,
+	phaseName string,
+	status model.CTEMAssessmentStatus,
+	run func(context.Context, *model.CTEMAssessment) error,
+) error {
+	assessment, err := e.assessmentRepo.GetByIDAnyTenant(ctx, assessmentID)
+	if err != nil {
+		return err
+	}
+	previousStatus := assessment.Status
+	now := time.Now().UTC()
+	progress := assessment.Phases[phaseName]
+	progress.Status = model.CTEMPhaseStatusRunning
+	progress.StartedAt = &now
+	assessment.Phases[phaseName] = progress
+	assessment.Status = status
+	assessment.CurrentPhase = &phaseName
+	if err := e.assessmentRepo.SaveState(ctx, assessment); err != nil {
+		return err
+	}
+	if err := run(ctx, assessment); err != nil {
+		if errors.Is(err, context.Canceled) {
+			return e.handleCancellation(context.Background(), assessment, err)
+		}
+		message := err.Error()
+		progress = assessment.Phases[phaseName]
+		progress.Status = model.CTEMPhaseStatusFailed
+		progress.Errors = []string{message}
+		assessment.Phases[phaseName] = progress
+		assessment.Status = model.CTEMAssessmentStatusFailed
+		assessment.ErrorMessage = &message
+		assessment.ErrorPhase = &phaseName
+		_ = e.assessmentRepo.SaveState(context.Background(), assessment)
+		return err
+	}
+	completedAt := time.Now().UTC()
+	progress = assessment.Phases[phaseName]
+	progress.Status = model.CTEMPhaseStatusCompleted
+	progress.CompletedAt = &completedAt
+	assessment.Phases[phaseName] = progress
+	if previousStatus == model.CTEMAssessmentStatusCompleted || assessment.CompletedAt != nil {
+		assessment.Status = model.CTEMAssessmentStatusCompleted
+	} else {
+		assessment.Status = previousStatus
+	}
+	assessment.CurrentPhase = nil
+	return e.assessmentRepo.SaveState(ctx, assessment)
 }
 
 func (e *CTEMEngine) handleCancellation(ctx context.Context, assessment *model.CTEMAssessment, reason error) error {

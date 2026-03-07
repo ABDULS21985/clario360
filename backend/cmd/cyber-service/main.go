@@ -19,6 +19,7 @@ import (
 	"github.com/clario360/platform/internal/config"
 	"github.com/clario360/platform/internal/cyber/classifier"
 	cyberconfig "github.com/clario360/platform/internal/cyber/config"
+	cyberctem "github.com/clario360/platform/internal/cyber/ctem"
 	"github.com/clario360/platform/internal/cyber/consumer"
 	"github.com/clario360/platform/internal/cyber/enrichment"
 	"github.com/clario360/platform/internal/cyber/handler"
@@ -30,6 +31,7 @@ import (
 	"github.com/clario360/platform/internal/events"
 	"github.com/clario360/platform/internal/observability"
 	"github.com/clario360/platform/internal/server"
+	workflowrepo "github.com/clario360/platform/internal/workflow/repository"
 )
 
 func main() {
@@ -101,6 +103,9 @@ func main() {
 	if err := database.RunMigrations(cyberCfg.DBURL, migrationsPath); err != nil {
 		logger.Fatal().Err(err).Str("path", migrationsPath).Msg("failed to run cyber migrations")
 	}
+	if err := workflowrepo.RunMigration(ctx, db); err != nil {
+		logger.Fatal().Err(err).Msg("failed to run workflow schema migration for cyber-service")
+	}
 
 	// ── 6. Redis ───────────────────────────────────────────────────────────────
 	redisOptions, err := redis.ParseURL(cyberCfg.RedisURL)
@@ -135,6 +140,14 @@ func main() {
 	vulnRepo := repository.NewVulnerabilityRepository(db, logger)
 	relRepo := repository.NewRelationshipRepository(db, logger)
 	scanRepo := repository.NewScanRepository(db, logger)
+	ctemAssessmentRepo := repository.NewCTEMAssessmentRepository(db, logger)
+	ctemFindingRepo := repository.NewCTEMFindingRepository(db, logger)
+	ctemRemGroupRepo := repository.NewCTEMRemediationGroupRepository(db, logger)
+	ctemSnapshotRepo := repository.NewCTEMSnapshotRepository(db, logger)
+
+	workflowDefRepo := workflowrepo.NewDefinitionRepository(db)
+	workflowInstRepo := workflowrepo.NewInstanceRepository(db)
+	workflowTaskRepo := workflowrepo.NewTaskRepository(db)
 
 	// ── 10. Classifier ─────────────────────────────────────────────────────────
 	cls := classifier.NewAssetClassifier(logger)
@@ -171,6 +184,35 @@ func main() {
 		scanRegistry, cls, enrichSvc,
 		producer, m, cyberCfg, db, logger,
 	)
+	workflowLauncher := service.NewWorkflowRemediationLauncher(workflowDefRepo, workflowInstRepo, workflowTaskRepo, logger)
+	scoringEngine := cyberctem.NewScoringEngine(db, ctemSnapshotRepo, logger)
+	ctemEngine := cyberctem.NewEngine(
+		db,
+		ctemAssessmentRepo,
+		ctemFindingRepo,
+		ctemSnapshotRepo,
+		ctemRemGroupRepo,
+		assetRepo,
+		vulnRepo,
+		relRepo,
+		scoringEngine,
+		producer,
+		workflowLauncher,
+		logger,
+	)
+	ctemSvc := service.NewCTEMService(
+		db,
+		ctemAssessmentRepo,
+		ctemFindingRepo,
+		ctemRemGroupRepo,
+		ctemSnapshotRepo,
+		assetRepo,
+		ctemEngine,
+		scoringEngine,
+		producer,
+		workflowLauncher,
+		logger,
+	)
 
 	// ── 15. HTTP server ────────────────────────────────────────────────────────
 	srv, err := server.New(cfg, db, rdb, logger)
@@ -189,7 +231,9 @@ func main() {
 
 	// ── 16. Routes ─────────────────────────────────────────────────────────────
 	assetHandler := handler.NewAssetHandler(assetSvc, logger)
-	handler.RegisterRoutes(srv.Router, assetHandler, jwtMgr, rdb)
+	ctemHandler := handler.NewCTEMHandler(ctemSvc, logger)
+	ctemReportHandler := handler.NewCTEMReportHandler(ctemSvc, logger)
+	handler.RegisterRoutes(srv.Router, assetHandler, ctemHandler, ctemReportHandler, jwtMgr, rdb)
 
 	// ── 17. Kafka consumer ─────────────────────────────────────────────────────
 	var cyberConsumer *consumer.CyberConsumer

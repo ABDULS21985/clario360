@@ -26,6 +26,7 @@ type Config struct {
 	KafkaBrokers []string
 	KafkaGroupID string
 	KafkaTopic   string
+	SecurityEventTopic string
 
 	// JWT
 	JWTPublicKeyPath string
@@ -45,6 +46,9 @@ type Config struct {
 	// Classification
 	ClassifyOnCreate bool
 	ClassifyOnScan   bool
+
+	// Detection engine
+	DetectionRuleRefreshSec int
 }
 
 // Load reads configuration from environment variables. Returns an error if
@@ -96,6 +100,7 @@ func Load() (*Config, error) {
 	c.DBMinConn = envInt("CYBER_DB_MIN_CONNS", 5)
 	c.DBMaxConn = envInt("CYBER_DB_MAX_CONNS", 20)
 	c.KafkaTopic = envOr("CYBER_KAFKA_TOPIC", "cyber.asset.events")
+	c.SecurityEventTopic = envOr("CYBER_SECURITY_EVENT_TOPIC", "cyber.security_events")
 
 	// Scanner
 	c.ScanNetworkWorkers = envInt("CYBER_SCAN_NETWORK_WORKERS", 100)
@@ -118,6 +123,9 @@ func Load() (*Config, error) {
 	c.ClassifyOnCreate = envBool("CYBER_CLASSIFY_ON_CREATE", true)
 	c.ClassifyOnScan = envBool("CYBER_CLASSIFY_ON_SCAN", true)
 
+	// Detection engine
+	c.DetectionRuleRefreshSec = envInt("CYBER_DETECTION_RULE_REFRESH_SEC", 60)
+
 	// Validate ranges
 	if c.ScanNetworkWorkers < 1 || c.ScanNetworkWorkers > 500 {
 		return nil, fmt.Errorf("CYBER_SCAN_NETWORK_WORKERS must be in [1, 500], got %d", c.ScanNetworkWorkers)
@@ -127,6 +135,9 @@ func Load() (*Config, error) {
 	}
 	if c.ScanNetworkMaxIPs < 1 || c.ScanNetworkMaxIPs > 1048576 {
 		return nil, fmt.Errorf("CYBER_SCAN_NETWORK_MAX_IPS must be in [1, 1048576], got %d", c.ScanNetworkMaxIPs)
+	}
+	if c.DetectionRuleRefreshSec < 5 || c.DetectionRuleRefreshSec > 3600 {
+		return nil, fmt.Errorf("CYBER_DETECTION_RULE_REFRESH_SEC must be in [5, 3600], got %d", c.DetectionRuleRefreshSec)
 	}
 	for _, p := range c.ScanDefaultPorts {
 		if p < 1 || p > 65535 {

@@ -6,8 +6,8 @@ import (
 
 func TestAllTopics(t *testing.T) {
 	topics := AllTopics()
-	if len(topics) != 18 {
-		t.Errorf("expected 18 topics, got %d", len(topics))
+	if len(topics) != 20 {
+		t.Errorf("expected 20 topics, got %d", len(topics))
 	}
 
 	// Verify no duplicates
@@ -42,6 +42,9 @@ func TestTopicConstants(t *testing.T) {
 	if Topics.AlertEvents != "cyber.alert.events" {
 		t.Errorf("unexpected AlertEvents: %s", Topics.AlertEvents)
 	}
+	if Topics.RuleEvents != "cyber.rule.events" {
+		t.Errorf("unexpected RuleEvents: %s", Topics.RuleEvents)
+	}
 }
 
 func TestLegacyTopicConstants(t *testing.T) {
@@ -55,12 +58,15 @@ func TestLegacyTopicConstants(t *testing.T) {
 	if TopicCyberAlert != Topics.AlertEvents {
 		t.Errorf("TopicCyberAlert should equal Topics.AlertEvents: %s != %s", TopicCyberAlert, Topics.AlertEvents)
 	}
+	if TopicCyberRule != Topics.RuleEvents {
+		t.Errorf("TopicCyberRule should equal Topics.RuleEvents: %s != %s", TopicCyberRule, Topics.RuleEvents)
+	}
 }
 
 func TestDefaultTopicConfigs(t *testing.T) {
 	configs := DefaultTopicConfigs()
-	if len(configs) != 18 {
-		t.Errorf("expected 18 topic configs, got %d", len(configs))
+	if len(configs) != 20 {
+		t.Errorf("expected 20 topic configs, got %d", len(configs))
 	}
 
 	// Verify DLQ has 30-day retention

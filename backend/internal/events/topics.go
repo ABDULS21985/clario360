@@ -14,6 +14,8 @@ var Topics = struct {
 	AssetEvents       string
 	ThreatEvents      string
 	AlertEvents       string
+	RuleEvents        string
+	CtemEvents        string
 	RemediationEvents string
 
 	// Data
@@ -42,6 +44,8 @@ var Topics = struct {
 	AssetEvents:       "cyber.asset.events",
 	ThreatEvents:      "cyber.threat.events",
 	AlertEvents:       "cyber.alert.events",
+	RuleEvents:        "cyber.rule.events",
+	CtemEvents:        "cyber.ctem.events",
 	RemediationEvents: "cyber.remediation.events",
 
 	// Data
@@ -70,6 +74,7 @@ const (
 	TopicWorkflowStart = "platform.workflow.events"
 	TopicWorkflowEnd   = "platform.workflow.events"
 	TopicCyberAlert    = "cyber.alert.events"
+	TopicCyberRule     = "cyber.rule.events"
 	TopicDataPipeline  = "data.pipeline.events"
 	TopicActaDocument  = "enterprise.acta.events"
 	TopicLexCase       = "enterprise.lex.events"
@@ -87,6 +92,8 @@ func AllTopics() []string {
 		Topics.AssetEvents,
 		Topics.ThreatEvents,
 		Topics.AlertEvents,
+		Topics.RuleEvents,
+		Topics.CtemEvents,
 		Topics.RemediationEvents,
 		Topics.DataSourceEvents,
 		Topics.PipelineEvents,

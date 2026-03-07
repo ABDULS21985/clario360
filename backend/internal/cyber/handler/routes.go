@@ -12,7 +12,7 @@ import (
 
 // RegisterRoutes mounts all cyber service routes on the given router.
 // All routes require a valid JWT; tenant isolation is enforced by the Auth middleware.
-func RegisterRoutes(r chi.Router, assetHandler *AssetHandler, jwtMgr *auth.JWTManager, rdb *redis.Client) {
+func RegisterRoutes(r chi.Router, assetHandler *AssetHandler, ctemHandler *CTEMHandler, ctemReportHandler *CTEMReportHandler, jwtMgr *auth.JWTManager, rdb *redis.Client) {
 	cyberhealth.Register(r)
 
 	r.Route("/api/v1/cyber", func(r chi.Router) {
@@ -52,5 +52,43 @@ func RegisterRoutes(r chi.Router, assetHandler *AssetHandler, jwtMgr *auth.JWTMa
 		r.Get("/assets/{id}/vulnerabilities", assetHandler.ListVulnerabilities)
 		r.Post("/assets/{id}/vulnerabilities", assetHandler.CreateVulnerability)
 		r.Put("/assets/{id}/vulnerabilities/{vid}", assetHandler.UpdateVulnerability)
+
+		if ctemHandler != nil && ctemReportHandler != nil {
+			r.Route("/ctem", func(r chi.Router) {
+				r.Post("/assessments", ctemHandler.CreateAssessment)
+				r.Get("/assessments", ctemHandler.ListAssessments)
+				r.Get("/dashboard", ctemHandler.Dashboard)
+				r.Get("/exposure-score", ctemHandler.GetExposureScore)
+				r.Get("/exposure-score/history", ctemHandler.GetExposureScoreHistory)
+				r.Post("/exposure-score/calculate", ctemHandler.ForceCalculateExposureScore)
+
+				r.Get("/findings/{findingId}", ctemHandler.GetFinding)
+				r.Put("/findings/{findingId}/status", ctemHandler.UpdateFindingStatus)
+
+				r.Get("/remediation-groups/{groupId}", ctemHandler.GetRemediationGroup)
+				r.Put("/remediation-groups/{groupId}/status", ctemHandler.UpdateRemediationGroupStatus)
+				r.Post("/remediation-groups/{groupId}/execute", ctemHandler.ExecuteRemediationGroup)
+
+				r.Get("/assessments/{id}", ctemHandler.GetAssessment)
+				r.Put("/assessments/{id}", ctemHandler.UpdateAssessment)
+				r.Post("/assessments/{id}/start", ctemHandler.StartAssessment)
+				r.Post("/assessments/{id}/cancel", ctemHandler.CancelAssessment)
+				r.Delete("/assessments/{id}", ctemHandler.DeleteAssessment)
+
+				r.Get("/assessments/{id}/scope", ctemHandler.GetScope)
+				r.Get("/assessments/{id}/discovery", ctemHandler.GetDiscovery)
+				r.Get("/assessments/{id}/priorities", ctemHandler.GetPriorities)
+				r.Post("/assessments/{id}/validate", ctemHandler.ValidateAssessment)
+				r.Get("/assessments/{id}/validation", ctemHandler.GetValidation)
+				r.Post("/assessments/{id}/mobilize", ctemHandler.MobilizeAssessment)
+				r.Get("/assessments/{id}/mobilization", ctemHandler.GetMobilization)
+				r.Get("/assessments/{id}/findings", ctemHandler.ListFindings)
+				r.Get("/assessments/{id}/remediation-groups", ctemHandler.ListRemediationGroups)
+				r.Get("/assessments/{id}/report", ctemReportHandler.GetReport)
+				r.Get("/assessments/{id}/report/executive", ctemReportHandler.GetExecutiveSummary)
+				r.Post("/assessments/{id}/report/export", ctemReportHandler.ExportReport)
+				r.Get("/assessments/{id}/compare/{otherId}", ctemHandler.CompareAssessments)
+			})
+		}
 	})
 }
