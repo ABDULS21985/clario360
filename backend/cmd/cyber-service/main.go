@@ -21,10 +21,12 @@ import (
 	"github.com/clario360/platform/internal/config"
 	"github.com/clario360/platform/internal/cyber/classifier"
 	cyberconfig "github.com/clario360/platform/internal/cyber/config"
-	cyberctem "github.com/clario360/platform/internal/cyber/ctem"
 	"github.com/clario360/platform/internal/cyber/consumer"
+	cyberctem "github.com/clario360/platform/internal/cyber/ctem"
+	"github.com/clario360/platform/internal/cyber/detection"
 	"github.com/clario360/platform/internal/cyber/enrichment"
 	"github.com/clario360/platform/internal/cyber/handler"
+	"github.com/clario360/platform/internal/cyber/indicator"
 	cybermetrics "github.com/clario360/platform/internal/cyber/metrics"
 	"github.com/clario360/platform/internal/cyber/repository"
 	"github.com/clario360/platform/internal/cyber/scanner"
@@ -113,6 +115,11 @@ func main() {
 	vulnRepo := repository.NewVulnerabilityRepository(db, logger)
 	relRepo := repository.NewRelationshipRepository(db, logger)
 	scanRepo := repository.NewScanRepository(db, logger)
+	alertRepo := repository.NewAlertRepository(db, logger)
+	commentRepo := repository.NewCommentRepository(db, logger)
+	ruleRepo := repository.NewRuleRepository(db, logger)
+	threatRepo := repository.NewThreatRepository(db, logger)
+	indicatorRepo := repository.NewIndicatorRepository(db, logger)
 	ctemAssessmentRepo := repository.NewCTEMAssessmentRepository(db, logger)
 	ctemFindingRepo := repository.NewCTEMFindingRepository(db, logger)
 	ctemRemGroupRepo := repository.NewCTEMRemediationGroupRepository(db, logger)
@@ -157,6 +164,27 @@ func main() {
 		scanRegistry, cls, enrichSvc,
 		producer, m, cyberCfg, db, logger,
 	)
+	alertSvc := service.NewAlertService(alertRepo, commentRepo, db, producer, logger)
+	baselineStore := detection.NewBaselineStore(rdb, logger)
+	ruleSvc := service.NewRuleService(ruleRepo, alertSvc, baselineStore, producer, logger)
+	if err := ruleSvc.EnsureTemplates(ctx); err != nil {
+		logger.Fatal().Err(err).Msg("failed to seed detection rule templates")
+	}
+	indicatorMatcher := indicator.NewMatcher(indicatorRepo, logger)
+	detectionEngine := detection.NewDetectionEngine(
+		ruleRepo,
+		assetRepo,
+		threatRepo,
+		alertSvc,
+		indicatorMatcher,
+		rdb,
+		producer,
+		baselineStore,
+		logger,
+	)
+	detectionSvc := service.NewDetectionService(detectionEngine, logger)
+	detectionSvc.Start(ctx, time.Duration(cyberCfg.DetectionRuleRefreshSec)*time.Second)
+	threatSvc := service.NewThreatService(threatRepo, indicatorRepo, producer, logger)
 	workflowLauncher := service.NewWorkflowRemediationLauncher(workflowDefRepo, workflowInstRepo, workflowTaskRepo, logger)
 	scoringEngine := cyberctem.NewScoringEngine(db, ctemSnapshotRepo, logger)
 	ctemEngine := cyberctem.NewEngine(
@@ -198,7 +226,11 @@ func main() {
 	assetHandler := handler.NewAssetHandler(assetSvc, logger)
 	ctemHandler := handler.NewCTEMHandler(ctemSvc, logger)
 	ctemReportHandler := handler.NewCTEMReportHandler(ctemSvc, logger)
-	handler.RegisterRoutes(svc.Router, assetHandler, ctemHandler, ctemReportHandler, jwtMgr, rdb)
+	alertHandler := handler.NewAlertHandler(alertSvc)
+	ruleHandler := handler.NewRuleHandler(ruleSvc)
+	threatHandler := handler.NewThreatHandler(threatSvc)
+	mitreHandler := handler.NewMITREHandler(ruleSvc)
+	handler.RegisterRoutes(svc.Router, assetHandler, alertHandler, ruleHandler, threatHandler, mitreHandler, ctemHandler, ctemReportHandler, jwtMgr, rdb)
 
 	// ── 13. Kafka consumer ─────────────────────────────────────────────────────
 	var cyberConsumer *consumer.CyberConsumer
@@ -207,7 +239,7 @@ func main() {
 		if err != nil {
 			logger.Warn().Err(err).Msg("Kafka consumer unavailable — event processing disabled")
 		} else {
-			cyberConsumer = consumer.NewCyberConsumer(assetSvc, nil, "", kafkaConsumer, logger)
+			cyberConsumer = consumer.NewCyberConsumer(assetSvc, detectionSvc, cyberCfg.SecurityEventTopic, kafkaConsumer, logger)
 			_ = consumer.NewCTEMConsumer(ctemSvc, kafkaConsumer, logger)
 		}
 	}
@@ -283,7 +315,7 @@ func buildBootstrapConfig(cfg *config.Config, cyberCfg *cyberconfig.Config) (*bo
 		ShutdownTimeout: cfg.Server.ShutdownTimeout,
 		ReadTimeout:     cfg.Server.ReadTimeout,
 		WriteTimeout:    cfg.Server.WriteTimeout,
-		Tracing: bootstrapTracingConfig(cfg),
+		Tracing:         bootstrapTracingConfig(cfg),
 		EnablePprof:     false,
 		DB: &bootstrap.DBConfig{
 			URL:               cyberCfg.DBURL,
