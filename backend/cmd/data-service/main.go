@@ -57,14 +57,14 @@ func main() {
 
 	srv.Router.Route("/api/v1/data", func(r chi.Router) {
 		auth := srv.AuthenticatedRoutes()
-		auth.Get("/sources", stubHandler("list_sources"))
-		auth.Post("/sources", stubHandler("create_source"))
-		auth.Get("/sources/{id}", stubHandler("get_source"))
-		auth.Get("/pipelines", stubHandler("list_pipelines"))
-		auth.Post("/pipelines", stubHandler("create_pipeline"))
-		auth.Post("/pipelines/{id}/run", stubHandler("run_pipeline"))
-		auth.Get("/datasets", stubHandler("list_datasets"))
-		auth.Get("/quality", stubHandler("data_quality_dashboard"))
+		auth.Get("/sources", notImplementedHandler("list_sources"))
+		auth.Post("/sources", notImplementedHandler("create_source"))
+		auth.Get("/sources/{id}", notImplementedHandler("get_source"))
+		auth.Get("/pipelines", notImplementedHandler("list_pipelines"))
+		auth.Post("/pipelines", notImplementedHandler("create_pipeline"))
+		auth.Post("/pipelines/{id}/run", notImplementedHandler("run_pipeline"))
+		auth.Get("/datasets", notImplementedHandler("list_datasets"))
+		auth.Get("/quality", notImplementedHandler("data_quality_dashboard"))
 		r.Mount("/", auth)
 	})
 
@@ -75,13 +75,19 @@ func main() {
 	}
 }
 
-func stubHandler(operation string) http.HandlerFunc {
+func notImplementedHandler(operation string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(map[string]string{
-			"service":   "data",
-			"operation": operation,
-			"status":    "not_implemented",
+		w.WriteHeader(http.StatusNotImplemented)
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"error": map[string]any{
+				"code":    "NOT_IMPLEMENTED",
+				"message": "data-service endpoint is not implemented",
+				"details": map[string]string{
+					"service":   "data",
+					"operation": operation,
+				},
+			},
 		})
 	}
 }

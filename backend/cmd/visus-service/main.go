@@ -57,14 +57,14 @@ func main() {
 
 	srv.Router.Route("/api/v1/visus", func(r chi.Router) {
 		auth := srv.AuthenticatedRoutes()
-		auth.Get("/dashboards", stubHandler("list_dashboards"))
-		auth.Post("/dashboards", stubHandler("create_dashboard"))
-		auth.Get("/dashboards/{id}", stubHandler("get_dashboard"))
-		auth.Put("/dashboards/{id}", stubHandler("update_dashboard"))
-		auth.Get("/reports", stubHandler("list_reports"))
-		auth.Post("/reports", stubHandler("create_report"))
-		auth.Post("/reports/{id}/generate", stubHandler("generate_report"))
-		auth.Get("/widgets", stubHandler("list_widgets"))
+		auth.Get("/dashboards", notImplementedHandler("list_dashboards"))
+		auth.Post("/dashboards", notImplementedHandler("create_dashboard"))
+		auth.Get("/dashboards/{id}", notImplementedHandler("get_dashboard"))
+		auth.Put("/dashboards/{id}", notImplementedHandler("update_dashboard"))
+		auth.Get("/reports", notImplementedHandler("list_reports"))
+		auth.Post("/reports", notImplementedHandler("create_report"))
+		auth.Post("/reports/{id}/generate", notImplementedHandler("generate_report"))
+		auth.Get("/widgets", notImplementedHandler("list_widgets"))
 		r.Mount("/", auth)
 	})
 
@@ -75,13 +75,19 @@ func main() {
 	}
 }
 
-func stubHandler(operation string) http.HandlerFunc {
+func notImplementedHandler(operation string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(map[string]string{
-			"service":   "visus",
-			"operation": operation,
-			"status":    "not_implemented",
+		w.WriteHeader(http.StatusNotImplemented)
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"error": map[string]any{
+				"code":    "NOT_IMPLEMENTED",
+				"message": "visus-service endpoint is not implemented",
+				"details": map[string]string{
+					"service":   "visus",
+					"operation": operation,
+				},
+			},
 		})
 	}
 }

@@ -57,14 +57,14 @@ func main() {
 
 	srv.Router.Route("/api/v1/acta", func(r chi.Router) {
 		auth := srv.AuthenticatedRoutes()
-		auth.Get("/documents", stubHandler("list_documents"))
-		auth.Post("/documents", stubHandler("create_document"))
-		auth.Get("/documents/{id}", stubHandler("get_document"))
-		auth.Put("/documents/{id}", stubHandler("update_document"))
-		auth.Delete("/documents/{id}", stubHandler("delete_document"))
-		auth.Post("/documents/{id}/sign", stubHandler("sign_document"))
-		auth.Get("/templates", stubHandler("list_templates"))
-		auth.Post("/templates", stubHandler("create_template"))
+		auth.Get("/documents", notImplementedHandler("list_documents"))
+		auth.Post("/documents", notImplementedHandler("create_document"))
+		auth.Get("/documents/{id}", notImplementedHandler("get_document"))
+		auth.Put("/documents/{id}", notImplementedHandler("update_document"))
+		auth.Delete("/documents/{id}", notImplementedHandler("delete_document"))
+		auth.Post("/documents/{id}/sign", notImplementedHandler("sign_document"))
+		auth.Get("/templates", notImplementedHandler("list_templates"))
+		auth.Post("/templates", notImplementedHandler("create_template"))
 		r.Mount("/", auth)
 	})
 
@@ -75,13 +75,19 @@ func main() {
 	}
 }
 
-func stubHandler(operation string) http.HandlerFunc {
+func notImplementedHandler(operation string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(map[string]string{
-			"service":   "acta",
-			"operation": operation,
-			"status":    "not_implemented",
+		w.WriteHeader(http.StatusNotImplemented)
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"error": map[string]any{
+				"code":    "NOT_IMPLEMENTED",
+				"message": "acta-service endpoint is not implemented",
+				"details": map[string]string{
+					"service":   "acta",
+					"operation": operation,
+				},
+			},
 		})
 	}
 }

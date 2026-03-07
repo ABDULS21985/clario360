@@ -57,13 +57,13 @@ func main() {
 
 	srv.Router.Route("/api/v1/lex", func(r chi.Router) {
 		auth := srv.AuthenticatedRoutes()
-		auth.Get("/cases", stubHandler("list_cases"))
-		auth.Post("/cases", stubHandler("create_case"))
-		auth.Get("/cases/{id}", stubHandler("get_case"))
-		auth.Put("/cases/{id}", stubHandler("update_case"))
-		auth.Get("/regulations", stubHandler("list_regulations"))
-		auth.Get("/compliance", stubHandler("compliance_dashboard"))
-		auth.Post("/compliance/check", stubHandler("compliance_check"))
+		auth.Get("/cases", notImplementedHandler("list_cases"))
+		auth.Post("/cases", notImplementedHandler("create_case"))
+		auth.Get("/cases/{id}", notImplementedHandler("get_case"))
+		auth.Put("/cases/{id}", notImplementedHandler("update_case"))
+		auth.Get("/regulations", notImplementedHandler("list_regulations"))
+		auth.Get("/compliance", notImplementedHandler("compliance_dashboard"))
+		auth.Post("/compliance/check", notImplementedHandler("compliance_check"))
 		r.Mount("/", auth)
 	})
 
@@ -74,13 +74,19 @@ func main() {
 	}
 }
 
-func stubHandler(operation string) http.HandlerFunc {
+func notImplementedHandler(operation string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(map[string]string{
-			"service":   "lex",
-			"operation": operation,
-			"status":    "not_implemented",
+		w.WriteHeader(http.StatusNotImplemented)
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"error": map[string]any{
+				"code":    "NOT_IMPLEMENTED",
+				"message": "lex-service endpoint is not implemented",
+				"details": map[string]string{
+					"service":   "lex",
+					"operation": operation,
+				},
+			},
 		})
 	}
 }
