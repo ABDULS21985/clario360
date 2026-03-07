@@ -57,7 +57,7 @@ export function FindingTable({ findings }: FindingTableProps) {
                   <div className="flex items-center gap-2">
                     <span className="font-medium">{finding.title}</span>
                     {finding.exploit_available && (
-                      <Zap className="h-3.5 w-3.5 text-red-500" title="Exploit available" />
+                      <span title="Exploit available"><Zap className="h-3.5 w-3.5 text-red-500" /></span>
                     )}
                   </div>
                 </td>

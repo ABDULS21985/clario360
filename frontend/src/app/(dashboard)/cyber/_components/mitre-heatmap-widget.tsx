@@ -29,10 +29,10 @@ export function MitreHeatmapWidget({ data, loading, error, onRetry }: MitreHeatm
   const router = useRouter();
 
   const { tactics, techniquesByTactic } = useMemo(() => {
-    if (!data?.cells) return { tactics: [], techniquesByTactic: new Map<string, typeof data.cells>() };
+    if (!data?.cells) return { tactics: [], techniquesByTactic: new Map<string, MITREHeatmapData['cells']>() };
 
     const tacticMap = new Map<string, { id: string; name: string }>();
-    const byTactic = new Map<string, typeof data.cells>();
+    const byTactic = new Map<string, MITREHeatmapData['cells']>();
 
     for (const cell of data.cells) {
       if (!tacticMap.has(cell.tactic_id)) {
