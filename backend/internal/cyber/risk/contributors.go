@@ -40,7 +40,7 @@ func (c *ContributorAnalyzer) Analyze(ctx context.Context, tenantID uuid.UUID) (
 		  AND a.criticality IN ('critical', 'high')
 		  AND v.deleted_at IS NULL
 		  AND a.deleted_at IS NULL
-		ORDER BY severity_order(v.severity) DESC, COALESCE(v.cvss_score, 0) DESC, v.discovered_at ASC
+		ORDER BY severity_order(v.severity::text) DESC, COALESCE(v.cvss_score, 0) DESC, v.discovered_at ASC
 		LIMIT 10`,
 		tenantID,
 	)
@@ -108,7 +108,7 @@ func (c *ContributorAnalyzer) Analyze(ctx context.Context, tenantID uuid.UUID) (
 		SELECT id, name, severity::text, affected_asset_count
 		FROM threats
 		WHERE tenant_id = $1 AND status = 'active' AND deleted_at IS NULL
-		ORDER BY severity_order(severity) DESC, affected_asset_count DESC, last_seen_at DESC
+		ORDER BY severity_order(severity::text) DESC, affected_asset_count DESC, last_seen_at DESC
 		LIMIT 5`,
 		tenantID,
 	)
