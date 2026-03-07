@@ -1,31 +1,139 @@
 'use client';
 
+import { useState } from 'react';
 import { ColumnDef, Row } from '@tanstack/react-table';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { MoreHorizontal, Pencil, FlaskConical } from 'lucide-react';
+import {
+  MoreHorizontal,
+  Pencil,
+  FlaskConical,
+  Copy,
+  Trash2,
+  Bell,
+  AlertTriangle,
+} from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { ConfirmDialog } from '@/components/shared/confirm-dialog';
 import { SeverityIndicator } from '@/components/shared/severity-indicator';
+import { RulePerformanceCard } from './rule-performance-card';
 import { timeAgo } from '@/lib/utils';
 import type { DetectionRule } from '@/types/cyber';
 
 const RULE_TYPE_COLORS: Record<string, string> = {
   sigma: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300',
-  threshold: 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300',
-  correlation: 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300',
-  anomaly: 'bg-teal-100 text-teal-800 dark:bg-teal-900/30 dark:text-teal-300',
+  threshold: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300',
+  correlation: 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300',
+  anomaly: 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300',
 };
 
 interface RuleColumnOptions {
   onToggle?: (rule: DetectionRule) => void;
   onEdit?: (rule: DetectionRule) => void;
   onTest?: (rule: DetectionRule) => void;
+  onDuplicate?: (rule: DetectionRule) => void;
+  onDelete?: (rule: DetectionRule) => void;
+  onViewAlerts?: (rule: DetectionRule) => void;
+}
+
+function RuleToggleCell({
+  rule,
+  onToggle,
+}: {
+  rule: DetectionRule;
+  onToggle?: (rule: DetectionRule) => void;
+}) {
+  const [optimisticEnabled, setOptimisticEnabled] = useState(rule.enabled);
+  const fpHigh = rule.false_positive_rate * 100 > 50;
+
+  const handleChange = () => {
+    setOptimisticEnabled((prev) => !prev);
+    onToggle?.(rule);
+  };
+
+  return (
+    <div className="flex items-center gap-1.5">
+      <Switch
+        checked={optimisticEnabled}
+        onCheckedChange={handleChange}
+        aria-label={`Toggle ${rule.name}`}
+      />
+      {fpHigh && !optimisticEnabled && (
+        <AlertTriangle className="h-3.5 w-3.5 text-red-500" title="High FP rate — auto-disable risk" />
+      )}
+    </div>
+  );
+}
+
+function ActionsCell({
+  rule,
+  onEdit,
+  onTest,
+  onDuplicate,
+  onDelete,
+  onViewAlerts,
+}: {
+  rule: DetectionRule;
+  onEdit?: (rule: DetectionRule) => void;
+  onTest?: (rule: DetectionRule) => void;
+  onDuplicate?: (rule: DetectionRule) => void;
+  onDelete?: (rule: DetectionRule) => void;
+  onViewAlerts?: (rule: DetectionRule) => void;
+}) {
+  const [deleteOpen, setDeleteOpen] = useState(false);
+
+  return (
+    <>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="ghost" size="sm" className="h-7 w-7 p-0">
+            <MoreHorizontal className="h-4 w-4" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          <DropdownMenuItem onClick={() => onEdit?.(rule)}>
+            <Pencil className="mr-2 h-3.5 w-3.5" />
+            {rule.is_template ? 'Customize' : 'Edit'}
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => onTest?.(rule)}>
+            <FlaskConical className="mr-2 h-3.5 w-3.5" /> Test Rule
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => onDuplicate?.(rule)}>
+            <Copy className="mr-2 h-3.5 w-3.5" /> Duplicate
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => onViewAlerts?.(rule)}>
+            <Bell className="mr-2 h-3.5 w-3.5" /> View Alerts
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem
+            onClick={() => setDeleteOpen(true)}
+            className="text-destructive focus:text-destructive"
+          >
+            <Trash2 className="mr-2 h-3.5 w-3.5" /> Delete
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+      <ConfirmDialog
+        open={deleteOpen}
+        onOpenChange={setDeleteOpen}
+        title="Delete Detection Rule"
+        description={`Are you sure you want to delete "${rule.name}"? This action cannot be undone.`}
+        confirmLabel="Delete"
+        variant="destructive"
+        onConfirm={() => {
+          setDeleteOpen(false);
+          onDelete?.(rule);
+        }}
+      />
+    </>
+  );
 }
 
 export function getRuleColumns(options: RuleColumnOptions = {}): ColumnDef<DetectionRule>[] {
@@ -34,11 +142,7 @@ export function getRuleColumns(options: RuleColumnOptions = {}): ColumnDef<Detec
       id: 'enabled',
       header: 'Active',
       cell: ({ row }: { row: Row<DetectionRule> }) => (
-        <Switch
-          checked={row.original.enabled}
-          onCheckedChange={() => options.onToggle?.(row.original)}
-          aria-label={`Toggle ${row.original.name}`}
-        />
+        <RuleToggleCell rule={row.original} onToggle={options.onToggle} />
       ),
     },
     {
@@ -50,7 +154,7 @@ export function getRuleColumns(options: RuleColumnOptions = {}): ColumnDef<Detec
         return (
           <div>
             <p className="font-medium">{rule.name}</p>
-            <p className="text-xs text-muted-foreground line-clamp-1 max-w-xs">{rule.description}</p>
+            <p className="line-clamp-1 max-w-xs text-xs text-muted-foreground">{rule.description}</p>
           </div>
         );
       },
@@ -61,7 +165,9 @@ export function getRuleColumns(options: RuleColumnOptions = {}): ColumnDef<Detec
       accessorKey: 'type',
       header: 'Type',
       cell: ({ row }: { row: Row<DetectionRule> }) => (
-        <span className={`rounded-full px-2 py-0.5 text-xs font-medium capitalize ${RULE_TYPE_COLORS[row.original.type] ?? ''}`}>
+        <span
+          className={`rounded-full px-2 py-0.5 text-xs font-medium capitalize ${RULE_TYPE_COLORS[row.original.type] ?? ''}`}
+        >
           {row.original.type}
         </span>
       ),
@@ -77,44 +183,31 @@ export function getRuleColumns(options: RuleColumnOptions = {}): ColumnDef<Detec
       enableSorting: true,
     },
     {
-      id: 'trigger_count',
-      accessorKey: 'trigger_count',
-      header: 'Triggers',
-      cell: ({ row }: { row: Row<DetectionRule> }) => (
-        <span className="tabular-nums text-sm">{row.original.trigger_count.toLocaleString()}</span>
-      ),
-      enableSorting: true,
-    },
-    {
-      id: 'false_positive_rate',
-      accessorKey: 'false_positive_rate',
-      header: 'FP Rate',
-      cell: ({ row }: { row: Row<DetectionRule> }) => {
-        const rate = row.original.false_positive_rate;
-        const pct = (rate * 100).toFixed(1);
-        return (
-          <span className={`text-sm ${parseFloat(pct) > 10 ? 'text-orange-600 font-medium' : 'text-muted-foreground'}`}>
-            {pct}%
-          </span>
-        );
-      },
-      enableSorting: true,
-    },
-    {
       id: 'mitre',
       header: 'MITRE',
       cell: ({ row }: { row: Row<DetectionRule> }) => {
         const ids = row.original.mitre_technique_ids ?? [];
         if (ids.length === 0) return <span className="text-muted-foreground">—</span>;
         return (
-          <div className="flex gap-1 flex-wrap">
+          <div className="flex flex-wrap gap-1">
             {ids.slice(0, 2).map((id) => (
-              <Badge key={id} variant="outline" className="font-mono text-xs">{id}</Badge>
+              <Badge key={id} variant="outline" className="font-mono text-xs">
+                {id}
+              </Badge>
             ))}
-            {ids.length > 2 && <span className="text-xs text-muted-foreground">+{ids.length - 2}</span>}
+            {ids.length > 2 && (
+              <span className="text-xs text-muted-foreground">+{ids.length - 2}</span>
+            )}
           </div>
         );
       },
+    },
+    {
+      id: 'performance',
+      header: 'Performance',
+      cell: ({ row }: { row: Row<DetectionRule> }) => (
+        <RulePerformanceCard rule={row.original} />
+      ),
     },
     {
       id: 'last_triggered',
@@ -122,7 +215,7 @@ export function getRuleColumns(options: RuleColumnOptions = {}): ColumnDef<Detec
       header: 'Last Triggered',
       cell: ({ row }: { row: Row<DetectionRule> }) => (
         <span className="text-sm text-muted-foreground">
-          {row.original.last_triggered ? timeAgo(row.original.last_triggered) : '—'}
+          {row.original.last_triggered ? timeAgo(row.original.last_triggered) : 'Never'}
         </span>
       ),
       enableSorting: true,
@@ -131,21 +224,14 @@ export function getRuleColumns(options: RuleColumnOptions = {}): ColumnDef<Detec
       id: 'actions',
       header: '',
       cell: ({ row }: { row: Row<DetectionRule> }) => (
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="sm" className="h-7 w-7 p-0">
-              <MoreHorizontal className="h-4 w-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem onClick={() => options.onEdit?.(row.original)}>
-              <Pencil className="mr-2 h-3.5 w-3.5" /> Edit
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => options.onTest?.(row.original)}>
-              <FlaskConical className="mr-2 h-3.5 w-3.5" /> Test Rule
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <ActionsCell
+          rule={row.original}
+          onEdit={options.onEdit}
+          onTest={options.onTest}
+          onDuplicate={options.onDuplicate}
+          onDelete={options.onDelete}
+          onViewAlerts={options.onViewAlerts}
+        />
       ),
       enableSorting: false,
     },

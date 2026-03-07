@@ -257,6 +257,8 @@ func (r *AlertRepository) Escalate(ctx context.Context, tenantID, alertID, escal
 		UPDATE alerts
 		SET
 			status = 'escalated',
+			assigned_to = $3,
+			assigned_at = now(),
 			escalated_to = $3,
 			escalated_at = now(),
 			updated_at = now()
