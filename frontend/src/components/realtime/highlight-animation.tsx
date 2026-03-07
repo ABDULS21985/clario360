@@ -6,6 +6,7 @@ import { cn } from '@/lib/utils';
 interface HighlightAnimationProps {
   children: React.ReactNode;
   highlight?: boolean;
+  highlightKey?: string | number | null;
   className?: string;
   duration?: number; // ms, default 3000
 }
@@ -13,6 +14,7 @@ interface HighlightAnimationProps {
 export function HighlightAnimation({
   children,
   highlight = false,
+  highlightKey,
   className,
   duration = 3000,
 }: HighlightAnimationProps) {
@@ -24,7 +26,7 @@ export function HighlightAnimation({
       const timer = setTimeout(() => setIsHighlighted(false), duration);
       return () => clearTimeout(timer);
     }
-  }, [highlight, duration]);
+  }, [duration, highlight, highlightKey]);
 
   return (
     <div
