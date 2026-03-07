@@ -12,6 +12,10 @@ import type { LucideIcon } from 'lucide-react';
 import type { Notification } from '@/types/models';
 import { isToday, isYesterday, isThisWeek, isThisMonth, parseISO } from 'date-fns';
 
+export function isNotificationRead(notification: Notification): boolean {
+  return notification.read || Boolean(notification.read_at);
+}
+
 export function getNotificationIcon(notification: Notification): LucideIcon {
   const { category, priority } = notification;
   if (category === 'security') {

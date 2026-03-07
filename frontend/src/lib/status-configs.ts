@@ -81,10 +81,11 @@ export const tenantStatusConfig: StatusConfig = {
 };
 
 export const workflowStatusConfig: StatusConfig = {
-  active: { label: "Active", color: "green", icon: Play },
-  inactive: { label: "Inactive", color: "gray", icon: Pause },
-  draft: { label: "Draft", color: "yellow", icon: FileEdit },
-  archived: { label: "Archived", color: "gray", icon: XCircle },
+  running: { label: "Running", color: "blue", icon: Play },
+  completed: { label: "Completed", color: "green", icon: CheckCircle },
+  failed: { label: "Failed", color: "red", icon: XCircle },
+  cancelled: { label: "Cancelled", color: "gray", icon: Ban },
+  suspended: { label: "Suspended", color: "yellow", icon: Pause },
 };
 
 export const contractStatusConfig: StatusConfig = {

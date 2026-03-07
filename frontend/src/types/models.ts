@@ -78,12 +78,15 @@ export type NotificationPriority = 'critical' | 'high' | 'medium' | 'low';
 
 export interface Notification {
   id: string;
+  type?: string;
   title: string;
   body: string;
   category: NotificationCategory;
   priority: NotificationPriority;
-  action_url?: string;
+  data?: Record<string, unknown> | null;
+  action_url?: string | null;
   read: boolean;
+  read_at?: string | null;
   created_at: string;
 }
 
@@ -140,6 +143,11 @@ export interface HumanTask {
   claimed_by_name: string | null;
   assignee_role: string | null;
   assignee_id: string | null;
+  metadata: Record<string, unknown>;
+  claimed_at?: string | null;
+  delegated_by?: string | null;
+  delegated_at?: string | null;
+  completed_at?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -190,6 +198,8 @@ export interface WorkflowInstance {
   variables: Record<string, unknown>;
   step_outputs: Record<string, Record<string, unknown>>;
   definition_steps: StepDefinition[];
+  error_message?: string | null;
+  updated_at?: string;
 }
 
 export interface TaskCounts {

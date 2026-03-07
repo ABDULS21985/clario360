@@ -8,7 +8,7 @@ import {
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { z } from 'zod';
-import type { FormField, HumanTask } from '@/types/models';
+import type { FormField, HumanTask, User } from '@/types/models';
 import { differenceInHours, parseISO } from 'date-fns';
 
 export function formatStepType(type: string): string {
@@ -87,6 +87,43 @@ export function buildDynamicZodSchema(
   }
 
   return z.object(shape);
+}
+
+export function canClaimTask(task: HumanTask, user: User | null | undefined): boolean {
+  if (!user) {
+    return false;
+  }
+
+  if (task.status !== 'pending' || task.claimed_by !== null) {
+    return false;
+  }
+
+  if (task.assignee_id && task.assignee_id === user.id) {
+    return true;
+  }
+
+  if (!task.assignee_role) {
+    return true;
+  }
+
+  return user.roles.some(
+    (role) => role.slug === task.assignee_role || role.name === task.assignee_role,
+  );
+}
+
+export function canDelegateTask(task: HumanTask, user: User | null | undefined): boolean {
+  if (!user) {
+    return false;
+  }
+
+  if (task.claimed_by === user.id) {
+    return true;
+  }
+
+  return user.roles.some((role) => {
+    const normalized = role.slug.toLowerCase();
+    return normalized.includes('admin') || normalized.includes('manager');
+  });
 }
 
 export function formatSLAStatus(task: HumanTask): {
