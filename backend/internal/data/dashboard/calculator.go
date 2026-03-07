@@ -2,6 +2,7 @@ package dashboard
 
 import (
 	"context"
+	"sync"
 	"time"
 
 	"golang.org/x/sync/errgroup"
@@ -16,15 +17,15 @@ import (
 )
 
 type Calculator struct {
-	sourceRepo         *repository.SourceRepository
-	pipelineRepo       *repository.PipelineRepository
-	dashboardRepo      *repository.DashboardRepository
-	contradictionRepo  *repository.ContradictionRepository
-	darkDataRepo       *repository.DarkDataRepository
-	lineageRepo        *repository.LineageRepository
-	qualityScorer      *quality.Scorer
-	cache              *Cache
-	logger             zerolog.Logger
+	sourceRepo        *repository.SourceRepository
+	pipelineRepo      *repository.PipelineRepository
+	dashboardRepo     *repository.DashboardRepository
+	contradictionRepo *repository.ContradictionRepository
+	darkDataRepo      *repository.DarkDataRepository
+	lineageRepo       *repository.LineageRepository
+	qualityScorer     *quality.Scorer
+	cache             *Cache
+	logger            zerolog.Logger
 }
 
 func NewCalculator(sourceRepo *repository.SourceRepository, pipelineRepo *repository.PipelineRepository, dashboardRepo *repository.DashboardRepository, contradictionRepo *repository.ContradictionRepository, darkDataRepo *repository.DarkDataRepository, lineageRepo *repository.LineageRepository, qualityScorer *quality.Scorer, cache *Cache, logger zerolog.Logger) *Calculator {
@@ -61,32 +62,35 @@ func (c *Calculator) Calculate(ctx context.Context, tenantID uuid.UUID) (*dto.Da
 	}
 
 	var (
-		sourceStats *dto.AggregateSourceStatsResponse
-		pipelineStats *model.PipelineStats
-		qualityScore *model.QualityScore
-		qualityTrend []dto.DailyMetric
-		qualityByModel []dto.ModelQualitySummary
-		topFailures []dto.QualityFailureSummary
-		recentRuns []dto.PipelineRunSummary
-		pipelineTrend []dto.DailyMetric
-		pipelineSuccessRate float64
-		failedPipelines24h int
-		sourceDelta int
-		contradictionsDelta int
-		totalModels int
-		byContradictionType map[string]int
+		sourceStats             *dto.AggregateSourceStatsResponse
+		pipelineStats           *model.PipelineStats
+		qualityScore            *model.QualityScore
+		qualityTrend            []dto.DailyMetric
+		qualityByModel          []dto.ModelQualitySummary
+		topFailures             []dto.QualityFailureSummary
+		recentRuns              []dto.PipelineRunSummary
+		pipelineTrend           []dto.DailyMetric
+		pipelineSuccessRate     float64
+		failedPipelines24h      int
+		sourceDelta             int
+		contradictionsDelta     int
+		totalModels             int
+		byContradictionType     map[string]int
 		byContradictionSeverity map[string]int
-		openContradictions int
-		darkDataStats *model.DarkDataStatsSummary
-		lineageEdges []*model.LineageEdgeRecord
+		openContradictions      int
+		darkDataStats           *model.DarkDataStatsSummary
+		lineageEdges            []*model.LineageEdgeRecord
 	)
 
 	g, gctx := errgroup.WithContext(ctx)
+	var failuresMu sync.Mutex
 	run := func(name string, fn func(context.Context) error) {
 		g.Go(func() error {
 			if err := fn(gctx); err != nil {
 				c.logger.Error().Err(err).Str("section", name).Msg("data dashboard section failed")
+				failuresMu.Lock()
 				dashboard.PartialFailures = append(dashboard.PartialFailures, name)
+				failuresMu.Unlock()
 			}
 			return nil
 		})
@@ -175,16 +179,16 @@ func (c *Calculator) Calculate(ctx context.Context, tenantID uuid.UUID) (*dto.Da
 		darkDataStats, err = c.darkDataRepo.Stats(ctx, tenantID)
 		if err == nil {
 			dashboard.DarkDataStats = map[string]any{
-				"total_assets":          darkDataStats.TotalAssets,
-				"by_reason":             darkDataStats.ByReason,
-				"by_type":               darkDataStats.ByType,
-				"by_governance_status":  darkDataStats.ByGovernanceStatus,
-				"pii_assets":            darkDataStats.PIIAssets,
-				"high_risk_assets":      darkDataStats.HighRiskAssets,
-				"total_size_bytes":      darkDataStats.TotalSizeBytes,
-				"average_risk_score":    darkDataStats.AverageRiskScore,
-				"governed_assets":       darkDataStats.GovernedAssets,
-				"scheduled_deletions":   darkDataStats.ScheduledDeletionCount,
+				"total_assets":         darkDataStats.TotalAssets,
+				"by_reason":            darkDataStats.ByReason,
+				"by_type":              darkDataStats.ByType,
+				"by_governance_status": darkDataStats.ByGovernanceStatus,
+				"pii_assets":           darkDataStats.PIIAssets,
+				"high_risk_assets":     darkDataStats.HighRiskAssets,
+				"total_size_bytes":     darkDataStats.TotalSizeBytes,
+				"average_risk_score":   darkDataStats.AverageRiskScore,
+				"governed_assets":      darkDataStats.GovernedAssets,
+				"scheduled_deletions":  darkDataStats.ScheduledDeletionCount,
 			}
 		}
 		return err
@@ -243,9 +247,9 @@ func summarizeLineage(edges []*model.LineageEdgeRecord) map[string]any {
 		relationships[string(edge.Relationship)]++
 	}
 	return map[string]any{
-		"node_count":     len(nodes),
-		"edge_count":     len(edges),
-		"relationships":  relationships,
+		"node_count":    len(nodes),
+		"edge_count":    len(edges),
+		"relationships": relationships,
 	}
 }
 

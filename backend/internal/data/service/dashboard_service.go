@@ -20,4 +20,3 @@ func NewDashboardService(calculator *dashboard.Calculator) *DashboardService {
 func (s *DashboardService) Get(ctx context.Context, tenantID uuid.UUID) (*dto.DataSuiteDashboard, error) {
 	return s.calculator.Calculate(ctx, tenantID)
 }
-

@@ -127,4 +127,3 @@ func sourceTypeToDarkAssetType(sourceType model.DataSourceType) model.DarkDataAs
 		return model.DarkDataAssetDatabaseTable
 	}
 }
-

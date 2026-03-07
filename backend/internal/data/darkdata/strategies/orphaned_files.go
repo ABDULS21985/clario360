@@ -117,4 +117,3 @@ func (s *OrphanedFilesStrategy) hasFilesTable(ctx context.Context) (bool, error)
 	}
 	return exists, nil
 }
-

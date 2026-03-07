@@ -48,4 +48,3 @@ func FormatResult(columns []string, rows []map[string]any, dataModel *model.Data
 		},
 	}
 }
-

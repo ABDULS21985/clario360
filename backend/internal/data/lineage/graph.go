@@ -124,4 +124,3 @@ func maxClassification(values ...string) string {
 	}
 	return best
 }
-

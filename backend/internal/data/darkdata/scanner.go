@@ -18,23 +18,23 @@ import (
 const darkDataEventsTopic = "data.darkdata.events"
 
 type RawDarkDataAsset struct {
-	Name                   string
-	AssetType              model.DarkDataAssetType
-	SourceID               *uuid.UUID
-	SourceName             *string
-	SchemaName             *string
-	TableName              *string
-	FilePath               *string
-	Reason                 model.DarkDataReason
-	EstimatedRowCount      *int64
-	EstimatedSizeBytes     *int64
-	ColumnCount            *int
-	LastAccessedAt         *time.Time
-	LastModifiedAt         *time.Time
-	GovernanceStatus       model.DarkDataGovernanceStatus
-	LinkedModelID          *uuid.UUID
-	Columns                []string
-	Metadata               map[string]any
+	Name               string
+	AssetType          model.DarkDataAssetType
+	SourceID           *uuid.UUID
+	SourceName         *string
+	SchemaName         *string
+	TableName          *string
+	FilePath           *string
+	Reason             model.DarkDataReason
+	EstimatedRowCount  *int64
+	EstimatedSizeBytes *int64
+	ColumnCount        *int
+	LastAccessedAt     *time.Time
+	LastModifiedAt     *time.Time
+	GovernanceStatus   model.DarkDataGovernanceStatus
+	LinkedModelID      *uuid.UUID
+	Columns            []string
+	Metadata           map[string]any
 }
 
 type DarkDataStrategy interface {
@@ -43,12 +43,12 @@ type DarkDataStrategy interface {
 }
 
 type DarkDataScanner struct {
-	strategies   []DarkDataStrategy
-	repo         *repository.DarkDataRepository
-	riskScorer   *DarkDataRiskScorer
-	classifier   *DarkDataClassifier
-	producer     *events.Producer
-	logger       zerolog.Logger
+	strategies []DarkDataStrategy
+	repo       *repository.DarkDataRepository
+	riskScorer *DarkDataRiskScorer
+	classifier *DarkDataClassifier
+	producer   *events.Producer
+	logger     zerolog.Logger
 }
 
 func NewScanner(strategies []DarkDataStrategy, repo *repository.DarkDataRepository, riskScorer *DarkDataRiskScorer, classifier *DarkDataClassifier, producer *events.Producer, logger zerolog.Logger) *DarkDataScanner {

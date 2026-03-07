@@ -86,4 +86,3 @@ func (s *UnmodeledTablesStrategy) Scan(ctx context.Context, tenantID uuid.UUID) 
 	}
 	return results, nil
 }
-

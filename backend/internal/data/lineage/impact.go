@@ -142,4 +142,3 @@ func buildImpactSummary(entityName string, total int, suites []model.AffectedSui
 	}
 	return fmt.Sprintf("If %s becomes unavailable, %d downstream entities would be affected, including %s. Impact severity: %s.", entityName, total, strings.Join(names, ", "), severity)
 }
-

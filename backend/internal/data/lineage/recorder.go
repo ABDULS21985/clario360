@@ -17,16 +17,16 @@ import (
 const lineageEventsTopic = "data.lineage.events"
 
 type LineageRecorder struct {
-	repo         *repository.LineageRepository
-	sourceRepo    *repository.SourceRepository
-	modelRepo     *repository.ModelRepository
-	producer      *events.Producer
-	logger        zerolog.Logger
+	repo       *repository.LineageRepository
+	sourceRepo *repository.SourceRepository
+	modelRepo  *repository.ModelRepository
+	producer   *events.Producer
+	logger     zerolog.Logger
 }
 
 func NewLineageRecorder(repo *repository.LineageRepository, sourceRepo *repository.SourceRepository, modelRepo *repository.ModelRepository, producer *events.Producer, logger zerolog.Logger) *LineageRecorder {
 	return &LineageRecorder{
-		repo:      repo,
+		repo:       repo,
 		sourceRepo: sourceRepo,
 		modelRepo:  modelRepo,
 		producer:   producer,
@@ -210,4 +210,3 @@ func pointerString(value string) *string {
 	}
 	return &value
 }
-

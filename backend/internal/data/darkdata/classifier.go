@@ -58,4 +58,3 @@ func rankClassification(value model.DataClassification) int {
 		return 1
 	}
 }
-

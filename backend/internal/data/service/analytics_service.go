@@ -314,10 +314,10 @@ func (s *AnalyticsService) publish(ctx context.Context, eventType string, tenant
 
 func (s *AnalyticsService) publishQueryEvent(ctx context.Context, tenantID, userID uuid.UUID, modelItem *model.DataModel, validation *analytics.ValidationContext, rowsReturned int) error {
 	return s.publish(ctx, "data.analytics.query_executed", tenantID, map[string]any{
-		"user_id":       userID,
-		"model_id":      modelItem.ID,
-		"rows_returned": rowsReturned,
-		"pii_accessed":  len(validation.PIIColumnsAccessed) > 0,
+		"user_id":        userID,
+		"model_id":       modelItem.ID,
+		"rows_returned":  rowsReturned,
+		"pii_accessed":   len(validation.PIIColumnsAccessed) > 0,
 		"classification": modelItem.DataClassification,
 	})
 }
@@ -418,4 +418,3 @@ func PermissionsFromContext(ctx context.Context) []string {
 	}
 	return unique
 }
-

@@ -77,4 +77,3 @@ func governanceFactor(asset *model.DarkDataAsset) float64 {
 		return 2.5
 	}
 }
-

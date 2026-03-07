@@ -126,4 +126,3 @@ func maskAddress(value string) string {
 	}
 	return strings.Join(parts, ", ")
 }
-

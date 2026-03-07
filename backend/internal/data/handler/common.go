@@ -30,6 +30,8 @@ func (h *baseHandler) writeError(w http.ResponseWriter, r *http.Request, err err
 		suiteapi.WriteError(w, r, http.StatusUnprocessableEntity, "CONNECTION_TEST_FAILED", cleanError(err), nil)
 	case errors.Is(err, service.ErrTimeout):
 		suiteapi.WriteError(w, r, http.StatusGatewayTimeout, "TIMEOUT", cleanError(err), nil)
+	case errors.Is(err, service.ErrUnsupportedType):
+		suiteapi.WriteError(w, r, http.StatusBadRequest, "UNSUPPORTED_TYPE", cleanError(err), nil)
 	case errors.Is(err, pgx.ErrNoRows):
 		suiteapi.WriteError(w, r, http.StatusNotFound, "NOT_FOUND", "resource not found", nil)
 	default:

@@ -17,9 +17,9 @@ import (
 )
 
 type GraphBuilder struct {
-	db      *pgxpool.Pool
-	repo    *repository.LineageRepository
-	logger  zerolog.Logger
+	db     *pgxpool.Pool
+	repo   *repository.LineageRepository
+	logger zerolog.Logger
 }
 
 func NewGraphBuilder(db *pgxpool.Pool, repo *repository.LineageRepository, logger zerolog.Logger) *GraphBuilder {
@@ -345,11 +345,11 @@ func (b *GraphBuilder) loadSourceNodes(ctx context.Context, tenantID uuid.UUID, 
 		node.Name = name
 		node.Status = status
 		node.Metadata = map[string]any{
-			"source_type":          sourceType,
-			"table_count":          intPointerValue(tableCount),
-			"total_row_count":      int64PointerValue(totalRows),
-			"total_size_bytes":     int64PointerValue(totalBytes),
-			"data_classification":  strings.ToLower(strings.TrimSpace(classification)),
+			"source_type":         sourceType,
+			"table_count":         intPointerValue(tableCount),
+			"total_row_count":     int64PointerValue(totalRows),
+			"total_size_bytes":    int64PointerValue(totalBytes),
+			"data_classification": strings.ToLower(strings.TrimSpace(classification)),
 		}
 		nodes[key] = node
 	}

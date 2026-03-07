@@ -57,4 +57,3 @@ func (c *Cache) Invalidate(ctx context.Context, tenantID uuid.UUID) error {
 func (c *Cache) key(tenantID uuid.UUID) string {
 	return "data:dashboard:" + tenantID.String()
 }
-

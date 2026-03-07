@@ -55,4 +55,3 @@ func (r *AuditRecorder) RecordQueryExecution(ctx context.Context, tenantID, user
 		r.logger.Error().Err(err).Str("tenant_id", tenantID.String()).Str("model_id", modelID.String()).Msg("failed to record analytics audit log")
 	}
 }
-

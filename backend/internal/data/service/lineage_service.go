@@ -16,12 +16,12 @@ import (
 )
 
 type LineageService struct {
-	repo      *repository.LineageRepository
-	builder   *lineage.GraphBuilder
-	analyzer  *lineage.ImpactAnalyzer
-	recorder  *lineage.LineageRecorder
-	producer  *events.Producer
-	logger    zerolog.Logger
+	repo     *repository.LineageRepository
+	builder  *lineage.GraphBuilder
+	analyzer *lineage.ImpactAnalyzer
+	recorder *lineage.LineageRecorder
+	producer *events.Producer
+	logger   zerolog.Logger
 }
 
 func NewLineageService(repo *repository.LineageRepository, builder *lineage.GraphBuilder, analyzer *lineage.ImpactAnalyzer, recorder *lineage.LineageRecorder, producer *events.Producer, logger zerolog.Logger) *LineageService {
@@ -180,4 +180,3 @@ func (s *LineageService) publish(ctx context.Context, eventType string, tenantID
 	}
 	return s.producer.Publish(ctx, "data.lineage.events", event)
 }
-

@@ -47,14 +47,14 @@ func (s *UngovernedDataStrategy) Scan(ctx context.Context, tenantID uuid.UUID) (
 	results := make([]darkdata.RawDarkDataAsset, 0)
 	for rows.Next() {
 		var (
-			modelID            uuid.UUID
-			name               string
-			sourceID           *uuid.UUID
-			sourceTable        *string
-			containsPII        bool
-			classification     model.DataClassification
-			embeddedRuleCount  int
-			hasQualityRules    bool
+			modelID           uuid.UUID
+			name              string
+			sourceID          *uuid.UUID
+			sourceTable       *string
+			containsPII       bool
+			classification    model.DataClassification
+			embeddedRuleCount int
+			hasQualityRules   bool
 		)
 		if err := rows.Scan(&modelID, &name, &sourceID, &sourceTable, &containsPII, &classification, &embeddedRuleCount, &hasQualityRules); err != nil {
 			return nil, fmt.Errorf("scan ungoverned data model: %w", err)
@@ -88,4 +88,3 @@ func (s *UngovernedDataStrategy) Scan(ctx context.Context, tenantID uuid.UUID) (
 	}
 	return results, rows.Err()
 }
-

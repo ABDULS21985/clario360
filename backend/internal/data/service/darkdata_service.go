@@ -16,13 +16,13 @@ import (
 )
 
 type DarkDataService struct {
-	repo          *repository.DarkDataRepository
-	scanner       *darkdata.DarkDataScanner
-	modelService  *ModelService
-	sourceRepo    *repository.SourceRepository
-	lineage       *LineageService
-	producer      *events.Producer
-	logger        zerolog.Logger
+	repo         *repository.DarkDataRepository
+	scanner      *darkdata.DarkDataScanner
+	modelService *ModelService
+	sourceRepo   *repository.SourceRepository
+	lineage      *LineageService
+	producer     *events.Producer
+	logger       zerolog.Logger
 }
 
 func NewDarkDataService(repo *repository.DarkDataRepository, scanner *darkdata.DarkDataScanner, modelService *ModelService, sourceRepo *repository.SourceRepository, lineage *LineageService, producer *events.Producer, logger zerolog.Logger) *DarkDataService {
@@ -174,4 +174,3 @@ func (s *DarkDataService) publish(ctx context.Context, eventType string, tenantI
 	}
 	return s.producer.Publish(ctx, "data.darkdata.events", event)
 }
-

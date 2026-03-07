@@ -42,6 +42,14 @@ func NewLineageConsumer(lineageService *service.LineageService, pipelineRepo *re
 	return handler
 }
 
+func (c *LineageConsumer) Start(ctx context.Context) error {
+	return c.consumer.Start(ctx)
+}
+
+func (c *LineageConsumer) Stop() error {
+	return c.consumer.Stop()
+}
+
 func (c *LineageConsumer) Handle(ctx context.Context, event *events.Event) error {
 	tenantID, err := uuid.Parse(event.TenantID)
 	if err != nil {
@@ -73,4 +81,3 @@ func (c *LineageConsumer) Handle(ctx context.Context, event *events.Event) error
 		return nil
 	}
 }
-
