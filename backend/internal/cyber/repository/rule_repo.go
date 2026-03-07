@@ -388,6 +388,9 @@ func (r *RuleRepository) InsertSecurityEvents(ctx context.Context, events []mode
 	timestamps := make([]time.Time, 0, len(events))
 	rows := make([][]interface{}, 0, len(events))
 	for _, event := range events {
+		if event.MatchedRules == nil {
+			event.MatchedRules = []uuid.UUID{}
+		}
 		timestamps = append(timestamps, event.Timestamp)
 		rows = append(rows, []interface{}{
 			event.ID,

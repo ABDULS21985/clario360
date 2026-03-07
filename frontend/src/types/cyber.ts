@@ -451,6 +451,11 @@ export interface DetectionRule {
   false_positive_rate: number;
   last_triggered?: string;
   condition?: string;
+  rule_content?: SigmaRuleContent | ThresholdRuleContent | AnomalyRuleContent | CorrelationRuleContent;
+  base_confidence?: number;
+  is_auto_disabled?: boolean;
+  tp_count?: number;
+  fp_count?: number;
   metadata?: Record<string, unknown>;
   is_template: boolean;
   tags: string[];
@@ -832,12 +837,24 @@ export interface MITRETechniqueCoverage {
   alert_count: number;
   has_detection: boolean;
   last_alert?: string;
+  description?: string;
+  platforms?: string[];
+}
+
+export interface MITRETactic {
+  id: string;
+  name: string;
+  short_name: string;
+  description?: string;
+  technique_count: number;
+  covered_count: number;
 }
 
 export interface MITRECoverage {
   tactics: Array<{
     id: string;
     name: string;
+    short_name?: string;
     technique_count: number;
     covered_count: number;
   }>;
@@ -845,4 +862,88 @@ export interface MITRECoverage {
   total_techniques: number;
   covered_techniques: number;
   coverage_percent: number;
+  active_techniques?: number;
+  passive_techniques?: number;
+  total_alerts_90d?: number;
+}
+
+// ─── Risk Heatmap ─────────────────────────────────────────────────────────────
+
+export interface RiskHeatmapCell {
+  asset_type: string;
+  severity: CyberSeverity;
+  count: number;
+  affected_asset_count: number;
+  total_assets_of_type: number;
+}
+
+export interface RiskHeatmapData {
+  cells: RiskHeatmapCell[];
+  asset_types: string[];
+  total_vulnerabilities: number;
+  generated_at: string;
+}
+
+// ─── Rule Content Types ────────────────────────────────────────────────────────
+
+export interface RuleCondition {
+  field: string;
+  operator: string;
+  value: string;
+}
+
+export interface RuleSelection {
+  name: string;
+  conditions: RuleCondition[];
+}
+
+export interface SigmaRuleContent {
+  selections: RuleSelection[];
+  filters?: RuleSelection[];
+  condition: string;
+  timeframe?: string;
+  threshold?: number;
+}
+
+export interface ThresholdRuleContent {
+  filter_conditions: RuleCondition[];
+  group_by?: string;
+  metric: 'count' | 'sum' | 'distinct';
+  metric_field?: string;
+  threshold: number;
+  window: string;
+}
+
+export interface AnomalyRuleContent {
+  metric: string;
+  group_by?: string;
+  window: string;
+  z_score_threshold: number;
+  min_baseline_samples: number;
+  direction: 'above' | 'below' | 'both';
+}
+
+export interface CorrelationEventType {
+  name: string;
+  conditions: RuleCondition[];
+}
+
+export interface CorrelationRuleContent {
+  event_types: CorrelationEventType[];
+  sequence: string[];
+  group_by?: string;
+  window: string;
+  min_count?: Record<string, number>;
+}
+
+// ─── Export ───────────────────────────────────────────────────────────────────
+
+export interface ExportJob {
+  job_id: string;
+  status: 'pending' | 'running' | 'completed' | 'failed';
+  progress?: number;
+  download_url?: string;
+  error?: string;
+  created_at: string;
+  completed_at?: string;
 }

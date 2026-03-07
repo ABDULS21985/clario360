@@ -74,9 +74,15 @@ export const API_ENDPOINTS = {
 
   // Cyber — MITRE
   CYBER_MITRE_COVERAGE: '/api/v1/cyber/mitre/coverage',
+  CYBER_MITRE_TACTICS: '/api/v1/cyber/mitre/tactics',
+  CYBER_MITRE_TECHNIQUES: '/api/v1/cyber/mitre/techniques',
 
   // Cyber — Risk
   CYBER_RISK_SCORE: '/api/v1/cyber/risk/score',
+  CYBER_RISK_HEATMAP: '/api/v1/cyber/risk/heatmap',
+
+  // Jobs
+  JOBS: '/api/v1/jobs',
 
   // Data
   DATA_PIPELINES: '/api/v1/data/pipelines',

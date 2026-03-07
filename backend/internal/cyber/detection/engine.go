@@ -402,6 +402,9 @@ func normalizeEvents(tenantID uuid.UUID, input []model.SecurityEvent) []model.Se
 		if len(event.RawEvent) == 0 {
 			event.RawEvent = json.RawMessage("{}")
 		}
+		if event.MatchedRules == nil {
+			event.MatchedRules = []uuid.UUID{}
+		}
 		events = append(events, event)
 	}
 	return events
