@@ -1,135 +1,97 @@
 'use client';
 
 import { useState } from 'react';
-import Link from 'next/link';
-import { AlertTriangle } from 'lucide-react';
-import { useQuery } from '@tanstack/react-query';
+import { Bell } from 'lucide-react';
+import { PageHeader } from '@/components/common/page-header';
+import { PermissionRedirect } from '@/components/common/permission-redirect';
+import { DataTable } from '@/components/shared/data-table/data-table';
+import { useDataTable } from '@/hooks/use-data-table';
 import { apiGet } from '@/lib/api';
 import { API_ENDPOINTS } from '@/lib/constants';
-import { timeAgo, cn } from '@/lib/utils';
-import { PageHeader } from '@/components/common/page-header';
-import { LoadingSkeleton } from '@/components/common/loading-skeleton';
-import { ErrorState } from '@/components/common/error-state';
-import { EmptyState } from '@/components/common/empty-state';
-import { PermissionRedirect } from '@/components/common/permission-redirect';
 import type { PaginatedResponse } from '@/types/api';
-import type { Alert } from '@/types/models';
+import type { FetchParams } from '@/types/table';
+import type { CyberAlert } from '@/types/cyber';
 
-function SeverityBadge({ severity }: { severity: string }) {
-  return (
-    <span className={cn(
-      'inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold',
-      severity === 'critical' && 'bg-red-100 text-red-800',
-      severity === 'high' && 'bg-orange-100 text-orange-800',
-      severity === 'medium' && 'bg-yellow-100 text-yellow-800',
-      severity === 'low' && 'bg-blue-100 text-blue-800',
-      severity === 'info' && 'bg-gray-100 text-gray-800',
-    )}>
-      {severity}
-    </span>
-  );
-}
+import { getAlertColumns } from './_components/alert-columns';
+import { ALERT_FILTERS } from './_components/alert-filters';
+import { AlertStatBar } from './_components/alert-stat-bar';
+import { AlertAssignDialog } from './_components/alert-assign-dialog';
+import { AlertStatusDialog } from './_components/alert-status-dialog';
+import { AlertEscalateDialog } from './_components/alert-escalate-dialog';
 
-function StatusBadge({ status }: { status: string }) {
-  return (
-    <span className={cn(
-      'inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold',
-      status === 'new' && 'bg-destructive/10 text-destructive',
-      status === 'acknowledged' && 'bg-amber-100 text-amber-800',
-      status === 'investigating' && 'bg-blue-100 text-blue-800',
-      status === 'resolved' && 'bg-green-100 text-green-800',
-      status === 'false_positive' && 'bg-muted text-muted-foreground',
-    )}>
-      {status.replace('_', ' ')}
-    </span>
-  );
+function fetchAlerts(params: FetchParams): Promise<PaginatedResponse<CyberAlert>> {
+  return apiGet<PaginatedResponse<CyberAlert>>(API_ENDPOINTS.CYBER_ALERTS, params as unknown as Record<string, unknown>);
 }
 
 export default function CyberAlertsPage() {
-  const [page, setPage] = useState(1);
+  const [assignTarget, setAssignTarget] = useState<CyberAlert | null>(null);
+  const [statusTarget, setStatusTarget] = useState<CyberAlert | null>(null);
+  const [escalateTarget, setEscalateTarget] = useState<CyberAlert | null>(null);
 
-  const { data, isLoading, isError, refetch } = useQuery({
-    queryKey: ['cyber', 'alerts', page],
-    queryFn: () =>
-      apiGet<PaginatedResponse<Alert>>(API_ENDPOINTS.CYBER_ALERTS, {
-        sort: 'created_at',
-        order: 'desc',
-        per_page: 20,
-        page,
-      }),
-    refetchInterval: 30000,
+  const { tableProps, setFilter, refetch } = useDataTable<CyberAlert>({
+    fetchFn: fetchAlerts,
+    queryKey: 'cyber-alerts',
+    defaultPageSize: 25,
+    defaultSort: { column: 'created_at', direction: 'desc' },
+    wsTopics: ['alert.created', 'alert.status_changed', 'alert.assigned', 'alert.escalated'],
+  });
+
+  const columns = getAlertColumns({
+    onAssign: setAssignTarget,
+    onChangeStatus: setStatusTarget,
+    onEscalate: setEscalateTarget,
   });
 
   return (
     <PermissionRedirect permission="cyber:read">
       <div className="space-y-6">
-        <PageHeader title="Alerts" description="Monitor and manage security alerts" />
+        <PageHeader
+          title="Security Alerts"
+          description="Monitor, investigate, and resolve security alerts"
+        />
 
-        {isLoading ? (
-          <LoadingSkeleton variant="table-row" count={10} />
-        ) : isError ? (
-          <ErrorState message="Failed to load alerts" onRetry={() => refetch()} />
-        ) : !data || data.data.length === 0 ? (
-          <EmptyState
-            icon={AlertTriangle}
-            title="No alerts found"
-            description="No security alerts match the current filter."
-          />
-        ) : (
-          <div className="rounded-lg border bg-card overflow-hidden">
-            <table className="w-full text-sm">
-              <thead className="border-b bg-muted/30">
-                <tr>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground">Severity</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground">Title</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground hidden md:table-cell">Source</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground">Status</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground hidden lg:table-cell">Created</th>
-                </tr>
-              </thead>
-              <tbody>
-                {data.data.map((alert) => (
-                  <tr key={alert.id} className="border-b last:border-0 hover:bg-muted/30">
-                    <td className="px-4 py-3"><SeverityBadge severity={alert.severity} /></td>
-                    <td className="px-4 py-3">
-                      <Link href={`/cyber/alerts/${alert.id}`} className="font-medium hover:underline">
-                        {alert.title}
-                      </Link>
-                      <p className="text-xs text-muted-foreground truncate max-w-xs">{alert.description}</p>
-                    </td>
-                    <td className="px-4 py-3 text-muted-foreground hidden md:table-cell">{alert.source}</td>
-                    <td className="px-4 py-3"><StatusBadge status={alert.status} /></td>
-                    <td className="px-4 py-3 text-muted-foreground hidden lg:table-cell">{timeAgo(alert.created_at)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            {data.meta.total_pages > 1 && (
-              <div className="flex items-center justify-between border-t px-4 py-3">
-                <p className="text-xs text-muted-foreground">
-                  Page {data.meta.page} of {data.meta.total_pages} ({data.meta.total} total)
-                </p>
-                <div className="flex gap-2">
-                  <button
-                    disabled={page <= 1}
-                    onClick={() => setPage((p) => p - 1)}
-                    className="rounded border px-3 py-1 text-xs disabled:opacity-50 hover:bg-accent"
-                  >
-                    Previous
-                  </button>
-                  <button
-                    disabled={page >= data.meta.total_pages}
-                    onClick={() => setPage((p) => p + 1)}
-                    className="rounded border px-3 py-1 text-xs disabled:opacity-50 hover:bg-accent"
-                  >
-                    Next
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
+        <AlertStatBar onFilterBySeverity={(sev) => setFilter('severity', sev)} />
+
+        <DataTable
+          columns={columns}
+          filters={ALERT_FILTERS}
+          searchPlaceholder="Search alerts…"
+          emptyState={{
+            icon: Bell,
+            title: 'No alerts',
+            description: 'No security alerts match the current filter.',
+          }}
+          getRowId={(row) => row.id}
+          enableColumnToggle
+          stickyHeader
+          {...tableProps}
+        />
       </div>
+
+      {assignTarget && (
+        <AlertAssignDialog
+          open={!!assignTarget}
+          onOpenChange={(o) => { if (!o) setAssignTarget(null); }}
+          alert={assignTarget}
+          onSuccess={() => { setAssignTarget(null); refetch(); }}
+        />
+      )}
+      {statusTarget && (
+        <AlertStatusDialog
+          open={!!statusTarget}
+          onOpenChange={(o) => { if (!o) setStatusTarget(null); }}
+          alert={statusTarget}
+          onSuccess={() => { setStatusTarget(null); refetch(); }}
+        />
+      )}
+      {escalateTarget && (
+        <AlertEscalateDialog
+          open={!!escalateTarget}
+          onOpenChange={(o) => { if (!o) setEscalateTarget(null); }}
+          alert={escalateTarget}
+          onSuccess={() => { setEscalateTarget(null); refetch(); }}
+        />
+      )}
     </PermissionRedirect>
   );
 }

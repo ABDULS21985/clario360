@@ -28,7 +28,7 @@ import { BulkImportDialog } from './_components/bulk-import-dialog';
 type ViewMode = 'table' | 'grid';
 
 function fetchAssets(params: FetchParams): Promise<PaginatedResponse<CyberAsset>> {
-  return apiGet<PaginatedResponse<CyberAsset>>(API_ENDPOINTS.CYBER_ASSETS, params as Record<string, unknown>);
+  return apiGet<PaginatedResponse<CyberAsset>>(API_ENDPOINTS.CYBER_ASSETS, params as unknown as Record<string, unknown>);
 }
 
 export default function AssetsPage() {
@@ -58,7 +58,7 @@ export default function AssetsPage() {
     icon: ShieldAlert,
     title: 'No assets found',
     description: 'Get started by creating an asset or running an automated discovery scan.',
-    action: { label: 'Create Asset', onClick: () => setCreateOpen(true), icon: Plus },
+    action: { label: 'Create Asset', onClick: () => setCreateOpen(true) },
   };
 
   return (
@@ -128,7 +128,7 @@ export default function AssetsPage() {
                 icon={ShieldAlert}
                 title="No assets found"
                 description="Get started by creating an asset or running a scan."
-                action={{ label: 'Create Asset', onClick: () => setCreateOpen(true), icon: Plus }}
+                action={{ label: 'Create Asset', onClick: () => setCreateOpen(true) }}
               />
             ) : (
               <AssetGridView
