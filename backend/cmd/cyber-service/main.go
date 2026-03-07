@@ -2,17 +2,19 @@ package main
 
 import (
 	"context"
+	"errors"
+	"fmt"
+	"net/url"
 	"os"
 	"os/signal"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
-	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
-	"github.com/redis/go-redis/v9"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/clario360/platform/internal/auth"
@@ -29,8 +31,8 @@ import (
 	"github.com/clario360/platform/internal/cyber/service"
 	"github.com/clario360/platform/internal/database"
 	"github.com/clario360/platform/internal/events"
-	"github.com/clario360/platform/internal/observability"
-	"github.com/clario360/platform/internal/server"
+	bootstrap "github.com/clario360/platform/internal/observability/bootstrap"
+	"github.com/clario360/platform/internal/observability/tracing"
 	workflowrepo "github.com/clario360/platform/internal/workflow/repository"
 )
 
@@ -65,36 +67,20 @@ func main() {
 	}
 	cfg.Auth.RSAPublicKeyPEM = string(publicKeyPEM)
 
-	// ── 3. Logger ──────────────────────────────────────────────────────────────
-	logger := observability.NewLogger(
-		cfg.Observability.LogLevel,
-		cfg.Observability.LogFormat,
-		"cyber-service",
-	)
-
-	// ── 4. Tracer ──────────────────────────────────────────────────────────────
-	shutdownTracer, err := observability.InitTracer(ctx, "cyber-service", cfg.Observability.OTLPEndpoint)
+	// ── 3. Bootstrap shared infrastructure ─────────────────────────────────────
+	bootstrapCfg, err := buildBootstrapConfig(cfg, cyberCfg)
 	if err != nil {
-		logger.Warn().Err(err).Msg("failed to initialize tracer — continuing without tracing")
-	} else {
-		defer shutdownTracer(ctx)
+		os.Stderr.WriteString("building bootstrap config: " + err.Error() + "\n")
+		os.Exit(1)
 	}
-
-	// ── 5. Database ────────────────────────────────────────────────────────────
-	poolCfg, err := pgxpool.ParseConfig(cyberCfg.DBURL)
+	svc, err := bootstrap.Bootstrap(ctx, bootstrapCfg)
 	if err != nil {
-		logger.Fatal().Err(err).Msg("failed to parse cyber database URL")
+		os.Stderr.WriteString("bootstrapping cyber-service: " + err.Error() + "\n")
+		os.Exit(1)
 	}
-	poolCfg.MaxConns = int32(cyberCfg.DBMaxConn)
-	poolCfg.MinConns = int32(cyberCfg.DBMinConn)
-	db, err := pgxpool.NewWithConfig(ctx, poolCfg)
-	if err != nil {
-		logger.Fatal().Err(err).Msg("failed to connect to database")
-	}
-	if err := db.Ping(ctx); err != nil {
-		logger.Fatal().Err(err).Msg("failed to ping database")
-	}
-	defer db.Close()
+	logger := svc.Logger
+	db := svc.DBPool
+	rdb := svc.Redis
 
 	migrationsPath := envOr("CYBER_MIGRATIONS_PATH", filepath.Join("migrations", "cyber_db"))
 	if _, err := os.Stat(migrationsPath); err != nil {
@@ -107,35 +93,22 @@ func main() {
 		logger.Fatal().Err(err).Msg("failed to run workflow schema migration for cyber-service")
 	}
 
-	// ── 6. Redis ───────────────────────────────────────────────────────────────
-	redisOptions, err := redis.ParseURL(cyberCfg.RedisURL)
-	if err != nil {
-		logger.Fatal().Err(err).Msg("failed to parse redis URL")
-	}
-	rdb := redis.NewClient(redisOptions)
-	defer rdb.Close()
-
-	// ── 7. Prometheus registries ───────────────────────────────────────────────
+	// ── 4. Prometheus registries ───────────────────────────────────────────────
 	// Use a Gatherers to merge the standard Go/process metrics with the
-	// cyber-service application metrics so both are exposed at /metrics.
+	// shared bootstrap registry and cyber-service application metrics.
 	m := cybermetrics.New()
-	runtimeReg := prometheus.NewRegistry()
-	runtimeReg.MustRegister(prometheus.NewGoCollector())
-	runtimeReg.MustRegister(prometheus.NewProcessCollector(prometheus.ProcessCollectorOpts{}))
-	promGatherers := prometheus.Gatherers{runtimeReg, m.Registry}
+	promGatherers := prometheus.Gatherers{svc.Metrics.Registry(), m.Registry}
 
-	// ── 8. Kafka producer ──────────────────────────────────────────────────────
+	// ── 5. Kafka producer ──────────────────────────────────────────────────────
 	var producer *events.Producer
 	if len(cfg.Kafka.Brokers) > 0 && cfg.Kafka.Brokers[0] != "" {
 		producer, err = events.NewProducer(cfg.Kafka, logger)
 		if err != nil {
 			logger.Warn().Err(err).Msg("Kafka producer unavailable — events will not be published")
-		} else {
-			defer producer.Close()
 		}
 	}
 
-	// ── 9. Repositories ────────────────────────────────────────────────────────
+	// ── 6. Repositories ────────────────────────────────────────────────────────
 	assetRepo := repository.NewAssetRepository(db, logger)
 	vulnRepo := repository.NewVulnerabilityRepository(db, logger)
 	relRepo := repository.NewRelationshipRepository(db, logger)
@@ -149,19 +122,19 @@ func main() {
 	workflowInstRepo := workflowrepo.NewInstanceRepository(db)
 	workflowTaskRepo := workflowrepo.NewTaskRepository(db)
 
-	// ── 10. Classifier ─────────────────────────────────────────────────────────
+	// ── 7. Classifier ──────────────────────────────────────────────────────────
 	cls := classifier.NewAssetClassifier(logger)
 
-	// ── 11. Enrichment pipeline ────────────────────────────────────────────────
+	// ── 8. Enrichment pipeline ─────────────────────────────────────────────────
 	dnsEnricher := enrichment.NewDNSEnricher(logger, time.Duration(cyberCfg.EnrichmentDNSTimeoutSec)*time.Second)
 	cveEnricher := enrichment.NewCVEEnricher(logger, vulnRepo, cyberCfg.EnrichmentCVEEnabled)
 	geoEnricher := enrichment.NewGeoEnricher(logger, cyberCfg.EnrichmentGeoDBPath, cyberCfg.EnrichmentGeoEnabled)
 	pipeline := enrichment.NewPipeline(logger, dnsEnricher, cveEnricher, geoEnricher)
 
-	// ── 12. Enrichment service ─────────────────────────────────────────────────
+	// ── 9. Enrichment service ──────────────────────────────────────────────────
 	enrichSvc := service.NewEnrichmentService(pipeline, assetRepo, m, logger)
 
-	// ── 13. Scanner registry ───────────────────────────────────────────────────
+	// ── 10. Scanner registry ───────────────────────────────────────────────────
 	scanRegistry := scanner.NewRegistry()
 
 	networkScanner := scanner.NewNetworkScanner(
@@ -178,7 +151,7 @@ func main() {
 	scanRegistry.Register(cloudScanner)
 	scanRegistry.Register(agentCollector)
 
-	// ── 14. Asset service ──────────────────────────────────────────────────────
+	// ── 11. Asset service ──────────────────────────────────────────────────────
 	assetSvc := service.NewAssetService(
 		assetRepo, vulnRepo, relRepo, scanRepo,
 		scanRegistry, cls, enrichSvc,
@@ -214,74 +187,141 @@ func main() {
 		logger,
 	)
 
-	// ── 15. HTTP server ────────────────────────────────────────────────────────
-	srv, err := server.New(cfg, db, rdb, logger)
-	if err != nil {
-		logger.Fatal().Err(err).Msg("failed to create HTTP server")
-	}
+	// ── 12. Route registration ─────────────────────────────────────────────────
+	svc.Router.Handle("/metrics", promhttp.HandlerFor(promGatherers, promhttp.HandlerOpts{}))
+	svc.AdminRouter.Handle("/metrics", promhttp.HandlerFor(promGatherers, promhttp.HandlerOpts{}))
 
-	// Expose both runtime and cyber-service application metrics at /metrics.
-	srv.Router.Handle("/metrics", promhttp.HandlerFor(promGatherers, promhttp.HandlerOpts{}))
-
-	// Register JWT manager for route middleware
 	jwtMgr, err := auth.NewJWTManager(cfg.Auth)
 	if err != nil {
 		logger.Fatal().Err(err).Msg("failed to create JWT manager")
 	}
-
-	// ── 16. Routes ─────────────────────────────────────────────────────────────
 	assetHandler := handler.NewAssetHandler(assetSvc, logger)
 	ctemHandler := handler.NewCTEMHandler(ctemSvc, logger)
 	ctemReportHandler := handler.NewCTEMReportHandler(ctemSvc, logger)
-	handler.RegisterRoutes(srv.Router, assetHandler, ctemHandler, ctemReportHandler, jwtMgr, rdb)
+	handler.RegisterRoutes(svc.Router, assetHandler, ctemHandler, ctemReportHandler, jwtMgr, rdb)
 
-	// ── 17. Kafka consumer ─────────────────────────────────────────────────────
+	// ── 13. Kafka consumer ─────────────────────────────────────────────────────
 	var cyberConsumer *consumer.CyberConsumer
 	if len(cfg.Kafka.Brokers) > 0 && cfg.Kafka.Brokers[0] != "" {
 		kafkaConsumer, err := events.NewConsumer(cfg.Kafka, logger)
 		if err != nil {
 			logger.Warn().Err(err).Msg("Kafka consumer unavailable — event processing disabled")
 		} else {
-			cyberConsumer = consumer.NewCyberConsumer(assetSvc, kafkaConsumer, logger)
+			cyberConsumer = consumer.NewCyberConsumer(assetSvc, nil, "", kafkaConsumer, logger)
+			_ = consumer.NewCTEMConsumer(ctemSvc, kafkaConsumer, logger)
 		}
 	}
 
-	// ── 18. Scan scheduler ─────────────────────────────────────────────────────
+	// ── 14. Scan scheduler ─────────────────────────────────────────────────────
 	sched := scanner.NewScheduler(logger)
 	// Add scheduled scans here via sched.Register(...)
 
-	// ── 19. Start all components ───────────────────────────────────────────────
+	// ── 15. Start all components ───────────────────────────────────────────────
 	g, gCtx := errgroup.WithContext(ctx)
-
-	// HTTP server
-	g.Go(func() error {
-		logger.Info().Int("port", cfg.Server.Port).Msg("cyber-service starting")
-		return srv.Start()
-	})
 
 	// Kafka consumer
 	if cyberConsumer != nil {
 		g.Go(func() error {
-			return cyberConsumer.Start(gCtx)
+			err := cyberConsumer.Start(gCtx)
+			if err != nil && !errors.Is(err, context.Canceled) {
+				return err
+			}
+			return nil
 		})
 	}
 
 	// Scheduler (no-op until scans are registered)
 	g.Go(func() error {
-		return sched.Start(gCtx)
+		err := sched.Start(gCtx)
+		if err != nil && !errors.Is(err, context.Canceled) {
+			return err
+		}
+		return nil
 	})
 
-	// Wait for shutdown
-	if err := g.Wait(); err != nil {
-		logger.Error().Err(err).Msg("cyber-service stopped with error")
+	logger.Info().Int("port", bootstrapCfg.Port).Msg("cyber-service starting")
+	runErr := svc.Run(ctx)
+	cancel()
+	if waitErr := g.Wait(); waitErr != nil {
+		logger.Error().Err(waitErr).Msg("cyber background components stopped with error")
+	}
+	if runErr != nil && !errors.Is(runErr, context.Canceled) {
+		logger.Error().Err(runErr).Msg("cyber-service stopped with error")
 	}
 
-	// Graceful shutdown
 	if cyberConsumer != nil {
 		_ = cyberConsumer.Stop()
 	}
+	if producer != nil {
+		_ = producer.Close()
+	}
 
 	logger.Info().Msg("cyber-service shutdown complete")
+}
+
+func buildBootstrapConfig(cfg *config.Config, cyberCfg *cyberconfig.Config) (*bootstrap.ServiceConfig, error) {
+	redisURL, err := url.Parse(cyberCfg.RedisURL)
+	if err != nil {
+		return nil, fmt.Errorf("parse redis url: %w", err)
+	}
+	redisPassword, _ := redisURL.User.Password()
+	redisDB := 0
+	if dbSegment := strings.TrimPrefix(redisURL.Path, "/"); dbSegment != "" {
+		if parsed, parseErr := strconv.Atoi(dbSegment); parseErr == nil {
+			redisDB = parsed
+		}
+	}
+
+	return &bootstrap.ServiceConfig{
+		Name:            "cyber-service",
+		Version:         cfg.Observability.ServiceName,
+		Environment:     envOr("ENVIRONMENT", "development"),
+		Port:            mustParsePort(cyberCfg.HTTPPort, 8090),
+		AdminPort:       cfg.Observability.MetricsPort,
+		LogLevel:        cfg.Observability.LogLevel,
+		DebugSampleRate: 100,
+		ShutdownTimeout: cfg.Server.ShutdownTimeout,
+		ReadTimeout:     cfg.Server.ReadTimeout,
+		WriteTimeout:    cfg.Server.WriteTimeout,
+		Tracing: bootstrapTracingConfig(cfg),
+		EnablePprof:     false,
+		DB: &bootstrap.DBConfig{
+			URL:               cyberCfg.DBURL,
+			MinConns:          cyberCfg.DBMinConn,
+			MaxConns:          cyberCfg.DBMaxConn,
+			MaxConnLife:       time.Hour,
+			MaxConnIdle:       30 * time.Minute,
+			HealthCheckPeriod: time.Minute,
+		},
+		Redis: &bootstrap.RedisConfig{
+			Addr:     redisURL.Host,
+			Password: redisPassword,
+			DB:       redisDB,
+		},
+		Kafka: &bootstrap.KafkaConfig{
+			Brokers: cyberCfg.KafkaBrokers,
+			GroupID: cyberCfg.KafkaGroupID,
+		},
+	}, nil
+}
+
+func bootstrapTracingConfig(cfg *config.Config) tracing.TracerConfig {
+	return tracing.TracerConfig{
+		Enabled:     cfg.Observability.OTLPEndpoint != "",
+		Endpoint:    cfg.Observability.OTLPEndpoint,
+		ServiceName: "cyber-service",
+		Version:     cfg.Observability.ServiceName,
+		Environment: envOr("ENVIRONMENT", "development"),
+		SampleRate:  1,
+		Insecure:    true,
+	}
+}
+
+func mustParsePort(raw string, fallback int) int {
+	if port, err := strconv.Atoi(raw); err == nil {
+		return port
+	}
+	return fallback
 }
 
 func envOr(key, fallback string) string {

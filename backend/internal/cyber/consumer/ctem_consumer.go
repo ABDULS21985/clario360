@@ -6,19 +6,19 @@ import (
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
 
-	"github.com/clario360/platform/internal/cyber/ctem"
+	"github.com/clario360/platform/internal/cyber/service"
 	"github.com/clario360/platform/internal/events"
 )
 
 type CTEMConsumer struct {
-	engine   *ctem.CTEMEngine
+	svc      *service.CTEMService
 	consumer *events.Consumer
 	logger   zerolog.Logger
 }
 
-func NewCTEMConsumer(engine *ctem.CTEMEngine, consumer *events.Consumer, logger zerolog.Logger) *CTEMConsumer {
+func NewCTEMConsumer(svc *service.CTEMService, consumer *events.Consumer, logger zerolog.Logger) *CTEMConsumer {
 	c := &CTEMConsumer{
-		engine:   engine,
+		svc:      svc,
 		consumer: consumer,
 		logger:   logger.With().Str("component", "ctem-consumer").Logger(),
 	}
@@ -47,7 +47,7 @@ func (c *CTEMConsumer) handleCTEMEvent(ctx context.Context, event *events.Event)
 		if err != nil {
 			return err
 		}
-		return c.engine.RunAssessment(ctx, assessmentID)
+		return c.svc.RunAssessmentAsyncFromEvent(assessmentID)
 	default:
 		return nil
 	}

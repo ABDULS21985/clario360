@@ -10,6 +10,7 @@ import (
 
 	"github.com/clario360/platform/internal/cyber/detection"
 	"github.com/clario360/platform/internal/cyber/dto"
+	"github.com/clario360/platform/internal/cyber/mitre"
 	"github.com/clario360/platform/internal/cyber/model"
 	"github.com/clario360/platform/internal/cyber/repository"
 	"github.com/clario360/platform/internal/events"
@@ -123,7 +124,7 @@ func (s *RuleService) CreateRule(ctx context.Context, tenantID, userID uuid.UUID
 	if err != nil {
 		return nil, err
 	}
-	_ = publishEvent(ctx, s.producer, events.Topics.AlertEvents, "cyber.rule.created", tenantID, actor, map[string]interface{}{
+	_ = publishEvent(ctx, s.producer, events.Topics.RuleEvents, "cyber.rule.created", tenantID, actor, map[string]interface{}{
 		"id":       created.ID.String(),
 		"name":     created.Name,
 		"type":     created.RuleType,
@@ -177,7 +178,7 @@ func (s *RuleService) UpdateRule(ctx context.Context, tenantID, ruleID uuid.UUID
 	if err != nil {
 		return nil, err
 	}
-	_ = publishEvent(ctx, s.producer, events.Topics.AlertEvents, "cyber.rule.updated", tenantID, actor, map[string]interface{}{
+	_ = publishEvent(ctx, s.producer, events.Topics.RuleEvents, "cyber.rule.updated", tenantID, actor, map[string]interface{}{
 		"id":             ruleID.String(),
 		"changed_fields": changedRuleFields(existing, req),
 	})
@@ -206,7 +207,7 @@ func (s *RuleService) Toggle(ctx context.Context, tenantID, ruleID uuid.UUID, ac
 	if err != nil {
 		return nil, err
 	}
-	_ = publishEvent(ctx, s.producer, events.Topics.AlertEvents, "cyber.rule.toggled", tenantID, actor, map[string]interface{}{
+	_ = publishEvent(ctx, s.producer, events.Topics.RuleEvents, "cyber.rule.toggled", tenantID, actor, map[string]interface{}{
 		"id":      ruleID.String(),
 		"enabled": enabled,
 	})
@@ -284,7 +285,7 @@ func (s *RuleService) SubmitFeedback(ctx context.Context, tenantID uuid.UUID, ac
 		_, _ = s.alertSvc.AddComment(ctx, tenantID, req.AlertID, actor, &dto.AlertCommentRequest{
 			Content: fmt.Sprintf("Rule auto-disabled due to %.1f%% false positive rate.", fpRate*100),
 		})
-		_ = publishEvent(ctx, s.producer, events.Topics.AlertEvents, "cyber.rule.auto_disabled", tenantID, actor, map[string]interface{}{
+		_ = publishEvent(ctx, s.producer, events.Topics.RuleEvents, "cyber.rule.auto_disabled", tenantID, actor, map[string]interface{}{
 			"id":      rule.ID.String(),
 			"reason":  "high false positive rate",
 			"fp_rate": fpRate,
@@ -296,6 +297,19 @@ func (s *RuleService) SubmitFeedback(ctx context.Context, tenantID uuid.UUID, ac
 		"feedback": req.Feedback,
 	})
 	return rule, nil
+}
+
+// Coverage returns the ATT&CK coverage map for the tenant's enabled rules.
+func (s *RuleService) Coverage(ctx context.Context, tenantID uuid.UUID, actor *Actor) ([]mitre.TechniqueCoverage, error) {
+	rules, err := s.ruleRepo.ListEnabledByTenant(ctx, tenantID)
+	if err != nil {
+		return nil, err
+	}
+	coverage := mitre.BuildCoverage(rules)
+	_ = publishAuditEvent(ctx, s.producer, "cyber.mitre.coverage_viewed", tenantID, actor, map[string]interface{}{
+		"count": len(coverage),
+	})
+	return coverage, nil
 }
 
 func (s *RuleService) buildRuleFromCreateRequest(tenantID uuid.UUID, req *dto.CreateRuleRequest) (*model.DetectionRule, error) {

@@ -12,7 +12,18 @@ import (
 
 // RegisterRoutes mounts all cyber service routes on the given router.
 // All routes require a valid JWT; tenant isolation is enforced by the Auth middleware.
-func RegisterRoutes(r chi.Router, assetHandler *AssetHandler, ctemHandler *CTEMHandler, ctemReportHandler *CTEMReportHandler, jwtMgr *auth.JWTManager, rdb *redis.Client) {
+func RegisterRoutes(
+	r chi.Router,
+	assetHandler *AssetHandler,
+	alertHandler *AlertHandler,
+	ruleHandler *RuleHandler,
+	threatHandler *ThreatHandler,
+	mitreHandler *MITREHandler,
+	ctemHandler *CTEMHandler,
+	ctemReportHandler *CTEMReportHandler,
+	jwtMgr *auth.JWTManager,
+	rdb *redis.Client,
+) {
 	cyberhealth.Register(r)
 
 	r.Route("/api/v1/cyber", func(r chi.Router) {
@@ -52,6 +63,48 @@ func RegisterRoutes(r chi.Router, assetHandler *AssetHandler, ctemHandler *CTEMH
 		r.Get("/assets/{id}/vulnerabilities", assetHandler.ListVulnerabilities)
 		r.Post("/assets/{id}/vulnerabilities", assetHandler.CreateVulnerability)
 		r.Put("/assets/{id}/vulnerabilities/{vid}", assetHandler.UpdateVulnerability)
+
+		// ---- Alerts ----
+		r.Get("/alerts/stats", alertHandler.Stats)
+		r.Get("/alerts/count", alertHandler.Count)
+		r.Get("/alerts/{id}/comments", alertHandler.ListComments)
+		r.Get("/alerts/{id}/timeline", alertHandler.ListTimeline)
+		r.Get("/alerts/{id}/related", alertHandler.Related)
+		r.Get("/alerts/{id}", alertHandler.GetAlert)
+		r.Get("/alerts", alertHandler.ListAlerts)
+		r.Put("/alerts/{id}/status", alertHandler.UpdateStatus)
+		r.Put("/alerts/{id}/assign", alertHandler.Assign)
+		r.Post("/alerts/{id}/escalate", alertHandler.Escalate)
+		r.Post("/alerts/{id}/comment", alertHandler.AddComment)
+		r.Post("/alerts/{id}/merge", alertHandler.Merge)
+
+		// ---- Detection Rules ----
+		r.Get("/rules/templates", ruleHandler.ListTemplates)
+		r.Get("/rules/{id}", ruleHandler.GetRule)
+		r.Get("/rules", ruleHandler.ListRules)
+		r.Post("/rules", ruleHandler.CreateRule)
+		r.Put("/rules/{id}", ruleHandler.UpdateRule)
+		r.Delete("/rules/{id}", ruleHandler.DeleteRule)
+		r.Put("/rules/{id}/toggle", ruleHandler.Toggle)
+		r.Post("/rules/{id}/test", ruleHandler.TestRule)
+		r.Post("/rules/{id}/feedback", ruleHandler.Feedback)
+
+		// ---- Threats & Indicators ----
+		r.Get("/threats/stats", threatHandler.Stats)
+		r.Get("/threats/{id}/indicators", threatHandler.ListIndicatorsForThreat)
+		r.Post("/threats/{id}/indicators", threatHandler.AddIndicatorToThreat)
+		r.Get("/threats/{id}", threatHandler.GetThreat)
+		r.Get("/threats", threatHandler.ListThreats)
+		r.Put("/threats/{id}/status", threatHandler.UpdateStatus)
+		r.Post("/indicators/check", threatHandler.CheckIndicators)
+		r.Post("/indicators/bulk", threatHandler.BulkImportIndicators)
+		r.Get("/indicators", threatHandler.ListIndicators)
+
+		// ---- MITRE ATT&CK ----
+		r.Get("/mitre/tactics", mitreHandler.ListTactics)
+		r.Get("/mitre/techniques/{id}", mitreHandler.GetTechnique)
+		r.Get("/mitre/techniques", mitreHandler.ListTechniques)
+		r.Get("/mitre/coverage", mitreHandler.Coverage)
 
 		if ctemHandler != nil && ctemReportHandler != nil {
 			r.Route("/ctem", func(r chi.Router) {

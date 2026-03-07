@@ -1,0 +1,188 @@
+package handler
+
+import (
+	"fmt"
+	"net/http"
+	"strconv"
+	"time"
+
+	"github.com/google/uuid"
+
+	"github.com/clario360/platform/internal/auth"
+	"github.com/clario360/platform/internal/cyber/dto"
+	"github.com/clario360/platform/internal/cyber/service"
+)
+
+func actorFromRequest(r *http.Request) *service.Actor {
+	user := auth.UserFromContext(r.Context())
+	if user == nil {
+		return nil
+	}
+	userID, err := uuid.Parse(user.ID)
+	if err != nil {
+		return nil
+	}
+	return &service.Actor{
+		UserID:    userID,
+		UserName:  user.Email,
+		UserEmail: user.Email,
+		IPAddress: r.RemoteAddr,
+		UserAgent: r.UserAgent(),
+	}
+}
+
+func parseAlertListParams(r *http.Request) (*dto.AlertListParams, error) {
+	q := r.URL.Query()
+	params := &dto.AlertListParams{}
+	if v := q.Get("search"); v != "" {
+		params.Search = &v
+	}
+	params.Severities = splitQueryValues(q, "severity")
+	params.Statuses = splitQueryValues(q, "status")
+	if v := q.Get("assigned_to"); v != "" {
+		id, err := uuid.Parse(v)
+		if err != nil {
+			return nil, fmt.Errorf("invalid assigned_to: %w", err)
+		}
+		params.AssignedTo = &id
+	}
+	if v := q.Get("unassigned"); v != "" {
+		b, err := strconv.ParseBool(v)
+		if err != nil {
+			return nil, fmt.Errorf("invalid unassigned: %w", err)
+		}
+		params.Unassigned = &b
+	}
+	if v := q.Get("asset_id"); v != "" {
+		id, err := uuid.Parse(v)
+		if err != nil {
+			return nil, fmt.Errorf("invalid asset_id: %w", err)
+		}
+		params.AssetID = &id
+	}
+	if v := q.Get("rule_id"); v != "" {
+		id, err := uuid.Parse(v)
+		if err != nil {
+			return nil, fmt.Errorf("invalid rule_id: %w", err)
+		}
+		params.RuleID = &id
+	}
+	if v := q.Get("mitre_technique_id"); v != "" {
+		params.MITRETechniqueID = &v
+	}
+	if v := q.Get("mitre_tactic_id"); v != "" {
+		params.MITRETacticID = &v
+	}
+	if v := q.Get("min_confidence"); v != "" {
+		value, err := strconv.ParseFloat(v, 64)
+		if err != nil {
+			return nil, fmt.Errorf("invalid min_confidence: %w", err)
+		}
+		params.MinConfidence = &value
+	}
+	params.Tags = splitQueryValues(q, "tag")
+	if v := q.Get("date_from"); v != "" {
+		ts, err := parseFlexibleTime(v)
+		if err != nil {
+			return nil, fmt.Errorf("invalid date_from: %w", err)
+		}
+		params.DateFrom = &ts
+	}
+	if v := q.Get("date_to"); v != "" {
+		ts, err := parseFlexibleTime(v)
+		if err != nil {
+			return nil, fmt.Errorf("invalid date_to: %w", err)
+		}
+		params.DateTo = &ts
+	}
+	params.Sort = q.Get("sort")
+	params.Order = q.Get("order")
+	if v := q.Get("page"); v != "" {
+		params.Page, _ = strconv.Atoi(v)
+	}
+	if v := q.Get("per_page"); v != "" {
+		params.PerPage, _ = strconv.Atoi(v)
+	}
+	return params, nil
+}
+
+func parseRuleListParams(r *http.Request) *dto.RuleListParams {
+	q := r.URL.Query()
+	params := &dto.RuleListParams{
+		Search:     stringValue(q.Get("search")),
+		Types:      splitQueryValues(q, "type"),
+		Severities: splitQueryValues(q, "severity"),
+		Tag:        stringValue(q.Get("tag")),
+	}
+	if v := q.Get("enabled"); v != "" {
+		b, _ := strconv.ParseBool(v)
+		params.Enabled = &b
+	}
+	if v := q.Get("page"); v != "" {
+		params.Page, _ = strconv.Atoi(v)
+	}
+	if v := q.Get("per_page"); v != "" {
+		params.PerPage, _ = strconv.Atoi(v)
+	}
+	return params
+}
+
+func parseThreatListParams(r *http.Request) *dto.ThreatListParams {
+	q := r.URL.Query()
+	params := &dto.ThreatListParams{
+		Search:     stringValue(q.Get("search")),
+		Types:      splitQueryValues(q, "type"),
+		Statuses:   splitQueryValues(q, "status"),
+		Severities: splitQueryValues(q, "severity"),
+	}
+	if v := q.Get("page"); v != "" {
+		params.Page, _ = strconv.Atoi(v)
+	}
+	if v := q.Get("per_page"); v != "" {
+		params.PerPage, _ = strconv.Atoi(v)
+	}
+	return params
+}
+
+func parseIndicatorListParams(r *http.Request) (*dto.IndicatorListParams, error) {
+	q := r.URL.Query()
+	params := &dto.IndicatorListParams{
+		Type:   stringValue(q.Get("type")),
+		Search: stringValue(q.Get("search")),
+	}
+	if v := q.Get("threat_id"); v != "" {
+		id, err := uuid.Parse(v)
+		if err != nil {
+			return nil, fmt.Errorf("invalid threat_id: %w", err)
+		}
+		params.ThreatID = &id
+	}
+	if v := q.Get("active"); v != "" {
+		b, err := strconv.ParseBool(v)
+		if err != nil {
+			return nil, fmt.Errorf("invalid active: %w", err)
+		}
+		params.Active = &b
+	}
+	if v := q.Get("page"); v != "" {
+		params.Page, _ = strconv.Atoi(v)
+	}
+	if v := q.Get("per_page"); v != "" {
+		params.PerPage, _ = strconv.Atoi(v)
+	}
+	return params, nil
+}
+
+func parseFlexibleTime(value string) (time.Time, error) {
+	if ts, err := time.Parse(time.RFC3339, value); err == nil {
+		return ts, nil
+	}
+	return time.Parse("2006-01-02", value)
+}
+
+func stringValue(value string) *string {
+	if value == "" {
+		return nil
+	}
+	return &value
+}

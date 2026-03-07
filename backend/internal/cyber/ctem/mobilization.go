@@ -18,6 +18,17 @@ func (e *CTEMEngine) runMobilization(ctx context.Context, assessment *model.CTEM
 	if err != nil {
 		return err
 	}
+	existingGroups, err := e.remGroupRepo.ListByAssessment(ctx, assessment.TenantID, assessment.ID)
+	if err != nil {
+		return err
+	}
+	existingWorkflowBySignature := make(map[string]*string, len(existingGroups))
+	for _, group := range existingGroups {
+		signature := remediationGroupIdentity(group)
+		if group.WorkflowInstanceID != nil && *group.WorkflowInstanceID != "" {
+			existingWorkflowBySignature[signature] = group.WorkflowInstanceID
+		}
+	}
 	assets, err := e.assetRepo.GetMany(ctx, assessment.TenantID, assessment.ResolvedAssetIDs)
 	if err != nil {
 		return err
@@ -46,6 +57,9 @@ func (e *CTEMEngine) runMobilization(ctx context.Context, assessment *model.CTEM
 			state = &groupState{
 				Group:    group,
 				AssetSet: make(map[uuid.UUID]bool),
+			}
+			if workflowID, exists := existingWorkflowBySignature[remediationGroupIdentity(group)]; exists {
+				state.Group.WorkflowInstanceID = workflowID
 			}
 			grouped[signature] = state
 		}
@@ -100,6 +114,9 @@ func (e *CTEMEngine) runMobilization(ctx context.Context, assessment *model.CTEM
 	if err := e.remGroupRepo.ReplaceForAssessment(ctx, assessment.TenantID, assessment.ID, groups); err != nil {
 		return err
 	}
+	if err := e.autoTriggerPriorityOneGroups(ctx, assessment, groups); err != nil {
+		return err
+	}
 	if err := e.findingRepo.SaveAnalysis(ctx, assessment.TenantID, assessment.ID, findings); err != nil {
 		return err
 	}
@@ -109,6 +126,30 @@ func (e *CTEMEngine) runMobilization(ctx context.Context, assessment *model.CTEM
 	progress.Result = marshalMap(map[string]int{"groups": len(groups)})
 	assessment.Phases["mobilizing"] = progress
 	return e.assessmentRepo.SaveState(ctx, assessment)
+}
+
+func (e *CTEMEngine) autoTriggerPriorityOneGroups(ctx context.Context, assessment *model.CTEMAssessment, groups []*model.CTEMRemediationGroup) error {
+	if e.workflow == nil || assessment.CreatedBy == nil {
+		return nil
+	}
+	for _, group := range groups {
+		if group.PriorityGroup != 1 || group.WorkflowInstanceID != nil {
+			continue
+		}
+		instanceID, err := e.workflow.StartRemediation(ctx, assessment.TenantID, *assessment.CreatedBy, group, assessment)
+		if err != nil {
+			return err
+		}
+		group.WorkflowInstanceID = &instanceID
+		if err := e.remGroupRepo.UpdateWorkflowInstance(ctx, assessment.TenantID, group.ID, instanceID); err != nil {
+			return err
+		}
+		e.publishEvent(ctx, "cyber.ctem.remediation.triggered", assessment.TenantID.String(), map[string]any{
+			"group_id":             group.ID.String(),
+			"workflow_instance_id": instanceID,
+		})
+	}
+	return nil
 }
 
 func buildRemediationGroup(assessment *model.CTEMAssessment, finding *model.CTEMFinding, assetIndex map[uuid.UUID]*model.Asset, now time.Time) (string, *model.CTEMRemediationGroup) {
@@ -240,4 +281,10 @@ func remediationOSSignature(finding *model.CTEMFinding, assetIndex map[uuid.UUID
 		return "general"
 	}
 	return *asset.OSVersion
+}
+
+func remediationGroupIdentity(group *model.CTEMRemediationGroup) string {
+	cveIDs := append([]string(nil), group.CVEIDs...)
+	sort.Strings(cveIDs)
+	return strings.Join([]string{string(group.Type), group.Title, strings.Join(cveIDs, ",")}, "|")
 }

@@ -13,17 +13,28 @@ import (
 
 // CyberConsumer handles Kafka events relevant to the cyber service.
 type CyberConsumer struct {
-	assetSvc *service.AssetService
-	consumer *events.Consumer
-	logger   zerolog.Logger
+	assetSvc           *service.AssetService
+	detectionSvc       *service.DetectionService
+	securityEventTopic string
+	consumer           *events.Consumer
+	logger             zerolog.Logger
 }
 
 // NewCyberConsumer creates a CyberConsumer and registers its event handlers.
-func NewCyberConsumer(assetSvc *service.AssetService, consumer *events.Consumer, logger zerolog.Logger) *CyberConsumer {
-	c := &CyberConsumer{assetSvc: assetSvc, consumer: consumer, logger: logger}
+func NewCyberConsumer(assetSvc *service.AssetService, detectionSvc *service.DetectionService, securityEventTopic string, consumer *events.Consumer, logger zerolog.Logger) *CyberConsumer {
+	c := &CyberConsumer{
+		assetSvc:           assetSvc,
+		detectionSvc:       detectionSvc,
+		securityEventTopic: securityEventTopic,
+		consumer:           consumer,
+		logger:             logger,
+	}
 
 	// Register handler for scan-triggered asset enrichment
 	consumer.Subscribe(events.Topics.AssetEvents, events.EventHandlerFunc(c.handleAssetEvent))
+	if securityEventTopic != "" && detectionSvc != nil {
+		consumer.Subscribe(securityEventTopic, events.EventHandlerFunc(c.handleSecurityEvent))
+	}
 
 	return c
 }
@@ -31,6 +42,22 @@ func NewCyberConsumer(assetSvc *service.AssetService, consumer *events.Consumer,
 // Start begins consuming from subscribed topics.
 func (c *CyberConsumer) Start(ctx context.Context) error {
 	return c.consumer.Start(ctx)
+}
+
+func (c *CyberConsumer) handleSecurityEvent(ctx context.Context, event *events.Event) error {
+	if c.detectionSvc == nil {
+		return nil
+	}
+	tenantID, err := uuid.Parse(event.TenantID)
+	if err != nil {
+		return err
+	}
+	decoded, err := c.detectionSvc.DecodeEventBatch(event.Data)
+	if err != nil {
+		return err
+	}
+	_, err = c.detectionSvc.ProcessEvents(ctx, tenantID, decoded)
+	return err
 }
 
 // Stop gracefully stops the consumer.

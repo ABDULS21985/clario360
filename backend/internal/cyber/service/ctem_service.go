@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"encoding/xml"
+	"errors"
 	"fmt"
 	"math"
 	"os"
@@ -138,6 +139,25 @@ func (s *CTEMService) UpdateAssessment(ctx context.Context, tenantID, assessment
 }
 
 func (s *CTEMService) StartAssessment(ctx context.Context, tenantID, userID, assessmentID uuid.UUID) error {
+	assessment, err := s.assessmentRepo.GetByID(ctx, tenantID, assessmentID)
+	if err != nil {
+		return err
+	}
+	s.publishEvent(ctx, "cyber.ctem.assessment.started", tenantID.String(), map[string]any{
+		"id":                   assessmentID.String(),
+		"resolved_asset_count": assessment.ResolvedAssetCount,
+		"requested_by":         userID.String(),
+	})
+	if s.producer != nil {
+		s.publishEvent(ctx, "cyber.ctem.assessment.run_requested", tenantID.String(), map[string]any{
+			"assessment_id": assessmentID.String(),
+		})
+		return nil
+	}
+	return s.RunAssessmentAsyncFromEvent(assessmentID)
+}
+
+func (s *CTEMService) RunAssessmentAsyncFromEvent(assessmentID uuid.UUID) error {
 	s.mu.Lock()
 	if _, exists := s.running[assessmentID]; exists {
 		s.mu.Unlock()
@@ -150,7 +170,7 @@ func (s *CTEMService) StartAssessment(ctx context.Context, tenantID, userID, ass
 	go func() {
 		defer s.unregisterAssessment(assessmentID)
 		defer cancel()
-		if err := s.engine.RunAssessment(runCtx, assessmentID); err != nil && err != context.Canceled {
+		if err := s.engine.RunAssessment(runCtx, assessmentID); err != nil && !errors.Is(err, context.Canceled) {
 			s.logger.Error().Err(err).Str("assessment_id", assessmentID.String()).Msg("ctem assessment execution failed")
 		}
 	}()
@@ -302,6 +322,9 @@ func (s *CTEMService) ExecuteRemediationGroup(ctx context.Context, tenantID, use
 	group, err := s.remGroupRepo.GetByID(ctx, tenantID, groupID)
 	if err != nil {
 		return nil, err
+	}
+	if group.WorkflowInstanceID != nil && *group.WorkflowInstanceID != "" {
+		return group, nil
 	}
 	assessment, err := s.assessmentRepo.GetByID(ctx, tenantID, group.AssessmentID)
 	if err != nil {
