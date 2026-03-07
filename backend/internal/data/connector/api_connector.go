@@ -1,7 +1,6 @@
 package connector
 
 import (
-	"bytes"
 	"context"
 	"encoding/base64"
 	"encoding/json"
@@ -206,7 +205,7 @@ func (c *APIConnector) FetchData(ctx context.Context, table string, params Fetch
 	hasMore := false
 	switch c.config.PaginationType {
 	case model.APIPaginationCursor:
-		if cursor, ok := extractStringPath(payload, stringValue(c.config.PaginationConfig["pagination_cursor_field"])); ok {
+		if cursor, ok := extractStringPath(payload, anyStringValue(c.config.PaginationConfig["pagination_cursor_field"])); ok {
 			nextCursor = cursor
 			hasMore = cursor != ""
 		}
@@ -575,6 +574,11 @@ func defaultBatchSize(value int) int {
 		return 100
 	}
 	return value
+}
+
+func anyStringValue(value any) string {
+	text, _ := value.(string)
+	return text
 }
 
 func mustJSON(value any) []byte {

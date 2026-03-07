@@ -15,6 +15,7 @@ import (
 	"github.com/clario360/platform/internal/data/connector"
 	dataconfig "github.com/clario360/platform/internal/data/config"
 	"github.com/clario360/platform/internal/data/dto"
+	datametrics "github.com/clario360/platform/internal/data/metrics"
 	"github.com/clario360/platform/internal/data/model"
 	"github.com/clario360/platform/internal/data/repository"
 	"github.com/clario360/platform/internal/events"
@@ -33,6 +34,7 @@ type SourceService struct {
 	ingestion       *IngestionService
 	encryptor       *ConfigEncryptor
 	producer        *events.Producer
+	metrics         *datametrics.Metrics
 	logger          zerolog.Logger
 }
 
@@ -45,6 +47,7 @@ func NewSourceService(
 	ingestion *IngestionService,
 	encryptor *ConfigEncryptor,
 	producer *events.Producer,
+	metrics *datametrics.Metrics,
 	logger zerolog.Logger,
 ) *SourceService {
 	return &SourceService{
@@ -56,6 +59,7 @@ func NewSourceService(
 		ingestion:  ingestion,
 		encryptor:  encryptor,
 		producer:   producer,
+		metrics:    metrics,
 		logger:     logger,
 	}
 }
@@ -94,6 +98,9 @@ func (s *SourceService) Create(ctx context.Context, tenantID, userID uuid.UUID, 
 	if err != nil {
 		return nil, err
 	}
+	if s.metrics != nil {
+		s.metrics.DataEncryptionOperationsTotal.WithLabelValues("encrypt").Inc()
+	}
 
 	now := time.Now().UTC()
 	source := &model.DataSource{
@@ -118,6 +125,10 @@ func (s *SourceService) Create(ctx context.Context, tenantID, userID uuid.UUID, 
 		EncryptedConfig: encryptedConfig,
 	}); err != nil {
 		return nil, err
+	}
+	if s.metrics != nil {
+		s.metrics.DataSourceOperationsTotal.WithLabelValues("create").Inc()
+		s.metrics.DataSourcesTotal.WithLabelValues(tenantID.String(), string(source.Type), string(source.Status)).Inc()
 	}
 	_ = s.publishSourceEvent(ctx, "data.source.created", tenantID, map[string]any{
 		"id":        source.ID,
@@ -207,6 +218,9 @@ func (s *SourceService) Update(ctx context.Context, tenantID, userID, id uuid.UU
 		if err != nil {
 			return nil, err
 		}
+		if s.metrics != nil {
+			s.metrics.DataEncryptionOperationsTotal.WithLabelValues("encrypt").Inc()
+		}
 	}
 
 	if err := s.sourceRepo.Update(ctx, &repository.SourceRecord{
@@ -214,6 +228,9 @@ func (s *SourceService) Update(ctx context.Context, tenantID, userID, id uuid.UU
 		EncryptedConfig: encryptedConfig,
 	}); err != nil {
 		return nil, err
+	}
+	if s.metrics != nil {
+		s.metrics.DataSourceOperationsTotal.WithLabelValues("update").Inc()
 	}
 
 	_ = s.publishSourceEvent(ctx, "data.source.updated", tenantID, map[string]any{
@@ -233,6 +250,10 @@ func (s *SourceService) Delete(ctx context.Context, tenantID, id uuid.UUID) erro
 	if err := s.sourceRepo.SoftDelete(ctx, tenantID, id, time.Now().UTC()); err != nil {
 		return err
 	}
+	if s.metrics != nil {
+		s.metrics.DataSourceOperationsTotal.WithLabelValues("delete").Inc()
+		s.metrics.DataSourcesTotal.WithLabelValues(tenantID.String(), string(record.Source.Type), string(record.Source.Status)).Dec()
+	}
 	_ = s.publishSourceEvent(ctx, "data.source.deleted", tenantID, map[string]any{
 		"id":   record.Source.ID,
 		"name": record.Source.Name,
@@ -248,6 +269,11 @@ func (s *SourceService) ChangeStatus(ctx context.Context, tenantID, id uuid.UUID
 	oldStatus := record.Source.Status
 	if err := s.sourceRepo.UpdateStatus(ctx, tenantID, id, status, nil); err != nil {
 		return nil, err
+	}
+	if s.metrics != nil {
+		s.metrics.DataSourceOperationsTotal.WithLabelValues("change_status").Inc()
+		s.metrics.DataSourcesTotal.WithLabelValues(tenantID.String(), string(record.Source.Type), string(oldStatus)).Dec()
+		s.metrics.DataSourcesTotal.WithLabelValues(tenantID.String(), string(record.Source.Type), string(status)).Inc()
 	}
 	_ = s.publishSourceEvent(ctx, "data.source.status_changed", tenantID, map[string]any{
 		"id":         id,
@@ -382,6 +408,9 @@ func (s *SourceService) loadDecryptedConfig(ctx context.Context, record *reposit
 	}
 	plaintext, err := s.encryptor.Decrypt(record.EncryptedConfig)
 	if err == nil {
+		if s.metrics != nil {
+			s.metrics.DataEncryptionOperationsTotal.WithLabelValues("decrypt").Inc()
+		}
 		defer zeroBytes(plaintext)
 		return json.RawMessage(append([]byte(nil), plaintext...)), nil
 	}
@@ -389,6 +418,9 @@ func (s *SourceService) loadDecryptedConfig(ctx context.Context, record *reposit
 		legacy := append([]byte(nil), record.EncryptedConfig...)
 		encrypted, keyID, encryptErr := s.encryptor.Encrypt(append([]byte(nil), legacy...))
 		if encryptErr == nil {
+			if s.metrics != nil {
+				s.metrics.DataEncryptionOperationsTotal.WithLabelValues("encrypt").Inc()
+			}
 			record.Source.EncryptionKeyID = keyID
 			updateErr := s.sourceRepo.Update(ctx, &repository.SourceRecord{
 				Source:          record.Source,

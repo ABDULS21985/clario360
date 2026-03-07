@@ -10,6 +10,7 @@ import (
 	"github.com/rs/zerolog"
 
 	"github.com/clario360/platform/internal/data/connector"
+	datametrics "github.com/clario360/platform/internal/data/metrics"
 	"github.com/clario360/platform/internal/data/model"
 	"github.com/clario360/platform/internal/data/repository"
 )
@@ -19,6 +20,7 @@ type IngestionService struct {
 	sourceRepo    *repository.SourceRepository
 	syncRepo      *repository.SyncRepository
 	discoveryOpts connector.DiscoveryOptions
+	metrics       *datametrics.Metrics
 	logger        zerolog.Logger
 }
 
@@ -27,6 +29,7 @@ func NewIngestionService(
 	sourceRepo *repository.SourceRepository,
 	syncRepo *repository.SyncRepository,
 	discoveryOpts connector.DiscoveryOptions,
+	metrics *datametrics.Metrics,
 	logger zerolog.Logger,
 ) *IngestionService {
 	return &IngestionService{
@@ -34,6 +37,7 @@ func NewIngestionService(
 		sourceRepo:    sourceRepo,
 		syncRepo:      syncRepo,
 		discoveryOpts: discoveryOpts,
+		metrics:       metrics,
 		logger:        logger,
 	}
 }
@@ -126,6 +130,14 @@ func (s *IngestionService) Run(
 	}
 	if err := s.syncRepo.Update(ctx, history); err != nil {
 		return nil, err
+	}
+	if s.metrics != nil {
+		sourceType := string(record.Source.Type)
+		s.metrics.DataSyncTotal.WithLabelValues(sourceType, string(history.Status), string(syncType)).Inc()
+		s.metrics.DataSyncDurationSeconds.WithLabelValues(sourceType).Observe(completedAt.Sub(history.StartedAt).Seconds())
+		s.metrics.DataSyncRowsTotal.WithLabelValues(sourceType, "read").Add(float64(history.RowsRead))
+		s.metrics.DataSyncRowsTotal.WithLabelValues(sourceType, "written").Add(float64(history.RowsWritten))
+		s.metrics.DataSyncBytesTotal.WithLabelValues(sourceType).Add(float64(history.BytesTransferred))
 	}
 
 	lastStatus := string(status)

@@ -1,6 +1,7 @@
 package discovery
 
 import (
+	"net"
 	"regexp"
 	"strings"
 
@@ -94,6 +95,23 @@ func TableClassification(columns []model.DiscoveredColumn) model.DataClassificat
 		values = append(values, column.InferredClass)
 	}
 	return MaxClassification(values...)
+}
+
+func looksLikeEmail(value string) bool {
+	return emailRe.MatchString(strings.TrimSpace(value))
+}
+
+func looksLikePhone(value string) bool {
+	return phoneRe.MatchString(strings.TrimSpace(value))
+}
+
+func looksLikeCreditCard(value string) bool {
+	trimmed := strings.TrimSpace(value)
+	return creditCardRe.MatchString(trimmed) && passesLuhn(trimmed)
+}
+
+func looksLikeIP(value string) bool {
+	return net.ParseIP(strings.TrimSpace(value)) != nil
 }
 
 func passesLuhn(value string) bool {

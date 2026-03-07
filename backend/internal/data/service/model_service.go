@@ -14,6 +14,7 @@ import (
 	"github.com/rs/zerolog"
 
 	"github.com/clario360/platform/internal/data/dto"
+	datametrics "github.com/clario360/platform/internal/data/metrics"
 	"github.com/clario360/platform/internal/data/model"
 	"github.com/clario360/platform/internal/data/repository"
 	"github.com/clario360/platform/internal/events"
@@ -25,14 +26,16 @@ type ModelService struct {
 	modelRepo  *repository.ModelRepository
 	sourceRepo *repository.SourceRepository
 	producer   *events.Producer
+	metrics    *datametrics.Metrics
 	logger     zerolog.Logger
 }
 
-func NewModelService(modelRepo *repository.ModelRepository, sourceRepo *repository.SourceRepository, producer *events.Producer, logger zerolog.Logger) *ModelService {
+func NewModelService(modelRepo *repository.ModelRepository, sourceRepo *repository.SourceRepository, producer *events.Producer, metrics *datametrics.Metrics, logger zerolog.Logger) *ModelService {
 	return &ModelService{
 		modelRepo:  modelRepo,
 		sourceRepo: sourceRepo,
 		producer:   producer,
+		metrics:    metrics,
 		logger:     logger,
 	}
 }
@@ -84,6 +87,9 @@ func (s *ModelService) Create(ctx context.Context, tenantID, userID uuid.UUID, r
 	}
 	if err := s.modelRepo.Create(ctx, item); err != nil {
 		return nil, err
+	}
+	if s.metrics != nil {
+		s.metrics.DataModelsTotal.WithLabelValues(tenantID.String(), string(item.Status)).Inc()
 	}
 	_ = s.publishModelEvent(ctx, "data.model.created", tenantID, map[string]any{
 		"id":        item.ID,
@@ -152,6 +158,10 @@ func (s *ModelService) Update(ctx context.Context, tenantID, userID, id uuid.UUI
 	if err := s.modelRepo.Create(ctx, updated); err != nil {
 		return nil, err
 	}
+	if s.metrics != nil {
+		s.metrics.DataSourceOperationsTotal.WithLabelValues("model_update").Inc()
+		s.metrics.DataModelsTotal.WithLabelValues(tenantID.String(), string(updated.Status)).Inc()
+	}
 	_ = s.publishModelEvent(ctx, "data.model.updated", tenantID, map[string]any{
 		"id":      updated.ID,
 		"name":    updated.Name,
@@ -167,6 +177,10 @@ func (s *ModelService) Delete(ctx context.Context, tenantID, id uuid.UUID) error
 	}
 	if err := s.modelRepo.SoftDelete(ctx, tenantID, id, time.Now().UTC()); err != nil {
 		return err
+	}
+	if s.metrics != nil {
+		s.metrics.DataSourceOperationsTotal.WithLabelValues("model_delete").Inc()
+		s.metrics.DataModelsTotal.WithLabelValues(tenantID.String(), string(current.Status)).Dec()
 	}
 	_ = s.publishModelEvent(ctx, "data.model.deleted", tenantID, map[string]any{
 		"id":   current.ID,
@@ -246,6 +260,10 @@ func (s *ModelService) DeriveFromSource(ctx context.Context, tenantID, userID uu
 	}
 	if err := s.modelRepo.Create(ctx, item); err != nil {
 		return nil, err
+	}
+	if s.metrics != nil {
+		s.metrics.DataModelDerivationsTotal.Inc()
+		s.metrics.DataModelsTotal.WithLabelValues(tenantID.String(), string(item.Status)).Inc()
 	}
 	_ = s.publishModelEvent(ctx, "data.model.derived", tenantID, map[string]any{
 		"id":          item.ID,
@@ -451,6 +469,13 @@ func humanizeName(value string) string {
 		parts[i] = strings.ToUpper(part[:1]) + part[1:]
 	}
 	return strings.Join(parts, " ")
+}
+
+func truncateSamples(values []string, limit int) []string {
+	if limit <= 0 || len(values) <= limit {
+		return append([]string(nil), values...)
+	}
+	return append([]string(nil), values[:limit]...)
 }
 
 func deriveModelFields(table model.DiscoveredTable) []model.ModelField {

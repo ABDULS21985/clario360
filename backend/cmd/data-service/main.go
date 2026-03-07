@@ -22,6 +22,7 @@ import (
 	"github.com/clario360/platform/internal/data/connector"
 	"github.com/clario360/platform/internal/data/handler"
 	datahealth "github.com/clario360/platform/internal/data/health"
+	datametrics "github.com/clario360/platform/internal/data/metrics"
 	"github.com/clario360/platform/internal/data/repository"
 	"github.com/clario360/platform/internal/data/service"
 	"github.com/clario360/platform/internal/database"
@@ -89,6 +90,7 @@ func main() {
 	sourceRepo := repository.NewSourceRepository(svc.DBPool, logger)
 	modelRepo := repository.NewModelRepository(svc.DBPool, logger)
 	syncRepo := repository.NewSyncRepository(svc.DBPool, logger)
+	dataMetrics := datametrics.New(svc.Metrics.Registry())
 
 	registry := connector.NewConnectorRegistry(connector.ConnectorLimits{
 		MaxPoolSize:      dataCfg.ConnectorMaxPoolSize,
@@ -110,11 +112,11 @@ func main() {
 		logger.Fatal().Err(err).Msg("failed to initialize connection config encryptor")
 	}
 
-	tester := service.NewConnectionTester(registry)
-	discoverySvc := service.NewSchemaDiscoveryService(registry, discoveryOpts)
-	ingestionSvc := service.NewIngestionService(registry, sourceRepo, syncRepo, discoveryOpts, logger)
-	sourceSvc := service.NewSourceService(dataCfg, sourceRepo, syncRepo, tester, discoverySvc, ingestionSvc, encryptor, producer, logger)
-	modelSvc := service.NewModelService(modelRepo, sourceRepo, producer, logger)
+	tester := service.NewConnectionTester(registry, dataMetrics)
+	discoverySvc := service.NewSchemaDiscoveryService(registry, discoveryOpts, dataMetrics)
+	ingestionSvc := service.NewIngestionService(registry, sourceRepo, syncRepo, discoveryOpts, dataMetrics, logger)
+	sourceSvc := service.NewSourceService(dataCfg, sourceRepo, syncRepo, tester, discoverySvc, ingestionSvc, encryptor, producer, dataMetrics, logger)
+	modelSvc := service.NewModelService(modelRepo, sourceRepo, producer, dataMetrics, logger)
 
 	jwtMgr, err := auth.NewJWTManager(cfg.Auth)
 	if err != nil {
@@ -124,7 +126,7 @@ func main() {
 	sourceHandler := handler.NewSourceHandler(sourceSvc, logger)
 	modelHandler := handler.NewModelHandler(modelSvc, logger)
 
-	datahealth.Register(svc.Router)
+	datahealth.Register(svc.Router, svc.Health, "data-service", cfg.Observability.ServiceName)
 	handler.RegisterRoutes(svc.Router, sourceHandler, modelHandler, jwtMgr, svc.Redis)
 
 	var dataConsumer *dataconsumer.DataConsumer

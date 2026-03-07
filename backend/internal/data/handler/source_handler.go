@@ -4,8 +4,7 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/go-chi/chi/v5"
-	"github.com/google/uuid"
+	"github.com/rs/zerolog"
 
 	"github.com/clario360/platform/internal/data/dto"
 	"github.com/clario360/platform/internal/data/model"

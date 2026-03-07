@@ -10,8 +10,8 @@ import (
 
 func RateLimiter(rdb *redis.Client) func(http.Handler) http.Handler {
 	return sharedmw.RateLimit(rdb, sharedmw.RateLimitConfig{
-		RequestsPerMinute: 600,
-		Burst:             120,
+		RequestsPerWindow: 600,
 		Window:            sharedmw.DefaultRateLimitConfig().Window,
+		KeyPrefix:         "data:ratelimit",
 	})
 }
