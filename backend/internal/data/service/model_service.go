@@ -209,9 +209,19 @@ func (s *ModelService) DeriveFromSource(ctx context.Context, tenantID, userID uu
 		return nil, fmt.Errorf("table %q not found in source schema", req.TableName)
 	}
 
-	name := req.Name
+	return s.createDerivedModel(ctx, tenantID, userID, record.Source, *table, req.Name, true)
+}
+
+func (s *ModelService) CreateDerivedModelFromTable(ctx context.Context, tenantID, userID uuid.UUID, source *model.DataSource, table model.DiscoveredTable, name string, assignQualityRules bool) (*model.DataModel, error) {
+	if source == nil {
+		return nil, fmt.Errorf("%w: source is required", ErrValidation)
+	}
+	return s.createDerivedModel(ctx, tenantID, userID, source, table, name, assignQualityRules)
+}
+
+func (s *ModelService) createDerivedModel(ctx context.Context, tenantID, userID uuid.UUID, source *model.DataSource, table model.DiscoveredTable, name string, assignQualityRules bool) (*model.DataModel, error) {
 	if name == "" {
-		name = sanitizeModelName(req.TableName)
+		name = sanitizeModelName(table.Name)
 	}
 	nextVersion, previousVersionID, err := s.modelRepo.NextVersion(ctx, tenantID, name)
 	if err != nil {
@@ -221,8 +231,11 @@ func (s *ModelService) DeriveFromSource(ctx context.Context, tenantID, userID uu
 		return nil, fmt.Errorf("%w: a data model named %q already exists", ErrConflict, name)
 	}
 
-	fields := deriveModelFields(*table)
-	rules := deriveValidationRules(fields)
+	fields := deriveModelFields(table)
+	rules := []model.ValidationRule{}
+	if assignQualityRules {
+		rules = deriveValidationRules(fields)
+	}
 	piiColumns := make([]string, 0)
 	classification := model.DataClassificationPublic
 	containsPII := false
@@ -240,10 +253,10 @@ func (s *ModelService) DeriveFromSource(ctx context.Context, tenantID, userID uu
 		TenantID:           tenantID,
 		Name:               name,
 		DisplayName:        humanizeName(name),
-		Description:        fmt.Sprintf("Auto-derived from %s.%s", record.Source.Name, table.Name),
+		Description:        fmt.Sprintf("Auto-derived from %s.%s", source.Name, table.Name),
 		Status:             model.DataModelStatusDraft,
 		SchemaDefinition:   fields,
-		SourceID:           &record.Source.ID,
+		SourceID:           &source.ID,
 		SourceTable:        &table.Name,
 		QualityRules:       rules,
 		DataClassification: classification,
@@ -266,10 +279,10 @@ func (s *ModelService) DeriveFromSource(ctx context.Context, tenantID, userID uu
 		s.metrics.DataModelsTotal.WithLabelValues(tenantID.String(), string(item.Status)).Inc()
 	}
 	_ = s.publishModelEvent(ctx, "data.model.derived", tenantID, map[string]any{
-		"id":          item.ID,
-		"name":        item.Name,
-		"source_id":   item.SourceID,
-		"table_name":  table.Name,
+		"id":           item.ID,
+		"name":         item.Name,
+		"source_id":    item.SourceID,
+		"table_name":   table.Name,
 		"pii_detected": item.ContainsPII,
 	})
 	return item, nil

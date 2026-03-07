@@ -100,7 +100,8 @@ func (r *DarkDataRepository) ListScans(ctx context.Context, tenantID uuid.UUID, 
 	qb.WhereIf(params.Status != "", "a.status = ?", params.Status)
 	qb.OrderBy("created_at", "desc", []string{"created_at", "started_at"})
 	qb.Paginate(params.Page, params.PerPage)
-	rows, err := r.db.Query(ctx, mustBuild(qb))
+	query, args := qb.Build()
+	rows, err := r.db.Query(ctx, query, args...)
 	if err != nil {
 		return nil, 0, fmt.Errorf("list dark data scans: %w", err)
 	}

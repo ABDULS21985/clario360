@@ -3,13 +3,13 @@ package repository
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog"
 
 	"github.com/clario360/platform/internal/data/dto"
+	"github.com/clario360/platform/internal/database"
 )
 
 type DashboardRepository struct {
