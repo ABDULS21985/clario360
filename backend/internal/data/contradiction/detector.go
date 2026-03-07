@@ -3,7 +3,6 @@ package contradiction
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"time"
 
 	"github.com/google/uuid"
@@ -205,7 +204,7 @@ func (d *Detector) openSourceConnector(ctx context.Context, source *model.DataSo
 	return d.connRegistry.Create(source.Type, json.RawMessage(decrypted))
 }
 
-func severityForRaw(raw RawContradiction) model.QualitySeverity {
+func severityForRaw(raw cruntime.RawContradiction) model.QualitySeverity {
 	switch {
 	case raw.AffectedRecords > 100:
 		return model.QualitySeverityCritical

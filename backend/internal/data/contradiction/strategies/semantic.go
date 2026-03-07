@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/clario360/platform/internal/data/connector"
 	cruntime "github.com/clario360/platform/internal/data/contradiction/runtime"
@@ -94,19 +93,4 @@ func detectSemanticForModel(modelItem *model.DataModel, source *model.DataSource
 		}
 	}
 	return result
-}
-
-func parseTime(value any) (time.Time, bool) {
-	switch typed := value.(type) {
-	case time.Time:
-		return typed, true
-	case string:
-		formats := []string{time.RFC3339, time.RFC3339Nano, "2006-01-02 15:04:05", "2006-01-02"}
-		for _, format := range formats {
-			if parsed, err := time.Parse(format, typed); err == nil {
-				return parsed, true
-			}
-		}
-	}
-	return time.Time{}, false
 }
