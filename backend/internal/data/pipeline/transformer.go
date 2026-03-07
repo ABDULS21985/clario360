@@ -11,15 +11,7 @@ import (
 	"github.com/clario360/platform/internal/data/pipeline/transforms"
 )
 
-type TransformStats struct {
-	Type         string        `json:"type"`
-	InputRows     int           `json:"input_rows"`
-	OutputRows    int           `json:"output_rows"`
-	FilteredRows  int           `json:"filtered_rows"`
-	DedupedRows   int           `json:"deduped_rows"`
-	ErrorRows     int           `json:"error_rows"`
-	Duration      time.Duration `json:"duration"`
-}
+type TransformStats = transforms.TransformStats
 
 type TransformSummary struct {
 	Steps         []TransformStats `json:"steps"`
@@ -116,4 +108,3 @@ func cloneRows(data []map[string]interface{}) []map[string]interface{} {
 	}
 	return cloned
 }
-

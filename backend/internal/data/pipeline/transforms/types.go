@@ -3,6 +3,7 @@ package transforms
 import "time"
 
 type TransformStats struct {
+	Type         string
 	InputRows     int
 	OutputRows    int
 	FilteredRows  int
@@ -10,4 +11,3 @@ type TransformStats struct {
 	ErrorRows     int
 	Duration      time.Duration
 }
-

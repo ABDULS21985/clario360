@@ -95,6 +95,19 @@ func (r *PipelineRepository) Get(ctx context.Context, tenantID, id uuid.UUID) (*
 	return scanPipeline(row)
 }
 
+func (r *PipelineRepository) GetByID(ctx context.Context, id uuid.UUID) (*model.Pipeline, error) {
+	row := r.db.QueryRow(ctx, `
+		SELECT id, tenant_id, name, description, type, source_id, target_id, config, schedule, status,
+		       last_run_id, last_run_at, last_run_status, last_run_error, next_run_at, total_runs,
+		       successful_runs, failed_runs, total_records_processed, avg_duration_ms, tags,
+		       created_by, created_at, updated_at, deleted_at
+		FROM pipelines
+		WHERE id = $1 AND deleted_at IS NULL`,
+		id,
+	)
+	return scanPipeline(row)
+}
+
 func (r *PipelineRepository) List(ctx context.Context, tenantID uuid.UUID, params dto.ListPipelinesParams) ([]*model.Pipeline, int, error) {
 	qb := database.NewQueryBuilder(`
 		SELECT a.id, a.tenant_id, a.name, a.description, a.type, a.source_id, a.target_id, a.config, a.schedule, a.status,
@@ -349,4 +362,3 @@ func marshalPipelineConfigPtr(value *model.PipelineConfig) []byte {
 	}
 	return marshalJSONValue(*value)
 }
-
