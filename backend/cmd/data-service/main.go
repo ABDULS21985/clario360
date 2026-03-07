@@ -2,14 +2,15 @@ package main
 
 import (
 	"context"
-	"encoding/json"
-	"net/http"
+	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/redis/go-redis/v9"
 
 	"github.com/clario360/platform/internal/config"
+	datasuite "github.com/clario360/platform/internal/data"
 	"github.com/clario360/platform/internal/database"
 	"github.com/clario360/platform/internal/observability"
 	"github.com/clario360/platform/internal/server"
@@ -18,9 +19,11 @@ import (
 func main() {
 	cfg, err := config.Load()
 	if err != nil {
-		panic("loading config: " + err.Error())
+		fmt.Fprintf(os.Stderr, "loading config: %v\n", err)
+		os.Exit(1)
 	}
-	cfg.Server.Port = 8086
+	cfg.Server.Port = 8085
+	cfg.Database.Name = "data_db"
 
 	logger := observability.NewLogger(
 		cfg.Observability.LogLevel,
@@ -43,6 +46,14 @@ func main() {
 	}
 	defer db.Close()
 
+	migrationsPath := "migrations/data_db"
+	if _, err := os.Stat(migrationsPath); err != nil {
+		migrationsPath = filepath.Join("backend", "migrations", "data_db")
+	}
+	if err := database.RunMigrations(cfg.Database.DSN(), migrationsPath); err != nil {
+		logger.Fatal().Err(err).Str("path", migrationsPath).Msg("failed to run data-service migrations")
+	}
+
 	rdb := redis.NewClient(&redis.Options{
 		Addr:     cfg.Redis.Addr(),
 		Password: cfg.Redis.Password,
@@ -57,14 +68,7 @@ func main() {
 
 	srv.Router.Route("/api/v1/data", func(r chi.Router) {
 		auth := srv.AuthenticatedRoutes()
-		auth.Get("/sources", notImplementedHandler("list_sources"))
-		auth.Post("/sources", notImplementedHandler("create_source"))
-		auth.Get("/sources/{id}", notImplementedHandler("get_source"))
-		auth.Get("/pipelines", notImplementedHandler("list_pipelines"))
-		auth.Post("/pipelines", notImplementedHandler("create_pipeline"))
-		auth.Post("/pipelines/{id}/run", notImplementedHandler("run_pipeline"))
-		auth.Get("/datasets", notImplementedHandler("list_datasets"))
-		auth.Get("/quality", notImplementedHandler("data_quality_dashboard"))
+		datasuite.MountRoutes(auth, db, logger)
 		r.Mount("/", auth)
 	})
 
@@ -72,22 +76,5 @@ func main() {
 	if err := srv.Start(); err != nil {
 		logger.Fatal().Err(err).Msg("server failed")
 		os.Exit(1)
-	}
-}
-
-func notImplementedHandler(operation string) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusNotImplemented)
-		_ = json.NewEncoder(w).Encode(map[string]any{
-			"error": map[string]any{
-				"code":    "NOT_IMPLEMENTED",
-				"message": "data-service endpoint is not implemented",
-				"details": map[string]string{
-					"service":   "data",
-					"operation": operation,
-				},
-			},
-		})
 	}
 }

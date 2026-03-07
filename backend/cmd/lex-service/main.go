@@ -2,15 +2,16 @@ package main
 
 import (
 	"context"
-	"encoding/json"
-	"net/http"
+	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/redis/go-redis/v9"
 
 	"github.com/clario360/platform/internal/config"
 	"github.com/clario360/platform/internal/database"
+	lexsuite "github.com/clario360/platform/internal/lex"
 	"github.com/clario360/platform/internal/observability"
 	"github.com/clario360/platform/internal/server"
 )
@@ -18,9 +19,11 @@ import (
 func main() {
 	cfg, err := config.Load()
 	if err != nil {
-		panic("loading config: " + err.Error())
+		fmt.Fprintf(os.Stderr, "loading config: %v\n", err)
+		os.Exit(1)
 	}
-	cfg.Server.Port = 8088
+	cfg.Server.Port = 8087
+	cfg.Database.Name = "lex_db"
 
 	logger := observability.NewLogger(
 		cfg.Observability.LogLevel,
@@ -43,6 +46,14 @@ func main() {
 	}
 	defer db.Close()
 
+	migrationsPath := "migrations/lex_db"
+	if _, err := os.Stat(migrationsPath); err != nil {
+		migrationsPath = filepath.Join("backend", "migrations", "lex_db")
+	}
+	if err := database.RunMigrations(cfg.Database.DSN(), migrationsPath); err != nil {
+		logger.Fatal().Err(err).Str("path", migrationsPath).Msg("failed to run lex-service migrations")
+	}
+
 	rdb := redis.NewClient(&redis.Options{
 		Addr:     cfg.Redis.Addr(),
 		Password: cfg.Redis.Password,
@@ -57,13 +68,7 @@ func main() {
 
 	srv.Router.Route("/api/v1/lex", func(r chi.Router) {
 		auth := srv.AuthenticatedRoutes()
-		auth.Get("/cases", notImplementedHandler("list_cases"))
-		auth.Post("/cases", notImplementedHandler("create_case"))
-		auth.Get("/cases/{id}", notImplementedHandler("get_case"))
-		auth.Put("/cases/{id}", notImplementedHandler("update_case"))
-		auth.Get("/regulations", notImplementedHandler("list_regulations"))
-		auth.Get("/compliance", notImplementedHandler("compliance_dashboard"))
-		auth.Post("/compliance/check", notImplementedHandler("compliance_check"))
+		lexsuite.MountRoutes(auth, db, logger)
 		r.Mount("/", auth)
 	})
 
@@ -71,22 +76,5 @@ func main() {
 	if err := srv.Start(); err != nil {
 		logger.Fatal().Err(err).Msg("server failed")
 		os.Exit(1)
-	}
-}
-
-func notImplementedHandler(operation string) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusNotImplemented)
-		_ = json.NewEncoder(w).Encode(map[string]any{
-			"error": map[string]any{
-				"code":    "NOT_IMPLEMENTED",
-				"message": "lex-service endpoint is not implemented",
-				"details": map[string]string{
-					"service":   "lex",
-					"operation": operation,
-				},
-			},
-		})
 	}
 }

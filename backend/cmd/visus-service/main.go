@@ -2,9 +2,9 @@ package main
 
 import (
 	"context"
-	"encoding/json"
-	"net/http"
+	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/redis/go-redis/v9"
@@ -13,14 +13,17 @@ import (
 	"github.com/clario360/platform/internal/database"
 	"github.com/clario360/platform/internal/observability"
 	"github.com/clario360/platform/internal/server"
+	visussuite "github.com/clario360/platform/internal/visus"
 )
 
 func main() {
 	cfg, err := config.Load()
 	if err != nil {
-		panic("loading config: " + err.Error())
+		fmt.Fprintf(os.Stderr, "loading config: %v\n", err)
+		os.Exit(1)
 	}
-	cfg.Server.Port = 8089
+	cfg.Server.Port = 8088
+	cfg.Database.Name = "visus_db"
 
 	logger := observability.NewLogger(
 		cfg.Observability.LogLevel,
@@ -43,6 +46,14 @@ func main() {
 	}
 	defer db.Close()
 
+	migrationsPath := "migrations/visus_db"
+	if _, err := os.Stat(migrationsPath); err != nil {
+		migrationsPath = filepath.Join("backend", "migrations", "visus_db")
+	}
+	if err := database.RunMigrations(cfg.Database.DSN(), migrationsPath); err != nil {
+		logger.Fatal().Err(err).Str("path", migrationsPath).Msg("failed to run visus-service migrations")
+	}
+
 	rdb := redis.NewClient(&redis.Options{
 		Addr:     cfg.Redis.Addr(),
 		Password: cfg.Redis.Password,
@@ -57,14 +68,7 @@ func main() {
 
 	srv.Router.Route("/api/v1/visus", func(r chi.Router) {
 		auth := srv.AuthenticatedRoutes()
-		auth.Get("/dashboards", notImplementedHandler("list_dashboards"))
-		auth.Post("/dashboards", notImplementedHandler("create_dashboard"))
-		auth.Get("/dashboards/{id}", notImplementedHandler("get_dashboard"))
-		auth.Put("/dashboards/{id}", notImplementedHandler("update_dashboard"))
-		auth.Get("/reports", notImplementedHandler("list_reports"))
-		auth.Post("/reports", notImplementedHandler("create_report"))
-		auth.Post("/reports/{id}/generate", notImplementedHandler("generate_report"))
-		auth.Get("/widgets", notImplementedHandler("list_widgets"))
+		visussuite.MountRoutes(auth, db, logger)
 		r.Mount("/", auth)
 	})
 
@@ -72,22 +76,5 @@ func main() {
 	if err := srv.Start(); err != nil {
 		logger.Fatal().Err(err).Msg("server failed")
 		os.Exit(1)
-	}
-}
-
-func notImplementedHandler(operation string) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusNotImplemented)
-		_ = json.NewEncoder(w).Encode(map[string]any{
-			"error": map[string]any{
-				"code":    "NOT_IMPLEMENTED",
-				"message": "visus-service endpoint is not implemented",
-				"details": map[string]string{
-					"service":   "visus",
-					"operation": operation,
-				},
-			},
-		})
 	}
 }

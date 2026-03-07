@@ -2,13 +2,14 @@ package main
 
 import (
 	"context"
-	"encoding/json"
-	"net/http"
+	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/redis/go-redis/v9"
 
+	actasuite "github.com/clario360/platform/internal/acta"
 	"github.com/clario360/platform/internal/config"
 	"github.com/clario360/platform/internal/database"
 	"github.com/clario360/platform/internal/observability"
@@ -18,9 +19,11 @@ import (
 func main() {
 	cfg, err := config.Load()
 	if err != nil {
-		panic("loading config: " + err.Error())
+		fmt.Fprintf(os.Stderr, "loading config: %v\n", err)
+		os.Exit(1)
 	}
-	cfg.Server.Port = 8087
+	cfg.Server.Port = 8086
+	cfg.Database.Name = "acta_db"
 
 	logger := observability.NewLogger(
 		cfg.Observability.LogLevel,
@@ -43,6 +46,14 @@ func main() {
 	}
 	defer db.Close()
 
+	migrationsPath := "migrations/acta_db"
+	if _, err := os.Stat(migrationsPath); err != nil {
+		migrationsPath = filepath.Join("backend", "migrations", "acta_db")
+	}
+	if err := database.RunMigrations(cfg.Database.DSN(), migrationsPath); err != nil {
+		logger.Fatal().Err(err).Str("path", migrationsPath).Msg("failed to run acta-service migrations")
+	}
+
 	rdb := redis.NewClient(&redis.Options{
 		Addr:     cfg.Redis.Addr(),
 		Password: cfg.Redis.Password,
@@ -57,14 +68,7 @@ func main() {
 
 	srv.Router.Route("/api/v1/acta", func(r chi.Router) {
 		auth := srv.AuthenticatedRoutes()
-		auth.Get("/documents", notImplementedHandler("list_documents"))
-		auth.Post("/documents", notImplementedHandler("create_document"))
-		auth.Get("/documents/{id}", notImplementedHandler("get_document"))
-		auth.Put("/documents/{id}", notImplementedHandler("update_document"))
-		auth.Delete("/documents/{id}", notImplementedHandler("delete_document"))
-		auth.Post("/documents/{id}/sign", notImplementedHandler("sign_document"))
-		auth.Get("/templates", notImplementedHandler("list_templates"))
-		auth.Post("/templates", notImplementedHandler("create_template"))
+		actasuite.MountRoutes(auth, db, logger)
 		r.Mount("/", auth)
 	})
 
@@ -72,22 +76,5 @@ func main() {
 	if err := srv.Start(); err != nil {
 		logger.Fatal().Err(err).Msg("server failed")
 		os.Exit(1)
-	}
-}
-
-func notImplementedHandler(operation string) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusNotImplemented)
-		_ = json.NewEncoder(w).Encode(map[string]any{
-			"error": map[string]any{
-				"code":    "NOT_IMPLEMENTED",
-				"message": "acta-service endpoint is not implemented",
-				"details": map[string]string{
-					"service":   "acta",
-					"operation": operation,
-				},
-			},
-		})
 	}
 }
