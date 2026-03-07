@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect, useRef, useCallback, useState } from 'react';
-import { useQuery, useQueryClient, type UseQueryResult } from '@tanstack/react-query';
+import { useEffect, useRef, useCallback, useMemo, useState } from 'react';
+import { useQuery, type UseQueryResult } from '@tanstack/react-query';
 import { apiGet } from '@/lib/api';
 import { useRealtimeStore } from '@/stores/realtime-store';
 import type { ApiError } from '@/types/api';
@@ -36,12 +36,10 @@ export function useRealtimeData<T>(
     enabled = true,
   } = options;
 
-  const queryClient = useQueryClient();
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Build stable query key
-  const queryKey = params ? [url, params] : [url];
+  const queryKey = useMemo(() => (params ? [url, params] : [url]), [url, params]);
   const queryKeyString = JSON.stringify(queryKey);
 
   const query: UseQueryResult<T, ApiError> = useQuery<T, ApiError>({
@@ -52,19 +50,8 @@ export function useRealtimeData<T>(
     enabled,
   });
 
-  // Debounced revalidation to batch rapid WS messages
-  const scheduleRevalidation = useCallback(() => {
-    if (debounceTimerRef.current) {
-      clearTimeout(debounceTimerRef.current);
-    }
-    debounceTimerRef.current = setTimeout(() => {
-      queryClient.invalidateQueries({ queryKey });
-      setLastUpdate(new Date());
-    }, 500);
-  }, [queryClient, queryKey]);
-
-  // Register this hook's query key with the realtime store for each topic
   const { register, unregister } = useRealtimeStore();
+  const queryEvent = useRealtimeStore((state) => state.queryEvents[queryKeyString]);
 
   useEffect(() => {
     if (!enabled || wsTopics.length === 0) return;
@@ -80,17 +67,34 @@ export function useRealtimeData<T>(
     };
   }, [wsTopics, queryKeyString, register, unregister, enabled]);
 
-  // Listen for query invalidations triggered by the WS handler
-  // (The WS handler calls queryClient.invalidateQueries directly via the realtime store)
-  // We track last update time from our scheduled revalidations
   useEffect(() => {
-    void scheduleRevalidation; // reference to prevent unused warning
-  }, [scheduleRevalidation]);
+    if (!queryEvent || !enabled) {
+      return;
+    }
+
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+    }
+
+    debounceTimerRef.current = setTimeout(() => {
+      void query.refetch();
+      setLastUpdate(new Date(queryEvent.timestamp));
+      if (onNewItem && isNotificationPayload(queryEvent.payload)) {
+        onNewItem(queryEvent.payload);
+      }
+    }, 500);
+
+    return () => {
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
+    };
+  }, [enabled, onNewItem, query, queryEvent]);
 
   const mutate = useCallback(async () => {
-    await queryClient.invalidateQueries({ queryKey });
+    await query.refetch();
     setLastUpdate(new Date());
-  }, [queryClient, queryKey]);
+  }, [query]);
 
   return {
     data: query.data,
@@ -100,4 +104,12 @@ export function useRealtimeData<T>(
     mutate,
     lastUpdate,
   };
+}
+
+function isNotificationPayload(payload: unknown): payload is Notification {
+  if (!payload || typeof payload !== 'object') {
+    return false;
+  }
+
+  return 'id' in payload && 'title' in payload && 'body' in payload && 'category' in payload;
 }

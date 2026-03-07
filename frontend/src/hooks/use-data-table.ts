@@ -1,9 +1,10 @@
 "use client";
 
-import { useCallback, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { useDebounce } from "./use-debounce";
+import { useRealtimeStore } from "@/stores/realtime-store";
 import type { FetchParams, DataTableControlledProps } from "@/types/table";
 import type { PaginatedResponse } from "@/types/api";
 
@@ -12,6 +13,7 @@ interface UseDataTableOptions<TData> {
   queryKey: string; // unique key for React Query caching
   defaultPageSize?: number;
   defaultSort?: { column: string; direction: "asc" | "desc" };
+  wsTopics?: string[];
 }
 
 interface UseDataTableReturn<TData> {
@@ -38,7 +40,13 @@ interface UseDataTableReturn<TData> {
 export function useDataTable<TData>(
   options: UseDataTableOptions<TData>
 ): UseDataTableReturn<TData> {
-  const { fetchFn, queryKey, defaultPageSize = 25, defaultSort } = options;
+  const {
+    fetchFn,
+    queryKey,
+    defaultPageSize = 25,
+    defaultSort,
+    wsTopics = [],
+  } = options;
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -154,6 +162,47 @@ export function useDataTable<TData>(
     placeholderData: (prev) => prev, // keepPreviousData equivalent in RQ v5
     staleTime: 30_000,
   });
+
+  const realtimeQueryKey = JSON.stringify([queryKey, fetchParams]);
+  const { register, unregister } = useRealtimeStore();
+  const queryEvent = useRealtimeStore((state) => state.queryEvents[realtimeQueryKey]);
+  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    if (wsTopics.length === 0) {
+      return;
+    }
+
+    for (const topic of wsTopics) {
+      register(topic, realtimeQueryKey);
+    }
+
+    return () => {
+      for (const topic of wsTopics) {
+        unregister(topic, realtimeQueryKey);
+      }
+    };
+  }, [register, realtimeQueryKey, unregister, wsTopics]);
+
+  useEffect(() => {
+    if (!queryEvent) {
+      return;
+    }
+
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+    }
+
+    debounceTimerRef.current = setTimeout(() => {
+      void refetch();
+    }, 500);
+
+    return () => {
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
+    };
+  }, [queryEvent, refetch]);
 
   const errorMessage = error
     ? error instanceof Error

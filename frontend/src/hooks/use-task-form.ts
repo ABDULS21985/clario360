@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { buildDynamicZodSchema } from '@/lib/workflow-utils';
@@ -19,18 +19,20 @@ export function useTaskForm({
   onDraftSave,
   readOnly = false,
 }: UseTaskFormOptions) {
-  const zodSchema = buildDynamicZodSchema(formSchema);
+  const zodSchema = useMemo(() => buildDynamicZodSchema(formSchema), [formSchema]);
 
-  // Build default values from field.default merged with initialValues
-  const defaultValues: Record<string, unknown> = {};
-  for (const field of formSchema) {
-    if (field.default !== undefined) {
-      defaultValues[field.name] = field.default;
+  const defaultValues = useMemo(() => {
+    const values: Record<string, unknown> = {};
+    for (const field of formSchema) {
+      if (field.default !== undefined) {
+        values[field.name] = field.default;
+      }
     }
-  }
-  if (initialValues) {
-    Object.assign(defaultValues, initialValues);
-  }
+    if (initialValues) {
+      Object.assign(values, initialValues);
+    }
+    return values;
+  }, [formSchema, initialValues]);
 
   const form = useForm<Record<string, unknown>>({
     resolver: zodResolver(zodSchema),
@@ -63,6 +65,10 @@ export function useTaskForm({
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, [form, onDraftSave, readOnly]);
+
+  useEffect(() => {
+    form.reset(defaultValues);
+  }, [defaultValues, form]);
 
   return form;
 }

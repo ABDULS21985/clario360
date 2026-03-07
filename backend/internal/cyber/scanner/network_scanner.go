@@ -184,7 +184,7 @@ func (s *NetworkScanner) probeHost(ctx context.Context, ipStr string, ports []in
 		default:
 		}
 
-		addr := fmt.Sprintf("%s:%d", ipStr, port)
+		addr := net.JoinHostPort(ipStr, fmt.Sprintf("%d", port))
 		conn, err := net.DialTimeout("tcp", addr, s.timeout)
 		if err != nil {
 			continue

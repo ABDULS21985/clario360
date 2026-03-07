@@ -3,38 +3,49 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { apiPut, apiDelete } from '@/lib/api';
 import { useNotificationStore } from '@/stores/notification-store';
-import { showError } from '@/lib/toast';
+import { showApiError } from '@/lib/toast';
 import type { Notification } from '@/types/models';
 import type { PaginatedResponse } from '@/types/api';
+import { isNotificationRead } from '@/lib/notification-utils';
 
 const NOTIFICATIONS_KEY = '/api/v1/notifications';
 
 export function useNotificationActions() {
   const queryClient = useQueryClient();
-  const { markAsRead: storeMarkAsRead, markAllAsRead: storeMarkAllAsRead, decrementUnreadCount } =
-    useNotificationStore();
+  const {
+    markAsRead: storeMarkAsRead,
+    markAllAsRead: storeMarkAllAsRead,
+    deleteNotification: storeDeleteNotification,
+  } = useNotificationStore();
 
   const markAsRead = async (id: string): Promise<void> => {
+    let alreadyRead = false;
     // Optimistic update: update cache immediately
     queryClient.setQueriesData<PaginatedResponse<Notification>>(
       { queryKey: [NOTIFICATIONS_KEY], exact: false },
       (old) => {
         if (!old) return old;
+        alreadyRead = old.data.some((notification) => notification.id === id && isNotificationRead(notification));
         return {
           ...old,
-          data: old.data.map((n) => (n.id === id ? { ...n, read: true } : n)),
+          data: old.data.map((n) =>
+            n.id === id
+              ? { ...n, read: true, read_at: n.read_at ?? new Date().toISOString() }
+              : n,
+          ),
         };
       },
     );
-    storeMarkAsRead(id);
-    decrementUnreadCount();
+    if (!alreadyRead) {
+      storeMarkAsRead(id);
+    }
 
     try {
       await apiPut(`/api/v1/notifications/${id}/read`);
     } catch {
       // Revert on error
       queryClient.invalidateQueries({ queryKey: [NOTIFICATIONS_KEY] });
-      showError('Failed to mark notification as read');
+      showApiError(new Error('Failed to mark notification as read'));
     }
   };
 
@@ -51,7 +62,7 @@ export function useNotificationActions() {
       );
       storeMarkAllAsRead();
     } catch {
-      showError('Failed to mark all notifications as read');
+      showApiError(new Error('Failed to mark all notifications as read'));
       queryClient.invalidateQueries({ queryKey: [NOTIFICATIONS_KEY] });
     }
   };
@@ -65,13 +76,14 @@ export function useNotificationActions() {
         return { ...old, data: old.data.filter((n) => n.id !== id) };
       },
     );
+    storeDeleteNotification(id);
 
     try {
       await apiDelete(`/api/v1/notifications/${id}`);
     } catch {
       // Revert on error
       queryClient.invalidateQueries({ queryKey: [NOTIFICATIONS_KEY] });
-      showError('Failed to delete notification');
+      showApiError(new Error('Failed to delete notification'));
     }
   };
 

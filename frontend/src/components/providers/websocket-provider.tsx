@@ -4,7 +4,6 @@ import { useEffect } from 'react';
 import { useAuth } from '@/hooks/use-auth';
 import { useWebSocket } from '@/hooks/use-websocket';
 import { useNotificationStore } from '@/stores/notification-store';
-import { ConnectionStatusBanner } from '@/components/common/connection-status-banner';
 
 function WebSocketInner() {
   useWebSocket();
@@ -14,7 +13,7 @@ function WebSocketInner() {
     fetchInitialData();
   }, [fetchInitialData]);
 
-  return <ConnectionStatusBanner />;
+  return null;
 }
 
 export function WebSocketProvider({ children }: { children: React.ReactNode }) {
