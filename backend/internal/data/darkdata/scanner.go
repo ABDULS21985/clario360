@@ -3,7 +3,6 @@ package darkdata
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"sort"
 	"strings"
 	"time"
@@ -296,4 +295,3 @@ func mustMarshalJSON(value any) json.RawMessage {
 	}
 	return payload
 }
-

@@ -45,8 +45,7 @@ func (b *GraphBuilder) BuildDirectionalGraph(ctx context.Context, tenantID uuid.
 
 	state := newGraphState(fullGraph.Nodes, fullGraph.Edges)
 	centerKey := nodeKey(entityType, entityID)
-	center, ok := state.nodes[centerKey]
-	if !ok {
+	if _, ok := state.nodes[centerKey]; !ok {
 		return &model.LineageGraph{
 			Nodes: []model.LineageNode{},
 			Edges: []model.LineageEdge{},
@@ -682,4 +681,3 @@ func nodeClassification(node *model.LineageNode) int {
 	}
 	return 1
 }
-

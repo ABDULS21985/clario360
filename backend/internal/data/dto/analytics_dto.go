@@ -16,6 +16,10 @@ type ExplainAnalyticsQueryRequest struct {
 	Query   model.AnalyticsQuery `json:"query"`
 }
 
+type ExploreAnalyticsRequest struct {
+	Query model.AnalyticsQuery `json:"query"`
+}
+
 type SaveQueryRequest struct {
 	Name            string               `json:"name"`
 	Description     string               `json:"description"`
