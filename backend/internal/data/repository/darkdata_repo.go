@@ -280,9 +280,9 @@ func (r *DarkDataRepository) UpdateGovernance(ctx context.Context, tenantID, id 
 		UPDATE dark_data_assets
 		SET governance_status = $3,
 		    governance_notes = $4,
-		    reviewed_by = $5,
-		    reviewed_at = CASE WHEN $5 IS NOT NULL THEN now() ELSE reviewed_at END,
-		    linked_model_id = COALESCE($6, linked_model_id),
+		    reviewed_by = $5::uuid,
+		    reviewed_at = CASE WHEN $5::uuid IS NOT NULL THEN now() ELSE reviewed_at END,
+		    linked_model_id = COALESCE($6::uuid, linked_model_id),
 		    updated_at = now()
 		WHERE tenant_id = $1 AND id = $2`,
 		tenantID, id, status, notes, reviewedBy, linkedModelID,

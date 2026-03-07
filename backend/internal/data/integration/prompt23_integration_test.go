@@ -13,6 +13,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -331,7 +332,8 @@ func newIntegrationHarness(t *testing.T) *integrationHarness {
 		ContainerRequest: tc.ContainerRequest{
 			Image:        "redis:7-alpine",
 			ExposedPorts: []string{"6379/tcp"},
-			WaitingFor:   wait.ForListeningPort("6379/tcp"),
+			Cmd:          []string{"redis-server", "--save", "", "--appendonly", "no", "--bind", "0.0.0.0"},
+			WaitingFor:   wait.ForLog("Ready to accept connections"),
 		},
 		Started: true,
 	})
@@ -431,7 +433,7 @@ func newIntegrationHarness(t *testing.T) *integrationHarness {
 
 	tenantID := uuid.New()
 	userID := uuid.New()
-	logger := zerolog.Nop()
+	logger := zerolog.New(os.Stdout).Level(zerolog.InfoLevel)
 	encryptionKey := make([]byte, 32)
 	if _, err := rand.Read(encryptionKey); err != nil {
 		t.Fatalf("rand.Read(encryptionKey): %v", err)

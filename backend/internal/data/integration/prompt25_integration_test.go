@@ -227,8 +227,6 @@ func TestPrompt25_LineageDarkDataAnalyticsDashboard_HTTP(t *testing.T) {
 }
 
 func TestPrompt25_LineageGraph_100Nodes_Under2Seconds(t *testing.T) {
-	t.Parallel()
-
 	h := newIntegrationHarness(t)
 	h.seedLineagePerfGraph(t, 100, 150)
 
@@ -244,8 +242,6 @@ func TestPrompt25_LineageGraph_100Nodes_Under2Seconds(t *testing.T) {
 }
 
 func TestPrompt25_DataDashboard_Under500Milliseconds(t *testing.T) {
-	t.Parallel()
-
 	h := newIntegrationHarness(t)
 	sourceID := h.createSource(t, datadto.CreateSourceRequest{
 		Name:        "prompt25-dashboard-pg",

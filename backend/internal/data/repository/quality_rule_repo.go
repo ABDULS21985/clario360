@@ -64,7 +64,9 @@ func (r *QualityRuleRepository) List(ctx context.Context, tenantID uuid.UUID, pa
 	qb.WhereIf(params.ModelID != "", "a.model_id = ?", params.ModelID)
 	qb.WhereIf(params.Severity != "", "a.severity = ?", params.Severity)
 	qb.WhereIf(params.Status != "", "a.last_status = ?", params.Status)
-	qb.WhereIf(params.Enabled != nil, "a.enabled = ?", *params.Enabled)
+	if params.Enabled != nil {
+		qb.Where("a.enabled = ?", *params.Enabled)
+	}
 	qb.WhereIf(strings.TrimSpace(params.Search) != "", "a.name ILIKE ?", "%"+strings.TrimSpace(params.Search)+"%")
 	qb.OrderBy(coalesce(params.Sort, "updated_at"), coalesce(params.Order, "desc"), []string{"name", "severity", "last_run_at", "updated_at", "created_at"})
 	qb.Paginate(params.Page, params.PerPage)

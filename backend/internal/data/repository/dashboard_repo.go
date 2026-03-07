@@ -58,7 +58,7 @@ func (r *DashboardRepository) PipelineTrend(ctx context.Context, tenantID uuid.U
 		SELECT DATE_TRUNC('day', started_at) AS day, COUNT(*)::float8 AS value
 		FROM pipeline_runs
 		WHERE tenant_id = $1
-		  AND started_at >= NOW() - ($2::text || ' days')::interval
+		  AND started_at >= NOW() - ($2::int * INTERVAL '1 day')
 		GROUP BY DATE_TRUNC('day', started_at)
 		ORDER BY day ASC`,
 		tenantID, days,
@@ -93,7 +93,7 @@ func (r *DashboardRepository) PipelineSuccessRate(ctx context.Context, tenantID 
 		)
 		FROM pipeline_runs
 		WHERE tenant_id = $1
-		  AND started_at >= NOW() - ($2::text || ' days')::interval`,
+		  AND started_at >= NOW() - ($2::int * INTERVAL '1 day')`,
 		tenantID, days,
 	)
 	var rate float64
@@ -235,7 +235,7 @@ func (r *DashboardRepository) QualityTrend(ctx context.Context, tenantID uuid.UU
 		SELECT DATE_TRUNC('day', checked_at) AS day, COALESCE(ROUND(AVG(COALESCE(pass_rate, 0)), 2), 0)::float8
 		FROM quality_results
 		WHERE tenant_id = $1
-		  AND checked_at >= NOW() - ($2::text || ' days')::interval
+		  AND checked_at >= NOW() - ($2::int * INTERVAL '1 day')
 		GROUP BY DATE_TRUNC('day', checked_at)
 		ORDER BY day ASC`,
 		tenantID, days,
