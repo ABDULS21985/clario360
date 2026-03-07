@@ -302,10 +302,97 @@ CREATE TABLE IF NOT EXISTS dspm_data_assets (
     updated_at              TIMESTAMPTZ     NOT NULL DEFAULT now()
 );
 
-CREATE INDEX IF NOT EXISTS idx_dspm_tenant ON dspm_data_assets (tenant_id, risk_score DESC);
-CREATE INDEX IF NOT EXISTS idx_dspm_classification ON dspm_data_assets (tenant_id, data_classification);
-CREATE INDEX IF NOT EXISTS idx_dspm_pii ON dspm_data_assets (tenant_id, contains_pii) WHERE contains_pii = true;
-CREATE INDEX IF NOT EXISTS idx_dspm_asset ON dspm_data_assets (asset_id);
+ALTER TABLE dspm_data_assets ADD COLUMN IF NOT EXISTS asset_id UUID REFERENCES assets(id);
+ALTER TABLE dspm_data_assets ADD COLUMN IF NOT EXISTS scan_id UUID;
+ALTER TABLE dspm_data_assets ADD COLUMN IF NOT EXISTS data_classification TEXT DEFAULT 'internal';
+ALTER TABLE dspm_data_assets ADD COLUMN IF NOT EXISTS contains_pii BOOLEAN DEFAULT false;
+ALTER TABLE dspm_data_assets ADD COLUMN IF NOT EXISTS pii_types TEXT[] DEFAULT '{}';
+ALTER TABLE dspm_data_assets ADD COLUMN IF NOT EXISTS pii_column_count INT DEFAULT 0;
+ALTER TABLE dspm_data_assets ADD COLUMN IF NOT EXISTS estimated_record_count BIGINT;
+ALTER TABLE dspm_data_assets ADD COLUMN IF NOT EXISTS encrypted_at_rest BOOLEAN;
+ALTER TABLE dspm_data_assets ADD COLUMN IF NOT EXISTS encrypted_in_transit BOOLEAN;
+ALTER TABLE dspm_data_assets ADD COLUMN IF NOT EXISTS access_control_type TEXT;
+ALTER TABLE dspm_data_assets ADD COLUMN IF NOT EXISTS network_exposure TEXT;
+ALTER TABLE dspm_data_assets ADD COLUMN IF NOT EXISTS backup_configured BOOLEAN;
+ALTER TABLE dspm_data_assets ADD COLUMN IF NOT EXISTS audit_logging BOOLEAN;
+ALTER TABLE dspm_data_assets ADD COLUMN IF NOT EXISTS last_access_review TIMESTAMPTZ;
+ALTER TABLE dspm_data_assets ADD COLUMN IF NOT EXISTS risk_factors JSONB DEFAULT '[]';
+ALTER TABLE dspm_data_assets ADD COLUMN IF NOT EXISTS posture_score DECIMAL(5,2) DEFAULT 0;
+ALTER TABLE dspm_data_assets ADD COLUMN IF NOT EXISTS posture_findings JSONB DEFAULT '[]';
+ALTER TABLE dspm_data_assets ADD COLUMN IF NOT EXISTS consumer_count INT DEFAULT 0;
+ALTER TABLE dspm_data_assets ADD COLUMN IF NOT EXISTS producer_count INT DEFAULT 0;
+ALTER TABLE dspm_data_assets ADD COLUMN IF NOT EXISTS database_type TEXT;
+ALTER TABLE dspm_data_assets ADD COLUMN IF NOT EXISTS schema_info JSONB;
+ALTER TABLE dspm_data_assets ADD COLUMN IF NOT EXISTS last_scanned_at TIMESTAMPTZ;
+
+UPDATE dspm_data_assets
+SET data_classification = COALESCE(data_classification, classification::text, 'internal'),
+    pii_types = COALESCE(NULLIF(pii_types, '{}'::text[]), data_types, '{}'::text[]),
+    pii_column_count = COALESCE(pii_column_count, COALESCE(cardinality(data_types), 0)),
+    contains_pii = COALESCE(contains_pii, COALESCE(cardinality(data_types), 0) > 0),
+    sensitivity_score = CASE
+        WHEN sensitivity_score IS NULL THEN 0
+        WHEN sensitivity_score <= 1 THEN ROUND((sensitivity_score * 100)::numeric, 2)
+        ELSE sensitivity_score
+    END,
+    risk_score = CASE
+        WHEN risk_score IS NULL THEN 0
+        WHEN risk_score <= 1 THEN ROUND((risk_score * 100)::numeric, 2)
+        ELSE risk_score
+    END,
+    posture_score = COALESCE(posture_score, 0),
+    risk_factors = COALESCE(risk_factors, '[]'::jsonb),
+    posture_findings = COALESCE(posture_findings, '[]'::jsonb),
+    metadata = COALESCE(metadata, '{}'::jsonb),
+    database_type = COALESCE(database_type, NULLIF(type, '')),
+    last_scanned_at = COALESCE(last_scanned_at, updated_at, created_at);
+
+UPDATE dspm_data_assets da
+SET asset_id = COALESCE(
+    da.asset_id,
+    (
+        SELECT a.id
+        FROM assets a
+        WHERE a.tenant_id = da.tenant_id
+          AND lower(a.name) = lower(da.name)
+          AND a.deleted_at IS NULL
+        ORDER BY a.created_at ASC
+        LIMIT 1
+    )
+)
+WHERE da.asset_id IS NULL;
+
+ALTER TABLE dspm_data_assets ALTER COLUMN data_classification SET DEFAULT 'internal';
+ALTER TABLE dspm_data_assets ALTER COLUMN contains_pii SET DEFAULT false;
+ALTER TABLE dspm_data_assets ALTER COLUMN pii_types SET DEFAULT '{}';
+ALTER TABLE dspm_data_assets ALTER COLUMN pii_column_count SET DEFAULT 0;
+ALTER TABLE dspm_data_assets ALTER COLUMN risk_factors SET DEFAULT '[]';
+ALTER TABLE dspm_data_assets ALTER COLUMN posture_score SET DEFAULT 0;
+ALTER TABLE dspm_data_assets ALTER COLUMN posture_findings SET DEFAULT '[]';
+ALTER TABLE dspm_data_assets ALTER COLUMN consumer_count SET DEFAULT 0;
+ALTER TABLE dspm_data_assets ALTER COLUMN producer_count SET DEFAULT 0;
+ALTER TABLE dspm_data_assets ALTER COLUMN metadata SET DEFAULT '{}';
+
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'chk_dspm_data_assets_classification_prompt20') THEN
+        ALTER TABLE dspm_data_assets
+            ADD CONSTRAINT chk_dspm_data_assets_classification_prompt20 CHECK (data_classification IN ('public', 'internal', 'confidential', 'restricted'));
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'chk_dspm_data_assets_access_control_prompt20') THEN
+        ALTER TABLE dspm_data_assets
+            ADD CONSTRAINT chk_dspm_data_assets_access_control_prompt20 CHECK (access_control_type IS NULL OR access_control_type IN ('none', 'basic', 'rbac', 'abac'));
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'chk_dspm_data_assets_network_exposure_prompt20') THEN
+        ALTER TABLE dspm_data_assets
+            ADD CONSTRAINT chk_dspm_data_assets_network_exposure_prompt20 CHECK (network_exposure IS NULL OR network_exposure IN ('internal_only', 'vpn_accessible', 'internet_facing'));
+    END IF;
+END $$;
+
+CREATE INDEX IF NOT EXISTS idx_dspm_tenant_risk_desc ON dspm_data_assets (tenant_id, risk_score DESC);
+CREATE INDEX IF NOT EXISTS idx_dspm_data_classification_v2 ON dspm_data_assets (tenant_id, data_classification);
+CREATE INDEX IF NOT EXISTS idx_dspm_contains_pii_v2 ON dspm_data_assets (tenant_id, contains_pii) WHERE contains_pii = true;
+CREATE INDEX IF NOT EXISTS idx_dspm_asset_v2 ON dspm_data_assets (asset_id);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_dspm_tenant_asset_unique ON dspm_data_assets (tenant_id, asset_id);
 
 -- =============================================================================
