@@ -31,6 +31,7 @@ export function useRealtimeData<T>(
 ): UseRealtimeDataResult<T> {
   const {
     wsTopics = [],
+    onNewItem,
     params,
     pollInterval = 0,
     enabled = true,

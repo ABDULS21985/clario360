@@ -1,4 +1,5 @@
 import { toast } from 'sonner';
+import { createElement } from 'react';
 import type { Notification } from '@/types/models';
 import { getNotificationIcon } from '@/lib/notification-utils';
 import { truncate } from '@/lib/utils';
@@ -23,6 +24,7 @@ export function showNotificationToast(notification: Notification): void {
   const Icon = getNotificationIcon(notification);
   toast(notification.title, {
     description: truncate(notification.body, 100),
+    icon: createElement(Icon, { className: 'h-4 w-4' }),
     duration: 6000,
     action: notification.action_url
       ? {
@@ -35,8 +37,6 @@ export function showNotificationToast(notification: Notification): void {
         }
       : undefined,
   });
-  // Suppress icon warning — toast doesn't accept React elements directly
-  void Icon;
 }
 
 export function showApiError(error: unknown): void {

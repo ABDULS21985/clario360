@@ -205,7 +205,7 @@ export interface WorkflowInstance {
 export interface TaskCounts {
   pending: number;
   claimed_by_me: number;
-  completed: number;
+  completed?: number;
   overdue: number;
   escalated: number;
 }

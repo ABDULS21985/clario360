@@ -13,6 +13,7 @@ import { getTaskColumns } from '@/components/workflows/task-table-columns';
 import { ErrorState } from '@/components/common/error-state';
 import { useAuth } from '@/hooks/use-auth';
 import { useDataTable } from '@/hooks/use-data-table';
+import { useRealtimeData } from '@/hooks/use-realtime-data';
 import { SearchInput } from '@/components/shared/forms/search-input';
 import { taskFilters, fetchRoleFilterOptions } from '@/components/workflows/task-filters';
 import type { HumanTask, TaskCounts } from '@/types/models';
@@ -35,10 +36,13 @@ export default function WorkflowTasksPage() {
   const activeTab = searchParams.get('tab') ?? 'all';
   const [delegateTask, setDelegateTask] = useState<HumanTask | null>(null);
 
-  const { data: counts, isError: countsError, refetch: refetchCounts } = useQuery({
-    queryKey: ['tasks', 'count'],
-    queryFn: () => apiGet<TaskCounts>(API_ENDPOINTS.WORKFLOWS_TASKS_COUNT),
-    refetchInterval: 30000,
+  const {
+    data: counts,
+    error: countsError,
+    mutate: refetchCounts,
+  } = useRealtimeData<TaskCounts>(API_ENDPOINTS.WORKFLOWS_TASKS_COUNT, {
+    wsTopics: ['task.assigned', 'task.escalated', 'task.overdue', 'workflow.task.created'],
+    pollInterval: 30000,
   });
 
   const { data: roleOptions = [] } = useQuery({

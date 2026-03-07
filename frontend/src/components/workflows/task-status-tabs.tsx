@@ -13,11 +13,11 @@ interface TaskStatusTabsProps {
 
 export function TaskStatusTabs({ activeTab, onTabChange, counts }: TaskStatusTabsProps) {
   const allCount = counts
-    ? counts.pending +
-      counts.claimed_by_me +
-      counts.completed +
-      counts.overdue +
-      counts.escalated
+    ? (counts.pending ?? 0) +
+      (counts.claimed_by_me ?? 0) +
+      (counts.completed ?? 0) +
+      (counts.overdue ?? 0) +
+      (counts.escalated ?? 0)
     : undefined;
 
   const tabs = [
