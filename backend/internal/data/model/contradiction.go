@@ -26,6 +26,16 @@ const (
 	ContradictionStatusFalsePositive ContradictionStatus = "false_positive"
 )
 
+func (s ContradictionStatus) IsValid() bool {
+	switch s {
+	case ContradictionStatusDetected, ContradictionStatusInvestigating, ContradictionStatusResolved,
+		ContradictionStatusAccepted, ContradictionStatusFalsePositive:
+		return true
+	default:
+		return false
+	}
+}
+
 type ContradictionResolutionAction string
 
 const (
@@ -36,6 +46,17 @@ const (
 	ContradictionResolutionDataReconciled   ContradictionResolutionAction = "data_reconciled"
 	ContradictionResolutionFalsePositive    ContradictionResolutionAction = "false_positive"
 )
+
+func (a ContradictionResolutionAction) IsValid() bool {
+	switch a {
+	case ContradictionResolutionSourceACorrected, ContradictionResolutionSourceBCorrected,
+		ContradictionResolutionBothCorrected, ContradictionResolutionAcceptedAsIs,
+		ContradictionResolutionDataReconciled, ContradictionResolutionFalsePositive:
+		return true
+	default:
+		return false
+	}
+}
 
 type ContradictionSource struct {
 	SourceID      *uuid.UUID       `json:"source_id,omitempty"`
@@ -102,4 +123,3 @@ type ContradictionStats struct {
 	OpenContradictions int            `json:"open_contradictions"`
 	UpdatedAt          time.Time      `json:"updated_at"`
 }
-

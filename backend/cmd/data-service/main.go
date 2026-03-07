@@ -20,9 +20,12 @@ import (
 	dataconfig "github.com/clario360/platform/internal/data/config"
 	dataconsumer "github.com/clario360/platform/internal/data/consumer"
 	"github.com/clario360/platform/internal/data/connector"
+	datacontradiction "github.com/clario360/platform/internal/data/contradiction"
 	"github.com/clario360/platform/internal/data/handler"
 	datahealth "github.com/clario360/platform/internal/data/health"
 	datametrics "github.com/clario360/platform/internal/data/metrics"
+	datapipeline "github.com/clario360/platform/internal/data/pipeline"
+	dataquality "github.com/clario360/platform/internal/data/quality"
 	"github.com/clario360/platform/internal/data/repository"
 	"github.com/clario360/platform/internal/data/service"
 	"github.com/clario360/platform/internal/database"
@@ -90,6 +93,12 @@ func main() {
 	sourceRepo := repository.NewSourceRepository(svc.DBPool, logger)
 	modelRepo := repository.NewModelRepository(svc.DBPool, logger)
 	syncRepo := repository.NewSyncRepository(svc.DBPool, logger)
+	pipelineRepo := repository.NewPipelineRepository(svc.DBPool, logger)
+	runRepo := repository.NewPipelineRunRepository(svc.DBPool, logger)
+	logRepo := repository.NewPipelineRunLogRepository(svc.DBPool, logger)
+	qualityRuleRepo := repository.NewQualityRuleRepository(svc.DBPool, logger)
+	qualityResultRepo := repository.NewQualityResultRepository(svc.DBPool, logger)
+	contradictionRepo := repository.NewContradictionRepository(svc.DBPool, logger)
 	dataMetrics := datametrics.New(svc.Metrics.Registry())
 
 	registry := connector.NewConnectorRegistry(connector.ConnectorLimits{
@@ -111,12 +120,66 @@ func main() {
 	if err != nil {
 		logger.Fatal().Err(err).Msg("failed to initialize connection config encryptor")
 	}
+	decryptor := configDecryptorAdapter{encryptor: encryptor}
 
 	tester := service.NewConnectionTester(registry, dataMetrics)
 	discoverySvc := service.NewSchemaDiscoveryService(registry, discoveryOpts, dataMetrics)
 	ingestionSvc := service.NewIngestionService(registry, sourceRepo, syncRepo, discoveryOpts, dataMetrics, logger)
 	sourceSvc := service.NewSourceService(dataCfg, sourceRepo, syncRepo, tester, discoverySvc, ingestionSvc, encryptor, producer, dataMetrics, logger)
 	modelSvc := service.NewModelService(modelRepo, sourceRepo, producer, dataMetrics, logger)
+	extractor := datapipeline.NewExtractor(registry, decryptor)
+	transformer := datapipeline.NewTransformer(logger)
+	loader := datapipeline.NewLoader(registry, decryptor, modelRepo, sourceRepo)
+	qualityGateEvaluator := datapipeline.NewQualityGateEvaluator()
+	pipelineEngine := datapipeline.NewEngine(
+		pipelineRepo,
+		runRepo,
+		logRepo,
+		sourceRepo,
+		modelRepo,
+		extractor,
+		transformer,
+		loader,
+		qualityGateEvaluator,
+		producer,
+		logger,
+		envInt("DATA_PIPELINE_MAX_CONCURRENT", 10),
+	)
+	pipelineScheduler := datapipeline.NewScheduler(
+		pipelineRepo,
+		pipelineEngine,
+		logger,
+		envDuration("DATA_PIPELINE_SCHEDULER_INTERVAL", 15*time.Second),
+	)
+	qualityExecutor := dataquality.NewExecutor(
+		registry,
+		sourceRepo,
+		modelRepo,
+		qualityRuleRepo,
+		qualityResultRepo,
+		decryptor,
+		producer,
+		logger,
+	)
+	qualityScorer := dataquality.NewScorer(qualityRuleRepo, qualityResultRepo, modelRepo)
+	qualityScheduler := dataquality.NewScheduler(
+		qualityRuleRepo,
+		qualityExecutor,
+		logger,
+		envDuration("DATA_QUALITY_SCHEDULER_INTERVAL", 30*time.Second),
+	)
+	contradictionDetector := datacontradiction.NewDetector(
+		registry,
+		sourceRepo,
+		modelRepo,
+		contradictionRepo,
+		decryptor,
+		producer,
+		logger,
+	)
+	pipelineSvc := service.NewPipelineService(pipelineRepo, runRepo, logRepo, sourceRepo, modelRepo, pipelineEngine, producer, logger)
+	qualitySvc := service.NewQualityService(qualityRuleRepo, qualityResultRepo, modelRepo, qualityExecutor, qualityScorer, producer)
+	contradictionSvc := service.NewContradictionService(contradictionRepo, contradictionDetector, producer)
 
 	jwtMgr, err := auth.NewJWTManager(cfg.Auth)
 	if err != nil {
@@ -125,9 +188,23 @@ func main() {
 
 	sourceHandler := handler.NewSourceHandler(sourceSvc, logger)
 	modelHandler := handler.NewModelHandler(modelSvc, logger)
+	pipelineHandler := handler.NewPipelineHandler(pipelineSvc, logger)
+	qualityHandler := handler.NewQualityHandler(qualitySvc, logger)
+	contradictionHandler := handler.NewContradictionHandler(contradictionSvc, logger)
 
 	datahealth.Register(svc.Router, svc.Health, "data-service", cfg.Observability.ServiceName)
-	handler.RegisterRoutes(svc.Router, sourceHandler, modelHandler, jwtMgr, svc.Redis)
+	handler.RegisterRoutes(
+		svc.Router,
+		sourceHandler,
+		modelHandler,
+		pipelineHandler,
+		qualityHandler,
+		contradictionHandler,
+		jwtMgr,
+		svc.Redis,
+	)
+	pipelineScheduler.Start(ctx)
+	qualityScheduler.Start(ctx)
 
 	var dataConsumer *dataconsumer.DataConsumer
 	if len(cfg.Kafka.Brokers) > 0 && cfg.Kafka.Brokers[0] != "" {
@@ -162,6 +239,8 @@ func main() {
 	if dataConsumer != nil {
 		_ = dataConsumer.Stop()
 	}
+	pipelineScheduler.Stop()
+	qualityScheduler.Stop()
 	if producer != nil {
 		_ = producer.Close()
 	}
@@ -232,4 +311,30 @@ func envOr(key, fallback string) string {
 		return value
 	}
 	return fallback
+}
+
+func envInt(key string, fallback int) int {
+	if value := os.Getenv(key); value != "" {
+		if parsed, err := strconv.Atoi(value); err == nil {
+			return parsed
+		}
+	}
+	return fallback
+}
+
+func envDuration(key string, fallback time.Duration) time.Duration {
+	if value := os.Getenv(key); value != "" {
+		if parsed, err := time.ParseDuration(value); err == nil {
+			return parsed
+		}
+	}
+	return fallback
+}
+
+type configDecryptorAdapter struct {
+	encryptor *service.ConfigEncryptor
+}
+
+func (a configDecryptorAdapter) Decrypt(ciphertext []byte, _ string) ([]byte, error) {
+	return a.encryptor.Decrypt(ciphertext)
 }

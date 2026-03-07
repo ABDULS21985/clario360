@@ -22,6 +22,10 @@ func (h *baseHandler) writeError(w http.ResponseWriter, r *http.Request, err err
 		suiteapi.WriteError(w, r, http.StatusBadRequest, "VALIDATION_ERROR", cleanError(err), nil)
 	case errors.Is(err, service.ErrConflict):
 		suiteapi.WriteError(w, r, http.StatusConflict, "CONFLICT", cleanError(err), nil)
+	case errors.Is(err, service.ErrTooManyRequests):
+		suiteapi.WriteError(w, r, http.StatusTooManyRequests, "TOO_MANY_REQUESTS", cleanError(err), nil)
+	case errors.Is(err, service.ErrForbiddenOperation):
+		suiteapi.WriteError(w, r, http.StatusForbidden, "FORBIDDEN", cleanError(err), nil)
 	case errors.Is(err, service.ErrConnectionTestFailed):
 		suiteapi.WriteError(w, r, http.StatusUnprocessableEntity, "CONNECTION_TEST_FAILED", cleanError(err), nil)
 	case errors.Is(err, pgx.ErrNoRows):
@@ -39,6 +43,8 @@ func cleanError(err error) string {
 	message := err.Error()
 	message = strings.TrimPrefix(message, service.ErrValidation.Error()+": ")
 	message = strings.TrimPrefix(message, service.ErrConflict.Error()+": ")
+	message = strings.TrimPrefix(message, service.ErrTooManyRequests.Error()+": ")
+	message = strings.TrimPrefix(message, service.ErrForbiddenOperation.Error()+": ")
 	message = strings.TrimPrefix(message, service.ErrConnectionTestFailed.Error()+": ")
 	message = strings.TrimPrefix(message, service.ErrUnsupportedType.Error()+": ")
 	return message

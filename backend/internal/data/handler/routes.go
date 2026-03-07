@@ -13,6 +13,9 @@ func RegisterRoutes(
 	r chi.Router,
 	sourceHandler *SourceHandler,
 	modelHandler *ModelHandler,
+	pipelineHandler *PipelineHandler,
+	qualityHandler *QualityHandler,
+	contradictionHandler *ContradictionHandler,
 	jwtMgr *auth.JWTManager,
 	rdb *redis.Client,
 ) {
@@ -44,5 +47,41 @@ func RegisterRoutes(
 		r.Post("/models/{id}/validate", modelHandler.Validate)
 		r.Get("/models/{id}/versions", modelHandler.Versions)
 		r.Get("/models/{id}/lineage", modelHandler.Lineage)
+
+		r.Get("/pipelines/stats", pipelineHandler.Stats)
+		r.Get("/pipelines/active", pipelineHandler.Active)
+		r.Post("/pipelines", pipelineHandler.Create)
+		r.Get("/pipelines", pipelineHandler.List)
+		r.Get("/pipelines/{id}", pipelineHandler.Get)
+		r.Put("/pipelines/{id}", pipelineHandler.Update)
+		r.Delete("/pipelines/{id}", pipelineHandler.Delete)
+		r.Post("/pipelines/{id}/run", pipelineHandler.Run)
+		r.Post("/pipelines/{id}/pause", pipelineHandler.Pause)
+		r.Post("/pipelines/{id}/resume", pipelineHandler.Resume)
+		r.Get("/pipelines/{id}/runs", pipelineHandler.ListRuns)
+		r.Get("/pipelines/{id}/runs/{runId}", pipelineHandler.GetRun)
+		r.Get("/pipelines/{id}/runs/{runId}/logs", pipelineHandler.GetRunLogs)
+
+		r.Get("/quality/score/trend", qualityHandler.Trend)
+		r.Get("/quality/score", qualityHandler.Score)
+		r.Get("/quality/dashboard", qualityHandler.Dashboard)
+		r.Post("/quality/rules", qualityHandler.CreateRule)
+		r.Get("/quality/rules", qualityHandler.ListRules)
+		r.Get("/quality/rules/{id}", qualityHandler.GetRule)
+		r.Put("/quality/rules/{id}", qualityHandler.UpdateRule)
+		r.Delete("/quality/rules/{id}", qualityHandler.DeleteRule)
+		r.Post("/quality/rules/{id}/run", qualityHandler.RunRule)
+		r.Get("/quality/results", qualityHandler.ListResults)
+		r.Get("/quality/results/{id}", qualityHandler.GetResult)
+
+		r.Post("/contradictions/scan", contradictionHandler.Scan)
+		r.Get("/contradictions/scans", contradictionHandler.ListScans)
+		r.Get("/contradictions/scans/{id}", contradictionHandler.GetScan)
+		r.Get("/contradictions/stats", contradictionHandler.Stats)
+		r.Get("/contradictions/dashboard", contradictionHandler.Dashboard)
+		r.Get("/contradictions", contradictionHandler.List)
+		r.Get("/contradictions/{id}", contradictionHandler.Get)
+		r.Put("/contradictions/{id}/status", contradictionHandler.UpdateStatus)
+		r.Post("/contradictions/{id}/resolve", contradictionHandler.Resolve)
 	})
 }
