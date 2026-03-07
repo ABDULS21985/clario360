@@ -109,10 +109,15 @@ export function CreateSourceWizard({
   }
 
   async function runConnectionVerification() {
+    if (!state.sourceType) {
+      return;
+    }
     setTesting(true);
     try {
-      const source = await ensurePersistedSource();
-      const result = await dataSuiteApi.testSource(source.id);
+      const result = await dataSuiteApi.testSourceConfig({
+        type: state.sourceType,
+        connection_config: state.connectionConfig,
+      });
       setState((current) => ({
         ...current,
         testResult: result,
@@ -342,7 +347,7 @@ export function CreateSourceWizard({
                   <AlertTriangle className="h-4 w-4 text-amber-600" />
                   <AlertTitle className="text-amber-700">Verification details were skipped</AlertTitle>
                   <AlertDescription className="text-amber-700">
-                    The backend still validated the connection during provisional source creation because no raw test-config endpoint exists.
+                    The source will be created during schema discovery or final submission, so no connection health record was persisted yet.
                   </AlertDescription>
                 </Alert>
               ) : null}

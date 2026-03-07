@@ -1,20 +1,38 @@
 'use client';
 
 import Link from 'next/link';
+import { MoreHorizontal } from 'lucide-react';
 import { type ColumnDef } from '@tanstack/react-table';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { type Pipeline } from '@/lib/data-suite';
 import { formatMaybeCompact, formatMaybeDateTime, humanizeCronOrFrequency } from '@/lib/data-suite/utils';
+import {
+  PipelineStatusIndicator,
+  pipelineCanResume,
+} from '@/app/(dashboard)/data/pipelines/_components/pipeline-status-indicator';
 
 interface PipelineColumnOptions {
   runningId: string | null;
+  mutatingId: string | null;
   onRun: (pipeline: Pipeline) => void;
+  onPause: (pipeline: Pipeline) => void;
+  onResume: (pipeline: Pipeline) => void;
+  onDelete: (pipeline: Pipeline) => void;
 }
 
 export function buildPipelineColumns({
   runningId,
+  mutatingId,
   onRun,
+  onPause,
+  onResume,
+  onDelete,
 }: PipelineColumnOptions): ColumnDef<Pipeline>[] {
   return [
     {
@@ -40,7 +58,9 @@ export function buildPipelineColumns({
     {
       id: 'status',
       header: 'Status',
-      cell: ({ row }) => <Badge variant="outline">{row.original.status}</Badge>,
+      cell: ({ row }) => (
+        <PipelineStatusIndicator status={row.original.status} lastRunStatus={row.original.last_run_status} compact />
+      ),
     },
     {
       id: 'schedule',
@@ -66,9 +86,49 @@ export function buildPipelineColumns({
       id: 'actions',
       header: '',
       cell: ({ row }) => (
-        <Button type="button" size="sm" variant="outline" onClick={() => onRun(row.original)} disabled={runningId === row.original.id}>
-          {runningId === row.original.id ? 'Starting…' : 'Run now'}
-        </Button>
+        <div className="flex items-center justify-end gap-2">
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={() => onRun(row.original)}
+            disabled={runningId === row.original.id}
+          >
+            {runningId === row.original.id ? 'Starting…' : 'Run now'}
+          </Button>
+
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button type="button" size="icon" variant="ghost" aria-label="Pipeline actions">
+                <MoreHorizontal className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              {pipelineCanResume(row.original) ? (
+                <DropdownMenuItem
+                  onClick={() => onResume(row.original)}
+                  disabled={mutatingId === row.original.id}
+                >
+                  {mutatingId === row.original.id ? 'Resuming…' : 'Resume'}
+                </DropdownMenuItem>
+              ) : (
+                <DropdownMenuItem
+                  onClick={() => onPause(row.original)}
+                  disabled={mutatingId === row.original.id || row.original.status !== 'active'}
+                >
+                  {mutatingId === row.original.id ? 'Pausing…' : 'Pause'}
+                </DropdownMenuItem>
+              )}
+              <DropdownMenuItem
+                onClick={() => onDelete(row.original)}
+                disabled={mutatingId === row.original.id}
+                className="text-destructive focus:text-destructive"
+              >
+                {mutatingId === row.original.id ? 'Deleting…' : 'Delete'}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
       ),
     },
   ];

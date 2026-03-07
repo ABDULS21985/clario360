@@ -44,6 +44,7 @@ import type {
 export const DATA_SUITE_ENDPOINTS = {
   dashboard: '/api/v1/data/dashboard',
   sources: '/api/v1/data/sources',
+  sourceTestConfig: '/api/v1/data/sources/test-config',
   sourceStats: '/api/v1/data/sources/stats',
   sourceById: (id: string) => `/api/v1/data/sources/${id}`,
   sourceTest: (id: string) => `/api/v1/data/sources/${id}/test`,
@@ -177,6 +178,7 @@ export const dataSuiteApi = {
   createSource: (payload: unknown) => apiPost<DataEnvelope<DataSource>>(DATA_SUITE_ENDPOINTS.sources, payload).then((res) => res.data),
   updateSource: (id: string, payload: unknown) => apiPut<DataEnvelope<DataSource>>(DATA_SUITE_ENDPOINTS.sourceById(id), payload).then((res) => res.data),
   deleteSource: (id: string) => apiDelete<void>(DATA_SUITE_ENDPOINTS.sourceById(id)),
+  testSourceConfig: (payload: unknown) => apiPost<DataEnvelope<ConnectionTestResult>>(DATA_SUITE_ENDPOINTS.sourceTestConfig, payload).then((res) => res.data),
   testSource: (id: string) => apiPost<DataEnvelope<ConnectionTestResult>>(DATA_SUITE_ENDPOINTS.sourceTest(id)).then((res) => res.data),
   discoverSource: (id: string) => apiPost<DataEnvelope<DiscoveredSchema>>(DATA_SUITE_ENDPOINTS.sourceDiscover(id), {}).then((res) => res.data),
   getSourceSchema: (id: string) => fetchDataSuite<DiscoveredSchema>(DATA_SUITE_ENDPOINTS.sourceSchema(id)),
@@ -196,6 +198,7 @@ export const dataSuiteApi = {
   getPipeline: (id: string) => fetchDataSuite<Pipeline>(DATA_SUITE_ENDPOINTS.pipelineById(id)),
   createPipeline: (payload: unknown) => apiPost<DataEnvelope<Pipeline>>(DATA_SUITE_ENDPOINTS.pipelines, payload).then((res) => res.data),
   updatePipeline: (id: string, payload: unknown) => apiPut<DataEnvelope<Pipeline>>(DATA_SUITE_ENDPOINTS.pipelineById(id), payload).then((res) => res.data),
+  deletePipeline: (id: string) => apiDelete<void>(DATA_SUITE_ENDPOINTS.pipelineById(id)),
   runPipeline: (id: string) => apiPost<DataEnvelope<PipelineRun>>(DATA_SUITE_ENDPOINTS.pipelineRun(id), {}).then((res) => res.data),
   pausePipeline: (id: string) => apiPost<DataEnvelope<{ id: string; status: string }>>(DATA_SUITE_ENDPOINTS.pipelinePause(id), {}).then((res) => res.data),
   resumePipeline: (id: string) => apiPost<DataEnvelope<{ id: string; status: string }>>(DATA_SUITE_ENDPOINTS.pipelineResume(id), {}).then((res) => res.data),

@@ -120,6 +120,11 @@ export const sourceConfigureSchema = z.object({
   sync_frequency: z.string().nullable().default(null),
 });
 
+export const testSourceConfigSchema = z.object({
+  type: sourceTypeSchema,
+  connection_config: z.record(z.string(), z.unknown()),
+});
+
 export const qualityRuleFormSchema = z.object({
   model_id: z.string().uuid('Model is required'),
   name: z.string().min(2, 'Rule name is required'),
@@ -174,6 +179,7 @@ export type APIConnectionValues = z.infer<typeof apiConnectionSchema>;
 export type CSVConnectionValues = z.infer<typeof csvConnectionSchema>;
 export type S3ConnectionValues = z.infer<typeof s3ConnectionSchema>;
 export type SourceConfigureValues = z.infer<typeof sourceConfigureSchema>;
+export type TestSourceConfigValues = z.infer<typeof testSourceConfigSchema>;
 export type QualityRuleFormValues = z.infer<typeof qualityRuleFormSchema>;
 export type ContradictionResolutionValues = z.infer<typeof contradictionResolutionSchema>;
 export type DarkDataGovernValues = z.infer<typeof darkDataGovernSchema>;

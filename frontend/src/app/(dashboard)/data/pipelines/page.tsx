@@ -1,12 +1,14 @@
 'use client';
 
 import { useState } from 'react';
-import { GitBranch } from 'lucide-react';
+import { GitBranch, Plus } from 'lucide-react';
 import { PageHeader } from '@/components/common/page-header';
 import { PermissionRedirect } from '@/components/common/permission-redirect';
 import { DataTable } from '@/components/shared/data-table/data-table';
 import { SearchInput } from '@/components/shared/forms/search-input';
+import { Button } from '@/components/ui/button';
 import { useDataTable } from '@/hooks/use-data-table';
+import { CreatePipelineWizard } from '@/app/(dashboard)/data/pipelines/_components/create-pipeline-wizard';
 import { buildPipelineColumns } from '@/app/(dashboard)/data/pipelines/_components/pipeline-columns';
 import { dataSuiteApi, type Pipeline } from '@/lib/data-suite';
 import { showApiError, showSuccess } from '@/lib/toast';
@@ -38,6 +40,8 @@ const PIPELINE_FILTERS = [
 
 export default function DataPipelinesPage() {
   const [runningId, setRunningId] = useState<string | null>(null);
+  const [mutatingId, setMutatingId] = useState<string | null>(null);
+  const [wizardOpen, setWizardOpen] = useState(false);
   const { tableProps, searchValue, setSearch, refetch } = useDataTable<Pipeline>({
     queryKey: 'data-pipelines',
     fetchFn: (params) => dataSuiteApi.listPipelines(params),
@@ -59,17 +63,72 @@ export default function DataPipelinesPage() {
     }
   };
 
+  const pausePipeline = async (pipeline: Pipeline) => {
+    try {
+      setMutatingId(pipeline.id);
+      await dataSuiteApi.pausePipeline(pipeline.id);
+      showSuccess('Pipeline paused.', `${pipeline.name} will not run until resumed.`);
+      void refetch();
+    } catch (error) {
+      showApiError(error);
+    } finally {
+      setMutatingId(null);
+    }
+  };
+
+  const resumePipeline = async (pipeline: Pipeline) => {
+    try {
+      setMutatingId(pipeline.id);
+      await dataSuiteApi.resumePipeline(pipeline.id);
+      showSuccess('Pipeline resumed.', `${pipeline.name} is active again.`);
+      void refetch();
+    } catch (error) {
+      showApiError(error);
+    } finally {
+      setMutatingId(null);
+    }
+  };
+
+  const deletePipeline = async (pipeline: Pipeline) => {
+    if (!window.confirm(`Delete pipeline "${pipeline.name}"?`)) {
+      return;
+    }
+    try {
+      setMutatingId(pipeline.id);
+      await dataSuiteApi.deletePipeline(pipeline.id);
+      showSuccess('Pipeline deleted.');
+      void refetch();
+    } catch (error) {
+      showApiError(error);
+    } finally {
+      setMutatingId(null);
+    }
+  };
+
   return (
     <PermissionRedirect permission="data:read">
       <div className="space-y-6">
         <PageHeader
           title="Pipelines"
           description="Operational pipeline registry with live execution controls, schedule context, and processed volume."
+          actions={
+            <Button type="button" onClick={() => setWizardOpen(true)}>
+              <Plus className="mr-2 h-4 w-4" />
+              Create pipeline
+            </Button>
+          }
         />
 
         <DataTable
           {...tableProps}
-          columns={buildPipelineColumns({ runningId, onRun: (pipeline) => void runPipeline(pipeline) })}
+          columns={buildPipelineColumns({
+            runningId,
+            mutatingId,
+            onRun: (pipeline) => void runPipeline(pipeline),
+            onPause: (pipeline) => void pausePipeline(pipeline),
+            onResume: (pipeline) => void resumePipeline(pipeline),
+            onDelete: (pipeline) => void deletePipeline(pipeline),
+          })}
           filters={PIPELINE_FILTERS}
           searchSlot={
             <SearchInput
@@ -83,6 +142,14 @@ export default function DataPipelinesPage() {
             icon: GitBranch,
             title: 'No pipelines found',
             description: 'No pipelines matched the current filters.',
+          }}
+        />
+
+        <CreatePipelineWizard
+          open={wizardOpen}
+          onOpenChange={setWizardOpen}
+          onCreated={() => {
+            void refetch();
           }}
         />
       </div>

@@ -305,6 +305,27 @@ func (s *SourceService) TestConnection(ctx context.Context, tenantID, id uuid.UU
 	return result, nil
 }
 
+func (s *SourceService) TestConfig(ctx context.Context, tenantID uuid.UUID, req dto.TestSourceConfigRequest) (*connector.ConnectionTestResult, error) {
+	sourceType := model.DataSourceType(strings.TrimSpace(req.Type))
+	if !sourceType.IsValid() {
+		return nil, fmt.Errorf("%w: invalid data source type", ErrValidation)
+	}
+	normalizedConfig, err := normalizeConnectionConfig(sourceType, req.ConnectionConfig, s.config)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %v", ErrValidation, err)
+	}
+	result, err := s.tester.Test(ctx, sourceType, normalizedConfig)
+	if err != nil {
+		return nil, err
+	}
+	_ = s.publishSourceEvent(ctx, "data.source.connection_tested", tenantID, map[string]any{
+		"success":    result.Success,
+		"latency_ms": result.LatencyMs,
+		"type":       sourceType,
+	})
+	return result, nil
+}
+
 func (s *SourceService) DiscoverSchema(ctx context.Context, tenantID, id uuid.UUID) (*model.DiscoveredSchema, error) {
 	record, err := s.sourceRepo.Get(ctx, tenantID, id)
 	if err != nil {

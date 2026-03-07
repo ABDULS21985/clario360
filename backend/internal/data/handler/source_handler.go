@@ -185,6 +185,25 @@ func (h *SourceHandler) TestConnection(w http.ResponseWriter, r *http.Request) {
 	suiteapi.WriteData(w, http.StatusOK, result)
 }
 
+func (h *SourceHandler) TestConfig(w http.ResponseWriter, r *http.Request) {
+	tenantID, err := suiteapi.TenantID(r)
+	if err != nil {
+		suiteapi.WriteError(w, r, http.StatusUnauthorized, "UNAUTHORIZED", err.Error(), nil)
+		return
+	}
+	var req dto.TestSourceConfigRequest
+	if err := suiteapi.DecodeJSON(r, &req); err != nil {
+		suiteapi.WriteError(w, r, http.StatusBadRequest, "VALIDATION_ERROR", "invalid request body", nil)
+		return
+	}
+	result, err := h.service.TestConfig(r.Context(), tenantID, req)
+	if err != nil {
+		h.writeError(w, r, err)
+		return
+	}
+	suiteapi.WriteData(w, http.StatusOK, result)
+}
+
 func (h *SourceHandler) Discover(w http.ResponseWriter, r *http.Request) {
 	tenantID, err := suiteapi.TenantID(r)
 	if err != nil {

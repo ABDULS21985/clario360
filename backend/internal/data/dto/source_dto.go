@@ -19,6 +19,11 @@ type CreateSourceRequest struct {
 	Metadata         json.RawMessage `json:"metadata,omitempty"`
 }
 
+type TestSourceConfigRequest struct {
+	Type             string          `json:"type" validate:"required,oneof=postgresql mysql mssql api csv s3 stream"`
+	ConnectionConfig json.RawMessage `json:"connection_config" validate:"required"`
+}
+
 type UpdateSourceRequest struct {
 	Name             *string         `json:"name,omitempty" validate:"omitempty,min=2,max=255"`
 	Description      *string         `json:"description,omitempty" validate:"omitempty,max=2000"`
