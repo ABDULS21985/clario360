@@ -169,10 +169,10 @@ func (s *DSPMService) ExposureAnalysis(ctx context.Context, tenantID uuid.UUID) 
 		return nil, err
 	}
 	params := &dto.DSPMAssetListParams{
-		Page:           1,
-		PerPage:        100,
-		Sort:           "risk_score",
-		Order:          "desc",
+		Page:            1,
+		PerPage:         100,
+		Sort:            "risk_score",
+		Order:           "desc",
 		NetworkExposure: nullableString("internet_facing"),
 	}
 	params.SetDefaults()

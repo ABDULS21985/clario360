@@ -113,21 +113,21 @@ func (c *RemediationConsumer) handleCTEMTriggered(ctx context.Context, tenantID 
 	}
 
 	req := &dto.CreateRemediationRequest{
-		AssessmentID:       &group.AssessmentID,
-		CTEMFindingID:      ctemFindingID,
-		RemediationGroupID: &group.ID,
-		Type:               remediationTypeForGroup(group.Type),
-		Severity:           remediationSeverityForPriority(group.PriorityGroup),
-		Title:              group.Title,
-		Description:        firstNonEmptyString(group.Description, "Generated from CTEM remediation group"),
-		Plan:               remediationPlanForGroup(group, assetIDs),
-		AffectedAssetIDs:   assetIDs,
-		ExecutionMode:      remediationExecutionModeForGroup(group.Type),
+		AssessmentID:         &group.AssessmentID,
+		CTEMFindingID:        ctemFindingID,
+		RemediationGroupID:   &group.ID,
+		Type:                 remediationTypeForGroup(group.Type),
+		Severity:             remediationSeverityForPriority(group.PriorityGroup),
+		Title:                group.Title,
+		Description:          firstNonEmptyString(group.Description, "Generated from CTEM remediation group"),
+		Plan:                 remediationPlanForGroup(group, assetIDs),
+		AffectedAssetIDs:     assetIDs,
+		ExecutionMode:        remediationExecutionModeForGroup(group.Type),
 		RequiresApprovalFrom: "security_manager",
-		Tags:               []string{"ctem", "auto-generated"},
+		Tags:                 []string{"ctem", "auto-generated"},
 		Metadata: map[string]interface{}{
-			"source":       "ctem",
-			"priority_group": group.PriorityGroup,
+			"source":          "ctem",
+			"priority_group":  group.PriorityGroup,
 			"ctem_group_type": string(group.Type),
 		},
 	}
@@ -172,11 +172,11 @@ func (c *RemediationConsumer) handleAlertCreated(ctx context.Context, tenantID u
 	}
 
 	req := &dto.CreateRemediationRequest{
-		AlertID:            &alertID,
-		Type:               string(model.RemediationTypeCustom),
-		Severity:           payload.Severity,
-		Title:              "Investigate and remediate alert: " + payload.Title,
-		Description:        "Auto-generated governed remediation from a high-priority alert. Execution remains blocked pending approval and dry-run.",
+		AlertID:     &alertID,
+		Type:        string(model.RemediationTypeCustom),
+		Severity:    payload.Severity,
+		Title:       "Investigate and remediate alert: " + payload.Title,
+		Description: "Auto-generated governed remediation from a high-priority alert. Execution remains blocked pending approval and dry-run.",
 		Plan: model.RemediationPlan{
 			Steps: []model.RemediationStep{
 				{
@@ -190,10 +190,10 @@ func (c *RemediationConsumer) handleAlertCreated(ctx context.Context, tenantID u
 			EstimatedDowntime: "0",
 			RiskLevel:         payload.Severity,
 		},
-		AffectedAssetIDs:   assetIDs,
-		ExecutionMode:      "manual",
+		AffectedAssetIDs:     assetIDs,
+		ExecutionMode:        "manual",
 		RequiresApprovalFrom: "security_manager",
-		Tags:               []string{"alert", "auto-generated"},
+		Tags:                 []string{"alert", "auto-generated"},
 		Metadata: map[string]interface{}{
 			"source":          "alert",
 			"confidence":      payload.Confidence,

@@ -89,6 +89,10 @@ ALTER TABLE remediation_actions ADD COLUMN IF NOT EXISTS workflow_instance_id UU
 ALTER TABLE remediation_actions ADD COLUMN IF NOT EXISTS tags TEXT[] DEFAULT '{}';
 ALTER TABLE remediation_actions ADD COLUMN IF NOT EXISTS metadata JSONB DEFAULT '{}';
 ALTER TABLE remediation_actions ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
+ALTER TABLE remediation_actions ADD COLUMN IF NOT EXISTS rollback_data JSONB;
+ALTER TABLE remediation_actions ADD COLUMN IF NOT EXISTS executed_at TIMESTAMPTZ;
+ALTER TABLE remediation_actions ADD COLUMN IF NOT EXISTS completed_at TIMESTAMPTZ;
+ALTER TABLE remediation_actions ADD COLUMN IF NOT EXISTS updated_by UUID;
 
 ALTER TABLE remediation_actions
     ALTER COLUMN type TYPE TEXT USING (
@@ -305,6 +309,12 @@ CREATE TABLE IF NOT EXISTS dspm_data_assets (
 ALTER TABLE dspm_data_assets ADD COLUMN IF NOT EXISTS asset_id UUID REFERENCES assets(id);
 ALTER TABLE dspm_data_assets ADD COLUMN IF NOT EXISTS scan_id UUID;
 ALTER TABLE dspm_data_assets ADD COLUMN IF NOT EXISTS data_classification TEXT DEFAULT 'internal';
+ALTER TABLE dspm_data_assets ADD COLUMN IF NOT EXISTS name TEXT;
+ALTER TABLE dspm_data_assets ADD COLUMN IF NOT EXISTS type TEXT;
+ALTER TABLE dspm_data_assets ADD COLUMN IF NOT EXISTS location TEXT;
+ALTER TABLE dspm_data_assets ADD COLUMN IF NOT EXISTS classification TEXT;
+ALTER TABLE dspm_data_assets ADD COLUMN IF NOT EXISTS owner UUID;
+ALTER TABLE dspm_data_assets ADD COLUMN IF NOT EXISTS data_types TEXT[] DEFAULT '{}';
 ALTER TABLE dspm_data_assets ADD COLUMN IF NOT EXISTS contains_pii BOOLEAN DEFAULT false;
 ALTER TABLE dspm_data_assets ADD COLUMN IF NOT EXISTS pii_types TEXT[] DEFAULT '{}';
 ALTER TABLE dspm_data_assets ADD COLUMN IF NOT EXISTS pii_column_count INT DEFAULT 0;
@@ -324,6 +334,8 @@ ALTER TABLE dspm_data_assets ADD COLUMN IF NOT EXISTS producer_count INT DEFAULT
 ALTER TABLE dspm_data_assets ADD COLUMN IF NOT EXISTS database_type TEXT;
 ALTER TABLE dspm_data_assets ADD COLUMN IF NOT EXISTS schema_info JSONB;
 ALTER TABLE dspm_data_assets ADD COLUMN IF NOT EXISTS last_scanned_at TIMESTAMPTZ;
+ALTER TABLE dspm_data_assets ADD COLUMN IF NOT EXISTS created_by UUID;
+ALTER TABLE dspm_data_assets ADD COLUMN IF NOT EXISTS updated_by UUID;
 
 UPDATE dspm_data_assets
 SET data_classification = COALESCE(data_classification, classification::text, 'internal'),

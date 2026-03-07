@@ -35,23 +35,23 @@ func (f EventHandlerFunc) Handle(ctx context.Context, event *Event) error {
 // Consumer wraps a Sarama consumer group for event consumption with manual offset commit,
 // configurable concurrency, and graceful shutdown support.
 type Consumer struct {
-	group      sarama.ConsumerGroup
-	handler    *consumerGroupHandler
-	logger     zerolog.Logger
-	groupID    string
-	ready      chan struct{}
-	cancel     context.CancelFunc
-	cancelCtx  context.Context
-	wg         sync.WaitGroup
-	running    bool
-	mu         sync.Mutex
+	group     sarama.ConsumerGroup
+	handler   *consumerGroupHandler
+	logger    zerolog.Logger
+	groupID   string
+	ready     chan struct{}
+	cancel    context.CancelFunc
+	cancelCtx context.Context
+	wg        sync.WaitGroup
+	running   bool
+	mu        sync.Mutex
 }
 
 // ConsumerConfig holds consumer-specific configuration.
 type ConsumerConfig struct {
-	Brokers         []string
-	GroupID         string
-	AutoOffsetReset string
+	Brokers             []string
+	GroupID             string
+	AutoOffsetReset     string
 	WorkersPerPartition int // Default: 1 (preserves ordering)
 }
 

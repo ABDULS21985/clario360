@@ -16,13 +16,13 @@ import (
 )
 
 type VCISOService struct {
-	repo         *repository.VCISORepository
-	briefing     *vciso.BriefingGenerator
-	recommender  *vciso.RecommendationAggregator
-	reporter     *vciso.ReportGenerator
-	riskScorer   *cyberrisk.RiskScorer
-	producer     *events.Producer
-	logger       zerolog.Logger
+	repo        *repository.VCISORepository
+	briefing    *vciso.BriefingGenerator
+	recommender *vciso.RecommendationAggregator
+	reporter    *vciso.ReportGenerator
+	riskScorer  *cyberrisk.RiskScorer
+	producer    *events.Producer
+	logger      zerolog.Logger
 }
 
 func NewVCISOService(

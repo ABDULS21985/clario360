@@ -33,6 +33,10 @@ ALTER TABLE remediation_actions ADD COLUMN IF NOT EXISTS workflow_instance_id UU
 ALTER TABLE remediation_actions ADD COLUMN IF NOT EXISTS tags TEXT[] DEFAULT '{}';
 ALTER TABLE remediation_actions ADD COLUMN IF NOT EXISTS metadata JSONB DEFAULT '{}';
 ALTER TABLE remediation_actions ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
+ALTER TABLE remediation_actions ADD COLUMN IF NOT EXISTS rollback_data JSONB;
+ALTER TABLE remediation_actions ADD COLUMN IF NOT EXISTS executed_at TIMESTAMPTZ;
+ALTER TABLE remediation_actions ADD COLUMN IF NOT EXISTS completed_at TIMESTAMPTZ;
+ALTER TABLE remediation_actions ADD COLUMN IF NOT EXISTS updated_by UUID;
 
 ALTER TABLE remediation_actions
     ALTER COLUMN type TYPE TEXT USING (
@@ -145,4 +149,92 @@ CREATE INDEX IF NOT EXISTS idx_remediation_assets_gin ON remediation_actions USI
 CREATE INDEX IF NOT EXISTS idx_remediation_rollback_deadline_active ON remediation_actions (tenant_id, rollback_deadline)
     WHERE status = 'executed' AND rollback_deadline IS NOT NULL AND deleted_at IS NULL;
 
+ALTER TABLE dspm_data_assets ADD COLUMN IF NOT EXISTS asset_id UUID REFERENCES assets(id);
+ALTER TABLE dspm_data_assets ADD COLUMN IF NOT EXISTS scan_id UUID;
+ALTER TABLE dspm_data_assets ADD COLUMN IF NOT EXISTS data_classification TEXT DEFAULT 'internal';
+ALTER TABLE dspm_data_assets ADD COLUMN IF NOT EXISTS name TEXT;
+ALTER TABLE dspm_data_assets ADD COLUMN IF NOT EXISTS type TEXT;
+ALTER TABLE dspm_data_assets ADD COLUMN IF NOT EXISTS location TEXT;
+ALTER TABLE dspm_data_assets ADD COLUMN IF NOT EXISTS classification TEXT;
+ALTER TABLE dspm_data_assets ADD COLUMN IF NOT EXISTS owner UUID;
+ALTER TABLE dspm_data_assets ADD COLUMN IF NOT EXISTS data_types TEXT[] DEFAULT '{}';
+ALTER TABLE dspm_data_assets ADD COLUMN IF NOT EXISTS contains_pii BOOLEAN DEFAULT false;
+ALTER TABLE dspm_data_assets ADD COLUMN IF NOT EXISTS pii_types TEXT[] DEFAULT '{}';
+ALTER TABLE dspm_data_assets ADD COLUMN IF NOT EXISTS pii_column_count INT DEFAULT 0;
+ALTER TABLE dspm_data_assets ADD COLUMN IF NOT EXISTS estimated_record_count BIGINT;
+ALTER TABLE dspm_data_assets ADD COLUMN IF NOT EXISTS encrypted_at_rest BOOLEAN;
+ALTER TABLE dspm_data_assets ADD COLUMN IF NOT EXISTS encrypted_in_transit BOOLEAN;
+ALTER TABLE dspm_data_assets ADD COLUMN IF NOT EXISTS access_control_type TEXT;
+ALTER TABLE dspm_data_assets ADD COLUMN IF NOT EXISTS network_exposure TEXT;
+ALTER TABLE dspm_data_assets ADD COLUMN IF NOT EXISTS backup_configured BOOLEAN;
+ALTER TABLE dspm_data_assets ADD COLUMN IF NOT EXISTS audit_logging BOOLEAN;
+ALTER TABLE dspm_data_assets ADD COLUMN IF NOT EXISTS last_access_review TIMESTAMPTZ;
+ALTER TABLE dspm_data_assets ADD COLUMN IF NOT EXISTS risk_factors JSONB DEFAULT '[]';
+ALTER TABLE dspm_data_assets ADD COLUMN IF NOT EXISTS posture_score DECIMAL(5,2) DEFAULT 0;
+ALTER TABLE dspm_data_assets ADD COLUMN IF NOT EXISTS posture_findings JSONB DEFAULT '[]';
+ALTER TABLE dspm_data_assets ADD COLUMN IF NOT EXISTS consumer_count INT DEFAULT 0;
+ALTER TABLE dspm_data_assets ADD COLUMN IF NOT EXISTS producer_count INT DEFAULT 0;
+ALTER TABLE dspm_data_assets ADD COLUMN IF NOT EXISTS database_type TEXT;
+ALTER TABLE dspm_data_assets ADD COLUMN IF NOT EXISTS schema_info JSONB;
+ALTER TABLE dspm_data_assets ADD COLUMN IF NOT EXISTS last_scanned_at TIMESTAMPTZ;
+ALTER TABLE dspm_data_assets ADD COLUMN IF NOT EXISTS created_by UUID;
+ALTER TABLE dspm_data_assets ADD COLUMN IF NOT EXISTS updated_by UUID;
+
+UPDATE dspm_data_assets
+SET data_classification = COALESCE(data_classification, classification::text, 'internal'),
+    pii_types = COALESCE(NULLIF(pii_types, '{}'::text[]), data_types, '{}'::text[]),
+    pii_column_count = COALESCE(pii_column_count, COALESCE(cardinality(data_types), 0)),
+    contains_pii = COALESCE(contains_pii, COALESCE(cardinality(data_types), 0) > 0),
+    sensitivity_score = CASE
+        WHEN sensitivity_score IS NULL THEN 0
+        WHEN sensitivity_score <= 1 THEN ROUND((sensitivity_score * 100)::numeric, 2)
+        ELSE sensitivity_score
+    END,
+    risk_score = CASE
+        WHEN risk_score IS NULL THEN 0
+        WHEN risk_score <= 1 THEN ROUND((risk_score * 100)::numeric, 2)
+        ELSE risk_score
+    END,
+    posture_score = COALESCE(posture_score, 0),
+    risk_factors = COALESCE(risk_factors, '[]'::jsonb),
+    posture_findings = COALESCE(posture_findings, '[]'::jsonb),
+    metadata = COALESCE(metadata, '{}'::jsonb),
+    database_type = COALESCE(database_type, NULLIF(type, '')),
+    last_scanned_at = COALESCE(last_scanned_at, updated_at, created_at);
+
+UPDATE dspm_data_assets da
+SET asset_id = COALESCE(
+    da.asset_id,
+    (
+        SELECT a.id
+        FROM assets a
+        WHERE a.tenant_id = da.tenant_id
+          AND lower(a.name) = lower(da.name)
+          AND a.deleted_at IS NULL
+        ORDER BY a.created_at ASC
+        LIMIT 1
+    )
+)
+WHERE da.asset_id IS NULL;
+
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'chk_dspm_data_assets_classification_prompt20') THEN
+        ALTER TABLE dspm_data_assets
+            ADD CONSTRAINT chk_dspm_data_assets_classification_prompt20 CHECK (data_classification IN ('public', 'internal', 'confidential', 'restricted'));
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'chk_dspm_data_assets_access_control_prompt20') THEN
+        ALTER TABLE dspm_data_assets
+            ADD CONSTRAINT chk_dspm_data_assets_access_control_prompt20 CHECK (access_control_type IS NULL OR access_control_type IN ('none', 'basic', 'rbac', 'abac'));
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'chk_dspm_data_assets_network_exposure_prompt20') THEN
+        ALTER TABLE dspm_data_assets
+            ADD CONSTRAINT chk_dspm_data_assets_network_exposure_prompt20 CHECK (network_exposure IS NULL OR network_exposure IN ('internal_only', 'vpn_accessible', 'internet_facing'));
+    END IF;
+END $$;
+
+CREATE INDEX IF NOT EXISTS idx_dspm_tenant_risk_desc ON dspm_data_assets (tenant_id, risk_score DESC);
+CREATE INDEX IF NOT EXISTS idx_dspm_data_classification_v2 ON dspm_data_assets (tenant_id, data_classification);
+CREATE INDEX IF NOT EXISTS idx_dspm_contains_pii_v2 ON dspm_data_assets (tenant_id, contains_pii) WHERE contains_pii = true;
+CREATE INDEX IF NOT EXISTS idx_dspm_asset_v2 ON dspm_data_assets (asset_id);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_dspm_tenant_asset_unique ON dspm_data_assets (tenant_id, asset_id);
