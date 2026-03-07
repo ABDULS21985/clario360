@@ -37,7 +37,14 @@ export function KpiGrid() {
 
   const { data: taskData, isLoading: taskLoading, error: taskError, lastUpdate: taskUpdate } =
     useRealtimeData<TaskCount>(API_ENDPOINTS.WORKFLOWS_TASKS_COUNT, {
-      wsTopics: ['task.assigned', 'task.escalated', 'workflow.task.created'],
+      wsTopics: [
+        'task.assigned',
+        'task.completed',
+        'task.escalated',
+        'workflow.task.created',
+        'workflow.task.completed',
+        'workflow.task.escalated',
+      ],
     });
 
   const {

@@ -30,7 +30,14 @@ export function MyTasksList() {
     API_ENDPOINTS.WORKFLOWS_TASKS,
     {
       params: { status: 'pending,claimed', per_page: 5 },
-      wsTopics: ['task.assigned', 'task.escalated', 'workflow.task.created'],
+      wsTopics: [
+        'task.assigned',
+        'task.completed',
+        'task.escalated',
+        'workflow.task.created',
+        'workflow.task.completed',
+        'workflow.task.escalated',
+      ],
       onNewItem: (notification) => {
         const taskId = getTaskId(notification.action_url);
         if (taskId) {

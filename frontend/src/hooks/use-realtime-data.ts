@@ -39,6 +39,11 @@ export function useRealtimeData<T>(
 
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const topicSignature = wsTopics.join('|');
+  const stableTopics = useMemo(
+    () => (topicSignature ? topicSignature.split('|') : []),
+    [topicSignature],
+  );
 
   const queryKey = useMemo(() => (params ? [url, params] : [url]), [url, params]);
   const queryKeyString = JSON.stringify(queryKey);
@@ -55,18 +60,18 @@ export function useRealtimeData<T>(
   const queryEvent = useRealtimeStore((state) => state.queryEvents[queryKeyString]);
 
   useEffect(() => {
-    if (!enabled || wsTopics.length === 0) return;
+    if (!enabled || stableTopics.length === 0) return;
 
-    for (const topic of wsTopics) {
+    for (const topic of stableTopics) {
       register(topic, queryKeyString);
     }
 
     return () => {
-      for (const topic of wsTopics) {
+      for (const topic of stableTopics) {
         unregister(topic, queryKeyString);
       }
     };
-  }, [wsTopics, queryKeyString, register, unregister, enabled]);
+  }, [stableTopics, queryKeyString, register, unregister, enabled]);
 
   useEffect(() => {
     if (!queryEvent || !enabled) {

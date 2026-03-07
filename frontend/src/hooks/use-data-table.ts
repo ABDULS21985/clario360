@@ -47,6 +47,11 @@ export function useDataTable<TData>(
     defaultSort,
     wsTopics = [],
   } = options;
+  const topicSignature = wsTopics.join("|");
+  const stableTopics = useMemo(
+    () => (topicSignature ? topicSignature.split("|") : []),
+    [topicSignature]
+  );
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -169,20 +174,20 @@ export function useDataTable<TData>(
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    if (wsTopics.length === 0) {
+    if (stableTopics.length === 0) {
       return;
     }
 
-    for (const topic of wsTopics) {
+    for (const topic of stableTopics) {
       register(topic, realtimeQueryKey);
     }
 
     return () => {
-      for (const topic of wsTopics) {
+      for (const topic of stableTopics) {
         unregister(topic, realtimeQueryKey);
       }
     };
-  }, [register, realtimeQueryKey, unregister, wsTopics]);
+  }, [register, realtimeQueryKey, stableTopics, unregister]);
 
   useEffect(() => {
     if (!queryEvent) {
