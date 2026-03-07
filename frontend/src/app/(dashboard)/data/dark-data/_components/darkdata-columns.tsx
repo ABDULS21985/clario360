@@ -1,19 +1,30 @@
 'use client';
 
+import { MoreHorizontal } from 'lucide-react';
 import { type ColumnDef } from '@tanstack/react-table';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { type DarkDataAsset } from '@/lib/data-suite';
 import { formatMaybeBytes, formatMaybeDateTime, getClassificationBadge } from '@/lib/data-suite/utils';
 
 interface DarkDataColumnOptions {
   onReview: (asset: DarkDataAsset) => void;
   onGovern: (asset: DarkDataAsset) => void;
+  onArchive: (asset: DarkDataAsset) => void;
+  onScheduleDeletion: (asset: DarkDataAsset) => void;
 }
 
 export function buildDarkDataColumns({
   onReview,
   onGovern,
+  onArchive,
+  onScheduleDeletion,
 }: DarkDataColumnOptions): ColumnDef<DarkDataAsset>[] {
   return [
     {
@@ -70,13 +81,26 @@ export function buildDarkDataColumns({
       id: 'actions',
       header: '',
       cell: ({ row }) => (
-        <div className="flex gap-2">
+        <div className="flex items-center gap-2">
           <Button type="button" size="sm" variant="outline" onClick={() => onReview(row.original)}>
             Review
           </Button>
           <Button type="button" size="sm" onClick={() => onGovern(row.original)}>
             Govern
           </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button type="button" size="icon" variant="ghost" aria-label="Dark data actions">
+                <MoreHorizontal className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => onArchive(row.original)}>Archive</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => onScheduleDeletion(row.original)}>
+                Schedule deletion
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       ),
     },

@@ -16,6 +16,7 @@ import { DarkDataDetailPanel } from '@/app/(dashboard)/data/dark-data/_component
 import { DarkDataGovernDialog } from '@/app/(dashboard)/data/dark-data/_components/darkdata-govern-dialog';
 import { DarkDataKpiCards } from '@/app/(dashboard)/data/dark-data/_components/darkdata-kpi-cards';
 import { DarkDataScanDialog } from '@/app/(dashboard)/data/dark-data/_components/darkdata-scan-dialog';
+import { DarkDataStatusDialog } from '@/app/(dashboard)/data/dark-data/_components/darkdata-status-dialog';
 import { dataSuiteApi, type DarkDataAsset } from '@/lib/data-suite';
 import type { DarkDataGovernValues } from '@/lib/data-suite/forms';
 import { showApiError, showSuccess } from '@/lib/toast';
@@ -51,6 +52,9 @@ export default function DataDarkDataPage() {
   const [selected, setSelected] = useState<DarkDataAsset | null>(null);
   const [governing, setGoverning] = useState<DarkDataAsset | null>(null);
   const [submittingGovern, setSubmittingGovern] = useState(false);
+  const [statusAsset, setStatusAsset] = useState<DarkDataAsset | null>(null);
+  const [targetStatus, setTargetStatus] = useState<'archived' | 'scheduled_deletion' | null>(null);
+  const [submittingStatus, setSubmittingStatus] = useState(false);
   const [scanOpen, setScanOpen] = useState(false);
 
   const statsQuery = useQuery({
@@ -80,6 +84,28 @@ export default function DataDarkDataPage() {
       showApiError(error);
     } finally {
       setSubmittingGovern(false);
+    }
+  };
+
+  const updateStatus = async (notes: string) => {
+    if (!statusAsset || !targetStatus) {
+      return;
+    }
+    try {
+      setSubmittingStatus(true);
+      await dataSuiteApi.updateDarkDataStatus(statusAsset.id, {
+        governance_status: targetStatus,
+        governance_notes: notes,
+      });
+      showSuccess(targetStatus === 'archived' ? 'Asset archived.' : 'Deletion scheduled.');
+      setStatusAsset(null);
+      setTargetStatus(null);
+      void refetch();
+      void statsQuery.refetch();
+    } catch (error) {
+      showApiError(error);
+    } finally {
+      setSubmittingStatus(false);
     }
   };
 
@@ -119,7 +145,18 @@ export default function DataDarkDataPage() {
 
         <DataTable
           {...tableProps}
-          columns={buildDarkDataColumns({ onReview: setSelected, onGovern: setGoverning })}
+          columns={buildDarkDataColumns({
+            onReview: setSelected,
+            onGovern: setGoverning,
+            onArchive: (asset) => {
+              setStatusAsset(asset);
+              setTargetStatus('archived');
+            },
+            onScheduleDeletion: (asset) => {
+              setStatusAsset(asset);
+              setTargetStatus('scheduled_deletion');
+            },
+          })}
           filters={DARK_DATA_FILTERS}
           searchSlot={
             <SearchInput
@@ -165,6 +202,20 @@ export default function DataDarkDataPage() {
             void refetch();
             void statsQuery.refetch();
           }}
+        />
+
+        <DarkDataStatusDialog
+          open={Boolean(statusAsset && targetStatus)}
+          onOpenChange={(open) => {
+            if (!open) {
+              setStatusAsset(null);
+              setTargetStatus(null);
+            }
+          }}
+          asset={statusAsset}
+          targetStatus={targetStatus}
+          submitting={submittingStatus}
+          onSubmit={(values) => void updateStatus(values.governance_notes)}
         />
       </div>
     </PermissionRedirect>

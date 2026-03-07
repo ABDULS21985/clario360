@@ -9,7 +9,12 @@ import { ErrorState } from '@/components/common/error-state';
 import { LoadingSkeleton } from '@/components/common/loading-skeleton';
 import { Button } from '@/components/ui/button';
 import { LineageControls } from '@/app/(dashboard)/data/lineage/_components/lineage-controls';
-import { LineageDag } from '@/app/(dashboard)/data/lineage/_components/lineage-dag';
+import {
+  LineageDag,
+  type LineageDagApi,
+  type LineageLayoutSnapshot,
+  type LineageViewportState,
+} from '@/app/(dashboard)/data/lineage/_components/lineage-dag';
 import { LineageDetailPanel } from '@/app/(dashboard)/data/lineage/_components/lineage-detail-panel';
 import { LineageImpactPanel } from '@/app/(dashboard)/data/lineage/_components/lineage-impact-panel';
 import { LineageMinimap } from '@/app/(dashboard)/data/lineage/_components/lineage-minimap';
@@ -26,6 +31,9 @@ export default function DataLineagePage() {
   const [selectedNode, setSelectedNode] = useState<LineageNode | null>(null);
   const [impactMode, setImpactMode] = useState(false);
   const [impact, setImpact] = useState<ImpactAnalysis | null>(null);
+  const [dagApi, setDagApi] = useState<LineageDagApi | null>(null);
+  const [layout, setLayout] = useState<LineageLayoutSnapshot | null>(null);
+  const [viewport, setViewport] = useState<LineageViewportState | null>(null);
 
   const graphQuery = useQuery({
     queryKey: ['data-lineage', focusType, focusId],
@@ -75,12 +83,21 @@ export default function DataLineagePage() {
           actions={
             <div className="flex flex-wrap items-center gap-2">
               <LineageSearch value={search} onChange={setSearch} />
-              <LineageControls direction={direction} onDirectionChange={setDirection} onReset={() => {
-                setSearch('');
-                setSelectedNode(null);
-                setImpact(null);
-                setDirection('LR');
-              }} />
+              <LineageControls
+                direction={direction}
+                onDirectionChange={setDirection}
+                onFit={() => dagApi?.fitToScreen()}
+                onReset={() => {
+                  setSearch('');
+                  setSelectedNode(null);
+                  setImpact(null);
+                  setDirection('LR');
+                  dagApi?.reset();
+                }}
+                onZoomIn={() => dagApi?.zoomIn()}
+                onZoomOut={() => dagApi?.zoomOut()}
+                onFullscreen={() => dagApi?.fullscreen()}
+              />
               <Button type="button" variant={impactMode ? 'default' : 'outline'} onClick={() => {
                 setImpactMode((current) => !current);
                 setImpact(null);
@@ -99,10 +116,17 @@ export default function DataLineagePage() {
             search={search}
             impact={impact}
             onSelectNode={(node) => void handleSelectNode(node)}
+            onReady={setDagApi}
+            onLayoutChange={setLayout}
+            onViewportChange={setViewport}
           />
 
           <div className="space-y-4">
-            <LineageMinimap graph={graphQuery.data} />
+            <LineageMinimap
+              layout={layout}
+              viewport={viewport}
+              onNavigate={(x, y) => dagApi?.centerOn(x, y)}
+            />
             <LineageDetailPanel node={selectedNode} />
             {impactMode ? <LineageImpactPanel impact={impact} /> : null}
           </div>

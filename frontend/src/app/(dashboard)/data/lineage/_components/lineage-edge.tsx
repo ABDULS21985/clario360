@@ -20,7 +20,7 @@ export function LineageEdge({
   dimmed,
 }: LineageEdgeProps) {
   return (
-    <g opacity={dimmed ? 0.2 : 1}>
+    <g opacity={dimmed ? 0.2 : 1} data-testid={`lineage-edge-${edge.id}`}>
       <path
         d={path}
         fill="none"

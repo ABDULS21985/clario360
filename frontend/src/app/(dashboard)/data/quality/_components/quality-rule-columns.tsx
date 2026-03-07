@@ -3,17 +3,24 @@
 import { type ColumnDef } from '@tanstack/react-table';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Switch } from '@/components/ui/switch';
 import { type QualityRule } from '@/lib/data-suite';
 import { formatMaybeDateTime, qualitySeverityVisuals } from '@/lib/data-suite/utils';
 
 interface QualityRuleColumnOptions {
   runningId: string | null;
+  togglingId: string | null;
   onRun: (rule: QualityRule) => void;
+  onEdit: (rule: QualityRule) => void;
+  onToggleEnabled: (rule: QualityRule, enabled: boolean) => void;
 }
 
 export function buildQualityRuleColumns({
   runningId,
+  togglingId,
   onRun,
+  onEdit,
+  onToggleEnabled,
 }: QualityRuleColumnOptions): ColumnDef<QualityRule>[] {
   return [
     {
@@ -44,7 +51,13 @@ export function buildQualityRuleColumns({
     {
       id: 'enabled',
       header: 'Enabled',
-      cell: ({ row }) => (row.original.enabled ? 'Yes' : 'No'),
+      cell: ({ row }) => (
+        <Switch
+          checked={row.original.enabled}
+          onCheckedChange={(checked) => onToggleEnabled(row.original, checked)}
+          disabled={togglingId === row.original.id}
+        />
+      ),
     },
     {
       id: 'last_status',
@@ -60,9 +73,14 @@ export function buildQualityRuleColumns({
       id: 'actions',
       header: '',
       cell: ({ row }) => (
-        <Button type="button" size="sm" variant="outline" onClick={() => onRun(row.original)} disabled={runningId === row.original.id}>
-          {runningId === row.original.id ? 'Running…' : 'Run now'}
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button type="button" size="sm" variant="outline" onClick={() => onEdit(row.original)}>
+            Edit
+          </Button>
+          <Button type="button" size="sm" variant="outline" onClick={() => onRun(row.original)} disabled={runningId === row.original.id}>
+            {runningId === row.original.id ? 'Running…' : 'Run now'}
+          </Button>
+        </div>
       ),
     },
   ];

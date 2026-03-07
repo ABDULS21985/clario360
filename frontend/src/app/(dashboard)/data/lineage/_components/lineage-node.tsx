@@ -19,9 +19,21 @@ export function LineageNode({
   fill,
 }: LineageNodeProps) {
   const opacity = dimmed ? 0.2 : 1;
+  const shape =
+    node.type === 'data_source'
+      ? 'cylinder'
+      : node.type === 'pipeline'
+        ? 'chevron'
+        : node.type === 'quality_rule'
+          ? 'diamond'
+          : node.type === 'suite_consumer'
+            ? 'hexagon'
+            : node.type === 'report'
+              ? 'document'
+              : 'rounded-rect';
 
   return (
-    <g opacity={opacity}>
+    <g opacity={opacity} data-shape={shape}>
       {node.type === 'data_source' ? (
         <>
           <ellipse cx={0} cy={-20} rx={WIDTH / 2} ry={12} fill={fill} />

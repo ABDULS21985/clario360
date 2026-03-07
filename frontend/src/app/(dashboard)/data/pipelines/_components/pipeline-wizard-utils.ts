@@ -195,7 +195,11 @@ export function buildSampleRows(table: DiscoveredTable | null, limit = 5): Array
 }
 
 export function serializePipelinePayload(state: PipelineWizardState): PipelineCreatePayload {
-  const schedule = resolveScheduleValue(state.schedule.schedule_mode, state.schedule.schedule_preset, state.schedule.custom_cron);
+  const schedule = resolveScheduleValue(
+    state.schedule.schedule_mode,
+    state.schedule.schedule_preset,
+    state.schedule.custom_cron,
+  );
   return {
     name: state.basic.name,
     description: state.basic.description,
@@ -279,7 +283,7 @@ export function serializeTransform(transform: PipelineTransformDraft): Transform
         config: {
           column: transform.config.column,
           mapping,
-          default: transform.config.default_value || undefined,
+          default: transform.config.default_value || null,
         },
       };
     }
@@ -396,13 +400,13 @@ export function runPreview(rows: Array<Record<string, JsonValue>>, transforms: P
 function resolveScheduleValue(
   mode: PipelineWizardState['schedule']['schedule_mode'],
   preset: string | null,
-  customCron: string,
+  customCron?: string,
 ): string | null {
   if (mode === 'preset') {
     return preset;
   }
   if (mode === 'custom') {
-    return customCron.trim() || null;
+    return customCron?.trim() || null;
   }
   return null;
 }
@@ -612,7 +616,7 @@ function likeValue(value: string, pattern: string): boolean {
 }
 
 function evaluateDeriveExpression(row: Record<string, JsonValue>, expression: string): JsonValue {
-  const helpers = {
+  const helpers: PreviewHelpers = {
     TRIM: (value: JsonValue) => (value === null || value === undefined ? null : `${value}`.trim()),
     UPPER: (value: JsonValue) => (value === null || value === undefined ? null : `${value}`.toUpperCase()),
     LOWER: (value: JsonValue) => (value === null || value === undefined ? null : `${value}`.toLowerCase()),
@@ -630,7 +634,7 @@ function evaluateDeriveExpression(row: Record<string, JsonValue>, expression: st
     'row',
     'helpers',
     `const { TRIM, UPPER, LOWER, CONCAT, COALESCE } = helpers; return (${script});`,
-  ) as (row: Record<string, JsonValue>, helpers: typeof helpers) => JsonValue;
+  ) as (row: Record<string, JsonValue>, helpers: PreviewHelpers) => JsonValue;
 
   return fn(row, helpers);
 }
@@ -723,3 +727,10 @@ export function columnSamplePreview(column: DiscoveredColumn): string {
   return column.sample_values?.slice(0, 3).join(', ') ?? 'No sample values';
 }
 
+interface PreviewHelpers {
+  TRIM: (value: JsonValue) => string | null;
+  UPPER: (value: JsonValue) => string | null;
+  LOWER: (value: JsonValue) => string | null;
+  CONCAT: (...values: JsonValue[]) => string;
+  COALESCE: (...values: JsonValue[]) => JsonValue;
+}

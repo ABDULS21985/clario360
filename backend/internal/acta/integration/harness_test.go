@@ -492,7 +492,7 @@ func (h *actaHarness) doJSONWithToken(t *testing.T, token, method, path string, 
 	return resp
 }
 
-func (h *actaHarness) mustData[T any](t *testing.T, resp *http.Response, wantStatus int) T {
+func mustData[T any](t *testing.T, resp *http.Response, wantStatus int) T {
 	t.Helper()
 	defer resp.Body.Close()
 
@@ -504,7 +504,7 @@ func (h *actaHarness) mustData[T any](t *testing.T, resp *http.Response, wantSta
 	return envelope.Data
 }
 
-func (h *actaHarness) mustPaginated[T any](t *testing.T, resp *http.Response, wantStatus int) paginatedEnvelope[T] {
+func mustPaginated[T any](t *testing.T, resp *http.Response, wantStatus int) paginatedEnvelope[T] {
 	t.Helper()
 	defer resp.Body.Close()
 
@@ -516,7 +516,7 @@ func (h *actaHarness) mustPaginated[T any](t *testing.T, resp *http.Response, wa
 	return envelope
 }
 
-func (h *actaHarness) mustError(t *testing.T, resp *http.Response, wantStatus int) errorEnvelope {
+func mustError(t *testing.T, resp *http.Response, wantStatus int) errorEnvelope {
 	t.Helper()
 	defer resp.Body.Close()
 
@@ -536,7 +536,7 @@ func (h *actaHarness) createCommittee(t *testing.T, name string, memberCount int
 		Name:  "Chair User",
 		Email: "chair.user@acta.integration",
 	}
-	committee := h.mustData[model.Committee](t, h.doJSON(t, http.MethodPost, "/api/v1/acta/committees", map[string]any{
+	committee := mustData[model.Committee](t, h.doJSON(t, http.MethodPost, "/api/v1/acta/committees", map[string]any{
 		"name":              name,
 		"type":              "audit",
 		"description":       "Integration test committee",
@@ -559,7 +559,7 @@ func (h *actaHarness) createCommittee(t *testing.T, name string, memberCount int
 			Name:  fmt.Sprintf("Member %02d", idx),
 			Email: fmt.Sprintf("member%02d@acta.integration", idx),
 		}
-		committee = h.mustData[model.Committee](t, h.doJSON(t, http.MethodPost, fmt.Sprintf("/api/v1/acta/committees/%s/members", committee.ID), map[string]any{
+		committee = mustData[model.Committee](t, h.doJSON(t, http.MethodPost, fmt.Sprintf("/api/v1/acta/committees/%s/members", committee.ID), map[string]any{
 			"user_id":    member.ID,
 			"user_name":  member.Name,
 			"user_email": member.Email,
@@ -666,12 +666,12 @@ func (h *actaHarness) waitForTenantEventType(t *testing.T, eventType string) *ev
 
 func (h *actaHarness) getMeeting(t *testing.T, meetingID uuid.UUID) model.Meeting {
 	t.Helper()
-	return h.mustData[model.Meeting](t, h.doJSON(t, http.MethodGet, fmt.Sprintf("/api/v1/acta/meetings/%s", meetingID), nil), http.StatusOK)
+	return mustData[model.Meeting](t, h.doJSON(t, http.MethodGet, fmt.Sprintf("/api/v1/acta/meetings/%s", meetingID), nil), http.StatusOK)
 }
 
 func (h *actaHarness) getActionItem(t *testing.T, actionItemID uuid.UUID) model.ActionItem {
 	t.Helper()
-	return h.mustData[model.ActionItem](t, h.doJSON(t, http.MethodGet, fmt.Sprintf("/api/v1/acta/action-items/%s", actionItemID), nil), http.StatusOK)
+	return mustData[model.ActionItem](t, h.doJSON(t, http.MethodGet, fmt.Sprintf("/api/v1/acta/action-items/%s", actionItemID), nil), http.StatusOK)
 }
 
 func ensureKafkaTopic(ctx context.Context, brokers []string, topic string) error {
