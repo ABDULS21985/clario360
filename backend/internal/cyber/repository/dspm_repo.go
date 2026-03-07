@@ -55,7 +55,7 @@ func (r *DSPMRepository) UpsertDataAsset(ctx context.Context, asset *model.DSPMD
 		) VALUES (
 			$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$28
 		)
-		ON CONFLICT (asset_id) DO UPDATE SET
+		ON CONFLICT (tenant_id, asset_id) DO UPDATE SET
 			scan_id=$4, data_classification=$5, sensitivity_score=$6,
 			contains_pii=$7, pii_types=$8, pii_column_count=$9, estimated_record_count=$10,
 			encrypted_at_rest=$11, encrypted_in_transit=$12, access_control_type=$13, network_exposure=$14,
@@ -91,6 +91,24 @@ func (r *DSPMRepository) GetDataAssetByID(ctx context.Context, tenantID, id uuid
 		LEFT JOIN assets a ON a.id = da.asset_id
 		WHERE da.id=$1 AND da.tenant_id=$2`,
 		id, tenantID,
+	)
+	return scanDSPMAsset(row)
+}
+
+// GetDataAssetByAssetID retrieves a DSPM data asset by its linked cyber asset ID.
+func (r *DSPMRepository) GetDataAssetByAssetID(ctx context.Context, tenantID, assetID uuid.UUID) (*model.DSPMDataAsset, error) {
+	row := r.db.QueryRow(ctx, `
+		SELECT da.id, da.tenant_id, da.asset_id, a.name, a.type, da.scan_id,
+		       da.data_classification, da.sensitivity_score, da.contains_pii, da.pii_types,
+		       da.pii_column_count, da.estimated_record_count, da.encrypted_at_rest, da.encrypted_in_transit,
+		       da.access_control_type, da.network_exposure, da.backup_configured, da.audit_logging, da.last_access_review,
+		       da.risk_score, da.risk_factors, da.posture_score, da.posture_findings,
+		       da.consumer_count, da.producer_count, da.database_type, da.schema_info, da.metadata,
+		       da.last_scanned_at, da.created_at, da.updated_at
+		FROM dspm_data_assets da
+		LEFT JOIN assets a ON a.id = da.asset_id
+		WHERE da.asset_id=$1 AND da.tenant_id=$2`,
+		assetID, tenantID,
 	)
 	return scanDSPMAsset(row)
 }
@@ -143,8 +161,16 @@ func (r *DSPMRepository) ListDataAssets(ctx context.Context, tenantID uuid.UUID,
 	}
 
 	order := "da.risk_score"
-	if params.Sort != "" {
-		order = "da." + params.Sort
+	allowedSorts := map[string]string{
+		"risk_score":          "da.risk_score",
+		"posture_score":       "da.posture_score",
+		"data_classification": "da.data_classification",
+		"sensitivity_score":   "da.sensitivity_score",
+		"created_at":          "da.created_at",
+		"updated_at":          "da.updated_at",
+	}
+	if mapped, ok := allowedSorts[params.Sort]; ok {
+		order = mapped
 	}
 	dir := "DESC"
 	if strings.ToLower(params.Order) == "asc" {

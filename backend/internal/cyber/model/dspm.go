@@ -73,6 +73,15 @@ type DSPMScan struct {
 	CreatedAt      time.Time  `json:"created_at"`
 }
 
+// DSPMScanResult summarizes one completed scan run.
+type DSPMScanResult struct {
+	Scan           *DSPMScan `json:"scan"`
+	AssetsScanned  int       `json:"assets_scanned"`
+	PIIAssetsFound int       `json:"pii_assets_found"`
+	HighRiskFound  int       `json:"high_risk_found"`
+	FindingsCount  int       `json:"findings_count"`
+}
+
 // DSPMDashboard aggregates DSPM metrics for the dashboard widget.
 type DSPMDashboard struct {
 	TotalDataAssets        int                       `json:"total_data_assets"`

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -156,10 +157,52 @@ func (r *RemediationRepository) UpdateStatus(ctx context.Context, tenantID, id u
 	fields["status"] = string(status)
 	fields["updated_at"] = time.Now().UTC()
 
+	allowedColumns := map[string]bool{
+		"status":                 true,
+		"updated_at":             true,
+		"submitted_by":           true,
+		"submitted_at":           true,
+		"approved_by":            true,
+		"approved_at":            true,
+		"approval_notes":         true,
+		"rejected_by":            true,
+		"rejected_at":            true,
+		"rejection_reason":       true,
+		"dry_run_result":         true,
+		"dry_run_at":             true,
+		"dry_run_duration_ms":    true,
+		"pre_execution_state":    true,
+		"execution_result":       true,
+		"executed_by":            true,
+		"execution_started_at":   true,
+		"execution_completed_at": true,
+		"execution_duration_ms":  true,
+		"verification_result":    true,
+		"verified_by":            true,
+		"verified_at":            true,
+		"rollback_result":        true,
+		"rollback_reason":        true,
+		"rollback_approved_by":   true,
+		"rolled_back_at":         true,
+		"rollback_deadline":      true,
+		"workflow_instance_id":   true,
+		"metadata":               true,
+		"tags":                   true,
+	}
+
 	setClauses := make([]string, 0, len(fields))
 	args := make([]interface{}, 0, len(fields)+2)
 	i := 1
-	for k, v := range fields {
+	keys := make([]string, 0, len(fields))
+	for k := range fields {
+		keys = append(keys, k)
+	}
+	slices.Sort(keys)
+	for _, k := range keys {
+		if !allowedColumns[k] {
+			return fmt.Errorf("update remediation status: disallowed column %q", k)
+		}
+		v := fields[k]
 		setClauses = append(setClauses, fmt.Sprintf("%s=$%d", k, i))
 		args = append(args, v)
 		i++
@@ -246,8 +289,16 @@ func (r *RemediationRepository) List(ctx context.Context, tenantID uuid.UUID, pa
 	}
 
 	order := "created_at"
-	if params.Sort != "" {
-		order = params.Sort
+	allowedSorts := map[string]string{
+		"created_at": "created_at",
+		"updated_at": "updated_at",
+		"status":     "status",
+		"severity":   "severity",
+		"type":       "type",
+		"title":      "title",
+	}
+	if mapped, ok := allowedSorts[params.Sort]; ok {
+		order = mapped
 	}
 	dir := "DESC"
 	if strings.ToLower(params.Order) == "asc" {
@@ -411,6 +462,9 @@ func scanRemediation(row interface {
 	a.Tags = tags
 	if a.Tags == nil {
 		a.Tags = []string{}
+	}
+	if a.Metadata == nil {
+		a.Metadata = map[string]interface{}{}
 	}
 	return &a, nil
 }

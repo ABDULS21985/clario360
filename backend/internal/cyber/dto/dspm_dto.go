@@ -1,6 +1,12 @@
 package dto
 
-import "github.com/google/uuid"
+import (
+	"fmt"
+
+	"github.com/google/uuid"
+
+	"github.com/clario360/platform/internal/cyber/model"
+)
 
 // DSPMAssetListParams are query parameters for listing DSPM data assets.
 type DSPMAssetListParams struct {
@@ -31,6 +37,24 @@ func (p *DSPMAssetListParams) SetDefaults() {
 	}
 }
 
+func (p *DSPMAssetListParams) Validate() error {
+	validSorts := map[string]bool{
+		"risk_score":           true,
+		"posture_score":        true,
+		"data_classification":  true,
+		"sensitivity_score":    true,
+		"created_at":           true,
+		"updated_at":           true,
+	}
+	if p.Sort != "" && !validSorts[p.Sort] {
+		return fmt.Errorf("invalid sort field: %s", p.Sort)
+	}
+	if p.Order != "" && p.Order != "asc" && p.Order != "desc" {
+		return fmt.Errorf("invalid order: %s", p.Order)
+	}
+	return nil
+}
+
 // DSPMScanListParams are query parameters for listing scans.
 type DSPMScanListParams struct {
 	Status  *string `json:"status"`
@@ -45,4 +69,41 @@ func (p *DSPMScanListParams) SetDefaults() {
 	if p.PerPage <= 0 || p.PerPage > 100 {
 		p.PerPage = 20
 	}
+}
+
+func (p *DSPMScanListParams) Validate() error {
+	if p.Page < 1 {
+		return fmt.Errorf("page must be at least 1")
+	}
+	if p.PerPage < 1 || p.PerPage > 100 {
+		return fmt.Errorf("per_page must be between 1 and 100")
+	}
+	if p.Status != nil {
+		switch *p.Status {
+		case "running", "completed", "failed":
+		default:
+			return fmt.Errorf("invalid status: %s", *p.Status)
+		}
+	}
+	return nil
+}
+
+type DSPMAssetListResponse struct {
+	Data       []*model.DSPMDataAsset `json:"data"`
+	Total      int                    `json:"total"`
+	Page       int                    `json:"page"`
+	PerPage    int                    `json:"per_page"`
+	TotalPages int                    `json:"total_pages"`
+}
+
+type DSPMScanListResponse struct {
+	Data       []*model.DSPMScan `json:"data"`
+	Total      int               `json:"total"`
+	Page       int               `json:"page"`
+	PerPage    int               `json:"per_page"`
+	TotalPages int               `json:"total_pages"`
+}
+
+type DSPMScanTriggerResponse struct {
+	Scan *model.DSPMScan `json:"scan"`
 }

@@ -176,16 +176,46 @@ func (s *IsolateStrategy) Verify(ctx context.Context, action *model.RemediationA
 }
 
 func (s *IsolateStrategy) Rollback(ctx context.Context, action *model.RemediationAction) error {
-	for _, assetID := range action.AffectedAssetIDs {
-		_, err := s.db.Exec(ctx, `
-			UPDATE assets
-			SET metadata = metadata - 'isolated' - 'isolation_reason',
-			    updated_at = now()
-			WHERE id=$1 AND tenant_id=$2`,
-			assetID, action.TenantID,
-		)
+	type assetState struct {
+		AssetID         string  `json:"asset_id"`
+		Name            string  `json:"name"`
+		Isolated        bool    `json:"isolated"`
+		IsolationReason *string `json:"isolation_reason,omitempty"`
+	}
+	var state struct {
+		Assets []assetState `json:"assets"`
+	}
+	if err := json.Unmarshal(action.PreExecutionState, &state); err != nil {
+		return fmt.Errorf("decode pre-execution state: %w", err)
+	}
+	for _, assetState := range state.Assets {
+		var currentMeta []byte
+		if err := s.db.QueryRow(ctx, "SELECT metadata FROM assets WHERE id=$1 AND tenant_id=$2", assetState.AssetID, action.TenantID).Scan(&currentMeta); err != nil {
+			return fmt.Errorf("load metadata for asset %s: %w", assetState.AssetID, err)
+		}
+		metadata := map[string]interface{}{}
+		_ = json.Unmarshal(currentMeta, &metadata)
+		if assetState.Isolated {
+			metadata["isolated"] = true
+			if assetState.IsolationReason != nil {
+				metadata["isolation_reason"] = *assetState.IsolationReason
+			}
+		} else {
+			delete(metadata, "isolated")
+			delete(metadata, "isolation_reason")
+		}
+		encoded, err := json.Marshal(metadata)
 		if err != nil {
-			return fmt.Errorf("restore asset %s from isolation: %w", assetID, err)
+			return fmt.Errorf("marshal restored metadata for asset %s: %w", assetState.AssetID, err)
+		}
+		if _, err := s.db.Exec(ctx, `
+			UPDATE assets
+			SET metadata = $1::jsonb,
+			    updated_at = now()
+			WHERE id=$2 AND tenant_id=$3`,
+			encoded, assetState.AssetID, action.TenantID,
+		); err != nil {
+			return fmt.Errorf("restore asset %s from isolation: %w", assetState.AssetID, err)
 		}
 	}
 	return nil
@@ -193,18 +223,21 @@ func (s *IsolateStrategy) Rollback(ctx context.Context, action *model.Remediatio
 
 func (s *IsolateStrategy) CaptureState(ctx context.Context, action *model.RemediationAction) (json.RawMessage, error) {
 	type assetState struct {
-		AssetID  string `json:"asset_id"`
-		Name     string `json:"name"`
-		Isolated bool   `json:"isolated"`
+		AssetID         string  `json:"asset_id"`
+		Name            string  `json:"name"`
+		Isolated        bool    `json:"isolated"`
+		IsolationReason *string `json:"isolation_reason,omitempty"`
 	}
 
 	states := make([]assetState, 0, len(action.AffectedAssetIDs))
 	for _, assetID := range action.AffectedAssetIDs {
 		st := assetState{AssetID: assetID.String()}
+		var reason *string
 		_ = s.db.QueryRow(ctx,
-			"SELECT name, COALESCE((metadata->>'isolated')::boolean, false) FROM assets WHERE id=$1",
+			"SELECT name, COALESCE((metadata->>'isolated')::boolean, false), metadata->>'isolation_reason' FROM assets WHERE id=$1",
 			assetID,
-		).Scan(&st.Name, &st.Isolated)
+		).Scan(&st.Name, &st.Isolated, &reason)
+		st.IsolationReason = reason
 		states = append(states, st)
 	}
 	return json.Marshal(map[string]interface{}{"assets": states, "captured_at": time.Now().UTC()})

@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog"
 
@@ -38,7 +40,7 @@ func (s *PatchStrategy) DryRun(ctx context.Context, action *model.RemediationAct
 	for _, assetID := range action.AffectedAssetIDs {
 		var assetName, assetStatus, assetOS string
 		err := s.db.QueryRow(ctx,
-			"SELECT name, status, COALESCE(metadata->>'os', '') FROM assets WHERE id=$1 AND tenant_id=$2",
+			"SELECT name, status, COALESCE(os, '') FROM assets WHERE id=$1 AND tenant_id=$2",
 			assetID, action.TenantID,
 		).Scan(&assetName, &assetStatus, &assetOS)
 		if err != nil {
@@ -125,12 +127,11 @@ func (s *PatchStrategy) Execute(ctx context.Context, action *model.RemediationAc
 					return result, nil
 				}
 			} else {
-				// Mitigate all open vulnerabilities linked to the affected asset matching the plan
+				// Mitigate all outstanding vulnerabilities on the affected asset. Verification will confirm whether the issue is resolved.
 				_, _ = s.db.Exec(ctx, `
 					UPDATE vulnerabilities SET status='mitigated', updated_at=now()
-					WHERE asset_id=$1 AND tenant_id=$2 AND status='open'
-					AND (cve_id = ANY($3) OR $4)`,
-					assetID, action.TenantID, []string{}, true,
+					WHERE asset_id=$1 AND tenant_id=$2 AND status IN ('open','in_progress')`,
+					assetID, action.TenantID,
 				)
 			}
 
@@ -211,22 +212,28 @@ func (s *PatchStrategy) Verify(ctx context.Context, action *model.RemediationAct
 }
 
 func (s *PatchStrategy) Rollback(ctx context.Context, action *model.RemediationAction) error {
-	// Restore vulnerability status to 'open' from the pre-execution state
-	if action.VulnerabilityID != nil {
-		_, err := s.db.Exec(ctx,
-			"UPDATE vulnerabilities SET status='open', updated_at=now() WHERE id=$1 AND tenant_id=$2",
-			action.VulnerabilityID, action.TenantID,
-		)
-		if err != nil {
-			return fmt.Errorf("rollback vulnerability status: %w", err)
-		}
-	} else {
-		// Revert mitigated vulns back to open for affected assets
-		for _, assetID := range action.AffectedAssetIDs {
-			_, _ = s.db.Exec(ctx,
-				"UPDATE vulnerabilities SET status='open', updated_at=now() WHERE asset_id=$1 AND tenant_id=$2 AND status='mitigated'",
-				assetID, action.TenantID,
+	var state struct {
+		Assets []struct {
+			AssetID         string `json:"asset_id"`
+			Name            string `json:"name"`
+			VulnerabilityStates []struct {
+				ID     string `json:"id"`
+				Status string `json:"status"`
+			} `json:"vulnerability_states"`
+		} `json:"assets"`
+	}
+	if err := json.Unmarshal(action.PreExecutionState, &state); err != nil {
+		return fmt.Errorf("decode pre-execution state: %w", err)
+	}
+	for _, assetState := range state.Assets {
+		for _, vulnState := range assetState.VulnerabilityStates {
+			_, err := s.db.Exec(ctx,
+				"UPDATE vulnerabilities SET status=$1, updated_at=now() WHERE id=$2 AND tenant_id=$3",
+				vulnState.Status, vulnState.ID, action.TenantID,
 			)
+			if err != nil {
+				return fmt.Errorf("restore vulnerability %s for asset %s: %w", vulnState.ID, assetState.AssetID, err)
+			}
 		}
 	}
 	return nil
@@ -234,10 +241,12 @@ func (s *PatchStrategy) Rollback(ctx context.Context, action *model.RemediationA
 
 func (s *PatchStrategy) CaptureState(ctx context.Context, action *model.RemediationAction) (json.RawMessage, error) {
 	type assetState struct {
-		AssetID        string `json:"asset_id"`
-		Name           string `json:"name"`
-		VulnStatus     string `json:"vuln_status,omitempty"`
-		OpenVulnCount  int    `json:"open_vuln_count"`
+		AssetID             string `json:"asset_id"`
+		Name                string `json:"name"`
+		VulnerabilityStates []struct {
+			ID     string `json:"id"`
+			Status string `json:"status"`
+		} `json:"vulnerability_states"`
 	}
 
 	states := make([]assetState, 0, len(action.AffectedAssetIDs))
@@ -245,17 +254,34 @@ func (s *PatchStrategy) CaptureState(ctx context.Context, action *model.Remediat
 		var st assetState
 		st.AssetID = assetID.String()
 		_ = s.db.QueryRow(ctx, "SELECT name FROM assets WHERE id=$1", assetID).Scan(&st.Name)
-
+		var (
+			rows    pgx.Rows
+			rowsErr error
+		)
 		if action.VulnerabilityID != nil {
-			_ = s.db.QueryRow(ctx,
-				"SELECT status FROM vulnerabilities WHERE id=$1 AND asset_id=$2",
-				action.VulnerabilityID, assetID,
-			).Scan(&st.VulnStatus)
+			rows, rowsErr = s.db.Query(ctx,
+				"SELECT id, status FROM vulnerabilities WHERE id=$1 AND asset_id=$2 AND tenant_id=$3",
+				action.VulnerabilityID, assetID, action.TenantID,
+			)
+		} else {
+			rows, rowsErr = s.db.Query(ctx,
+				"SELECT id, status FROM vulnerabilities WHERE asset_id=$1 AND tenant_id=$2 AND status IN ('open','in_progress','mitigated')",
+				assetID, action.TenantID,
+			)
 		}
-		_ = s.db.QueryRow(ctx,
-			"SELECT COUNT(*) FROM vulnerabilities WHERE asset_id=$1 AND tenant_id=$2 AND status='open'",
-			assetID, action.TenantID,
-		).Scan(&st.OpenVulnCount)
+		if rowsErr == nil {
+			for rows.Next() {
+				var vulnID uuid.UUID
+				var status string
+				if err := rows.Scan(&vulnID, &status); err == nil {
+					st.VulnerabilityStates = append(st.VulnerabilityStates, struct {
+						ID     string `json:"id"`
+						Status string `json:"status"`
+					}{ID: vulnID.String(), Status: status})
+				}
+			}
+			rows.Close()
+		}
 
 		states = append(states, st)
 	}

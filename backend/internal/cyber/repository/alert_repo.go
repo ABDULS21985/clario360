@@ -214,7 +214,7 @@ func (r *AlertRepository) UpdateStatus(ctx context.Context, tenantID, alertID uu
 			status = $3,
 			resolution_notes = COALESCE($4, resolution_notes),
 			false_positive_reason = CASE WHEN $3 = 'false_positive' THEN COALESCE($5, false_positive_reason) ELSE false_positive_reason END,
-			resolved_at = CASE WHEN $3 IN ('resolved', 'closed', 'false_positive') THEN now() ELSE resolved_at END,
+			resolved_at = CASE WHEN $3 IN ('resolved', 'closed', 'false_positive') THEN now() ELSE NULL END,
 			updated_at = now()
 		WHERE tenant_id = $1 AND id = $2 AND deleted_at IS NULL`,
 		tenantID, alertID, status, notes, reason,
