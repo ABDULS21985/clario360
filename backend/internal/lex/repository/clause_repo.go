@@ -21,6 +21,10 @@ func NewClauseRepository(db *pgxpool.Pool, logger zerolog.Logger) *ClauseReposit
 	return &ClauseRepository{db: db, logger: logger}
 }
 
+func (r *ClauseRepository) DB() *pgxpool.Pool {
+	return r.db
+}
+
 func (r *ClauseRepository) ReplaceForContract(ctx context.Context, q Queryer, tenantID, contractID uuid.UUID, clauses []model.ExtractedClause) error {
 	if _, err := q.Exec(ctx, `DELETE FROM contract_clauses WHERE tenant_id = $1 AND contract_id = $2`, tenantID, contractID); err != nil {
 		return err

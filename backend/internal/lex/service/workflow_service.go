@@ -21,16 +21,16 @@ import (
 const legalReviewWorkflowName = "Lex Contract Review"
 
 type WorkflowService struct {
-	db          *pgxpool.Pool
-	defRepo     *workflowrepo.DefinitionRepository
-	instRepo    *workflowrepo.InstanceRepository
-	taskRepo    *workflowrepo.TaskRepository
-	contracts   *repository.ContractRepository
-	publisher   Publisher
-	metrics     *metrics.Metrics
-	topic       string
-	logger      zerolog.Logger
-	now         func() time.Time
+	db        *pgxpool.Pool
+	defRepo   *workflowrepo.DefinitionRepository
+	instRepo  *workflowrepo.InstanceRepository
+	taskRepo  *workflowrepo.TaskRepository
+	contracts *repository.ContractRepository
+	publisher Publisher
+	metrics   *metrics.Metrics
+	topic     string
+	logger    zerolog.Logger
+	now       func() time.Time
 }
 
 func NewWorkflowService(db *pgxpool.Pool, defRepo *workflowrepo.DefinitionRepository, instRepo *workflowrepo.InstanceRepository, taskRepo *workflowrepo.TaskRepository, contracts *repository.ContractRepository, publisher Publisher, appMetrics *metrics.Metrics, topic string, logger zerolog.Logger) *WorkflowService {
@@ -173,13 +173,13 @@ func (s *WorkflowService) ListActive(ctx context.Context, tenantID uuid.UUID, pa
 	}
 	var total int
 	if err := s.db.QueryRow(ctx, `
-		SELECT COUNT(*)
-		FROM workflow_instances wi
-		JOIN contracts c ON c.workflow_instance_id = wi.id
-		WHERE wi.tenant_id = $1 AND wi.status = 'running' AND c.deleted_at IS NULL`,
+			SELECT COUNT(*)
+			FROM workflow_instances wi
+			JOIN contracts c ON c.workflow_instance_id = wi.id
+			WHERE wi.tenant_id = $1 AND wi.status = 'running' AND c.deleted_at IS NULL`,
 		tenantID,
 	).Scan(&total); err != nil {
-		return nil, internalError("count workflows", err)
+		return nil, 0, internalError("count workflows", err)
 	}
 	if total == 0 {
 		return []model.LegalWorkflowSummary{}, 0, nil

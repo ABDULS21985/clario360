@@ -60,7 +60,7 @@ func (s *ClauseService) Get(ctx context.Context, tenantID, contractID, clauseID 
 func (s *ClauseService) UpdateReview(ctx context.Context, tenantID, contractID, clauseID, reviewedBy uuid.UUID, req dto.UpdateClauseReviewRequest) (*model.Clause, error) {
 	req.Normalize()
 	now := s.now().UTC()
-	if err := s.clauses.UpdateReview(ctx, s.clausesDB(), tenantID, contractID, clauseID, req.Status, &reviewedBy, req.Notes, now); err != nil {
+	if err := s.clauses.UpdateReview(ctx, s.clauses.DB(), tenantID, contractID, clauseID, req.Status, &reviewedBy, req.Notes, now); err != nil {
 		if err == pgx.ErrNoRows {
 			return nil, notFoundError("clause not found")
 		}
@@ -81,36 +81,4 @@ func (s *ClauseService) UpdateReview(ctx context.Context, tenantID, contractID, 
 
 func (s *ClauseService) RiskSummary(ctx context.Context, tenantID, contractID uuid.UUID) ([]model.Clause, error) {
 	return s.clauses.RiskSummary(ctx, tenantID, contractID)
-}
-
-func (s *ClauseService) clausesDB() repository.Queryer {
-	return s.clausesDBPool()
-}
-
-func (s *ClauseService) clausesDBPool() repository.Queryer {
-	return s.contractsDBPool()
-}
-
-func (s *ClauseService) contractsDBPool() repository.Queryer {
-	return s.contractsDB()
-}
-
-func (s *ClauseService) contractsDB() repository.Queryer {
-	return s.clausesDBInternal()
-}
-
-func (s *ClauseService) clausesDBInternal() repository.Queryer {
-	return s.clausesDBAccessor()
-}
-
-func (s *ClauseService) clausesDBAccessor() repository.Queryer {
-	return s.clausesDBPoolAccessor()
-}
-
-func (s *ClauseService) clausesDBPoolAccessor() repository.Queryer {
-	return s.clausesDBBase()
-}
-
-func (s *ClauseService) clausesDBBase() repository.Queryer {
-	return s.clauses.DB()
 }

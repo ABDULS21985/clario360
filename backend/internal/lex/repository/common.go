@@ -19,6 +19,7 @@ type Queryer interface {
 }
 
 type Store struct {
+	db         *pgxpool.Pool
 	Contracts  *ContractRepository
 	Clauses    *ClauseRepository
 	Documents  *DocumentRepository
@@ -28,12 +29,20 @@ type Store struct {
 
 func NewStore(db *pgxpool.Pool, logger zerolog.Logger) *Store {
 	return &Store{
+		db:         db,
 		Contracts:  NewContractRepository(db, logger),
 		Clauses:    NewClauseRepository(db, logger),
 		Documents:  NewDocumentRepository(db, logger),
 		Compliance: NewComplianceRepository(db, logger),
 		Alerts:     NewAlertRepository(db, logger),
 	}
+}
+
+func (s *Store) DB() *pgxpool.Pool {
+	if s == nil {
+		return nil
+	}
+	return s.db
 }
 
 func queryRowJSON[T any](ctx context.Context, q Queryer, query string, args ...any) (*T, error) {

@@ -11,10 +11,10 @@ import (
 )
 
 type EntityExtractor struct {
-	partyBetween *regexp.Regexp
-	partyLabelA  *regexp.Regexp
-	partyLabelB  *regexp.Regexp
-	datePatterns map[string][]*regexp.Regexp
+	partyBetween  *regexp.Regexp
+	partyLabelA   *regexp.Regexp
+	partyLabelB   *regexp.Regexp
+	datePatterns  map[string][]*regexp.Regexp
 	amountPattern *regexp.Regexp
 }
 
@@ -64,11 +64,12 @@ func (e *EntityExtractor) ExtractParties(text string) []model.PartyExtraction {
 	}
 	for _, match := range e.partyLabelA.FindAllStringSubmatch(text, -1) {
 		name := strings.TrimSpace(match[1])
+		if name == "" {
+			continue
+		}
 		key := strings.ToLower(name)
-		if name == "" || seen[key] != (struct{}{}) {
-			if _, exists := seen[key]; exists {
-				continue
-			}
+		if _, exists := seen[key]; exists {
+			continue
 		}
 		seen[key] = struct{}{}
 		out = append(out, model.PartyExtraction{Name: name, Role: "party_a", Source: "label"})
