@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -17,6 +18,7 @@ import (
 	"github.com/clario360/platform/internal/cyber/dto"
 	"github.com/clario360/platform/internal/cyber/repository"
 	"github.com/clario360/platform/internal/cyber/service"
+	"github.com/clario360/platform/internal/middleware"
 	pkgvalidator "github.com/clario360/platform/pkg/validator"
 )
 
@@ -51,6 +53,10 @@ func (h *AssetHandler) CreateAsset(w http.ResponseWriter, r *http.Request) {
 
 	asset, err := h.svc.CreateAsset(r.Context(), tenantID, userID, &req)
 	if err != nil {
+		if errors.Is(err, repository.ErrConflict) {
+			writeError(w, http.StatusConflict, "CONFLICT", "an asset with the same IP address already exists", nil)
+			return
+		}
 		writeError(w, http.StatusInternalServerError, "CREATE_FAILED", err.Error())
 		return
 	}
@@ -66,7 +72,7 @@ func (h *AssetHandler) ListAssets(w http.ResponseWriter, r *http.Request) {
 
 	params, err := parseAssetListParams(r)
 	if err != nil {
-		writeError(w, http.StatusBadRequest, "INVALID_PARAMS", err.Error())
+		writeError(w, http.StatusBadRequest, "VALIDATION_ERROR", err.Error(), nil)
 		return
 	}
 
@@ -92,7 +98,7 @@ func (h *AssetHandler) GetAsset(w http.ResponseWriter, r *http.Request) {
 	asset, err := h.svc.GetAsset(r.Context(), tenantID, assetID)
 	if err != nil {
 		if errors.Is(err, repository.ErrNotFound) {
-			writeError(w, http.StatusNotFound, "NOT_FOUND", "asset not found")
+			writeError(w, http.StatusNotFound, "NOT_FOUND", "asset not found", nil)
 			return
 		}
 		writeError(w, http.StatusInternalServerError, "GET_FAILED", err.Error())
@@ -124,7 +130,11 @@ func (h *AssetHandler) UpdateAsset(w http.ResponseWriter, r *http.Request) {
 	asset, err := h.svc.UpdateAsset(r.Context(), tenantID, assetID, userID, &req)
 	if err != nil {
 		if errors.Is(err, repository.ErrNotFound) {
-			writeError(w, http.StatusNotFound, "NOT_FOUND", "asset not found")
+			writeError(w, http.StatusNotFound, "NOT_FOUND", "asset not found", nil)
+			return
+		}
+		if errors.Is(err, repository.ErrConflict) {
+			writeError(w, http.StatusConflict, "CONFLICT", "an asset with the same IP address already exists", nil)
 			return
 		}
 		writeError(w, http.StatusInternalServerError, "UPDATE_FAILED", err.Error())
@@ -146,7 +156,7 @@ func (h *AssetHandler) DeleteAsset(w http.ResponseWriter, r *http.Request) {
 
 	if err := h.svc.DeleteAsset(r.Context(), tenantID, assetID); err != nil {
 		if errors.Is(err, repository.ErrNotFound) {
-			writeError(w, http.StatusNotFound, "NOT_FOUND", "asset not found")
+			writeError(w, http.StatusNotFound, "NOT_FOUND", "asset not found", nil)
 			return
 		}
 		writeError(w, http.StatusInternalServerError, "DELETE_FAILED", err.Error())
@@ -178,7 +188,7 @@ func (h *AssetHandler) PatchTags(w http.ResponseWriter, r *http.Request) {
 	asset, err := h.svc.PatchTags(r.Context(), tenantID, assetID, &req)
 	if err != nil {
 		if errors.Is(err, repository.ErrNotFound) {
-			writeError(w, http.StatusNotFound, "NOT_FOUND", "asset not found")
+			writeError(w, http.StatusNotFound, "NOT_FOUND", "asset not found", nil)
 			return
 		}
 		writeError(w, http.StatusInternalServerError, "PATCH_TAGS_FAILED", err.Error())
@@ -202,12 +212,12 @@ func (h *AssetHandler) BulkCreate(w http.ResponseWriter, r *http.Request) {
 
 	if strings.Contains(contentType, "multipart/form-data") {
 		if err = r.ParseMultipartForm(10 << 20); err != nil { // 10MB
-			writeError(w, http.StatusBadRequest, "INVALID_FORM", "failed to parse multipart form")
+			writeError(w, http.StatusBadRequest, "VALIDATION_ERROR", "failed to parse multipart form", nil)
 			return
 		}
 		file, _, err := r.FormFile("file")
 		if err != nil {
-			writeError(w, http.StatusBadRequest, "MISSING_FILE", "multipart field 'file' is required")
+			writeError(w, http.StatusBadRequest, "VALIDATION_ERROR", "multipart field 'file' is required", nil)
 			return
 		}
 		defer file.Close()
@@ -228,6 +238,7 @@ func (h *AssetHandler) BulkCreate(w http.ResponseWriter, r *http.Request) {
 					"code":    bulkErr.Code,
 					"message": bulkErr.Message,
 					"details": map[string]any{"rows": bulkErr.Rows},
+					"request_id": w.Header().Get(middleware.RequestIDHeader),
 				},
 			})
 			return
@@ -320,6 +331,14 @@ func (h *AssetHandler) CreateRelationship(w http.ResponseWriter, r *http.Request
 	}
 	rel, err := h.svc.CreateRelationship(r.Context(), tenantID, assetID, userID, &req)
 	if err != nil {
+		if errors.Is(err, repository.ErrConflict) {
+			writeError(w, http.StatusConflict, "CONFLICT", "relationship already exists", nil)
+			return
+		}
+		if errors.Is(err, repository.ErrInvalidInput) {
+			writeError(w, http.StatusBadRequest, "VALIDATION_ERROR", err.Error(), nil)
+			return
+		}
 		writeError(w, http.StatusInternalServerError, "CREATE_REL_FAILED", err.Error())
 		return
 	}
@@ -342,7 +361,7 @@ func (h *AssetHandler) DeleteRelationship(w http.ResponseWriter, r *http.Request
 	}
 	if err := h.svc.DeleteRelationship(r.Context(), tenantID, assetID, relID); err != nil {
 		if errors.Is(err, repository.ErrNotFound) {
-			writeError(w, http.StatusNotFound, "NOT_FOUND", "relationship not found")
+			writeError(w, http.StatusNotFound, "NOT_FOUND", "relationship not found", nil)
 			return
 		}
 		writeError(w, http.StatusInternalServerError, "DELETE_REL_FAILED", err.Error())
@@ -428,7 +447,7 @@ func (h *AssetHandler) UpdateVulnerability(w http.ResponseWriter, r *http.Reques
 	vuln, err := h.svc.UpdateVulnerability(r.Context(), tenantID, assetID, vulnID, &req)
 	if err != nil {
 		if errors.Is(err, repository.ErrNotFound) {
-			writeError(w, http.StatusNotFound, "NOT_FOUND", "vulnerability not found")
+			writeError(w, http.StatusNotFound, "NOT_FOUND", "vulnerability not found", nil)
 			return
 		}
 		writeError(w, http.StatusInternalServerError, "UPDATE_VULN_FAILED", err.Error())
@@ -455,7 +474,17 @@ func (h *AssetHandler) TriggerScan(w http.ResponseWriter, r *http.Request) {
 	}
 	scan, err := h.svc.TriggerScan(r.Context(), tenantID, userID, &req)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "SCAN_FAILED", err.Error())
+		status := http.StatusInternalServerError
+		code := "SCAN_FAILED"
+		if strings.Contains(err.Error(), "scan scope too large") {
+			status = http.StatusUnprocessableEntity
+			code = "SCAN_SCOPE_TOO_LARGE"
+		}
+		if strings.Contains(err.Error(), "public IP") {
+			status = http.StatusUnprocessableEntity
+			code = "SCAN_PUBLIC_IP_BLOCKED"
+		}
+		writeError(w, status, code, err.Error(), nil)
 		return
 	}
 	writeJSON(w, http.StatusAccepted, envelope{"data": dto.ScanTriggerResponse{
@@ -497,6 +526,10 @@ func (h *AssetHandler) GetScan(w http.ResponseWriter, r *http.Request) {
 	}
 	scan, err := h.svc.GetScan(r.Context(), tenantID, scanID)
 	if err != nil {
+		if errors.Is(err, repository.ErrNotFound) {
+			writeError(w, http.StatusNotFound, "NOT_FOUND", "scan not found", nil)
+			return
+		}
 		writeError(w, http.StatusInternalServerError, "GET_SCAN_FAILED", err.Error())
 		return
 	}
@@ -515,7 +548,7 @@ func (h *AssetHandler) CancelScan(w http.ResponseWriter, r *http.Request) {
 	}
 	if err := h.svc.CancelScan(r.Context(), tenantID, scanID); err != nil {
 		if errors.Is(err, repository.ErrNotFound) {
-			writeError(w, http.StatusNotFound, "NOT_FOUND", "scan not found or already completed")
+			writeError(w, http.StatusNotFound, "NOT_FOUND", "scan not found or already completed", nil)
 			return
 		}
 		writeError(w, http.StatusInternalServerError, "CANCEL_FAILED", err.Error())
@@ -546,18 +579,12 @@ func (h *AssetHandler) GetCount(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	q := r.URL.Query()
-	var assetType, criticality, status *string
-	if v := q.Get("type"); v != "" {
-		assetType = &v
+	params, err := parseAssetListParams(r)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "VALIDATION_ERROR", err.Error(), nil)
+		return
 	}
-	if v := q.Get("criticality"); v != "" {
-		criticality = &v
-	}
-	if v := q.Get("status"); v != "" {
-		status = &v
-	}
-	count, err := h.svc.CountAssets(r.Context(), tenantID, assetType, criticality, status)
+	count, err := h.svc.CountAssets(r.Context(), tenantID, params)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "COUNT_FAILED", err.Error())
 		return
@@ -577,18 +604,18 @@ func requireTenantAndUser(w http.ResponseWriter, r *http.Request) (uuid.UUID, uu
 	}
 	tenantID, err := uuid.Parse(tenantStr)
 	if err != nil {
-		writeError(w, http.StatusForbidden, "FORBIDDEN", "invalid tenant ID")
+		writeError(w, http.StatusForbidden, "FORBIDDEN", "invalid tenant ID", nil)
 		return uuid.Nil, uuid.Nil, false
 	}
 
 	user := auth.UserFromContext(r.Context())
 	if user == nil {
-		writeError(w, http.StatusUnauthorized, "UNAUTHENTICATED", "authentication required")
+		writeError(w, http.StatusUnauthorized, "UNAUTHORIZED", "authentication required", nil)
 		return uuid.Nil, uuid.Nil, false
 	}
 	userID, err := uuid.Parse(user.ID)
 	if err != nil {
-		writeError(w, http.StatusForbidden, "FORBIDDEN", "invalid user ID")
+		writeError(w, http.StatusForbidden, "FORBIDDEN", "invalid user ID", nil)
 		return uuid.Nil, uuid.Nil, false
 	}
 	return tenantID, userID, true
@@ -597,7 +624,7 @@ func requireTenantAndUser(w http.ResponseWriter, r *http.Request) (uuid.UUID, uu
 func parseUUID(w http.ResponseWriter, s string) (uuid.UUID, bool) {
 	id, err := uuid.Parse(s)
 	if err != nil {
-		writeError(w, http.StatusBadRequest, "INVALID_ID", fmt.Sprintf("invalid UUID: %s", s))
+		writeError(w, http.StatusBadRequest, "VALIDATION_ERROR", fmt.Sprintf("invalid UUID: %s", s), nil)
 		return uuid.Nil, false
 	}
 	return id, true
@@ -606,7 +633,7 @@ func parseUUID(w http.ResponseWriter, s string) (uuid.UUID, bool) {
 func decodeJSON(w http.ResponseWriter, r *http.Request, v any) bool {
 	r.Body = http.MaxBytesReader(w, r.Body, 10<<20) // 10MB
 	if err := json.NewDecoder(r.Body).Decode(v); err != nil {
-		writeError(w, http.StatusBadRequest, "INVALID_JSON", "request body must be valid JSON: "+err.Error())
+		writeError(w, http.StatusBadRequest, "VALIDATION_ERROR", "request body must be valid JSON", map[string]any{"cause": err.Error()})
 		return false
 	}
 	return true
@@ -618,11 +645,17 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 	_ = json.NewEncoder(w).Encode(v)
 }
 
-func writeError(w http.ResponseWriter, status int, code, message string) {
+func writeError(w http.ResponseWriter, status int, code, message string, details ...any) {
+	var detailValue any
+	if len(details) > 0 {
+		detailValue = details[0]
+	}
 	writeJSON(w, status, map[string]any{
-		"error": map[string]string{
-			"code":    code,
-			"message": message,
+		"error": map[string]any{
+			"code":       code,
+			"message":    message,
+			"details":    detailValue,
+			"request_id": w.Header().Get(middleware.RequestIDHeader),
 		},
 	})
 }
@@ -632,7 +665,8 @@ func writeValidationError(w http.ResponseWriter, fieldErrs map[string]string) {
 		"error": map[string]any{
 			"code":    "VALIDATION_ERROR",
 			"message": "request validation failed",
-			"fields":  fieldErrs,
+			"details": map[string]any{"fields": fieldErrs},
+			"request_id": w.Header().Get(middleware.RequestIDHeader),
 		},
 	})
 }
@@ -644,19 +678,22 @@ func parseAssetListParams(r *http.Request) (*dto.AssetListParams, error) {
 	if v := q.Get("search"); v != "" {
 		params.Search = &v
 	}
-	params.Types = q["type"]
-	params.Criticalities = q["criticality"]
-	params.Statuses = q["status"]
+	params.Types = splitQueryValues(q, "type")
+	params.Criticalities = splitQueryValues(q, "criticality")
+	params.Statuses = splitQueryValues(q, "status")
 	if v := q.Get("os"); v != "" {
 		params.OS = &v
 	}
 	if v := q.Get("department"); v != "" {
 		params.Department = &v
 	}
+	if v := q.Get("owner"); v != "" {
+		params.Owner = &v
+	}
 	if v := q.Get("location"); v != "" {
 		params.Location = &v
 	}
-	params.Tags = q["tag"]
+	params.Tags = splitQueryValues(q, "tag")
 	if v := q.Get("discovery_source"); v != "" {
 		params.DiscoverySource = &v
 	}
@@ -718,6 +755,23 @@ func parseAssetListParams(r *http.Request) (*dto.AssetListParams, error) {
 		params.PerPage = n
 	}
 	return params, nil
+}
+
+func splitQueryValues(values url.Values, key string) []string {
+	raw := values[key]
+	if len(raw) == 0 {
+		return nil
+	}
+	parts := make([]string, 0, len(raw))
+	for _, item := range raw {
+		for _, split := range strings.Split(item, ",") {
+			split = strings.TrimSpace(split)
+			if split != "" {
+				parts = append(parts, split)
+			}
+		}
+	}
+	return parts
 }
 
 func parseVulnListParams(r *http.Request) *dto.VulnerabilityListParams {

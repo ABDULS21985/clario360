@@ -1,7 +1,9 @@
 package config
 
 import (
+	"encoding/pem"
 	"fmt"
+	"net/url"
 	"os"
 	"strconv"
 	"strings"
@@ -55,9 +57,15 @@ func Load() (*Config, error) {
 	if c.DBURL == "" {
 		return nil, fmt.Errorf("CYBER_DB_URL is required")
 	}
+	if _, err := url.Parse(c.DBURL); err != nil {
+		return nil, fmt.Errorf("CYBER_DB_URL is invalid: %w", err)
+	}
 	c.RedisURL = os.Getenv("CYBER_REDIS_URL")
 	if c.RedisURL == "" {
 		return nil, fmt.Errorf("CYBER_REDIS_URL is required")
+	}
+	if _, err := url.Parse(c.RedisURL); err != nil {
+		return nil, fmt.Errorf("CYBER_REDIS_URL is invalid: %w", err)
 	}
 	brokers := os.Getenv("CYBER_KAFKA_BROKERS")
 	if brokers == "" {
@@ -74,6 +82,13 @@ func Load() (*Config, error) {
 	}
 	if _, err := os.Stat(c.JWTPublicKeyPath); err != nil {
 		return nil, fmt.Errorf("CYBER_JWT_PUBLIC_KEY_PATH %q: %w", c.JWTPublicKeyPath, err)
+	}
+	keyBytes, err := os.ReadFile(c.JWTPublicKeyPath)
+	if err != nil {
+		return nil, fmt.Errorf("read CYBER_JWT_PUBLIC_KEY_PATH: %w", err)
+	}
+	if block, _ := pem.Decode(keyBytes); block == nil {
+		return nil, fmt.Errorf("CYBER_JWT_PUBLIC_KEY_PATH does not contain a valid PEM block")
 	}
 
 	// Optional with defaults

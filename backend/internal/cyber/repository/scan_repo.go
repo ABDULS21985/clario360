@@ -3,10 +3,12 @@ package repository
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog"
 
@@ -56,7 +58,11 @@ func (r *ScanRepository) GetByID(ctx context.Context, tenantID, scanID uuid.UUID
 		WHERE tenant_id = $1 AND id = $2`,
 		tenantID, scanID,
 	)
-	return scanScanHistory(row)
+	scan, err := scanScanHistory(row)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, ErrNotFound
+	}
+	return scan, err
 }
 
 // List returns paginated scan history for a tenant.

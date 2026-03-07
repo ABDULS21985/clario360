@@ -193,6 +193,8 @@ func (qb *QueryBuilder) OrderBy(column, direction string, allowlist []string) *Q
 	switch strings.ToLower(column) {
 	case "criticality":
 		qb.orderClause = fmt.Sprintf("ORDER BY severity_order(a.criticality) %s", dir)
+	case "severity":
+		qb.orderClause = fmt.Sprintf("ORDER BY severity_order(a.severity) %s", dir)
 	case "vulnerability_count":
 		qb.orderClause = fmt.Sprintf("ORDER BY open_vulnerability_count %s", dir)
 	default:
@@ -261,6 +263,11 @@ func (qb *QueryBuilder) Build() (string, []any) {
 // BuildCount returns a COUNT(DISTINCT a.id) query using the same WHERE/HAVING
 // conditions as Build(), without ORDER BY or LIMIT/OFFSET.
 func (qb *QueryBuilder) BuildCount() (string, []any) {
+	if qb.groupBy != "" || len(qb.having) > 0 {
+		query, args := qb.Build()
+		return fmt.Sprintf("SELECT COUNT(*) FROM (%s) AS qb_count", query), args
+	}
+
 	var sb strings.Builder
 	sb.WriteString("SELECT COUNT(DISTINCT a.id)")
 
@@ -280,19 +287,8 @@ func (qb *QueryBuilder) BuildCount() (string, []any) {
 		sb.WriteString(strings.Join(qb.conditions, " AND "))
 	}
 
-	if qb.groupBy != "" {
-		sb.WriteString(" GROUP BY ")
-		sb.WriteString(qb.groupBy)
-	}
-
 	allArgs := make([]any, len(qb.args))
 	copy(allArgs, qb.args)
-
-	if len(qb.having) > 0 {
-		sb.WriteString(" HAVING ")
-		sb.WriteString(strings.Join(qb.having, " AND "))
-		allArgs = append(allArgs, qb.havingArgs...)
-	}
 
 	return sb.String(), allArgs
 }

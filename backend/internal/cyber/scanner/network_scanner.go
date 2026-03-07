@@ -66,7 +66,8 @@ func (s *NetworkScanner) Scan(ctx context.Context, cfg *model.ScanConfig) (*mode
 	result := &model.ScanResult{Status: model.ScanStatusRunning}
 
 	// Parse targets into IPs
-	ips, err := expandCIDRs(cfg.Targets, s.maxIPs)
+	allowPublicScan := optionBool(cfg.Options, "allow_public_scan")
+	ips, err := expandCIDRs(cfg.Targets, s.maxIPs, allowPublicScan)
 	if err != nil {
 		result.Status = model.ScanStatusFailed
 		result.Errors = []string{err.Error()}
@@ -96,10 +97,8 @@ func (s *NetworkScanner) Scan(ctx context.Context, cfg *model.ScanConfig) (*mode
 	var scanErrors []string
 
 	for _, ip := range ips {
-		select {
-		case <-ctx.Done():
+		if ctx.Err() != nil {
 			break
-		default:
 		}
 
 		wg.Add(1)
@@ -275,10 +274,10 @@ func inferOS(banners map[int]string) (*string, *string) {
 
 // expandCIDRs parses CIDR notation strings and returns individual IP addresses.
 // Returns an error if the total exceeds maxIPs.
-func expandCIDRs(cidrs []string, maxIPs int) ([]net.IP, error) {
+func expandCIDRs(cidrs []string, maxIPs int, allowPublic bool) ([]net.IP, error) {
 	var all []net.IP
 	for _, cidr := range cidrs {
-		ips, err := expandCIDR(cidr)
+		ips, err := expandCIDR(cidr, allowPublic)
 		if err != nil {
 			return nil, err
 		}
@@ -290,13 +289,16 @@ func expandCIDRs(cidrs []string, maxIPs int) ([]net.IP, error) {
 	return all, nil
 }
 
-func expandCIDR(cidr string) ([]net.IP, error) {
+func expandCIDR(cidr string, allowPublic bool) ([]net.IP, error) {
 	ip, network, err := net.ParseCIDR(cidr)
 	if err != nil {
 		// Single IP (no prefix)?
 		parsed := net.ParseIP(cidr)
 		if parsed == nil {
 			return nil, fmt.Errorf("invalid CIDR or IP: %s", cidr)
+		}
+		if !allowPublic && !isPrivateIPv4(parsed) {
+			return nil, fmt.Errorf("public IP scanning is not allowed by default: %s", cidr)
 		}
 		return []net.IP{parsed}, nil
 	}
@@ -309,7 +311,13 @@ func expandCIDR(cidr string) ([]net.IP, error) {
 
 	// For /32 return the single host
 	if ones == 32 {
+		if !allowPublic && !isPrivateIPv4(ip) {
+			return nil, fmt.Errorf("public IP scanning is not allowed by default: %s", cidr)
+		}
 		return []net.IP{ip.Mask(network.Mask)}, nil
+	}
+	if !allowPublic && !isPrivateIPv4(network.IP) {
+		return nil, fmt.Errorf("public IP scanning is not allowed by default: %s", cidr)
 	}
 
 	var ips []net.IP
@@ -328,6 +336,35 @@ func expandCIDR(cidr string) ([]net.IP, error) {
 		}
 	}
 	return ips, nil
+}
+
+func optionBool(options map[string]any, key string) bool {
+	if options == nil {
+		return false
+	}
+	switch value := options[key].(type) {
+	case bool:
+		return value
+	case string:
+		return strings.EqualFold(value, "true")
+	default:
+		return false
+	}
+}
+
+func isPrivateIPv4(ip net.IP) bool {
+	ip = ip.To4()
+	if ip == nil {
+		return false
+	}
+	privateRanges := []string{"10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"}
+	for _, cidr := range privateRanges {
+		_, network, _ := net.ParseCIDR(cidr)
+		if network.Contains(ip) {
+			return true
+		}
+	}
+	return false
 }
 
 func cloneIP(ip net.IP) net.IP {

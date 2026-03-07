@@ -4,9 +4,12 @@ import (
 	"context"
 	"encoding/csv"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -37,6 +40,8 @@ type AssetService struct {
 	cfg          *cyberconfig.Config
 	db           *pgxpool.Pool
 	logger       zerolog.Logger
+	runningScans map[uuid.UUID]context.CancelFunc
+	scanMu       sync.Mutex
 }
 
 // NewAssetService creates a new AssetService.
@@ -67,6 +72,7 @@ func NewAssetService(
 		cfg:          cfg,
 		db:           db,
 		logger:       logger,
+		runningScans: make(map[uuid.UUID]context.CancelFunc),
 	}
 }
 
@@ -85,6 +91,12 @@ func (s *AssetService) CreateAsset(ctx context.Context, tenantID, userID uuid.UU
 		if crit != asset.Criticality {
 			s.metrics.ClassificationChanged.WithLabelValues(tenantID.String(), string(asset.Criticality), string(crit)).Inc()
 			_ = s.assetRepo.BulkUpdateCriticality(ctx, tenantID, map[uuid.UUID]model.Criticality{asset.ID: crit})
+			_ = s.publishEvent(ctx, "cyber.asset.classified", tenantID.String(), map[string]any{
+				"id":              asset.ID.String(),
+				"old_criticality": string(asset.Criticality),
+				"new_criticality": string(crit),
+				"rule_name":       ruleName,
+			})
 			asset.Criticality = crit
 		}
 	}
@@ -97,9 +109,11 @@ func (s *AssetService) CreateAsset(ctx context.Context, tenantID, userID uuid.UU
 
 	// Publish event
 	_ = s.publishEvent(ctx, "cyber.asset.created", tenantID.String(), map[string]any{
-		"asset_id": asset.ID.String(),
-		"type":     string(asset.Type),
-		"name":     asset.Name,
+		"id":               asset.ID.String(),
+		"name":             asset.Name,
+		"type":             string(asset.Type),
+		"criticality":      string(asset.Criticality),
+		"discovery_source": asset.DiscoverySource,
 	})
 
 	return asset, nil
@@ -138,22 +152,44 @@ func (s *AssetService) ListAssets(ctx context.Context, tenantID uuid.UUID, param
 
 // UpdateAsset applies a partial update.
 func (s *AssetService) UpdateAsset(ctx context.Context, tenantID, assetID, userID uuid.UUID, req *dto.UpdateAssetRequest) (*model.Asset, error) {
-	return s.assetRepo.Update(ctx, tenantID, assetID, req)
+	before, err := s.assetRepo.GetByID(ctx, tenantID, assetID)
+	if err != nil {
+		return nil, err
+	}
+	updated, err := s.assetRepo.Update(ctx, tenantID, assetID, req)
+	if err != nil {
+		return nil, err
+	}
+	_ = s.publishEvent(ctx, "cyber.asset.updated", tenantID.String(), buildAssetUpdatedEvent(before, updated))
+	return updated, nil
 }
 
 // DeleteAsset soft-deletes an asset.
 func (s *AssetService) DeleteAsset(ctx context.Context, tenantID, assetID uuid.UUID) error {
+	asset, err := s.assetRepo.GetByID(ctx, tenantID, assetID)
+	if err != nil {
+		return err
+	}
 	if err := s.assetRepo.SoftDelete(ctx, tenantID, assetID); err != nil {
 		return err
 	}
 	s.metrics.AssetsDeleted.WithLabelValues(tenantID.String(), "unknown").Inc()
-	_ = s.publishEvent(ctx, "cyber.asset.deleted", tenantID.String(), map[string]any{"asset_id": assetID.String()})
+	_ = s.publishEvent(ctx, "cyber.asset.deleted", tenantID.String(), map[string]any{"id": assetID.String(), "name": asset.Name})
 	return nil
 }
 
 // PatchTags updates tags on an asset.
 func (s *AssetService) PatchTags(ctx context.Context, tenantID, assetID uuid.UUID, req *dto.TagPatchRequest) (*model.Asset, error) {
-	return s.assetRepo.PatchTags(ctx, tenantID, assetID, req)
+	asset, err := s.assetRepo.PatchTags(ctx, tenantID, assetID, req)
+	if err != nil {
+		return nil, err
+	}
+	_ = s.publishEvent(ctx, "cyber.asset.tags_updated", tenantID.String(), map[string]any{
+		"id":           asset.ID.String(),
+		"added_tags":   req.Add,
+		"removed_tags": req.Remove,
+	})
+	return asset, nil
 }
 
 // BulkCreate creates up to 1000 assets from a JSON slice or CSV.
@@ -194,6 +230,7 @@ func (s *AssetService) BulkCreate(ctx context.Context, tenantID, userID uuid.UUI
 			MACAddress:  req.MACAddress,
 			OS:          req.OS,
 			OSVersion:   req.OSVersion,
+			Owner:       req.Owner,
 			Department:  req.Department,
 			Location:    req.Location,
 			Criticality: req.Criticality,
@@ -249,8 +286,9 @@ func (s *AssetService) BulkCreate(ctx context.Context, tenantID, userID uuid.UUI
 
 	// Publish bulk event
 	_ = s.publishEvent(ctx, "cyber.asset.bulk_created", tenantID.String(), map[string]any{
-		"count": len(ids),
-		"ids":   uuidsToStrings(ids),
+		"count":            len(ids),
+		"ids":              uuidsToStrings(ids),
+		"discovery_source": "import",
 	})
 
 	return &dto.BulkCreateResult{Count: len(ids), IDs: ids}, nil
@@ -325,6 +363,7 @@ func (s *AssetService) BulkCreateFromCSV(ctx context.Context, tenantID, userID u
 			MACAddress:  get("mac_address"),
 			OS:          get("os"),
 			OSVersion:   get("os_version"),
+			Owner:       get("owner"),
 			Department:  get("department"),
 			Location:    get("location"),
 			Tags:        tags,
@@ -383,24 +422,59 @@ func (s *AssetService) TriggerScan(ctx context.Context, tenantID, userID uuid.UU
 		return nil, err
 	}
 
+	scanCtx, cancel := context.WithTimeout(scanner.WithTenantID(context.Background(), tenantID), scanTimeout(req.Options))
+	s.scanMu.Lock()
+	s.runningScans[scan.ID] = cancel
+	s.scanMu.Unlock()
+
+	_ = s.publishEvent(ctx, "cyber.asset.scan_started", tenantID.String(), map[string]any{
+		"scan_id":      scan.ID.String(),
+		"scan_type":    req.ScanType,
+		"target_count": len(req.Targets),
+		"targets":      req.Targets,
+	})
+
 	// Run scan asynchronously
 	go func() {
-		bgCtx := scanner.WithTenantID(context.Background(), tenantID)
-		result, runErr := sc.Scan(bgCtx, cfg)
+		defer s.unregisterRunningScan(scan.ID)
+		defer cancel()
+
+		result, runErr := sc.Scan(scanCtx, cfg)
 		if runErr != nil {
 			result = &model.ScanResult{
 				ScanID:  scan.ID,
 				Status:  model.ScanStatusFailed,
 				Errors:  []string{runErr.Error()},
 			}
+			if errors.Is(runErr, context.Canceled) {
+				result.Status = model.ScanStatusCancelled
+			}
 		}
 		result.ScanID = scan.ID
-		if err := s.scanRepo.Complete(bgCtx, tenantID, scan.ID, result); err != nil {
+		completeCtx, completeCancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer completeCancel()
+		if err := s.scanRepo.Complete(completeCtx, tenantID, scan.ID, result); err != nil {
 			s.logger.Error().Err(err).Str("scan_id", scan.ID.String()).Msg("failed to record scan completion")
 		}
 		status := string(result.Status)
 		s.metrics.ScansTotal.WithLabelValues(tenantID.String(), req.ScanType, status).Inc()
 		s.metrics.ScanDuration.WithLabelValues(tenantID.String(), req.ScanType).Observe(float64(result.DurationMs) / 1000)
+		switch result.Status {
+		case model.ScanStatusCompleted, model.ScanStatusCancelled:
+			_ = s.publishEvent(context.Background(), "cyber.asset.scan_completed", tenantID.String(), map[string]any{
+				"scan_id":           scan.ID.String(),
+				"assets_discovered": result.AssetsDiscovered,
+				"assets_new":        result.AssetsNew,
+				"assets_updated":    result.AssetsUpdated,
+				"duration_ms":       result.DurationMs,
+				"status":            result.Status,
+			})
+		default:
+			_ = s.publishEvent(context.Background(), "cyber.asset.scan_failed", tenantID.String(), map[string]any{
+				"scan_id": scan.ID.String(),
+				"error":   strings.Join(result.Errors, "; "),
+			})
+		}
 	}()
 
 	return scan, nil
@@ -408,6 +482,12 @@ func (s *AssetService) TriggerScan(ctx context.Context, tenantID, userID uuid.UU
 
 // CancelScan cancels a running scan.
 func (s *AssetService) CancelScan(ctx context.Context, tenantID, scanID uuid.UUID) error {
+	s.scanMu.Lock()
+	cancel := s.runningScans[scanID]
+	s.scanMu.Unlock()
+	if cancel != nil {
+		cancel()
+	}
 	return s.scanRepo.Cancel(ctx, tenantID, scanID)
 }
 
@@ -453,6 +533,18 @@ func (s *AssetService) GetStats(ctx context.Context, tenantID uuid.UUID) (*dto.A
 		ts := lastScan.Format("2006-01-02T15:04:05Z")
 		result.LastScanAt = &ts
 	}
+	if v, ok := assetStats["by_department"].(map[string]int); ok {
+		result.ByDepartment = v
+	}
+	if v, ok := assetStats["top_departments"].([]model.AssetCountByName); ok {
+		result.TopDepartments = v
+	}
+	if v, ok := assetStats["by_os"].(map[string]int); ok {
+		result.ByOS = v
+	}
+	if v, ok := assetStats["top_os"].([]model.AssetCountByName); ok {
+		result.TopOS = v
+	}
 
 	return result, nil
 }
@@ -486,17 +578,77 @@ func uuidsToStrings(ids []uuid.UUID) []string {
 
 // ListRelationships returns all relationships for an asset.
 func (s *AssetService) ListRelationships(ctx context.Context, tenantID, assetID uuid.UUID) (any, error) {
-	return s.relRepo.ListForAsset(ctx, tenantID, assetID)
+	rels, err := s.relRepo.ListForAsset(ctx, tenantID, assetID)
+	if err != nil {
+		return nil, err
+	}
+	response := map[string][]map[string]any{
+		"outgoing": {},
+		"incoming": {},
+	}
+	for _, rel := range rels {
+		if rel.SourceAssetID == assetID {
+			response["outgoing"] = append(response["outgoing"], map[string]any{
+				"id":   rel.ID,
+				"type": rel.RelationshipType,
+				"target": map[string]any{
+					"id":          rel.TargetAssetID,
+					"name":        rel.TargetAssetName,
+					"type":        rel.TargetAssetType,
+					"criticality": rel.TargetAssetCriticality,
+				},
+				"metadata":   rel.Metadata,
+				"created_at": rel.CreatedAt,
+			})
+		} else {
+			response["incoming"] = append(response["incoming"], map[string]any{
+				"id":   rel.ID,
+				"type": rel.RelationshipType,
+				"source": map[string]any{
+					"id":          rel.SourceAssetID,
+					"name":        rel.SourceAssetName,
+					"type":        rel.SourceAssetType,
+					"criticality": rel.SourceAssetCriticality,
+				},
+				"metadata":   rel.Metadata,
+				"created_at": rel.CreatedAt,
+			})
+		}
+	}
+	return response, nil
 }
 
 // CreateRelationship creates a directed relationship between two assets.
 func (s *AssetService) CreateRelationship(ctx context.Context, tenantID, assetID, userID uuid.UUID, req *dto.CreateRelationshipRequest) (any, error) {
-	return s.relRepo.Create(ctx, tenantID, assetID, userID, req)
+	rel, err := s.relRepo.Create(ctx, tenantID, assetID, userID, req)
+	if err != nil {
+		return nil, err
+	}
+	_ = s.publishEvent(ctx, "cyber.asset.relationship_created", tenantID.String(), map[string]any{
+		"id":        rel.ID.String(),
+		"source_id": rel.SourceAssetID.String(),
+		"target_id": rel.TargetAssetID.String(),
+		"type":      rel.RelationshipType,
+	})
+	return rel, nil
 }
 
 // DeleteRelationship removes a relationship.
 func (s *AssetService) DeleteRelationship(ctx context.Context, tenantID, assetID, relID uuid.UUID) error {
-	return s.relRepo.Delete(ctx, tenantID, assetID, relID)
+	rel, err := s.relRepo.GetByID(ctx, tenantID, relID)
+	if err != nil {
+		return err
+	}
+	if err := s.relRepo.Delete(ctx, tenantID, assetID, relID); err != nil {
+		return err
+	}
+	_ = s.publishEvent(ctx, "cyber.asset.relationship_deleted", tenantID.String(), map[string]any{
+		"id":        rel.ID.String(),
+		"source_id": rel.SourceAssetID.String(),
+		"target_id": rel.TargetAssetID.String(),
+		"type":      rel.RelationshipType,
+	})
+	return nil
 }
 
 // ListVulnerabilities returns paginated vulns for an asset.
@@ -506,12 +658,37 @@ func (s *AssetService) ListVulnerabilities(ctx context.Context, tenantID, assetI
 
 // CreateVulnerability adds a vulnerability to an asset.
 func (s *AssetService) CreateVulnerability(ctx context.Context, tenantID, assetID, userID uuid.UUID, req *dto.CreateVulnerabilityRequest) (any, error) {
-	return s.vulnRepo.Create(ctx, tenantID, assetID, userID, req)
+	vuln, err := s.vulnRepo.Create(ctx, tenantID, assetID, userID, req)
+	if err != nil {
+		return nil, err
+	}
+	_ = s.publishEvent(ctx, "cyber.vulnerability.created", tenantID.String(), map[string]any{
+		"id":       vuln.ID.String(),
+		"asset_id": vuln.AssetID.String(),
+		"cve_id":   vuln.CVEID,
+		"severity": vuln.Severity,
+		"source":   vuln.Source,
+	})
+	return vuln, nil
 }
 
 // UpdateVulnerability updates a vulnerability's status.
 func (s *AssetService) UpdateVulnerability(ctx context.Context, tenantID, assetID, vulnID uuid.UUID, req *dto.UpdateVulnerabilityRequest) (any, error) {
-	return s.vulnRepo.UpdateStatus(ctx, tenantID, assetID, vulnID, req)
+	before, err := s.vulnRepo.GetByID(ctx, tenantID, vulnID)
+	if err != nil {
+		return nil, err
+	}
+	vuln, err := s.vulnRepo.UpdateStatus(ctx, tenantID, assetID, vulnID, req)
+	if err != nil {
+		return nil, err
+	}
+	_ = s.publishEvent(ctx, "cyber.vulnerability.updated", tenantID.String(), map[string]any{
+		"id":         vuln.ID.String(),
+		"asset_id":   vuln.AssetID.String(),
+		"old_status": before.Status,
+		"new_status": vuln.Status,
+	})
+	return vuln, nil
 }
 
 // ListScans returns paginated scan history.
@@ -525,8 +702,12 @@ func (s *AssetService) GetScan(ctx context.Context, tenantID, scanID uuid.UUID) 
 }
 
 // CountAssets returns a simple count of assets with optional filters.
-func (s *AssetService) CountAssets(ctx context.Context, tenantID uuid.UUID, assetType, criticality, status *string) (int, error) {
-	return s.assetRepo.Count(ctx, tenantID, assetType, criticality, status)
+func (s *AssetService) CountAssets(ctx context.Context, tenantID uuid.UUID, params *dto.AssetListParams) (int, error) {
+	params.SetDefaults()
+	if err := params.Validate(); err != nil {
+		return 0, fmt.Errorf("invalid filter params: %w", err)
+	}
+	return s.assetRepo.CountByParams(ctx, tenantID, params)
 }
 
 // EnrichBatch delegates batch enrichment to the EnrichmentService.
@@ -544,4 +725,104 @@ func (s *AssetService) publishEvent(ctx context.Context, eventType, tenantID str
 	}
 	ev := events.NewEventRaw(eventType, "clario360/cyber-service", tenantID, dataJSON)
 	return s.producer.Publish(ctx, events.Topics.AssetEvents, ev)
+}
+
+func (s *AssetService) unregisterRunningScan(scanID uuid.UUID) {
+	s.scanMu.Lock()
+	defer s.scanMu.Unlock()
+	delete(s.runningScans, scanID)
+}
+
+func scanTimeout(options map[string]any) time.Duration {
+	const defaultTimeout = 30 * time.Minute
+	if options == nil {
+		return defaultTimeout
+	}
+
+	switch value := options["timeout_seconds"].(type) {
+	case float64:
+		if value > 0 {
+			return time.Duration(value) * time.Second
+		}
+	case int:
+		if value > 0 {
+			return time.Duration(value) * time.Second
+		}
+	case int64:
+		if value > 0 {
+			return time.Duration(value) * time.Second
+		}
+	case string:
+		if seconds, err := time.ParseDuration(value + "s"); err == nil && seconds > 0 {
+			return seconds
+		}
+	}
+
+	return defaultTimeout
+}
+
+func buildAssetUpdatedEvent(before, after *model.Asset) map[string]any {
+	changedFields := make([]string, 0)
+	oldValues := make(map[string]any)
+	newValues := make(map[string]any)
+
+	recordChange := func(field string, oldValue, newValue any) {
+		normalizedOld := normalizeAssetEventValue(oldValue)
+		normalizedNew := normalizeAssetEventValue(newValue)
+		if fmt.Sprintf("%v", normalizedOld) == fmt.Sprintf("%v", normalizedNew) {
+			return
+		}
+		changedFields = append(changedFields, field)
+		oldValues[field] = normalizedOld
+		newValues[field] = normalizedNew
+	}
+
+	recordChange("name", before.Name, after.Name)
+	recordChange("type", before.Type, after.Type)
+	recordChange("ip_address", before.IPAddress, after.IPAddress)
+	recordChange("hostname", before.Hostname, after.Hostname)
+	recordChange("mac_address", before.MACAddress, after.MACAddress)
+	recordChange("os", before.OS, after.OS)
+	recordChange("os_version", before.OSVersion, after.OSVersion)
+	recordChange("owner", before.Owner, after.Owner)
+	recordChange("department", before.Department, after.Department)
+	recordChange("location", before.Location, after.Location)
+	recordChange("criticality", before.Criticality, after.Criticality)
+	recordChange("status", before.Status, after.Status)
+	recordChange("tags", strings.Join(before.Tags, ","), strings.Join(after.Tags, ","))
+	recordChange("metadata", string(before.Metadata), string(after.Metadata))
+
+	return map[string]any{
+		"id":             after.ID.String(),
+		"changed_fields": changedFields,
+		"old_values":     oldValues,
+		"new_values":     newValues,
+	}
+}
+
+func normalizeAssetEventValue(value any) any {
+	switch v := value.(type) {
+	case *string:
+		if v == nil {
+			return nil
+		}
+		return *v
+	case *int:
+		if v == nil {
+			return nil
+		}
+		return *v
+	case *bool:
+		if v == nil {
+			return nil
+		}
+		return *v
+	case *uuid.UUID:
+		if v == nil {
+			return nil
+		}
+		return v.String()
+	default:
+		return v
+	}
 }

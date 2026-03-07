@@ -4,9 +4,12 @@ import (
 	"context"
 	"os"
 	"os/signal"
+	"path/filepath"
+	"strconv"
 	"syscall"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/redis/go-redis/v9"
@@ -36,9 +39,9 @@ func main() {
 	// ── 1. Load platform config (shared DB/Redis/Kafka/Auth settings) ─────────
 	cfg, err := config.Load()
 	if err != nil {
-		panic("loading platform config: " + err.Error())
+		os.Stderr.WriteString("loading platform config: " + err.Error() + "\n")
+		os.Exit(1)
 	}
-	cfg.Server.Port = 8090
 
 	// ── 2. Load cyber-service specific config ─────────────────────────────────
 	cyberCfg, err := cyberconfig.Load()
@@ -48,6 +51,17 @@ func main() {
 		os.Stderr.WriteString("loading cyber config: " + err.Error() + "\n")
 		os.Exit(1)
 	}
+	if port, err := strconv.Atoi(cyberCfg.HTTPPort); err == nil {
+		cfg.Server.Port = port
+	}
+	cfg.Kafka.Brokers = cyberCfg.KafkaBrokers
+	cfg.Kafka.GroupID = cyberCfg.KafkaGroupID
+	publicKeyPEM, err := os.ReadFile(cyberCfg.JWTPublicKeyPath)
+	if err != nil {
+		os.Stderr.WriteString("reading CYBER_JWT_PUBLIC_KEY_PATH: " + err.Error() + "\n")
+		os.Exit(1)
+	}
+	cfg.Auth.RSAPublicKeyPEM = string(publicKeyPEM)
 
 	// ── 3. Logger ──────────────────────────────────────────────────────────────
 	logger := observability.NewLogger(
@@ -65,18 +79,35 @@ func main() {
 	}
 
 	// ── 5. Database ────────────────────────────────────────────────────────────
-	db, err := database.NewPostgresPool(ctx, cfg.Database, logger)
+	poolCfg, err := pgxpool.ParseConfig(cyberCfg.DBURL)
+	if err != nil {
+		logger.Fatal().Err(err).Msg("failed to parse cyber database URL")
+	}
+	poolCfg.MaxConns = int32(cyberCfg.DBMaxConn)
+	poolCfg.MinConns = int32(cyberCfg.DBMinConn)
+	db, err := pgxpool.NewWithConfig(ctx, poolCfg)
 	if err != nil {
 		logger.Fatal().Err(err).Msg("failed to connect to database")
 	}
+	if err := db.Ping(ctx); err != nil {
+		logger.Fatal().Err(err).Msg("failed to ping database")
+	}
 	defer db.Close()
 
+	migrationsPath := envOr("CYBER_MIGRATIONS_PATH", filepath.Join("migrations", "cyber_db"))
+	if _, err := os.Stat(migrationsPath); err != nil {
+		migrationsPath = filepath.Join("backend", "migrations", "cyber_db")
+	}
+	if err := database.RunMigrations(cyberCfg.DBURL, migrationsPath); err != nil {
+		logger.Fatal().Err(err).Str("path", migrationsPath).Msg("failed to run cyber migrations")
+	}
+
 	// ── 6. Redis ───────────────────────────────────────────────────────────────
-	rdb := redis.NewClient(&redis.Options{
-		Addr:     cfg.Redis.Addr(),
-		Password: cfg.Redis.Password,
-		DB:       cfg.Redis.DB,
-	})
+	redisOptions, err := redis.ParseURL(cyberCfg.RedisURL)
+	if err != nil {
+		logger.Fatal().Err(err).Msg("failed to parse redis URL")
+	}
+	rdb := redis.NewClient(redisOptions)
 	defer rdb.Close()
 
 	// ── 7. Prometheus registries ───────────────────────────────────────────────
@@ -207,4 +238,11 @@ func main() {
 	}
 
 	logger.Info().Msg("cyber-service shutdown complete")
+}
+
+func envOr(key, fallback string) string {
+	if value := os.Getenv(key); value != "" {
+		return value
+	}
+	return fallback
 }

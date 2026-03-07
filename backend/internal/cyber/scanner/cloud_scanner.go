@@ -1100,7 +1100,7 @@ func extractResourceGroup(resourceID string) string {
 func mustJSON(v any) []byte {
 	b, err := json.Marshal(v)
 	if err != nil {
-		panic(fmt.Sprintf("mustJSON: %v", err))
+		return []byte("{}")
 	}
 	return b
 }

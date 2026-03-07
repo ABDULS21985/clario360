@@ -3,6 +3,8 @@ package enrichment
 import (
 	"context"
 	"fmt"
+	"regexp"
+	"strings"
 
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
@@ -39,11 +41,16 @@ func (e *CVEEnricher) Enrich(ctx context.Context, asset *model.Asset) (*Enrichme
 	if !e.enabled {
 		return result, nil
 	}
-	if asset.OS == nil || *asset.OS == "" {
+	if asset.OS == nil || *asset.OS == "" || asset.OSVersion == nil || *asset.OSVersion == "" {
 		return result, nil
 	}
 
-	cves, err := e.vulnRepo.FindCVEsForAsset(ctx, *asset.OS)
+	cpe := buildCPEString(*asset.OS, *asset.OSVersion)
+	if cpe == "" {
+		return result, nil
+	}
+
+	cves, err := e.vulnRepo.FindCVEsForAsset(ctx, cpe)
 	if err != nil {
 		return result, fmt.Errorf("find CVEs for asset: %w", err)
 	}
@@ -68,4 +75,56 @@ func (e *CVEEnricher) Enrich(ctx context.Context, asset *model.Asset) (*Enrichme
 		result.FieldsAdded = append(result.FieldsAdded, fmt.Sprintf("vulnerabilities(%d)", inserted))
 	}
 	return result, nil
+}
+
+var versionCleaner = regexp.MustCompile(`[^0-9A-Za-z._-]+`)
+
+func buildCPEString(osName, osVersion string) string {
+	normalizedOS := strings.ToLower(strings.TrimSpace(osName))
+	normalizedVersion := strings.ToLower(strings.TrimSpace(osVersion))
+
+	type vendorProduct struct {
+		vendor  string
+		product string
+		part    string
+	}
+
+	var mapping vendorProduct
+	switch {
+	case strings.Contains(normalizedVersion, "ubuntu") || strings.Contains(normalizedOS, "ubuntu") || normalizedOS == "linux":
+		mapping = vendorProduct{vendor: "canonical", product: "ubuntu_linux", part: "o"}
+	case strings.Contains(normalizedVersion, "centos") || strings.Contains(normalizedOS, "centos"):
+		mapping = vendorProduct{vendor: "centos", product: "centos", part: "o"}
+	case strings.Contains(normalizedVersion, "debian") || strings.Contains(normalizedOS, "debian"):
+		mapping = vendorProduct{vendor: "debian", product: "debian_linux", part: "o"}
+	case strings.Contains(normalizedVersion, "red hat") || strings.Contains(normalizedVersion, "rhel") || strings.Contains(normalizedOS, "rhel"):
+		mapping = vendorProduct{vendor: "redhat", product: "enterprise_linux", part: "o"}
+	case strings.Contains(normalizedOS, "windows"):
+		mapping = vendorProduct{vendor: "microsoft", product: "windows_server", part: "o"}
+	default:
+		return ""
+	}
+
+	version := extractVersion(normalizedVersion)
+	if version == "" {
+		version = "*"
+	}
+
+	return fmt.Sprintf("cpe:2.3:%s:%s:%s:%s:*:*:*:*:*:*:*",
+		mapping.part, mapping.vendor, mapping.product, version,
+	)
+}
+
+func extractVersion(input string) string {
+	if input == "" {
+		return ""
+	}
+	fields := strings.Fields(input)
+	for _, field := range fields {
+		cleaned := versionCleaner.ReplaceAllString(field, "")
+		if cleaned != "" && strings.ContainsAny(cleaned, "0123456789") {
+			return cleaned
+		}
+	}
+	return versionCleaner.ReplaceAllString(input, "")
 }

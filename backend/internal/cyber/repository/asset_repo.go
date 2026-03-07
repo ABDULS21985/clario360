@@ -3,11 +3,13 @@ package repository
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog"
@@ -46,15 +48,16 @@ func (r *AssetRepository) Create(ctx context.Context, tenantID, userID uuid.UUID
 	_, err := r.db.Exec(ctx, `
 		INSERT INTO assets (
 			id, tenant_id, name, type, ip_address, hostname, mac_address,
-			os, os_version, department, location, criticality, status,
+			os, os_version, owner, department, location, criticality, status,
 			discovered_at, last_seen_at, discovery_source,
 			metadata, tags, created_by, created_at, updated_at
 		) VALUES (
-			$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21
+			$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22
 		)`,
 		id, tenantID, req.Name, string(req.Type),
 		req.IPAddress, req.Hostname, req.MACAddress,
 		req.OS, req.OSVersion,
+		req.Owner,
 		req.Department, req.Location,
 		string(req.Criticality), string(model.AssetStatusActive),
 		now, now, discoverySource,
@@ -62,6 +65,10 @@ func (r *AssetRepository) Create(ctx context.Context, tenantID, userID uuid.UUID
 		userID, now, now,
 	)
 	if err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+			return nil, ErrConflict
+		}
 		return nil, fmt.Errorf("insert asset: %w", err)
 	}
 
@@ -130,12 +137,47 @@ func (r *AssetRepository) List(ctx context.Context, tenantID uuid.UUID, params *
 	}
 
 	qb := database.NewQueryBuilder(baseSelect)
+	r.applyAssetFilters(qb, tenantID, params)
+
+	qb.OrderBy(params.Sort, params.Order, allowedSorts)
+	qb.Paginate(params.Page, params.PerPage)
+
+	// Count query
+	countSQL, countArgs := qb.BuildCount()
+	var total int
+	if err := r.db.QueryRow(ctx, countSQL, countArgs...).Scan(&total); err != nil {
+		return nil, 0, fmt.Errorf("count assets: %w", err)
+	}
+
+	sql, args := qb.Build()
+	rows, err := r.db.Query(ctx, sql, args...)
+	if err != nil {
+		return nil, 0, fmt.Errorf("list assets: %w", err)
+	}
+	defer rows.Close()
+
+	var assets []*model.Asset
+	for rows.Next() {
+		a, err := scanAsset(rows)
+		if err != nil {
+			return nil, 0, fmt.Errorf("scan asset: %w", err)
+		}
+		assets = append(assets, a)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, 0, fmt.Errorf("rows error: %w", err)
+	}
+
+	return assets, total, nil
+}
+
+func (r *AssetRepository) applyAssetFilters(qb *database.QueryBuilder, tenantID uuid.UUID, params *dto.AssetListParams) {
 	qb.Where("a.tenant_id = ?", tenantID)
 	qb.Where("a.deleted_at IS NULL")
 
 	if params.Search != nil && *params.Search != "" {
 		qb.WhereFTS(
-			[]string{"a.name", "a.hostname", "a.os", "a.department", "a.location"},
+			[]string{"a.name", "a.hostname", "host(a.ip_address)", "a.os", "a.department", "a.owner", "a.location"},
 			*params.Search,
 		)
 	}
@@ -153,6 +195,9 @@ func (r *AssetRepository) List(ctx context.Context, tenantID uuid.UUID, params *
 	}
 	if params.Department != nil {
 		qb.Where("a.department = ?", *params.Department)
+	}
+	if params.Owner != nil {
+		qb.Where("a.owner ILIKE ?", "%"+*params.Owner+"%")
 	}
 	if params.Location != nil {
 		qb.Where("a.location = ?", *params.Location)
@@ -185,40 +230,9 @@ func (r *AssetRepository) List(ctx context.Context, tenantID uuid.UUID, params *
 			*params.VulnerabilitySeverity,
 		)
 	}
-	if params.MinVulnCount != nil && *params.MinVulnCount > 0 {
-		qb.Having("COALESCE(vc.open_count, 0) >= ?", *params.MinVulnCount)
+	if params.MinVulnCount != nil {
+		qb.Where("COALESCE(vc.open_count, 0) >= ?", *params.MinVulnCount)
 	}
-
-	qb.OrderBy(params.Sort, params.Order, allowedSorts)
-	qb.Paginate(params.Page, params.PerPage)
-
-	// Count query
-	countSQL, countArgs := qb.BuildCount()
-	var total int
-	if err := r.db.QueryRow(ctx, countSQL, countArgs...).Scan(&total); err != nil {
-		return nil, 0, fmt.Errorf("count assets: %w", err)
-	}
-
-	sql, args := qb.Build()
-	rows, err := r.db.Query(ctx, sql, args...)
-	if err != nil {
-		return nil, 0, fmt.Errorf("list assets: %w", err)
-	}
-	defer rows.Close()
-
-	var assets []*model.Asset
-	for rows.Next() {
-		a, err := scanAsset(rows)
-		if err != nil {
-			return nil, 0, fmt.Errorf("scan asset: %w", err)
-		}
-		assets = append(assets, a)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, 0, fmt.Errorf("rows error: %w", err)
-	}
-
-	return assets, total, nil
 }
 
 // Update applies a partial update to an asset (only non-nil fields).
@@ -253,6 +267,9 @@ func (r *AssetRepository) Update(ctx context.Context, tenantID, assetID uuid.UUI
 	}
 	if req.OSVersion != nil {
 		addField("os_version", *req.OSVersion)
+	}
+	if req.Owner != nil {
+		addField("owner", *req.Owner)
 	}
 	if req.Department != nil {
 		addField("department", *req.Department)
@@ -351,7 +368,7 @@ func (r *AssetRepository) BulkInsert(ctx context.Context, tx pgx.Tx, tenantID, u
 		rows[i] = []any{
 			id, tenantID, a.Name, string(a.Type),
 			a.IPAddress, a.Hostname, a.MACAddress,
-			a.OS, a.OSVersion,
+			a.OS, a.OSVersion, a.Owner,
 			a.Department, a.Location,
 			string(a.Criticality), string(model.AssetStatusActive),
 			now, now, "import",
@@ -363,7 +380,7 @@ func (r *AssetRepository) BulkInsert(ctx context.Context, tx pgx.Tx, tenantID, u
 	cols := []string{
 		"id", "tenant_id", "name", "type",
 		"ip_address", "hostname", "mac_address",
-		"os", "os_version",
+		"os", "os_version", "owner",
 		"department", "location",
 		"criticality", "status",
 		"discovered_at", "last_seen_at", "discovery_source",
@@ -554,7 +571,7 @@ func (r *AssetRepository) Stats(ctx context.Context, tenantID uuid.UUID) (map[st
 		return nil, fmt.Errorf("scan stats: %w", err)
 	}
 
-	return map[string]any{
+	result := map[string]any{
 		"total_assets":  total,
 		"active_assets": active,
 		"by_type": map[string]int{
@@ -575,24 +592,63 @@ func (r *AssetRepository) Stats(ctx context.Context, tenantID uuid.UUID) (map[st
 			"manual": srcManual, "network_scan": srcNetScan,
 			"cloud_scan": srcCloudScan, "agent": srcAgent, "import": srcImport,
 		},
-	}, nil
+	}
+
+	byDepartment, topDepartments, err := r.topCounts(ctx, tenantID, "department")
+	if err != nil {
+		return nil, err
+	}
+	byOS, topOS, err := r.topCounts(ctx, tenantID, "os")
+	if err != nil {
+		return nil, err
+	}
+	result["by_department"] = byDepartment
+	result["top_departments"] = topDepartments
+	result["by_os"] = byOS
+	result["top_os"] = topOS
+
+	return result, nil
 }
 
-// Count returns a simple asset count with optional type/criticality/status filters.
-func (r *AssetRepository) Count(ctx context.Context, tenantID uuid.UUID, assetType, criticality, status *string) (int, error) {
-	qb := database.NewQueryBuilder("SELECT COUNT(*) FROM assets a")
-	qb.Where("a.tenant_id = ?", tenantID)
-	qb.Where("a.deleted_at IS NULL")
-	if assetType != nil {
-		qb.Where("a.type = ?", *assetType)
+func (r *AssetRepository) topCounts(ctx context.Context, tenantID uuid.UUID, column string) (map[string]int, []model.AssetCountByName, error) {
+	rows, err := r.db.Query(ctx, fmt.Sprintf(`
+		SELECT %s AS name, COUNT(*) AS count
+		FROM assets
+		WHERE tenant_id = $1 AND deleted_at IS NULL AND COALESCE(%s, '') <> ''
+		GROUP BY %s
+		ORDER BY COUNT(*) DESC, %s ASC
+		LIMIT 10`, column, column, column, column), tenantID)
+	if err != nil {
+		return nil, nil, err
 	}
-	if criticality != nil {
-		qb.Where("a.criticality = ?", *criticality)
+	defer rows.Close()
+
+	byName := make(map[string]int)
+	top := make([]model.AssetCountByName, 0, 10)
+	for rows.Next() {
+		var name string
+		var count int
+		if err := rows.Scan(&name, &count); err != nil {
+			return nil, nil, err
+		}
+		byName[name] = count
+		top = append(top, model.AssetCountByName{Name: name, Count: count})
 	}
-	if status != nil {
-		qb.Where("a.status = ?", *status)
-	}
-	sql, args := qb.Build()
+	return byName, top, rows.Err()
+}
+
+// CountByParams returns a simple asset count using the same filters as List.
+func (r *AssetRepository) CountByParams(ctx context.Context, tenantID uuid.UUID, params *dto.AssetListParams) (int, error) {
+	qb := database.NewQueryBuilder(`
+		SELECT a.id
+		FROM assets a
+		LEFT JOIN LATERAL (
+			SELECT COUNT(*) AS open_count
+			FROM vulnerabilities v
+			WHERE v.asset_id = a.id AND v.status NOT IN ('resolved','accepted','false_positive') AND v.deleted_at IS NULL
+		) vc ON true`)
+	r.applyAssetFilters(qb, tenantID, params)
+	sql, args := qb.BuildCount()
 	var count int
 	if err := r.db.QueryRow(ctx, sql, args...).Scan(&count); err != nil {
 		return 0, err
