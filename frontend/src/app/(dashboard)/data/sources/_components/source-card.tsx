@@ -52,13 +52,16 @@ export function SourceCard({
         <Link href={`/data/sources/${source.id}`} className="min-w-0 flex-1">
           <div className="flex items-center gap-3">
             <div className={`rounded-full bg-muted p-2 ${typeVisual.accentClass}`}>
-              <Icon className="h-5 w-5" />
+              <Icon className="h-5 w-5" data-testid={`source-type-icon-${source.type}`} />
             </div>
             <div className="min-w-0">
               <div className="flex items-center gap-2">
                 <h3 className="truncate font-semibold">{source.name}</h3>
                 <span className="inline-flex items-center gap-1 text-xs font-medium text-muted-foreground">
-                  <span className={`h-2.5 w-2.5 rounded-full ${getStatusTone(source.status)}`} />
+                  <span
+                    className={`h-2.5 w-2.5 rounded-full ${getStatusTone(source.status)}`}
+                    data-testid={`source-status-dot-${source.status}`}
+                  />
                   {source.status}
                 </span>
               </div>

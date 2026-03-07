@@ -24,10 +24,10 @@ func TestCompliance_RunChecks(t *testing.T) {
 		},
 	})
 
-	h.mustData[model.MeetingMinutes](t, h.doJSON(t, http.MethodPost, "/api/v1/acta/meetings/"+fixture.Meeting.ID.String()+"/minutes/generate", nil), http.StatusOK)
-	h.mustData[model.MeetingMinutes](t, h.doJSON(t, http.MethodPost, "/api/v1/acta/meetings/"+fixture.Meeting.ID.String()+"/minutes/submit", nil), http.StatusOK)
-	h.mustData[model.MeetingMinutes](t, h.doJSON(t, http.MethodPost, "/api/v1/acta/meetings/"+fixture.Meeting.ID.String()+"/minutes/approve", nil), http.StatusOK)
-	h.mustData[model.MeetingMinutes](t, h.doJSON(t, http.MethodPost, "/api/v1/acta/meetings/"+fixture.Meeting.ID.String()+"/minutes/publish", nil), http.StatusOK)
+	mustData[model.MeetingMinutes](t, h.doJSON(t, http.MethodPost, "/api/v1/acta/meetings/"+fixture.Meeting.ID.String()+"/minutes/generate", nil), http.StatusOK)
+	mustData[model.MeetingMinutes](t, h.doJSON(t, http.MethodPost, "/api/v1/acta/meetings/"+fixture.Meeting.ID.String()+"/minutes/submit", nil), http.StatusOK)
+	mustData[model.MeetingMinutes](t, h.doJSON(t, http.MethodPost, "/api/v1/acta/meetings/"+fixture.Meeting.ID.String()+"/minutes/approve", nil), http.StatusOK)
+	mustData[model.MeetingMinutes](t, h.doJSON(t, http.MethodPost, "/api/v1/acta/meetings/"+fixture.Meeting.ID.String()+"/minutes/publish", nil), http.StatusOK)
 
 	// Move the completed meeting outside the last completed monthly period so meeting-frequency becomes non-compliant.
 	actualEnd := time.Now().UTC().AddDate(0, -2, 0)
@@ -42,11 +42,11 @@ func TestCompliance_RunChecks(t *testing.T) {
 			fixture.Committee.Members[idx+1].ID,
 			fixture.Committee.Members[idx+1].Name,
 			"Overdue compliance action",
-			time.Now().UTC().AddDate(0, 0, -(idx + 3)),
+			time.Now().UTC().AddDate(0, 0, -(idx+3)),
 		)
 	}
 
-	report := h.mustData[model.ComplianceReport](t, h.doJSON(t, http.MethodGet, "/api/v1/acta/compliance/run", nil), http.StatusOK)
+	report := mustData[model.ComplianceReport](t, h.doJSON(t, http.MethodGet, "/api/v1/acta/compliance/run", nil), http.StatusOK)
 
 	var (
 		meetingFrequencyFound bool
@@ -140,7 +140,7 @@ func TestCompliance_Score(t *testing.T) {
 		t.Fatalf("InsertComplianceChecks() error = %v", err)
 	}
 
-	scorePayload := h.mustData[map[string]float64](t, h.doJSON(t, http.MethodGet, "/api/v1/acta/compliance/score", nil), http.StatusOK)
+	scorePayload := mustData[map[string]float64](t, h.doJSON(t, http.MethodGet, "/api/v1/acta/compliance/score", nil), http.StatusOK)
 	score := scorePayload["score"]
 	want := (3.0 / 6.5) * 100.0
 	if diff := score - want; diff < -0.001 || diff > 0.001 {

@@ -10,8 +10,10 @@ import (
 	"testing"
 	"time"
 
-	actascheduler "github.com/clario360/platform/internal/acta/scheduler"
+	"github.com/google/uuid"
+
 	"github.com/clario360/platform/internal/acta/model"
+	actascheduler "github.com/clario360/platform/internal/acta/scheduler"
 )
 
 func TestActionItems_CreateFromExtracted(t *testing.T) {
@@ -29,7 +31,7 @@ func TestActionItems_CreateFromExtracted(t *testing.T) {
 		},
 	})
 
-	minutes := h.mustData[model.MeetingMinutes](t, h.doJSON(t, http.MethodPost, fmt.Sprintf("/api/v1/acta/meetings/%s/minutes/generate", fixture.Meeting.ID), nil), http.StatusOK)
+	minutes := mustData[model.MeetingMinutes](t, h.doJSON(t, http.MethodPost, fmt.Sprintf("/api/v1/acta/meetings/%s/minutes/generate", fixture.Meeting.ID), nil), http.StatusOK)
 	if len(minutes.AIActionItems) == 0 {
 		t.Fatal("expected generated minutes to contain extracted action items")
 	}
@@ -42,7 +44,7 @@ func TestActionItems_CreateFromExtracted(t *testing.T) {
 		t.Fatalf("created action items = %d, want %d", len(created), len(minutes.AIActionItems))
 	}
 
-	list := h.mustPaginated[model.ActionItem](t, h.doJSON(t, http.MethodGet, fmt.Sprintf("/api/v1/acta/action-items?meeting_id=%s", fixture.Meeting.ID), nil), http.StatusOK)
+	list := mustPaginated[model.ActionItem](t, h.doJSON(t, http.MethodGet, fmt.Sprintf("/api/v1/acta/action-items?meeting_id=%s", fixture.Meeting.ID), nil), http.StatusOK)
 	if len(list.Data) != len(minutes.AIActionItems) {
 		t.Fatalf("meeting action items listed = %d, want %d", len(list.Data), len(minutes.AIActionItems))
 	}
@@ -113,7 +115,7 @@ func TestActionItems_ExtendDueDate(t *testing.T) {
 	actionItem := h.createActionItem(t, fixture.Meeting.ID, fixture.Committee.Committee.ID, assigneeID, assigneeName, "Collect further evidence", time.Now().UTC().Add(48*time.Hour))
 	newDueDate := actionItem.DueDate.Add(7 * 24 * time.Hour)
 
-	extended := h.mustData[model.ActionItem](t, h.doJSON(t, http.MethodPost, fmt.Sprintf("/api/v1/acta/action-items/%s/extend", actionItem.ID), map[string]any{
+	extended := mustData[model.ActionItem](t, h.doJSON(t, http.MethodPost, fmt.Sprintf("/api/v1/acta/action-items/%s/extend", actionItem.ID), map[string]any{
 		"new_due_date": newDueDate,
 		"reason":       "Awaiting independent assurance evidence",
 	}), http.StatusOK)
@@ -145,7 +147,7 @@ func TestActionItems_MyActionItems(t *testing.T) {
 		h.createActionItem(t, fixture.Meeting.ID, fixture.Committee.Committee.ID, assigneeID, "Action Owner", fmt.Sprintf("Personal action item %d", idx+1), time.Now().UTC().AddDate(0, 0, idx+2))
 	}
 
-	myItems := h.mustData[[]model.ActionItem](t, h.doJSONWithToken(t, assigneeToken, http.MethodGet, "/api/v1/acta/action-items/my", nil), http.StatusOK)
+	myItems := mustData[[]model.ActionItem](t, h.doJSONWithToken(t, assigneeToken, http.MethodGet, "/api/v1/acta/action-items/my", nil), http.StatusOK)
 	if len(myItems) != 3 {
 		t.Fatalf("my action items count = %d, want 3", len(myItems))
 	}

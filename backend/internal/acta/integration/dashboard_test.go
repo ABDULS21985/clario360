@@ -3,7 +3,6 @@
 package integration
 
 import (
-	"fmt"
 	"net/http"
 	"testing"
 	"time"
@@ -18,21 +17,21 @@ func TestDashboard(t *testing.T) {
 
 	h := newDemoHarness(t)
 	boardCommitteeID := uuid.MustParse("11111111-1111-1111-1111-111111112001")
-	h.mustData[any](t, h.doJSON(t, http.MethodPost, "/api/v1/acta/meetings", map[string]any{
-		"committee_id":      boardCommitteeID,
-		"title":             "Board Dashboard Upcoming Meeting",
-		"description":       "Additional scheduled meeting for dashboard coverage",
-		"scheduled_at":      time.Now().UTC().Add(7 * 24 * time.Hour),
-		"scheduled_end_at":  time.Now().UTC().Add(7*24*time.Hour + 90*time.Minute),
-		"duration_minutes":  90,
-		"location":          "Executive Board Room",
-		"location_type":     "physical",
-		"tags":              []string{"dashboard"},
-		"metadata":          map[string]any{"source": "dashboard-test"},
+	mustData[any](t, h.doJSON(t, http.MethodPost, "/api/v1/acta/meetings", map[string]any{
+		"committee_id":     boardCommitteeID,
+		"title":            "Board Dashboard Upcoming Meeting",
+		"description":      "Additional scheduled meeting for dashboard coverage",
+		"scheduled_at":     time.Now().UTC().Add(7 * 24 * time.Hour),
+		"scheduled_end_at": time.Now().UTC().Add(7*24*time.Hour + 90*time.Minute),
+		"duration_minutes": 90,
+		"location":         "Executive Board Room",
+		"location_type":    "physical",
+		"tags":             []string{"dashboard"},
+		"metadata":         map[string]any{"source": "dashboard-test"},
 	}), http.StatusCreated)
 
-	first := h.mustData[service.ActaDashboard](t, h.doJSON(t, http.MethodGet, "/api/v1/acta/dashboard", nil), http.StatusOK)
-	second := h.mustData[service.ActaDashboard](t, h.doJSON(t, http.MethodGet, "/api/v1/acta/dashboard", nil), http.StatusOK)
+	first := mustData[service.ActaDashboard](t, h.doJSON(t, http.MethodGet, "/api/v1/acta/dashboard", nil), http.StatusOK)
+	second := mustData[service.ActaDashboard](t, h.doJSON(t, http.MethodGet, "/api/v1/acta/dashboard", nil), http.StatusOK)
 
 	if first.KPIs.ActiveCommittees < 4 {
 		t.Fatalf("active committees = %d, want at least 4", first.KPIs.ActiveCommittees)

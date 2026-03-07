@@ -39,18 +39,18 @@ func (h *actaHarness) scheduleMeeting(t *testing.T, committeeID uuid.UUID, title
 
 	location := "Board Room A"
 	return mustData[model.Meeting](t, h.doJSON(t, http.MethodPost, "/api/v1/acta/meetings", map[string]any{
-		"committee_id":      committeeID,
-		"title":             title,
-		"description":       "Integration test meeting",
-		"scheduled_at":      scheduledAt.UTC(),
-		"duration_minutes":  90,
-		"location":          location,
-		"location_type":     "physical",
-		"virtual_platform":  nil,
-		"virtual_link":      nil,
-		"tags":              []string{"integration"},
-		"metadata":          map[string]any{"source": "integration"},
-		"scheduled_end_at":  scheduledAt.UTC().Add(90 * time.Minute),
+		"committee_id":     committeeID,
+		"title":            title,
+		"description":      "Integration test meeting",
+		"scheduled_at":     scheduledAt.UTC(),
+		"duration_minutes": 90,
+		"location":         location,
+		"location_type":    "physical",
+		"virtual_platform": nil,
+		"virtual_link":     nil,
+		"tags":             []string{"integration"},
+		"metadata":         map[string]any{"source": "integration"},
+		"scheduled_end_at": scheduledAt.UTC().Add(90 * time.Minute),
 	}), http.StatusCreated)
 }
 
@@ -159,7 +159,15 @@ func (h *actaHarness) completeMeeting(t *testing.T, memberCount, presentCount in
 		}
 		agendaItems[idx] = item
 	}
-	meeting = mustData[model.Meeting](t, h.doJSON(t, http.MethodPost, fmt.Sprintf("/api/v1/acta/meetings/%s/end", meeting.ID), nil), http.StatusOK)
+	endResp := h.doJSON(t, http.MethodPost, fmt.Sprintf("/api/v1/acta/meetings/%s/end", meeting.ID), nil)
+	if endResp.StatusCode != http.StatusOK {
+		body := readBody(t, endResp.Body)
+		if _, err := h.env.app.MeetingService.EndMeeting(context.Background(), h.tenantID, h.userID, meeting.ID); err != nil {
+			t.Fatalf("end meeting status = %d, body=%s, service error=%v", endResp.StatusCode, body, err)
+		}
+		t.Fatalf("end meeting status = %d, body=%s", endResp.StatusCode, body)
+	}
+	meeting = mustData[model.Meeting](t, endResp, http.StatusOK)
 
 	return completedMeetingFixture{
 		Committee:      committee,

@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
+
 	"github.com/clario360/platform/internal/acta/model"
 )
 
@@ -40,7 +42,7 @@ func TestMinutes_AIGeneration(t *testing.T) {
 		},
 	})
 
-	minutes := h.mustData[model.MeetingMinutes](t, h.doJSON(t, http.MethodPost, fmt.Sprintf("/api/v1/acta/meetings/%s/minutes/generate", fixture.Meeting.ID), nil), http.StatusOK)
+	minutes := mustData[model.MeetingMinutes](t, h.doJSON(t, http.MethodPost, fmt.Sprintf("/api/v1/acta/meetings/%s/minutes/generate", fixture.Meeting.ID), nil), http.StatusOK)
 	if !minutes.AIGenerated {
 		t.Fatal("expected minutes to be AI generated")
 	}
@@ -78,13 +80,13 @@ func TestMinutes_ApprovalFlow(t *testing.T) {
 		},
 	})
 
-	minutes := h.mustData[model.MeetingMinutes](t, h.doJSON(t, http.MethodPost, fmt.Sprintf("/api/v1/acta/meetings/%s/minutes/generate", fixture.Meeting.ID), nil), http.StatusOK)
-	minutes = h.mustData[model.MeetingMinutes](t, h.doJSON(t, http.MethodPost, fmt.Sprintf("/api/v1/acta/meetings/%s/minutes/submit", fixture.Meeting.ID), nil), http.StatusOK)
+	minutes := mustData[model.MeetingMinutes](t, h.doJSON(t, http.MethodPost, fmt.Sprintf("/api/v1/acta/meetings/%s/minutes/generate", fixture.Meeting.ID), nil), http.StatusOK)
+	minutes = mustData[model.MeetingMinutes](t, h.doJSON(t, http.MethodPost, fmt.Sprintf("/api/v1/acta/meetings/%s/minutes/submit", fixture.Meeting.ID), nil), http.StatusOK)
 	if minutes.Status != model.MinutesStatusReview {
 		t.Fatalf("minutes status after submit = %s, want %s", minutes.Status, model.MinutesStatusReview)
 	}
 
-	minutes = h.mustData[model.MeetingMinutes](t, h.doJSON(t, http.MethodPost, fmt.Sprintf("/api/v1/acta/meetings/%s/minutes/approve", fixture.Meeting.ID), nil), http.StatusOK)
+	minutes = mustData[model.MeetingMinutes](t, h.doJSON(t, http.MethodPost, fmt.Sprintf("/api/v1/acta/meetings/%s/minutes/approve", fixture.Meeting.ID), nil), http.StatusOK)
 	if minutes.Status != model.MinutesStatusApproved {
 		t.Fatalf("minutes status after approve = %s, want %s", minutes.Status, model.MinutesStatusApproved)
 	}
@@ -92,7 +94,7 @@ func TestMinutes_ApprovalFlow(t *testing.T) {
 		t.Fatalf("minutes approved_by = %v, want %s", minutes.ApprovedBy, h.userID)
 	}
 
-	minutes = h.mustData[model.MeetingMinutes](t, h.doJSON(t, http.MethodPost, fmt.Sprintf("/api/v1/acta/meetings/%s/minutes/publish", fixture.Meeting.ID), nil), http.StatusOK)
+	minutes = mustData[model.MeetingMinutes](t, h.doJSON(t, http.MethodPost, fmt.Sprintf("/api/v1/acta/meetings/%s/minutes/publish", fixture.Meeting.ID), nil), http.StatusOK)
 	if minutes.Status != model.MinutesStatusPublished {
 		t.Fatalf("minutes status after publish = %s, want %s", minutes.Status, model.MinutesStatusPublished)
 	}
@@ -109,11 +111,11 @@ func TestMinutes_NonChairApprovalRejected(t *testing.T) {
 		},
 	})
 
-	h.mustData[model.MeetingMinutes](t, h.doJSON(t, http.MethodPost, fmt.Sprintf("/api/v1/acta/meetings/%s/minutes/generate", fixture.Meeting.ID), nil), http.StatusOK)
-	h.mustData[model.MeetingMinutes](t, h.doJSON(t, http.MethodPost, fmt.Sprintf("/api/v1/acta/meetings/%s/minutes/submit", fixture.Meeting.ID), nil), http.StatusOK)
+	mustData[model.MeetingMinutes](t, h.doJSON(t, http.MethodPost, fmt.Sprintf("/api/v1/acta/meetings/%s/minutes/generate", fixture.Meeting.ID), nil), http.StatusOK)
+	mustData[model.MeetingMinutes](t, h.doJSON(t, http.MethodPost, fmt.Sprintf("/api/v1/acta/meetings/%s/minutes/submit", fixture.Meeting.ID), nil), http.StatusOK)
 
 	nonChairToken := h.tokenForUser(t, fixture.Committee.Members[1].ID, "tenant_admin")
-	errResp := h.mustError(t, h.doJSONWithToken(t, nonChairToken, http.MethodPost, fmt.Sprintf("/api/v1/acta/meetings/%s/minutes/approve", fixture.Meeting.ID), nil), http.StatusForbidden)
+	errResp := mustError(t, h.doJSONWithToken(t, nonChairToken, http.MethodPost, fmt.Sprintf("/api/v1/acta/meetings/%s/minutes/approve", fixture.Meeting.ID), nil), http.StatusForbidden)
 	if errResp.Error.Message != "only the committee chair can approve minutes" {
 		t.Fatalf("approve error message = %q, want chair-only message", errResp.Error.Message)
 	}
@@ -130,11 +132,11 @@ func TestMinutes_VersioningAfterApproval(t *testing.T) {
 		},
 	})
 
-	minutes := h.mustData[model.MeetingMinutes](t, h.doJSON(t, http.MethodPost, fmt.Sprintf("/api/v1/acta/meetings/%s/minutes/generate", fixture.Meeting.ID), nil), http.StatusOK)
-	h.mustData[model.MeetingMinutes](t, h.doJSON(t, http.MethodPost, fmt.Sprintf("/api/v1/acta/meetings/%s/minutes/submit", fixture.Meeting.ID), nil), http.StatusOK)
-	h.mustData[model.MeetingMinutes](t, h.doJSON(t, http.MethodPost, fmt.Sprintf("/api/v1/acta/meetings/%s/minutes/approve", fixture.Meeting.ID), nil), http.StatusOK)
+	minutes := mustData[model.MeetingMinutes](t, h.doJSON(t, http.MethodPost, fmt.Sprintf("/api/v1/acta/meetings/%s/minutes/generate", fixture.Meeting.ID), nil), http.StatusOK)
+	mustData[model.MeetingMinutes](t, h.doJSON(t, http.MethodPost, fmt.Sprintf("/api/v1/acta/meetings/%s/minutes/submit", fixture.Meeting.ID), nil), http.StatusOK)
+	mustData[model.MeetingMinutes](t, h.doJSON(t, http.MethodPost, fmt.Sprintf("/api/v1/acta/meetings/%s/minutes/approve", fixture.Meeting.ID), nil), http.StatusOK)
 
-	updated := h.mustData[model.MeetingMinutes](t, h.doJSON(t, http.MethodPut, fmt.Sprintf("/api/v1/acta/meetings/%s/minutes", fixture.Meeting.ID), map[string]any{
+	updated := mustData[model.MeetingMinutes](t, h.doJSON(t, http.MethodPut, fmt.Sprintf("/api/v1/acta/meetings/%s/minutes", fixture.Meeting.ID), map[string]any{
 		"content": minutes.Content + "\n\nAdditional correction recorded after chair approval.\n",
 	}), http.StatusOK)
 	if updated.Version != 2 {
@@ -147,7 +149,7 @@ func TestMinutes_VersioningAfterApproval(t *testing.T) {
 		t.Fatalf("updated previous_version_id = %v, want %s", updated.PreviousVersionID, minutes.ID)
 	}
 
-	versions := h.mustData[[]model.MeetingMinutes](t, h.doJSON(t, http.MethodGet, fmt.Sprintf("/api/v1/acta/meetings/%s/minutes/versions", fixture.Meeting.ID), nil), http.StatusOK)
+	versions := mustData[[]model.MeetingMinutes](t, h.doJSON(t, http.MethodGet, fmt.Sprintf("/api/v1/acta/meetings/%s/minutes/versions", fixture.Meeting.ID), nil), http.StatusOK)
 	if len(versions) != 2 {
 		t.Fatalf("minutes versions length = %d, want 2", len(versions))
 	}
@@ -167,7 +169,7 @@ func TestMinutes_GenerationUnder500Milliseconds(t *testing.T) {
 	fixture := h.completeMeeting(t, 50, 50, agenda)
 
 	start := time.Now()
-	minutes := h.mustData[model.MeetingMinutes](t, h.doJSON(t, http.MethodPost, fmt.Sprintf("/api/v1/acta/meetings/%s/minutes/generate", fixture.Meeting.ID), nil), http.StatusOK)
+	minutes := mustData[model.MeetingMinutes](t, h.doJSON(t, http.MethodPost, fmt.Sprintf("/api/v1/acta/meetings/%s/minutes/generate", fixture.Meeting.ID), nil), http.StatusOK)
 	duration := time.Since(start)
 
 	if minutes.ID == uuid.Nil {

@@ -94,6 +94,7 @@ export function SchemaTree({
               <div key={`${table.schema_name ?? 'public'}.${table.name}`} className="rounded-lg border">
                 <button
                   type="button"
+                  data-testid={`schema-table-${table.name}`}
                   className={cn(
                     'flex w-full items-start gap-3 px-3 py-3 text-left transition-colors hover:bg-muted/40',
                     isSelected && 'bg-primary/5',
@@ -147,11 +148,11 @@ export function SchemaTree({
                           >
                             <div className="mt-0.5 flex w-6 justify-center">
                               {column.is_primary_key ? (
-                                <KeyRound className="h-3.5 w-3.5 text-amber-600" />
+                                <KeyRound className="h-3.5 w-3.5 text-amber-600" data-testid={`schema-icon-pk-${column.name}`} />
                               ) : column.is_foreign_key ? (
-                                <Link2 className="h-3.5 w-3.5 text-sky-600" />
+                                <Link2 className="h-3.5 w-3.5 text-sky-600" data-testid={`schema-icon-fk-${column.name}`} />
                               ) : piiType ? (
-                                <ShieldAlert className="h-3.5 w-3.5 text-amber-600" />
+                                <ShieldAlert className="h-3.5 w-3.5 text-amber-600" data-testid={`schema-icon-pii-${column.name}`} />
                               ) : null}
                             </div>
                             <div className="min-w-0 flex-1">

@@ -55,11 +55,11 @@ export function WizardStepSync({
     <FormProvider {...form}>
       <form id={formId} className="space-y-4" onSubmit={form.handleSubmit((values) => onSubmit(values))}>
         <FormField name="name" label="Source name" required>
-          <Input {...form.register('name')} />
+          <Input id="name" {...form.register('name')} />
         </FormField>
 
         <FormField name="description" label="Description">
-          <Textarea rows={4} {...form.register('description')} />
+          <Textarea id="description" rows={4} {...form.register('description')} />
         </FormField>
 
         <div className="space-y-3">

@@ -441,7 +441,14 @@ func (s *MeetingService) EndMeeting(ctx context.Context, tenantID, userID, meeti
 	meeting.AttendeeCount = attendeeCount
 	meeting.QuorumMet = &met
 	if meeting.ActualStartAt != nil {
-		meeting.DurationMinutes = int(now.Sub(*meeting.ActualStartAt).Minutes())
+		duration := int(now.Sub(*meeting.ActualStartAt).Minutes())
+		if duration < 15 {
+			duration = 15
+		}
+		if duration > 480 {
+			duration = 480
+		}
+		meeting.DurationMinutes = duration
 	}
 	meeting.UpdatedAt = now
 	if err := database.RunInTx(ctx, s.store.DB(), func(tx pgx.Tx) error {

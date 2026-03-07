@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -405,7 +406,7 @@ func (s *Store) GetNextMeeting(ctx context.Context, tenantID, committeeID uuid.U
 		tenantID, committeeID, after,
 	)
 	item, err := scanMeeting(row)
-	if err == pgx.ErrNoRows {
+	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, nil
 	}
 	return item, err
@@ -413,19 +414,19 @@ func (s *Store) GetNextMeeting(ctx context.Context, tenantID, committeeID uuid.U
 
 func scanMeeting(scanner rowScanner) (*model.Meeting, error) {
 	var (
-		item              model.Meeting
-		metadataRaw       []byte
-		meetingNumber     *int
-		scheduledEndAt    *time.Time
-		actualStartAt     *time.Time
-		actualEndAt       *time.Time
-		location          *string
-		virtualLink       *string
-		virtualPlatform   *string
+		item               model.Meeting
+		metadataRaw        []byte
+		meetingNumber      *int
+		scheduledEndAt     *time.Time
+		actualStartAt      *time.Time
+		actualEndAt        *time.Time
+		location           *string
+		virtualLink        *string
+		virtualPlatform    *string
 		cancellationReason *string
-		minutesStatus     *string
+		minutesStatus      *string
 		workflowInstanceID *uuid.UUID
-		deletedAt         *time.Time
+		deletedAt          *time.Time
 	)
 	if err := scanner.Scan(
 		&item.ID,

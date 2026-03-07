@@ -24,9 +24,9 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/redis/go-redis/v9"
 	"github.com/rs/zerolog"
-	kafkamod "github.com/testcontainers/testcontainers-go/modules/kafka"
-	postgresmod "github.com/testcontainers/testcontainers-go/modules/postgres"
 	tc "github.com/testcontainers/testcontainers-go"
+	postgresmod "github.com/testcontainers/testcontainers-go/modules/postgres"
+	redpandamod "github.com/testcontainers/testcontainers-go/modules/redpanda"
 	"github.com/testcontainers/testcontainers-go/wait"
 
 	actaapp "github.com/clario360/platform/internal/acta"
@@ -52,7 +52,7 @@ type actaIntegrationEnv struct {
 	logger zerolog.Logger
 
 	postgres *postgresmod.PostgresContainer
-	kafka    *kafkamod.KafkaContainer
+	redpanda *redpandamod.Container
 	redis    tc.Container
 
 	db    *pgxpool.Pool
@@ -215,16 +215,16 @@ func startSharedEnv() (*actaIntegrationEnv, error) {
 		return nil, fmt.Errorf("start redis container: %w", err)
 	}
 
-	kafkaContainer, err := kafkamod.Run(ctx, "confluentinc/confluent-local:7.5.0")
+	redpandaContainer, err := redpandamod.Run(ctx, "docker.redpanda.com/redpandadata/redpanda:v24.1.8", redpandamod.WithAutoCreateTopics())
 	if err != nil {
 		_ = redisContainer.Terminate(context.Background())
 		_ = postgresContainer.Terminate(context.Background())
-		return nil, fmt.Errorf("start kafka container: %w", err)
+		return nil, fmt.Errorf("start redpanda container: %w", err)
 	}
 
 	dbURL := postgresContainer.MustConnectionString(ctx, "sslmode=disable")
 	if err := database.RunMigrations(dbURL, actaMigrationsPath()); err != nil {
-		_ = kafkaContainer.Terminate(context.Background())
+		_ = redpandaContainer.Terminate(context.Background())
 		_ = redisContainer.Terminate(context.Background())
 		_ = postgresContainer.Terminate(context.Background())
 		return nil, fmt.Errorf("run acta migrations: %w", err)
@@ -232,21 +232,21 @@ func startSharedEnv() (*actaIntegrationEnv, error) {
 
 	db, err := pgxpool.New(ctx, dbURL)
 	if err != nil {
-		_ = kafkaContainer.Terminate(context.Background())
+		_ = redpandaContainer.Terminate(context.Background())
 		_ = redisContainer.Terminate(context.Background())
 		_ = postgresContainer.Terminate(context.Background())
 		return nil, fmt.Errorf("open acta postgres pool: %w", err)
 	}
 	if err := db.Ping(ctx); err != nil {
 		db.Close()
-		_ = kafkaContainer.Terminate(context.Background())
+		_ = redpandaContainer.Terminate(context.Background())
 		_ = redisContainer.Terminate(context.Background())
 		_ = postgresContainer.Terminate(context.Background())
 		return nil, fmt.Errorf("ping acta postgres: %w", err)
 	}
 	if err := workflowrepo.RunMigration(ctx, db); err != nil {
 		db.Close()
-		_ = kafkaContainer.Terminate(context.Background())
+		_ = redpandaContainer.Terminate(context.Background())
 		_ = redisContainer.Terminate(context.Background())
 		_ = postgresContainer.Terminate(context.Background())
 		return nil, fmt.Errorf("run workflow migration: %w", err)
@@ -255,7 +255,7 @@ func startSharedEnv() (*actaIntegrationEnv, error) {
 	redisHost, err := redisContainer.Host(ctx)
 	if err != nil {
 		db.Close()
-		_ = kafkaContainer.Terminate(context.Background())
+		_ = redpandaContainer.Terminate(context.Background())
 		_ = redisContainer.Terminate(context.Background())
 		_ = postgresContainer.Terminate(context.Background())
 		return nil, fmt.Errorf("redis host: %w", err)
@@ -263,7 +263,7 @@ func startSharedEnv() (*actaIntegrationEnv, error) {
 	redisPort, err := redisContainer.MappedPort(ctx, "6379/tcp")
 	if err != nil {
 		db.Close()
-		_ = kafkaContainer.Terminate(context.Background())
+		_ = redpandaContainer.Terminate(context.Background())
 		_ = redisContainer.Terminate(context.Background())
 		_ = postgresContainer.Terminate(context.Background())
 		return nil, fmt.Errorf("redis port: %w", err)
@@ -277,29 +277,22 @@ func startSharedEnv() (*actaIntegrationEnv, error) {
 	if err := rdb.Ping(ctx).Err(); err != nil {
 		_ = rdb.Close()
 		db.Close()
-		_ = kafkaContainer.Terminate(context.Background())
+		_ = redpandaContainer.Terminate(context.Background())
 		_ = redisContainer.Terminate(context.Background())
 		_ = postgresContainer.Terminate(context.Background())
 		return nil, fmt.Errorf("ping redis: %w", err)
 	}
 
-	brokers, err := kafkaContainer.Brokers(ctx)
+	seedBroker, err := redpandaContainer.KafkaSeedBroker(ctx)
 	if err != nil {
 		_ = rdb.Close()
 		db.Close()
-		_ = kafkaContainer.Terminate(context.Background())
+		_ = redpandaContainer.Terminate(context.Background())
 		_ = redisContainer.Terminate(context.Background())
 		_ = postgresContainer.Terminate(context.Background())
-		return nil, fmt.Errorf("resolve kafka brokers: %w", err)
+		return nil, fmt.Errorf("resolve redpanda broker: %w", err)
 	}
-	if err := ensureKafkaTopic(ctx, brokers, events.Topics.ActaEvents); err != nil {
-		_ = rdb.Close()
-		db.Close()
-		_ = kafkaContainer.Terminate(context.Background())
-		_ = redisContainer.Terminate(context.Background())
-		_ = postgresContainer.Terminate(context.Background())
-		return nil, fmt.Errorf("ensure acta topic: %w", err)
-	}
+	brokers := []string{seedBroker}
 
 	producer, err := events.NewProducer(appconfig.KafkaConfig{
 		Brokers: brokers,
@@ -308,7 +301,7 @@ func startSharedEnv() (*actaIntegrationEnv, error) {
 	if err != nil {
 		_ = rdb.Close()
 		db.Close()
-		_ = kafkaContainer.Terminate(context.Background())
+		_ = redpandaContainer.Terminate(context.Background())
 		_ = redisContainer.Terminate(context.Background())
 		_ = postgresContainer.Terminate(context.Background())
 		return nil, fmt.Errorf("create kafka producer: %w", err)
@@ -323,7 +316,7 @@ func startSharedEnv() (*actaIntegrationEnv, error) {
 		_ = producer.Close()
 		_ = rdb.Close()
 		db.Close()
-		_ = kafkaContainer.Terminate(context.Background())
+		_ = redpandaContainer.Terminate(context.Background())
 		_ = redisContainer.Terminate(context.Background())
 		_ = postgresContainer.Terminate(context.Background())
 		return nil, fmt.Errorf("create jwt manager: %w", err)
@@ -344,7 +337,7 @@ func startSharedEnv() (*actaIntegrationEnv, error) {
 		_ = producer.Close()
 		_ = rdb.Close()
 		db.Close()
-		_ = kafkaContainer.Terminate(context.Background())
+		_ = redpandaContainer.Terminate(context.Background())
 		_ = redisContainer.Terminate(context.Background())
 		_ = postgresContainer.Terminate(context.Background())
 		return nil, fmt.Errorf("create acta app: %w", err)
@@ -357,7 +350,7 @@ func startSharedEnv() (*actaIntegrationEnv, error) {
 	return &actaIntegrationEnv{
 		logger:   logger,
 		postgres: postgresContainer,
-		kafka:    kafkaContainer,
+		redpanda: redpandaContainer,
 		redis:    redisContainer,
 		db:       db,
 		rdb:      rdb,
@@ -391,8 +384,8 @@ func (e *actaIntegrationEnv) Close() error {
 	if e.db != nil {
 		e.db.Close()
 	}
-	if e.kafka != nil {
-		if err := e.kafka.Terminate(closeCtx); err != nil {
+	if e.redpanda != nil {
+		if err := e.redpanda.Terminate(closeCtx); err != nil {
 			errs = append(errs, err)
 		}
 	}
@@ -677,38 +670,64 @@ func (h *actaHarness) getActionItem(t *testing.T, actionItemID uuid.UUID) model.
 func ensureKafkaTopic(ctx context.Context, brokers []string, topic string) error {
 	cfg := sarama.NewConfig()
 	cfg.Version = sarama.V3_5_0_0
-
-	admin, err := sarama.NewClusterAdmin(brokers, cfg)
-	if err != nil {
-		return fmt.Errorf("create cluster admin: %w", err)
-	}
-	defer admin.Close()
-
-	detail := &sarama.TopicDetail{
-		NumPartitions:     1,
-		ReplicationFactor: 1,
-	}
-	if err := admin.CreateTopic(topic, detail, false); err != nil && err != sarama.ErrTopicAlreadyExists {
-		return fmt.Errorf("create topic %s: %w", topic, err)
-	}
-
 	deadline := time.Now().Add(30 * time.Second)
-	client, err := sarama.NewClient(brokers, cfg)
-	if err != nil {
-		return fmt.Errorf("create kafka client: %w", err)
-	}
-	defer client.Close()
-
+	var lastErr error
 	for time.Now().Before(deadline) {
+		admin, err := sarama.NewClusterAdmin(brokers, cfg)
+		if err != nil {
+			lastErr = fmt.Errorf("create cluster admin: %w", err)
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-time.After(500 * time.Millisecond):
+			}
+			continue
+		}
+
+		detail := &sarama.TopicDetail{
+			NumPartitions:     1,
+			ReplicationFactor: 1,
+		}
+		if err := admin.CreateTopic(topic, detail, false); err != nil && err != sarama.ErrTopicAlreadyExists {
+			_ = admin.Close()
+			lastErr = fmt.Errorf("create topic %s: %w", topic, err)
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-time.After(500 * time.Millisecond):
+			}
+			continue
+		}
+		_ = admin.Close()
+
+		client, err := sarama.NewClient(brokers, cfg)
+		if err != nil {
+			lastErr = fmt.Errorf("create kafka client: %w", err)
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-time.After(500 * time.Millisecond):
+			}
+			continue
+		}
 		partitions, err := client.Partitions(topic)
+		_ = client.Close()
 		if err == nil && len(partitions) > 0 {
 			return nil
+		}
+		if err != nil {
+			lastErr = fmt.Errorf("list topic partitions: %w", err)
+		} else {
+			lastErr = fmt.Errorf("topic %s has no partitions yet", topic)
 		}
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
-		case <-time.After(250 * time.Millisecond):
+		case <-time.After(500 * time.Millisecond):
 		}
+	}
+	if lastErr != nil {
+		return lastErr
 	}
 	return fmt.Errorf("topic %s was not ready before timeout", topic)
 }

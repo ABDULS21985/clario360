@@ -9,8 +9,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/uuid"
-
 	"github.com/clario360/platform/internal/acta/model"
 )
 

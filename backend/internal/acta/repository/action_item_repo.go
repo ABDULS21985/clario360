@@ -16,6 +16,14 @@ func (s *Store) CreateActionItem(ctx context.Context, q DBTX, item *model.Action
 	if err != nil {
 		return fmt.Errorf("marshal action item metadata: %w", err)
 	}
+	completionEvidence := item.CompletionEvidence
+	if completionEvidence == nil {
+		completionEvidence = []uuid.UUID{}
+	}
+	tags := item.Tags
+	if tags == nil {
+		tags = []string{}
+	}
 	_, err = q.Exec(ctx, `
 		INSERT INTO action_items (
 			id, tenant_id, meeting_id, agenda_item_id, committee_id, title, description,
@@ -48,10 +56,10 @@ func (s *Store) CreateActionItem(ctx context.Context, q DBTX, item *model.Action
 		item.Status,
 		nullableTime(item.CompletedAt),
 		item.CompletionNotes,
-		item.CompletionEvidence,
+		completionEvidence,
 		nullableUUID(item.FollowUpMeetingID),
 		nullableTime(item.ReviewedAt),
-		item.Tags,
+		tags,
 		metadata,
 		item.CreatedBy,
 		item.CreatedAt,
@@ -67,6 +75,14 @@ func (s *Store) UpdateActionItem(ctx context.Context, q DBTX, item *model.Action
 	metadata, err := marshalJSON(item.Metadata)
 	if err != nil {
 		return fmt.Errorf("marshal action item metadata: %w", err)
+	}
+	completionEvidence := item.CompletionEvidence
+	if completionEvidence == nil {
+		completionEvidence = []uuid.UUID{}
+	}
+	tags := item.Tags
+	if tags == nil {
+		tags = []string{}
 	}
 	tag, err := q.Exec(ctx, `
 		UPDATE action_items
@@ -108,10 +124,10 @@ func (s *Store) UpdateActionItem(ctx context.Context, q DBTX, item *model.Action
 		item.Status,
 		nullableTime(item.CompletedAt),
 		item.CompletionNotes,
-		item.CompletionEvidence,
+		completionEvidence,
 		nullableUUID(item.FollowUpMeetingID),
 		nullableTime(item.ReviewedAt),
-		item.Tags,
+		tags,
 		metadata,
 		item.UpdatedAt,
 	)

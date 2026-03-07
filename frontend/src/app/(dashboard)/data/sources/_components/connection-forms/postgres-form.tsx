@@ -19,28 +19,29 @@ export function PostgresForm({ form }: PostgresFormProps) {
   return (
     <div className="grid gap-4 md:grid-cols-2">
       <FormField name="host" label="Host" required>
-        <Input {...form.register('host')} />
+        <Input id="host" {...form.register('host')} />
       </FormField>
 
       <FormField name="port" label="Port" required>
-        <Input type="number" {...form.register('port', { valueAsNumber: true })} />
+        <Input id="port" type="number" {...form.register('port', { valueAsNumber: true })} />
       </FormField>
 
       <FormField name="database" label="Database" required>
-        <Input {...form.register('database')} />
+        <Input id="database" {...form.register('database')} />
       </FormField>
 
       <FormField name="schema" label="Schema">
-        <Input {...form.register('schema')} />
+        <Input id="schema" {...form.register('schema')} />
       </FormField>
 
       <FormField name="username" label="Username" required>
-        <Input {...form.register('username')} />
+        <Input id="username" {...form.register('username')} />
       </FormField>
 
       <FormField name="password" label="Password" required>
         <div className="flex gap-2">
           <Input
+            id="password"
             type={showPassword ? 'text' : 'password'}
             autoComplete="new-password"
             {...form.register('password')}
