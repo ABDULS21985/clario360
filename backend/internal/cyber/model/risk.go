@@ -17,6 +17,14 @@ type ComponentScore struct {
 	Details     map[string]interface{} `json:"details,omitempty"`
 }
 
+type RiskComponentResult struct {
+	Score       float64                `json:"score"`
+	Trend       string                 `json:"trend"`
+	TrendDelta  float64                `json:"trend_delta"`
+	Description string                 `json:"description"`
+	Details     map[string]interface{} `json:"details,omitempty"`
+}
+
 type RiskComponents struct {
 	VulnerabilityRisk ComponentScore `json:"vulnerability_risk"`
 	ThreatExposure    ComponentScore `json:"threat_exposure"`

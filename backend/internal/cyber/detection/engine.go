@@ -546,7 +546,7 @@ func (e *DetectionEngine) publishRuleTriggered(ctx context.Context, tenantID, ru
 	if err != nil {
 		return err
 	}
-	return e.producer.Publish(ctx, events.Topics.AlertEvents, event)
+	return e.producer.Publish(ctx, events.Topics.RuleEvents, event)
 }
 
 func (e *DetectionEngine) rememberTenant(tenantID uuid.UUID) {

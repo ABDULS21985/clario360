@@ -12,10 +12,12 @@ var Topics = struct {
 
 	// Cybersecurity
 	AssetEvents       string
+	VulnerabilityEvents string
 	ThreatEvents      string
 	AlertEvents       string
 	RuleEvents        string
 	CtemEvents        string
+	RiskEvents        string
 	RemediationEvents string
 
 	// Data
@@ -41,12 +43,14 @@ var Topics = struct {
 	FileEvents:         "platform.file.events",
 
 	// Cybersecurity
-	AssetEvents:       "cyber.asset.events",
-	ThreatEvents:      "cyber.threat.events",
-	AlertEvents:       "cyber.alert.events",
-	RuleEvents:        "cyber.rule.events",
-	CtemEvents:        "cyber.ctem.events",
-	RemediationEvents: "cyber.remediation.events",
+	AssetEvents:         "cyber.asset.events",
+	VulnerabilityEvents: "cyber.vulnerability.events",
+	ThreatEvents:        "cyber.threat.events",
+	AlertEvents:         "cyber.alert.events",
+	RuleEvents:          "cyber.rule.events",
+	CtemEvents:          "cyber.ctem.events",
+	RiskEvents:          "cyber.risk.events",
+	RemediationEvents:   "cyber.remediation.events",
 
 	// Data
 	DataSourceEvents:    "data.source.events",
@@ -90,10 +94,12 @@ func AllTopics() []string {
 		Topics.WorkflowEvents,
 		Topics.FileEvents,
 		Topics.AssetEvents,
+		Topics.VulnerabilityEvents,
 		Topics.ThreatEvents,
 		Topics.AlertEvents,
 		Topics.RuleEvents,
 		Topics.CtemEvents,
+		Topics.RiskEvents,
 		Topics.RemediationEvents,
 		Topics.DataSourceEvents,
 		Topics.PipelineEvents,

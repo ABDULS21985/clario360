@@ -726,7 +726,11 @@ func (s *AssetService) publishEvent(ctx context.Context, eventType, tenantID str
 		return err
 	}
 	ev := events.NewEventRaw(eventType, "clario360/cyber-service", tenantID, dataJSON)
-	return s.producer.Publish(ctx, events.Topics.AssetEvents, ev)
+	topic := events.Topics.AssetEvents
+	if strings.HasPrefix(eventType, "cyber.vulnerability.") {
+		topic = events.Topics.VulnerabilityEvents
+	}
+	return s.producer.Publish(ctx, topic, ev)
 }
 
 func (s *AssetService) unregisterRunningScan(scanID uuid.UUID) {
