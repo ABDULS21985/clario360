@@ -16,6 +16,10 @@ func RegisterRoutes(
 	pipelineHandler *PipelineHandler,
 	qualityHandler *QualityHandler,
 	contradictionHandler *ContradictionHandler,
+	lineageHandler *LineageHandler,
+	darkDataHandler *DarkDataHandler,
+	analyticsHandler *AnalyticsHandler,
+	dashboardHandler *DashboardHandler,
 	jwtMgr *auth.JWTManager,
 	rdb *redis.Client,
 ) {
@@ -83,5 +87,38 @@ func RegisterRoutes(
 		r.Get("/contradictions/{id}", contradictionHandler.Get)
 		r.Put("/contradictions/{id}/status", contradictionHandler.UpdateStatus)
 		r.Post("/contradictions/{id}/resolve", contradictionHandler.Resolve)
+
+		r.Get("/lineage/graph", lineageHandler.FullGraph)
+		r.Get("/lineage/graph/{entityType}/{entityId}", lineageHandler.EntityGraph)
+		r.Get("/lineage/upstream/{entityType}/{entityId}", lineageHandler.Upstream)
+		r.Get("/lineage/downstream/{entityType}/{entityId}", lineageHandler.Downstream)
+		r.Get("/lineage/impact/{entityType}/{entityId}", lineageHandler.Impact)
+		r.Post("/lineage/record", lineageHandler.Record)
+		r.Delete("/lineage/edges/{id}", lineageHandler.DeleteEdge)
+		r.Get("/lineage/search", lineageHandler.Search)
+		r.Get("/lineage/stats", lineageHandler.Stats)
+
+		r.Post("/dark-data/scan", darkDataHandler.Scan)
+		r.Get("/dark-data/scans", darkDataHandler.ListScans)
+		r.Get("/dark-data/scans/{id}", darkDataHandler.GetScan)
+		r.Get("/dark-data/stats", darkDataHandler.Stats)
+		r.Get("/dark-data/dashboard", darkDataHandler.Dashboard)
+		r.Get("/dark-data", darkDataHandler.ListAssets)
+		r.Get("/dark-data/{id}", darkDataHandler.GetAsset)
+		r.Put("/dark-data/{id}/status", darkDataHandler.UpdateStatus)
+		r.Post("/dark-data/{id}/govern", darkDataHandler.Govern)
+
+		r.Post("/analytics/query", analyticsHandler.Execute)
+		r.Post("/analytics/explore/{modelId}", analyticsHandler.Explore)
+		r.Post("/analytics/explain", analyticsHandler.Explain)
+		r.Get("/analytics/saved", analyticsHandler.ListSaved)
+		r.Post("/analytics/saved", analyticsHandler.CreateSaved)
+		r.Get("/analytics/saved/{id}", analyticsHandler.GetSaved)
+		r.Put("/analytics/saved/{id}", analyticsHandler.UpdateSaved)
+		r.Delete("/analytics/saved/{id}", analyticsHandler.DeleteSaved)
+		r.Post("/analytics/saved/{id}/run", analyticsHandler.RunSaved)
+		r.Get("/analytics/audit", analyticsHandler.Audit)
+
+		r.Get("/dashboard", dashboardHandler.Get)
 	})
 }

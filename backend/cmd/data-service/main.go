@@ -17,12 +17,17 @@ import (
 
 	"github.com/clario360/platform/internal/auth"
 	"github.com/clario360/platform/internal/config"
+	dataanalytics "github.com/clario360/platform/internal/data/analytics"
 	dataconfig "github.com/clario360/platform/internal/data/config"
 	dataconsumer "github.com/clario360/platform/internal/data/consumer"
 	"github.com/clario360/platform/internal/data/connector"
 	datacontradiction "github.com/clario360/platform/internal/data/contradiction"
+	datadarkdata "github.com/clario360/platform/internal/data/darkdata"
+	datadarkdatastrategies "github.com/clario360/platform/internal/data/darkdata/strategies"
+	datadashboard "github.com/clario360/platform/internal/data/dashboard"
 	"github.com/clario360/platform/internal/data/handler"
 	datahealth "github.com/clario360/platform/internal/data/health"
+	datalineage "github.com/clario360/platform/internal/data/lineage"
 	datametrics "github.com/clario360/platform/internal/data/metrics"
 	datapipeline "github.com/clario360/platform/internal/data/pipeline"
 	dataquality "github.com/clario360/platform/internal/data/quality"
@@ -99,6 +104,10 @@ func main() {
 	qualityRuleRepo := repository.NewQualityRuleRepository(svc.DBPool, logger)
 	qualityResultRepo := repository.NewQualityResultRepository(svc.DBPool, logger)
 	contradictionRepo := repository.NewContradictionRepository(svc.DBPool, logger)
+	lineageRepo := repository.NewLineageRepository(svc.DBPool, logger)
+	darkDataRepo := repository.NewDarkDataRepository(svc.DBPool, logger)
+	analyticsRepo := repository.NewAnalyticsRepository(svc.DBPool, logger)
+	dataDashboardRepo := repository.NewDashboardRepository(svc.DBPool, logger)
 	dataMetrics := datametrics.New(svc.Metrics.Registry())
 
 	registry := connector.NewConnectorRegistry(connector.ConnectorLimits{
@@ -180,6 +189,24 @@ func main() {
 	pipelineSvc := service.NewPipelineService(pipelineRepo, runRepo, logRepo, sourceRepo, modelRepo, pipelineEngine, producer, logger)
 	qualitySvc := service.NewQualityService(qualityRuleRepo, qualityResultRepo, modelRepo, qualityExecutor, qualityScorer, producer)
 	contradictionSvc := service.NewContradictionService(contradictionRepo, contradictionDetector, producer)
+	lineageBuilder := datalineage.NewGraphBuilder(svc.DBPool, lineageRepo, logger)
+	lineageAnalyzer := datalineage.NewImpactAnalyzer(lineageBuilder)
+	lineageRecorder := datalineage.NewLineageRecorder(lineageRepo, sourceRepo, modelRepo, producer, logger)
+	lineageSvc := service.NewLineageService(lineageRepo, lineageBuilder, lineageAnalyzer, lineageRecorder, producer, logger)
+	darkDataClassifier := datadarkdata.NewClassifier()
+	darkDataRiskScorer := datadarkdata.NewRiskScorer()
+	darkDataScanner := datadarkdata.NewScanner([]datadarkdata.DarkDataStrategy{
+		datadarkdatastrategies.NewUnmodeledTablesStrategy(sourceRepo, modelRepo),
+		datadarkdatastrategies.NewOrphanedFilesStrategy(svc.DBPool, dataCfg.MinIOEndpoint, dataCfg.MinIOAccessKey, dataCfg.MinIOSecretKey, dataCfg.MinIOBucket),
+		datadarkdatastrategies.NewStaleAssetsStrategy(svc.DBPool),
+		datadarkdatastrategies.NewUngovernedDataStrategy(svc.DBPool),
+	}, darkDataRepo, darkDataRiskScorer, darkDataClassifier, producer, logger)
+	darkDataSvc := service.NewDarkDataService(darkDataRepo, darkDataScanner, modelSvc, sourceRepo, lineageSvc, producer, logger)
+	auditRecorder := dataanalytics.NewAuditRecorder(analyticsRepo, logger)
+	analyticsSvc := service.NewAnalyticsService(analyticsRepo, modelRepo, sourceRepo, registry, encryptor, auditRecorder, lineageSvc, producer, logger)
+	dashboardCache := datadashboard.NewCache(svc.Redis, 60*time.Second)
+	dashboardCalculator := datadashboard.NewCalculator(sourceRepo, pipelineRepo, dataDashboardRepo, contradictionRepo, darkDataRepo, lineageRepo, qualityScorer, dashboardCache, logger)
+	dashboardSvc := service.NewDashboardService(dashboardCalculator)
 
 	jwtMgr, err := auth.NewJWTManager(cfg.Auth)
 	if err != nil {
@@ -191,6 +218,10 @@ func main() {
 	pipelineHandler := handler.NewPipelineHandler(pipelineSvc, logger)
 	qualityHandler := handler.NewQualityHandler(qualitySvc, logger)
 	contradictionHandler := handler.NewContradictionHandler(contradictionSvc, logger)
+	lineageHandler := handler.NewLineageHandler(lineageSvc, logger)
+	darkDataHandler := handler.NewDarkDataHandler(darkDataSvc, logger)
+	analyticsHandler := handler.NewAnalyticsHandler(analyticsSvc, logger)
+	dashboardHandler := handler.NewDashboardHandler(dashboardSvc, logger)
 
 	datahealth.Register(svc.Router, svc.Health, "data-service", cfg.Observability.ServiceName)
 	handler.RegisterRoutes(
@@ -200,6 +231,10 @@ func main() {
 		pipelineHandler,
 		qualityHandler,
 		contradictionHandler,
+		lineageHandler,
+		darkDataHandler,
+		analyticsHandler,
+		dashboardHandler,
 		jwtMgr,
 		svc.Redis,
 	)
@@ -207,12 +242,14 @@ func main() {
 	qualityScheduler.Start(ctx)
 
 	var dataConsumer *dataconsumer.DataConsumer
+	var lineageConsumer *dataconsumer.LineageConsumer
 	if len(cfg.Kafka.Brokers) > 0 && cfg.Kafka.Brokers[0] != "" {
 		kafkaConsumer, err := events.NewConsumer(cfg.Kafka, logger)
 		if err != nil {
 			logger.Warn().Err(err).Msg("Kafka consumer unavailable — background discovery disabled")
 		} else {
 			dataConsumer = dataconsumer.NewDataConsumer(sourceSvc, kafkaConsumer, logger)
+			lineageConsumer = dataconsumer.NewLineageConsumer(lineageSvc, pipelineRepo, runRepo, dashboardCache, kafkaConsumer, logger)
 		}
 	}
 
@@ -238,6 +275,9 @@ func main() {
 	}
 	if dataConsumer != nil {
 		_ = dataConsumer.Stop()
+	}
+	if lineageConsumer != nil {
+		_ = lineageConsumer.Stop()
 	}
 	pipelineScheduler.Stop()
 	qualityScheduler.Stop()
