@@ -88,19 +88,19 @@ export default function CyberRemediationPage() {
 
   const filters = [
     {
-      id: 'status',
+      key: 'status',
       label: 'Status',
       type: 'multi-select' as const,
       options: STATUS_FILTERS.map((s) => ({ label: s.replace(/_/g, ' '), value: s })),
     },
     {
-      id: 'severity',
+      key: 'severity',
       label: 'Severity',
       type: 'multi-select' as const,
       options: ['critical', 'high', 'medium', 'low'].map((s) => ({ label: s, value: s })),
     },
     {
-      id: 'type',
+      key: 'type',
       label: 'Type',
       type: 'multi-select' as const,
       options: ['patch', 'config_change', 'firewall_rule', 'user_action', 'script', 'manual'].map((t) => ({

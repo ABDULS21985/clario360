@@ -18,7 +18,7 @@ export function ClassificationChart({ data }: ClassificationChartProps) {
   const chartData = Object.entries(data).map(([key, count]) => ({
     name: key.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()),
     value: count,
-    fill: CLASSIFICATION_COLORS[key] ?? '#94a3b8',
+    color: CLASSIFICATION_COLORS[key] ?? '#94a3b8',
   }));
 
   return (
@@ -26,14 +26,13 @@ export function ClassificationChart({ data }: ClassificationChartProps) {
       <h3 className="mb-3 text-sm font-semibold">Classification Breakdown</h3>
       <PieChart
         data={chartData}
-        nameKey="name"
-        dataKey="value"
         height={220}
+        showLegend={false}
       />
       <div className="mt-3 grid grid-cols-2 gap-2">
-        {chartData.map(({ name, value, fill }) => (
+        {chartData.map(({ name, value, color }) => (
           <div key={name} className="flex items-center gap-2 text-xs">
-            <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: fill }} />
+            <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: color }} />
             <span className="text-muted-foreground">{name}</span>
             <span className="ml-auto font-semibold">{value}</span>
           </div>

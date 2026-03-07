@@ -2,8 +2,6 @@
 
 import { useMemo } from 'react';
 import { BarChart } from '@/components/shared/charts/bar-chart';
-import type { VulnerabilityAgingReport } from '@/types/cyber';
-
 interface VulnAgingChartProps {
   data?: VulnerabilityAgingReport;
   loading?: boolean;

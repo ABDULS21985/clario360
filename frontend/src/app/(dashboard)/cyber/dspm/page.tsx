@@ -43,7 +43,7 @@ export default function CyberDspmPage() {
 
   const filters = [
     {
-      id: 'classification',
+      key: 'classification',
       label: 'Classification',
       type: 'multi-select' as const,
       options: ['public', 'internal', 'confidential', 'restricted', 'top_secret'].map((c) => ({
@@ -52,7 +52,7 @@ export default function CyberDspmPage() {
       })),
     },
     {
-      id: 'asset_type',
+      key: 'asset_type',
       label: 'Asset Type',
       type: 'multi-select' as const,
       options: ['database', 'cloud_storage', 'file_server', 'api'].map((t) => ({
@@ -61,7 +61,7 @@ export default function CyberDspmPage() {
       })),
     },
     {
-      id: 'encrypted',
+      key: 'encrypted',
       label: 'Encrypted',
       type: 'multi-select' as const,
       options: [
