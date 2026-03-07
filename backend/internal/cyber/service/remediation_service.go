@@ -300,11 +300,6 @@ func (s *RemediationService) Execute(ctx context.Context, tenantID, remediationI
 	if err != nil {
 		return nil, err
 	}
-	if action.Type == model.RemediationTypeCustom {
-		if req == nil || req.ManualConfirmation == nil || strings.TrimSpace(*req.ManualConfirmation) != "I have manually performed the remediation steps." {
-			return nil, fmt.Errorf("%w: manual confirmation is required for custom remediations", remediation.ErrPreConditionFailed)
-		}
-	}
 	switch action.Status {
 	case model.StatusDraft, model.StatusPendingApproval, model.StatusRejected, model.StatusRevisionRequested:
 		return nil, fmt.Errorf("%w: approval is required before execution", remediation.ErrInsufficientPermission)
@@ -317,6 +312,11 @@ func (s *RemediationService) Execute(ctx context.Context, tenantID, remediationI
 	}
 	if !action.DryRunResult.Success {
 		return nil, fmt.Errorf("%w: cannot execute: dry-run reported failures. Fix issues and re-run dry-run.", remediation.ErrPreConditionFailed)
+	}
+	if action.Type == model.RemediationTypeCustom {
+		if req == nil || req.ManualConfirmation == nil || strings.TrimSpace(*req.ManualConfirmation) != "I have manually performed the remediation steps." {
+			return nil, fmt.Errorf("%w: manual confirmation is required for custom remediations", remediation.ErrPreConditionFailed)
+		}
 	}
 	if action.Status == model.StatusDryRunCompleted {
 		if err := remediation.ValidateTransition(action, model.StatusExecutionPending, actorRole); err != nil {

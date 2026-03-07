@@ -66,7 +66,9 @@ function RuleToggleCell({
         aria-label={`Toggle ${rule.name}`}
       />
       {fpHigh && !optimisticEnabled && (
-        <AlertTriangle className="h-3.5 w-3.5 text-red-500" title="High FP rate — auto-disable risk" />
+        <span title="High FP rate — auto-disable risk">
+          <AlertTriangle className="h-3.5 w-3.5 text-red-500" aria-hidden />
+        </span>
       )}
     </div>
   );

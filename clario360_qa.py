@@ -11,7 +11,7 @@ from pathlib import Path
 import requests
 
 
-BASE = "http://localhost:9091/api/v1/cyber"
+BASE = "http://localhost:8090/api/v1/cyber"
 TENANT = "0852d3f4-22cd-45c1-bac2-123196176aee"
 TOKENS = {
     "analyst": Path("/tmp/clario360-perf/analyst.token").read_text().strip(),
@@ -762,7 +762,10 @@ def run_threats_and_rules(fixtures, assets_ctx, suffix):
     require(data_of(body)["status"] == "investigating", "alert status should update to investigating")
 
     _, body = request("POST", f"/rules/{rule1['id']}/feedback", "admin", {200}, json_body={"alert_id": feedback_alert["id"], "feedback": "false_positive"})
-    rules_mod["feedback_status"] = data_of(body)["status"]
+    feedback_rule = data_of(body)
+    require(feedback_rule["id"] == rule1["id"], "rule feedback should return the updated rule")
+    require(feedback_rule["false_positive_count"] >= 1, "rule feedback should increment false positive count")
+    rules_mod["feedback_false_positive_count"] = feedback_rule["false_positive_count"]
 
     _, body = request("GET", "/alerts/stats", "analyst", {200})
     alerts_mod["stats"] = data_of(body)

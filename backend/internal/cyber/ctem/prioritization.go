@@ -131,7 +131,7 @@ func (e *CTEMEngine) loadActiveThreatAssetSet(ctx context.Context, tenantID uuid
 			SELECT COALESCE(asset_id, affected_asset) AS asset_ref
 			FROM (
 				SELECT a.asset_id,
-				       unnest(CASE WHEN cardinality(a.affected_assets) = 0 THEN ARRAY[a.asset_id]::uuid[] ELSE a.affected_assets END) AS affected_asset
+				       unnest(CASE WHEN cardinality(a.asset_ids) = 0 THEN ARRAY[a.asset_id]::uuid[] ELSE a.asset_ids END) AS affected_asset
 				FROM alerts a
 				WHERE a.tenant_id = $1
 				  AND a.deleted_at IS NULL

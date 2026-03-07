@@ -70,7 +70,7 @@ export default function DetectionRulesPage() {
   const [galleryOpen, setGalleryOpen] = useState(false);
   const [activatedTemplateIds, setActivatedTemplateIds] = useState<string[]>([]);
 
-  const { tableProps, refetch, totalCount, currentFilters } = useDataTable<DetectionRule>({
+  const { tableProps, refetch, totalRows, activeFilters } = useDataTable<DetectionRule>({
     fetchFn: fetchRules,
     queryKey: 'cyber-rules',
     defaultPageSize: 25,
@@ -161,8 +161,8 @@ export default function DetectionRulesPage() {
               <ExportMenu
                 entityType="rules"
                 baseUrl={API_ENDPOINTS.CYBER_RULES}
-                currentFilters={currentFilters as Record<string, string>}
-                totalCount={totalCount}
+                currentFilters={activeFilters as Record<string, string>}
+                totalCount={totalRows}
                 enabledFormats={['csv', 'json']}
               />
               <Button size="sm" variant="outline" onClick={() => setGalleryOpen(true)}>
@@ -199,7 +199,6 @@ export default function DetectionRulesPage() {
           }}
           getRowId={(row) => row.id}
           enableColumnToggle
-          onSortChange={() => undefined}
           {...tableProps}
         />
       </div>

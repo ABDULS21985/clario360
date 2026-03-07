@@ -38,13 +38,17 @@ func (r *CTEMFindingRepository) BulkInsert(ctx context.Context, findings []*mode
 
 	rows := make([][]any, 0, len(findings))
 	for _, finding := range findings {
+		affectedAssetIDs := ensureUUIDSlice(finding.AffectedAssetIDs)
+		vulnerabilityIDs := ensureUUIDSlice(finding.VulnerabilityIDs)
+		cveIDs := ensureStringSlice(finding.CVEIDs)
+		compensatingControls := ensureStringSlice(finding.CompensatingControls)
 		rows = append(rows, []any{
 			finding.ID, finding.TenantID, finding.AssessmentID, string(finding.Type), string(finding.Category),
 			finding.Severity, finding.Title, finding.Description, jsonDefault(finding.Evidence, "{}"),
-			finding.AffectedAssetIDs, finding.AffectedAssetCount, finding.PrimaryAssetID, finding.VulnerabilityIDs,
-			finding.CVEIDs, finding.BusinessImpactScore, jsonDefault(finding.BusinessImpactFactors, "[]"),
+			affectedAssetIDs, finding.AffectedAssetCount, finding.PrimaryAssetID, vulnerabilityIDs,
+			cveIDs, finding.BusinessImpactScore, jsonDefault(finding.BusinessImpactFactors, "[]"),
 			finding.ExploitabilityScore, jsonDefault(finding.ExploitabilityFactors, "[]"), finding.PriorityScore,
-			finding.PriorityGroup, finding.PriorityRank, string(finding.ValidationStatus), finding.CompensatingControls,
+			finding.PriorityGroup, finding.PriorityRank, string(finding.ValidationStatus), compensatingControls,
 			finding.ValidationNotes, finding.ValidatedAt, remediationTypeValue(finding.RemediationType),
 			finding.RemediationDescription, remediationEffortValue(finding.RemediationEffort), finding.RemediationGroupID,
 			finding.EstimatedDays, string(finding.Status), finding.StatusChangedBy, finding.StatusChangedAt,
@@ -72,6 +76,20 @@ func (r *CTEMFindingRepository) BulkInsert(ctx context.Context, findings []*mode
 		return fmt.Errorf("bulk insert findings: %w", err)
 	}
 	return nil
+}
+
+func ensureUUIDSlice(values []uuid.UUID) []uuid.UUID {
+	if values == nil {
+		return []uuid.UUID{}
+	}
+	return values
+}
+
+func ensureStringSlice(values []string) []string {
+	if values == nil {
+		return []string{}
+	}
+	return values
 }
 
 func (r *CTEMFindingRepository) ListByAssessment(ctx context.Context, tenantID, assessmentID uuid.UUID, params *dto.CTEMFindingsListParams) ([]*model.CTEMFinding, int, error) {

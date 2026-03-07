@@ -400,9 +400,9 @@ func (r *AlertRepository) FindRelated(ctx context.Context, tenantID, alertID uui
 		  AND id <> $2
 		  AND deleted_at IS NULL
 		  AND (
-			(asset_id IS NOT NULL AND $3 IS NOT NULL AND asset_id = $3) OR
-			(rule_id IS NOT NULL AND $4 IS NOT NULL AND rule_id = $4) OR
-			(mitre_technique_id IS NOT NULL AND $5 IS NOT NULL AND mitre_technique_id = $5)
+			(asset_id IS NOT NULL AND $3::uuid IS NOT NULL AND asset_id = $3::uuid) OR
+			(rule_id IS NOT NULL AND $4::uuid IS NOT NULL AND rule_id = $4::uuid) OR
+			(mitre_technique_id IS NOT NULL AND $5::text IS NOT NULL AND mitre_technique_id = $5::text)
 		  )
 		ORDER BY created_at DESC
 		LIMIT 25`,
