@@ -40,7 +40,7 @@ func (s *UnmodeledTablesStrategy) Scan(ctx context.Context, tenantID uuid.UUID) 
 		if item.SourceID == nil || item.SourceTable == nil {
 			continue
 		}
-		modeledTables[fmt.Sprintf("%s|%s", item.SourceID.String(), strings.ToLower(*item.SourceTable))] = struct{}{}
+		modeledTables[fmt.Sprintf("%s|%s", item.SourceID.String(), normalizeQualifiedTable("", *item.SourceTable))] = struct{}{}
 	}
 
 	results := make([]darkdata.RawDarkDataAsset, 0)
@@ -49,7 +49,7 @@ func (s *UnmodeledTablesStrategy) Scan(ctx context.Context, tenantID uuid.UUID) 
 			continue
 		}
 		for _, table := range source.Source.SchemaMetadata.Tables {
-			key := fmt.Sprintf("%s|%s", source.Source.ID.String(), strings.ToLower(table.Name))
+			key := fmt.Sprintf("%s|%s", source.Source.ID.String(), normalizeQualifiedTable(table.SchemaName, table.Name))
 			if _, ok := modeledTables[key]; ok {
 				continue
 			}
@@ -85,4 +85,21 @@ func (s *UnmodeledTablesStrategy) Scan(ctx context.Context, tenantID uuid.UUID) 
 		}
 	}
 	return results, nil
+}
+
+func normalizeQualifiedTable(schemaName, tableName string) string {
+	tableName = strings.TrimSpace(strings.ToLower(tableName))
+	schemaName = strings.TrimSpace(strings.ToLower(schemaName))
+	if tableName == "" {
+		return ""
+	}
+	if strings.Contains(tableName, ".") {
+		parts := strings.SplitN(tableName, ".", 2)
+		schemaName = strings.TrimSpace(parts[0])
+		tableName = strings.TrimSpace(parts[1])
+	}
+	if schemaName == "" {
+		return tableName
+	}
+	return schemaName + "." + tableName
 }

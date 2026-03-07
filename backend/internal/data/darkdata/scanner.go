@@ -77,11 +77,30 @@ func (s *DarkDataScanner) RunScan(ctx context.Context, tenantID, triggeredBy uui
 		return nil, err
 	}
 	_ = s.publish(ctx, "data.darkdata.scan_started", tenantID, map[string]any{"scan_id": scan.ID, "tenant_id": tenantID})
+	var runErr error
+	defer func() {
+		if runErr == nil {
+			return
+		}
+		completedAt := time.Now().UTC()
+		durationMs := completedAt.Sub(scan.StartedAt).Milliseconds()
+		scan.Status = model.DarkDataScanFailed
+		scan.CompletedAt = &completedAt
+		scan.DurationMs = &durationMs
+		if err := s.repo.UpdateScan(context.Background(), scan); err != nil {
+			s.logger.Error().Err(err).Str("scan_id", scan.ID.String()).Msg("failed to persist failed dark data scan status")
+		}
+		s.logger.Error().Err(runErr).Str("scan_id", scan.ID.String()).Msg("dark data scan failed")
+	}()
 
 	discoveries := make(map[string]RawDarkDataAsset)
 	reasonCounts := map[string]int{}
 	typeCounts := map[string]int{}
+	storageScanned := false
 	for _, strategy := range s.strategies {
+		if strategy.Name() == "orphaned_files" {
+			storageScanned = true
+		}
 		items, err := strategy.Scan(ctx, tenantID)
 		if err != nil {
 			s.logger.Error().Err(err).Str("strategy", strategy.Name()).Str("tenant_id", tenantID.String()).Msg("dark data strategy failed")
@@ -148,6 +167,7 @@ func (s *DarkDataScanner) RunScan(ctx context.Context, tenantID, triggeredBy uui
 		asset.RiskScore = score
 		asset.RiskFactors = factors
 		if err := s.repo.UpsertAsset(ctx, asset); err != nil {
+			runErr = err
 			return nil, err
 		}
 		reasonCounts[string(asset.Reason)]++
@@ -172,7 +192,7 @@ func (s *DarkDataScanner) RunScan(ctx context.Context, tenantID, triggeredBy uui
 
 	scan.Status = model.DarkDataScanCompleted
 	scan.SourcesScanned = inferSourcesScanned(discoveries)
-	scan.StorageScanned = true
+	scan.StorageScanned = storageScanned
 	scan.AssetsDiscovered = len(discoveries)
 	scan.ByReason = mustMarshalJSON(reasonCounts)
 	scan.ByType = mustMarshalJSON(typeCounts)
@@ -184,6 +204,7 @@ func (s *DarkDataScanner) RunScan(ctx context.Context, tenantID, triggeredBy uui
 	scan.CompletedAt = &completedAt
 	scan.DurationMs = &durationMs
 	if err := s.repo.UpdateScan(ctx, scan); err != nil {
+		runErr = err
 		return nil, err
 	}
 	_ = s.publish(ctx, "data.darkdata.scan_completed", tenantID, map[string]any{

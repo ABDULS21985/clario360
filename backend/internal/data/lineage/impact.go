@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 
 	"github.com/clario360/platform/internal/data/model"
 )
@@ -27,7 +28,7 @@ func (a *ImpactAnalyzer) Analyze(ctx context.Context, tenantID uuid.UUID, entity
 	centerKey := nodeKey(entityType, entityID)
 	center, ok := state.nodes[centerKey]
 	if !ok {
-		return nil, fmt.Errorf("lineage entity not found")
+		return nil, pgx.ErrNoRows
 	}
 
 	type queueItem struct {

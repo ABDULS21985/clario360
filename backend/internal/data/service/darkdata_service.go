@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -100,7 +101,8 @@ func (s *DarkDataService) Govern(ctx context.Context, tenantID, userID, id uuid.
 	}
 	var table *model.DiscoveredTable
 	for index := range sourceRecord.Source.SchemaMetadata.Tables {
-		if sourceRecord.Source.SchemaMetadata.Tables[index].Name == *asset.TableName {
+		discovered := sourceRecord.Source.SchemaMetadata.Tables[index]
+		if sameDiscoveredTable(discovered, asset.SchemaName, *asset.TableName) {
 			table = &sourceRecord.Source.SchemaMetadata.Tables[index]
 			break
 		}
@@ -162,6 +164,29 @@ func (s *DarkDataService) Dashboard(ctx context.Context, tenantID uuid.UUID) (ma
 		"recent_scans": scans,
 		"generated_at": time.Now().UTC(),
 	}, nil
+}
+
+func sameDiscoveredTable(table model.DiscoveredTable, assetSchemaName *string, assetTableName string) bool {
+	left := strings.TrimSpace(strings.ToLower(assetTableName))
+	right := strings.TrimSpace(strings.ToLower(table.Name))
+	if left == "" || right == "" {
+		return false
+	}
+	if left == right {
+		if assetSchemaName == nil || strings.TrimSpace(*assetSchemaName) == "" {
+			return true
+		}
+		return strings.EqualFold(strings.TrimSpace(*assetSchemaName), strings.TrimSpace(table.SchemaName))
+	}
+	leftSchema := ""
+	leftTable := left
+	if strings.Contains(left, ".") {
+		parts := strings.SplitN(left, ".", 2)
+		leftSchema = strings.TrimSpace(parts[0])
+		leftTable = strings.TrimSpace(parts[1])
+	}
+	rightSchema := strings.TrimSpace(strings.ToLower(table.SchemaName))
+	return leftTable == right && (leftSchema == "" || leftSchema == rightSchema)
 }
 
 func (s *DarkDataService) publish(ctx context.Context, eventType string, tenantID uuid.UUID, payload any) error {

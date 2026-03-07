@@ -22,7 +22,7 @@ func NewAuditRecorder(repo *repository.AnalyticsRepository, logger zerolog.Logge
 	return &AuditRecorder{repo: repo, logger: logger}
 }
 
-func (r *AuditRecorder) RecordQueryExecution(ctx context.Context, tenantID, userID, modelID, sourceID uuid.UUID, query model.AnalyticsQuery, columnsAccessed, piiColumnsAccessed []string, piiMaskingApplied bool, rowsReturned int, truncated bool, executionTimeMs int64, errorOccurred bool, errorMessage string, savedQueryID *uuid.UUID, ipAddress, userAgent string) {
+func (r *AuditRecorder) RecordQueryExecution(ctx context.Context, tenantID, userID, modelID, sourceID uuid.UUID, query model.AnalyticsQuery, dataClassification string, columnsAccessed, piiColumnsAccessed []string, piiMaskingApplied bool, rowsReturned int, truncated bool, executionTimeMs int64, errorOccurred bool, errorMessage string, savedQueryID *uuid.UUID, ipAddress, userAgent string) {
 	filtersJSON, _ := json.Marshal(query.Filters)
 	entry := &model.AnalyticsAuditLog{
 		ID:                 uuid.New(),
@@ -33,6 +33,7 @@ func (r *AuditRecorder) RecordQueryExecution(ctx context.Context, tenantID, user
 		QueryDefinition:    query,
 		ColumnsAccessed:    columnsAccessed,
 		FiltersApplied:     filtersJSON,
+		DataClassification: dataClassification,
 		PIIColumnsAccessed: piiColumnsAccessed,
 		PIIMaskingApplied:  piiMaskingApplied,
 		RowsReturned:       rowsReturned,

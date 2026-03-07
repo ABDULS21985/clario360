@@ -35,13 +35,21 @@ import (
 
 	"github.com/clario360/platform/internal/auth"
 	appconfig "github.com/clario360/platform/internal/config"
+	dataanalytics "github.com/clario360/platform/internal/data/analytics"
 	dataconfig "github.com/clario360/platform/internal/data/config"
 	"github.com/clario360/platform/internal/data/connector"
+	datacontradiction "github.com/clario360/platform/internal/data/contradiction"
+	datadarkdata "github.com/clario360/platform/internal/data/darkdata"
+	datadarkdatastrategies "github.com/clario360/platform/internal/data/darkdata/strategies"
+	datadashboard "github.com/clario360/platform/internal/data/dashboard"
 	datadto "github.com/clario360/platform/internal/data/dto"
 	datahandler "github.com/clario360/platform/internal/data/handler"
 	datahealth "github.com/clario360/platform/internal/data/health"
+	datalineage "github.com/clario360/platform/internal/data/lineage"
 	datametrics "github.com/clario360/platform/internal/data/metrics"
 	datamodel "github.com/clario360/platform/internal/data/model"
+	datapipeline "github.com/clario360/platform/internal/data/pipeline"
+	dataquality "github.com/clario360/platform/internal/data/quality"
 	datarepo "github.com/clario360/platform/internal/data/repository"
 	datasvc "github.com/clario360/platform/internal/data/service"
 	"github.com/clario360/platform/internal/database"
@@ -54,7 +62,9 @@ type integrationHarness struct {
 	httpServer *httptest.Server
 	client     *http.Client
 	token      string
+	jwtMgr     *auth.JWTManager
 	tenantID   uuid.UUID
+	userID     uuid.UUID
 
 	sourcePostgresHost string
 	sourcePostgresPort int
@@ -317,6 +327,19 @@ func newIntegrationHarness(t *testing.T) *integrationHarness {
 	}
 	tc.CleanupContainer(t, minioContainer)
 
+	redisContainer, err := tc.GenericContainer(ctx, tc.GenericContainerRequest{
+		ContainerRequest: tc.ContainerRequest{
+			Image:        "redis:7-alpine",
+			ExposedPorts: []string{"6379/tcp"},
+			WaitingFor:   wait.ForListeningPort("6379/tcp"),
+		},
+		Started: true,
+	})
+	if err != nil {
+		t.Fatalf("start redis container: %v", err)
+	}
+	tc.CleanupContainer(t, redisContainer)
+
 	apiServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if got := r.Header.Get("Authorization"); got != "Bearer integration-api-token" {
 			http.Error(w, "unauthorized", http.StatusUnauthorized)
@@ -378,6 +401,15 @@ func newIntegrationHarness(t *testing.T) *integrationHarness {
 	minioEndpoint := fmt.Sprintf("%s:%s", minioHost, minioPort.Port())
 	if err := seedMinIO(ctx, minioEndpoint); err != nil {
 		t.Fatalf("seed minio: %v", err)
+	}
+
+	redisHost, err := redisContainer.Host(ctx)
+	if err != nil {
+		t.Fatalf("redis host: %v", err)
+	}
+	redisPort, err := redisContainer.MappedPort(ctx, "6379/tcp")
+	if err != nil {
+		t.Fatalf("redis port: %v", err)
 	}
 
 	sourcePGHost, err := sourcePG.Host(ctx)
@@ -443,11 +475,48 @@ func newIntegrationHarness(t *testing.T) *integrationHarness {
 	sourceRepo := datarepo.NewSourceRepository(servicePool, logger)
 	modelRepo := datarepo.NewModelRepository(servicePool, logger)
 	syncRepo := datarepo.NewSyncRepository(servicePool, logger)
+	pipelineRepo := datarepo.NewPipelineRepository(servicePool, logger)
+	runRepo := datarepo.NewPipelineRunRepository(servicePool, logger)
+	logRepo := datarepo.NewPipelineRunLogRepository(servicePool, logger)
+	qualityRuleRepo := datarepo.NewQualityRuleRepository(servicePool, logger)
+	qualityResultRepo := datarepo.NewQualityResultRepository(servicePool, logger)
+	contradictionRepo := datarepo.NewContradictionRepository(servicePool, logger)
+	lineageRepo := datarepo.NewLineageRepository(servicePool, logger)
+	darkDataRepo := datarepo.NewDarkDataRepository(servicePool, logger)
+	analyticsRepo := datarepo.NewAnalyticsRepository(servicePool, logger)
+	dataDashboardRepo := datarepo.NewDashboardRepository(servicePool, logger)
 	tester := datasvc.NewConnectionTester(registry, dataSuiteMetrics)
 	discoverySvc := datasvc.NewSchemaDiscoveryService(registry, discoveryOpts, dataSuiteMetrics)
 	ingestionSvc := datasvc.NewIngestionService(registry, sourceRepo, syncRepo, discoveryOpts, dataSuiteMetrics, logger)
 	sourceSvc := datasvc.NewSourceService(cfg, sourceRepo, syncRepo, tester, discoverySvc, ingestionSvc, encryptor, nil, dataSuiteMetrics, logger)
 	modelSvc := datasvc.NewModelService(modelRepo, sourceRepo, nil, dataSuiteMetrics, logger)
+	decryptor := integrationDecryptor{encryptor: encryptor}
+	extractor := datapipeline.NewExtractor(registry, decryptor)
+	transformer := datapipeline.NewTransformer(logger)
+	loader := datapipeline.NewLoader(registry, decryptor, modelRepo, sourceRepo)
+	qualityGateEvaluator := datapipeline.NewQualityGateEvaluator()
+	pipelineEngine := datapipeline.NewEngine(pipelineRepo, runRepo, logRepo, sourceRepo, modelRepo, extractor, transformer, loader, qualityGateEvaluator, nil, logger, 4)
+	qualityExecutor := dataquality.NewExecutor(registry, sourceRepo, modelRepo, qualityRuleRepo, qualityResultRepo, decryptor, nil, logger)
+	qualityScorer := dataquality.NewScorer(qualityRuleRepo, qualityResultRepo, modelRepo)
+	contradictionDetector := datacontradiction.NewDetector(registry, sourceRepo, modelRepo, contradictionRepo, decryptor, nil, logger)
+	pipelineSvc := datasvc.NewPipelineService(pipelineRepo, runRepo, logRepo, sourceRepo, modelRepo, pipelineEngine, nil, logger)
+	qualitySvc := datasvc.NewQualityService(qualityRuleRepo, qualityResultRepo, modelRepo, qualityExecutor, qualityScorer, nil)
+	contradictionSvc := datasvc.NewContradictionService(contradictionRepo, contradictionDetector, nil)
+	lineageBuilder := datalineage.NewGraphBuilder(servicePool, lineageRepo, logger)
+	lineageAnalyzer := datalineage.NewImpactAnalyzer(lineageBuilder)
+	lineageRecorder := datalineage.NewLineageRecorder(lineageRepo, sourceRepo, modelRepo, nil, logger)
+	lineageSvc := datasvc.NewLineageService(lineageRepo, lineageBuilder, lineageAnalyzer, lineageRecorder, nil, logger)
+	darkDataClassifier := datadarkdata.NewClassifier()
+	darkDataRiskScorer := datadarkdata.NewRiskScorer()
+	darkDataScanner := datadarkdata.NewScanner([]datadarkdata.DarkDataStrategy{
+		datadarkdatastrategies.NewUnmodeledTablesStrategy(sourceRepo, modelRepo),
+		datadarkdatastrategies.NewOrphanedFilesStrategy(servicePool, minioEndpoint, "minioadmin", "minioadmin", "integration-data"),
+		datadarkdatastrategies.NewStaleAssetsStrategy(servicePool),
+		datadarkdatastrategies.NewUngovernedDataStrategy(servicePool),
+	}, darkDataRepo, darkDataRiskScorer, darkDataClassifier, nil, logger)
+	darkDataSvc := datasvc.NewDarkDataService(darkDataRepo, darkDataScanner, modelSvc, sourceRepo, lineageSvc, nil, logger)
+	auditRecorder := dataanalytics.NewAuditRecorder(analyticsRepo, logger)
+	analyticsSvc := datasvc.NewAnalyticsService(analyticsRepo, modelRepo, sourceRepo, registry, encryptor, auditRecorder, lineageSvc, nil, logger)
 
 	jwtMgr, err := auth.NewJWTManager(appconfig.AuthConfig{
 		JWTIssuer:       "integration-test",
@@ -466,16 +535,26 @@ func newIntegrationHarness(t *testing.T) *integrationHarness {
 	checker := obshealth.NewCompositeHealthChecker(time.Second)
 	datahealth.Register(router, checker, "data-service-test", "integration")
 	redisClient := redis.NewClient(&redis.Options{
-		Addr:         "127.0.0.1:1",
-		DialTimeout:  25 * time.Millisecond,
-		ReadTimeout:  25 * time.Millisecond,
-		WriteTimeout: 25 * time.Millisecond,
+		Addr:         fmt.Sprintf("%s:%s", redisHost, redisPort.Port()),
+		DialTimeout:  time.Second,
+		ReadTimeout:  time.Second,
+		WriteTimeout: time.Second,
 	})
 	t.Cleanup(func() { _ = redisClient.Close() })
+	dashboardCache := datadashboard.NewCache(redisClient, 60*time.Second)
+	dashboardCalculator := datadashboard.NewCalculator(sourceRepo, pipelineRepo, dataDashboardRepo, contradictionRepo, darkDataRepo, lineageRepo, qualityScorer, dashboardCache, logger)
+	dashboardSvc := datasvc.NewDashboardService(dashboardCalculator)
 	datahandler.RegisterRoutes(
 		router,
 		datahandler.NewSourceHandler(sourceSvc, logger),
 		datahandler.NewModelHandler(modelSvc, logger),
+		datahandler.NewPipelineHandler(pipelineSvc, logger),
+		datahandler.NewQualityHandler(qualitySvc, logger),
+		datahandler.NewContradictionHandler(contradictionSvc, logger),
+		datahandler.NewLineageHandler(lineageSvc, logger),
+		datahandler.NewDarkDataHandler(darkDataSvc, logger),
+		datahandler.NewAnalyticsHandler(analyticsSvc, logger),
+		datahandler.NewDashboardHandler(dashboardSvc, logger),
 		jwtMgr,
 		redisClient,
 	)
@@ -489,7 +568,9 @@ func newIntegrationHarness(t *testing.T) *integrationHarness {
 		httpServer:         server,
 		client:             server.Client(),
 		token:              tokenPair.AccessToken,
+		jwtMgr:             jwtMgr,
 		tenantID:           tenantID,
+		userID:             userID,
 		sourcePostgresHost: sourcePGHost,
 		sourcePostgresPort: sourcePGPort.Int(),
 		sourceMySQLHost:    mysqlHost,
@@ -497,6 +578,14 @@ func newIntegrationHarness(t *testing.T) *integrationHarness {
 		minioEndpoint:      minioEndpoint,
 		apiBaseURL:         apiServer.URL,
 	}
+}
+
+type integrationDecryptor struct {
+	encryptor *datasvc.ConfigEncryptor
+}
+
+func (d integrationDecryptor) Decrypt(ciphertext []byte, _ string) ([]byte, error) {
+	return d.encryptor.Decrypt(ciphertext)
 }
 
 func (h *integrationHarness) createSource(t *testing.T, req datadto.CreateSourceRequest) uuid.UUID {
@@ -672,13 +761,21 @@ func seedSourcePostgres(ctx context.Context, pool *pgxpool.Pool) error {
 			total_amount NUMERIC(12,2) NOT NULL,
 			ordered_at TIMESTAMPTZ NOT NULL DEFAULT now()
 		)`,
-		`TRUNCATE app.orders, app.customers`,
+		`CREATE TABLE IF NOT EXISTS app.shadow_contacts (
+			contact_id UUID PRIMARY KEY,
+			email VARCHAR(255) NOT NULL,
+			ssn VARCHAR(20),
+			phone VARCHAR(40)
+		)`,
+		`TRUNCATE app.shadow_contacts, app.orders, app.customers`,
 		`INSERT INTO app.customers (customer_id, email, phone, ssn, first_name) VALUES
 			('11111111-1111-1111-1111-111111111111', 'alice@example.com', '+15550100', '123-45-6789', 'Alice'),
 			('22222222-2222-2222-2222-222222222222', 'bob@example.com', '+15550101', '987-65-4321', 'Bob')`,
 		`INSERT INTO app.orders (order_id, customer_id, total_amount) VALUES
 			('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', '11111111-1111-1111-1111-111111111111', 149.95),
 			('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', '22222222-2222-2222-2222-222222222222', 89.50)`,
+		`INSERT INTO app.shadow_contacts (contact_id, email, ssn, phone) VALUES
+			('cccccccc-cccc-cccc-cccc-cccccccccccc', 'shadow@example.com', '111-22-3333', '+15550999')`,
 	}
 	for _, stmt := range stmts {
 		if _, err := pool.Exec(ctx, stmt); err != nil {

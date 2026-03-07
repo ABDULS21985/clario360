@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog"
 
@@ -46,11 +47,7 @@ func (b *GraphBuilder) BuildDirectionalGraph(ctx context.Context, tenantID uuid.
 	state := newGraphState(fullGraph.Nodes, fullGraph.Edges)
 	centerKey := nodeKey(entityType, entityID)
 	if _, ok := state.nodes[centerKey]; !ok {
-		return &model.LineageGraph{
-			Nodes: []model.LineageNode{},
-			Edges: []model.LineageEdge{},
-			Stats: model.GraphStats{NodesByType: map[string]int{}},
-		}, nil
+		return nil, pgx.ErrNoRows
 	}
 
 	visited := map[string]int{centerKey: 0}

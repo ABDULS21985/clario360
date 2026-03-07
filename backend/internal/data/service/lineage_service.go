@@ -112,6 +112,7 @@ func (s *LineageService) Record(ctx context.Context, tenantID uuid.UUID, req dto
 	}); err != nil {
 		s.logger.Warn().Err(err).Msg("failed to publish lineage edge created event")
 	}
+	s.publishGraphUpdated(ctx, tenantID)
 	return edge, nil
 }
 
@@ -119,7 +120,11 @@ func (s *LineageService) DeleteEdge(ctx context.Context, tenantID, edgeID uuid.U
 	if err := s.repo.Deactivate(ctx, tenantID, edgeID); err != nil {
 		return err
 	}
-	return s.publish(ctx, "data.lineage.edge_removed", tenantID, map[string]any{"id": edgeID})
+	if err := s.publish(ctx, "data.lineage.edge_removed", tenantID, map[string]any{"id": edgeID}); err != nil {
+		return err
+	}
+	s.publishGraphUpdated(ctx, tenantID)
+	return nil
 }
 
 func (s *LineageService) Search(ctx context.Context, tenantID uuid.UUID, params dto.SearchLineageParams) ([]model.LineageNode, error) {
@@ -131,11 +136,19 @@ func (s *LineageService) Stats(ctx context.Context, tenantID uuid.UUID) (*model.
 }
 
 func (s *LineageService) RecordPipelineRun(ctx context.Context, pipeline *model.Pipeline, run *model.PipelineRun) error {
-	return s.recorder.RecordPipelineLineage(ctx, pipeline, run)
+	if err := s.recorder.RecordPipelineLineage(ctx, pipeline, run); err != nil {
+		return err
+	}
+	s.publishGraphUpdated(ctx, pipeline.TenantID)
+	return nil
 }
 
 func (s *LineageService) RecordQueryExecution(ctx context.Context, tenantID, userID, modelID uuid.UUID, query model.AnalyticsQuery) error {
-	return s.recorder.RecordQueryLineage(ctx, tenantID, userID, modelID, query)
+	if err := s.recorder.RecordQueryLineage(ctx, tenantID, userID, modelID, query); err != nil {
+		return err
+	}
+	s.publishGraphUpdated(ctx, tenantID)
+	return nil
 }
 
 func (s *LineageService) wouldCreateCycle(ctx context.Context, tenantID uuid.UUID, edge *model.LineageEdgeRecord) (bool, error) {
@@ -179,4 +192,19 @@ func (s *LineageService) publish(ctx context.Context, eventType string, tenantID
 		return err
 	}
 	return s.producer.Publish(ctx, "data.lineage.events", event)
+}
+
+func (s *LineageService) publishGraphUpdated(ctx context.Context, tenantID uuid.UUID) {
+	stats, err := s.builder.Stats(ctx, tenantID)
+	if err != nil {
+		s.logger.Warn().Err(err).Str("tenant_id", tenantID.String()).Msg("failed to compute lineage graph stats for event")
+		return
+	}
+	if err := s.publish(ctx, "data.lineage.graph_updated", tenantID, map[string]any{
+		"tenant_id":  tenantID,
+		"node_count": stats.NodeCount,
+		"edge_count": stats.EdgeCount,
+	}); err != nil {
+		s.logger.Warn().Err(err).Str("tenant_id", tenantID.String()).Msg("failed to publish lineage graph updated event")
+	}
 }

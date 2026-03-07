@@ -89,7 +89,7 @@ func (s *AnalyticsService) Execute(ctx context.Context, tenantID, userID uuid.UU
 		if executionErr != nil {
 			errorMessage = executionErr.Error()
 		}
-		s.auditRecorder.RecordQueryExecution(ctx, tenantID, userID, modelItem.ID, source.ID, req.Query, validation.ColumnsAccessed, validation.PIIColumnsAccessed, !validation.UserHasPIIPermission && len(validation.PIIColumnsAccessed) > 0, rowsReturned, truncated, executionMs, executionErr != nil, errorMessage, savedQueryID, ipAddress, userAgent)
+		s.auditRecorder.RecordQueryExecution(ctx, tenantID, userID, modelItem.ID, source.ID, req.Query, string(modelItem.DataClassification), validation.ColumnsAccessed, validation.PIIColumnsAccessed, !validation.UserHasPIIPermission && len(validation.PIIColumnsAccessed) > 0, rowsReturned, truncated, executionMs, executionErr != nil, errorMessage, savedQueryID, ipAddress, userAgent)
 	}()
 
 	dataBatch, err := conn.ReadQuery(queryCtx, built.SQL, built.Args)
