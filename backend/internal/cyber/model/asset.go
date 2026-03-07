@@ -138,9 +138,9 @@ type Asset struct {
 	DeletedAt       *time.Time      `json:"-" db:"deleted_at"`
 
 	// Computed fields (populated via LEFT JOINs or sub-queries in list/get endpoints)
-	OpenVulnerabilityCount  int     `json:"open_vulnerability_count" db:"open_vulnerability_count"`
-	HighestVulnSeverity     *string `json:"highest_vulnerability_severity,omitempty" db:"highest_vulnerability_severity"`
-	RelationshipCount       int     `json:"relationship_count" db:"relationship_count"`
+	OpenVulnerabilityCount int     `json:"open_vulnerability_count" db:"open_vulnerability_count"`
+	HighestVulnSeverity    *string `json:"highest_vulnerability_severity,omitempty" db:"highest_vulnerability_severity"`
+	RelationshipCount      int     `json:"relationship_count" db:"relationship_count"`
 }
 
 // AssetCountByName is used in aggregated responses such as top departments and OS families.

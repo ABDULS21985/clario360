@@ -10,38 +10,38 @@ import (
 
 // CreateAssetRequest is the body for POST /api/v1/cyber/assets.
 type CreateAssetRequest struct {
-	Name            string          `json:"name" validate:"required,min=2,max=255"`
-	Type            model.AssetType `json:"type" validate:"required,asset_type"`
-	IPAddress       *string         `json:"ip_address,omitempty" validate:"omitempty,ip"`
-	Hostname        *string         `json:"hostname,omitempty" validate:"omitempty,min=1,max=255"`
-	MACAddress      *string         `json:"mac_address,omitempty" validate:"omitempty,mac"`
-	OS              *string         `json:"os,omitempty" validate:"omitempty,max=100"`
-	OSVersion       *string         `json:"os_version,omitempty" validate:"omitempty,max=100"`
-	Owner           *string         `json:"owner,omitempty" validate:"omitempty,max=255"`
-	Department      *string         `json:"department,omitempty" validate:"omitempty,max=255"`
-	Location        *string         `json:"location,omitempty" validate:"omitempty,max=255"`
-	Criticality     model.Criticality `json:"criticality" validate:"required,criticality"`
-	Metadata        json.RawMessage `json:"metadata,omitempty"`
-	Tags            []string        `json:"tags,omitempty" validate:"omitempty,max=20,dive,min=1,max=50,alphanumdash"`
+	Name        string            `json:"name" validate:"required,min=2,max=255"`
+	Type        model.AssetType   `json:"type" validate:"required,asset_type"`
+	IPAddress   *string           `json:"ip_address,omitempty" validate:"omitempty,ip"`
+	Hostname    *string           `json:"hostname,omitempty" validate:"omitempty,min=1,max=255"`
+	MACAddress  *string           `json:"mac_address,omitempty" validate:"omitempty,mac"`
+	OS          *string           `json:"os,omitempty" validate:"omitempty,max=100"`
+	OSVersion   *string           `json:"os_version,omitempty" validate:"omitempty,max=100"`
+	Owner       *string           `json:"owner,omitempty" validate:"omitempty,max=255"`
+	Department  *string           `json:"department,omitempty" validate:"omitempty,max=255"`
+	Location    *string           `json:"location,omitempty" validate:"omitempty,max=255"`
+	Criticality model.Criticality `json:"criticality" validate:"required,criticality"`
+	Metadata    json.RawMessage   `json:"metadata,omitempty"`
+	Tags        []string          `json:"tags,omitempty" validate:"omitempty,max=20,dive,min=1,max=50,alphanumdash"`
 }
 
 // UpdateAssetRequest is the body for PUT /api/v1/cyber/assets/:id.
 // All fields are optional — only non-nil fields are applied.
 type UpdateAssetRequest struct {
-	Name            *string          `json:"name,omitempty" validate:"omitempty,min=2,max=255"`
-	Type            *model.AssetType `json:"type,omitempty" validate:"omitempty,asset_type"`
-	IPAddress       *string          `json:"ip_address,omitempty" validate:"omitempty,ip"`
-	Hostname        *string          `json:"hostname,omitempty" validate:"omitempty,min=1,max=255"`
-	MACAddress      *string          `json:"mac_address,omitempty" validate:"omitempty,mac"`
-	OS              *string          `json:"os,omitempty" validate:"omitempty,max=100"`
-	OSVersion       *string          `json:"os_version,omitempty" validate:"omitempty,max=100"`
-	Owner           *string          `json:"owner,omitempty" validate:"omitempty,max=255"`
-	Department      *string          `json:"department,omitempty" validate:"omitempty,max=255"`
-	Location        *string          `json:"location,omitempty" validate:"omitempty,max=255"`
-	Criticality     *model.Criticality `json:"criticality,omitempty" validate:"omitempty,criticality"`
-	Status          *model.AssetStatus `json:"status,omitempty" validate:"omitempty,asset_status"`
-	Metadata        json.RawMessage  `json:"metadata,omitempty"`
-	Tags            *[]string        `json:"tags,omitempty" validate:"omitempty,max=20,dive,min=1,max=50"`
+	Name        *string            `json:"name,omitempty" validate:"omitempty,min=2,max=255"`
+	Type        *model.AssetType   `json:"type,omitempty" validate:"omitempty,asset_type"`
+	IPAddress   *string            `json:"ip_address,omitempty" validate:"omitempty,ip"`
+	Hostname    *string            `json:"hostname,omitempty" validate:"omitempty,min=1,max=255"`
+	MACAddress  *string            `json:"mac_address,omitempty" validate:"omitempty,mac"`
+	OS          *string            `json:"os,omitempty" validate:"omitempty,max=100"`
+	OSVersion   *string            `json:"os_version,omitempty" validate:"omitempty,max=100"`
+	Owner       *string            `json:"owner,omitempty" validate:"omitempty,max=255"`
+	Department  *string            `json:"department,omitempty" validate:"omitempty,max=255"`
+	Location    *string            `json:"location,omitempty" validate:"omitempty,max=255"`
+	Criticality *model.Criticality `json:"criticality,omitempty" validate:"omitempty,criticality"`
+	Status      *model.AssetStatus `json:"status,omitempty" validate:"omitempty,asset_status"`
+	Metadata    json.RawMessage    `json:"metadata,omitempty"`
+	Tags        *[]string          `json:"tags,omitempty" validate:"omitempty,max=20,dive,min=1,max=50"`
 }
 
 // TagPatchRequest is the body for PATCH /api/v1/cyber/assets/:id/tags.
@@ -52,26 +52,26 @@ type TagPatchRequest struct {
 
 // AssetListParams holds all query parameters for GET /api/v1/cyber/assets.
 type AssetListParams struct {
-	Search               *string    `form:"search" validate:"omitempty,max=200"`
-	Types                []string   `form:"type"`
-	Criticalities        []string   `form:"criticality"`
-	Statuses             []string   `form:"status"`
-	OS                   *string    `form:"os"`
-	Department           *string    `form:"department"`
-	Owner                *string    `form:"owner"`
-	Location             *string    `form:"location"`
-	Tags                 []string   `form:"tag"`
-	DiscoverySource      *string    `form:"discovery_source"`
-	DiscoveredAfter      *time.Time `form:"discovered_after"`
-	DiscoveredBefore     *time.Time `form:"discovered_before"`
-	LastSeenAfter        *time.Time `form:"last_seen_after"`
-	HasVulnerabilities   *bool      `form:"has_vulnerabilities"`
-	VulnerabilitySeverity *string   `form:"vulnerability_severity"`
-	MinVulnCount         *int       `form:"min_vuln_count"`
-	Sort                 string     `form:"sort" validate:"omitempty,oneof=name type criticality status discovered_at last_seen_at vulnerability_count created_at"`
-	Order                string     `form:"order" validate:"omitempty,oneof=asc desc"`
-	Page                 int        `form:"page" validate:"omitempty,min=1"`
-	PerPage              int        `form:"per_page" validate:"omitempty,min=1,max=200"`
+	Search                *string    `form:"search" validate:"omitempty,max=200"`
+	Types                 []string   `form:"type"`
+	Criticalities         []string   `form:"criticality"`
+	Statuses              []string   `form:"status"`
+	OS                    *string    `form:"os"`
+	Department            *string    `form:"department"`
+	Owner                 *string    `form:"owner"`
+	Location              *string    `form:"location"`
+	Tags                  []string   `form:"tag"`
+	DiscoverySource       *string    `form:"discovery_source"`
+	DiscoveredAfter       *time.Time `form:"discovered_after"`
+	DiscoveredBefore      *time.Time `form:"discovered_before"`
+	LastSeenAfter         *time.Time `form:"last_seen_after"`
+	HasVulnerabilities    *bool      `form:"has_vulnerabilities"`
+	VulnerabilitySeverity *string    `form:"vulnerability_severity"`
+	MinVulnCount          *int       `form:"min_vuln_count"`
+	Sort                  string     `form:"sort" validate:"omitempty,oneof=name type criticality status discovered_at last_seen_at vulnerability_count created_at"`
+	Order                 string     `form:"order" validate:"omitempty,oneof=asc desc"`
+	Page                  int        `form:"page" validate:"omitempty,min=1"`
+	PerPage               int        `form:"per_page" validate:"omitempty,min=1,max=200"`
 }
 
 // SetDefaults applies default values to params that were not provided.
@@ -181,7 +181,7 @@ func (p *VulnerabilityListParams) SetDefaults() {
 
 // CreateRelationshipRequest is the body for POST /api/v1/cyber/assets/:id/relationships.
 type CreateRelationshipRequest struct {
-	TargetAssetID    string                  `json:"target_asset_id" validate:"required,uuid"`
-	RelationshipType model.RelationshipType  `json:"relationship_type" validate:"required,relationship_type"`
-	Metadata         json.RawMessage         `json:"metadata,omitempty"`
+	TargetAssetID    string                 `json:"target_asset_id" validate:"required,uuid"`
+	RelationshipType model.RelationshipType `json:"relationship_type" validate:"required,relationship_type"`
+	Metadata         json.RawMessage        `json:"metadata,omitempty"`
 }

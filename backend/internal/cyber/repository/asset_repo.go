@@ -9,8 +9,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog"
 
@@ -552,12 +552,12 @@ func (r *AssetRepository) Stats(ctx context.Context, tenantID uuid.UUID) (map[st
 	}
 
 	var (
-		total, active                                                      int
-		typeServer, typeEndpoint, typeNetwork, typeCloud, typeIoT          int
-		typeApp, typeDB, typeContainer                                      int
-		critCritical, critHigh, critMedium, critLow                        int
-		statusActive, statusInactive, statusDecom, statusUnknown           int
-		srcManual, srcNetScan, srcCloudScan, srcAgent, srcImport           int
+		total, active                                             int
+		typeServer, typeEndpoint, typeNetwork, typeCloud, typeIoT int
+		typeApp, typeDB, typeContainer                            int
+		critCritical, critHigh, critMedium, critLow               int
+		statusActive, statusInactive, statusDecom, statusUnknown  int
+		srcManual, srcNetScan, srcCloudScan, srcAgent, srcImport  int
 	)
 
 	if err := rows.Scan(

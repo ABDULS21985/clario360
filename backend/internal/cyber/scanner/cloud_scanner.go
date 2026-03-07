@@ -190,9 +190,9 @@ type ec2Instance struct {
 
 // AWS EC2 DescribeInstances XML structures.
 type ec2DescribeInstancesResponse struct {
-	XMLName        xml.Name          `xml:"DescribeInstancesResponse"`
-	ReservationSet []ec2Reservation  `xml:"reservationSet>item"`
-	NextToken      string            `xml:"nextToken"`
+	XMLName        xml.Name         `xml:"DescribeInstancesResponse"`
+	ReservationSet []ec2Reservation `xml:"reservationSet>item"`
+	NextToken      string           `xml:"nextToken"`
 }
 
 type ec2Reservation struct {
@@ -374,13 +374,13 @@ func ec2InstanceToAsset(inst ec2Instance, region, accountID string) *model.Disco
 	}
 
 	extra := map[string]any{
-		"cloud_provider":   "aws",
-		"aws_account_id":   accountID,
-		"aws_region":       region,
-		"aws_zone":         inst.Zone,
-		"aws_instance_id":  inst.InstanceID,
+		"cloud_provider":    "aws",
+		"aws_account_id":    accountID,
+		"aws_region":        region,
+		"aws_zone":          inst.Zone,
+		"aws_instance_id":   inst.InstanceID,
 		"aws_instance_type": inst.InstanceType,
-		"aws_architecture": inst.Architecture,
+		"aws_architecture":  inst.Architecture,
 	}
 	for k, v := range inst.Tags {
 		extra["aws_tag_"+strings.ToLower(k)] = v
@@ -687,7 +687,7 @@ func (s *CloudScanner) gcpListInstances(ctx context.Context, projectID, token, p
 	}
 
 	var result struct {
-		Items         map[string]struct {
+		Items map[string]struct {
 			Instances []gcpInstance `json:"instances"`
 		} `json:"items"`
 		NextPageToken string `json:"nextPageToken"`
@@ -719,9 +719,9 @@ type gcpInstance struct {
 }
 
 type gcpNIC struct {
-	Name          string          `json:"name"`
-	NetworkIP     string          `json:"networkIP"`
-	AccessConfigs []gcpAccessCfg  `json:"accessConfigs"`
+	Name          string         `json:"name"`
+	NetworkIP     string         `json:"networkIP"`
+	AccessConfigs []gcpAccessCfg `json:"accessConfigs"`
 }
 
 type gcpAccessCfg struct {
@@ -768,11 +768,11 @@ func gcpInstanceToAsset(inst gcpInstance, projectID, zone string) *model.Discove
 	}
 
 	extra := map[string]any{
-		"cloud_provider":   "gcp",
-		"gcp_project_id":   projectID,
-		"gcp_zone":         zoneName,
+		"cloud_provider":    "gcp",
+		"gcp_project_id":    projectID,
+		"gcp_zone":          zoneName,
 		"gcp_instance_name": inst.Name,
-		"gcp_machine_type": machineType,
+		"gcp_machine_type":  machineType,
 	}
 	if publicIP != "" {
 		extra["gcp_public_ip"] = publicIP
@@ -894,13 +894,13 @@ func (s *CloudScanner) scanAzure(ctx context.Context, subscriptionID string, opt
 }
 
 type azureVM struct {
-	ID           string
-	Name         string
-	Location     string
-	VMSize       string
-	OSType       string
-	NICs         []string // NIC resource IDs
-	Tags         map[string]string
+	ID            string
+	Name          string
+	Location      string
+	VMSize        string
+	OSType        string
+	NICs          []string // NIC resource IDs
+	Tags          map[string]string
 	ResourceGroup string
 }
 
@@ -941,12 +941,12 @@ func (s *CloudScanner) azureListVMs(ctx context.Context, subscriptionID, token s
 
 		for _, v := range page.Value {
 			vm := azureVM{
-				ID:           v.ID,
-				Name:         v.Name,
-				Location:     v.Location,
-				VMSize:       v.Properties.HardwareProfile.VMSize,
-				OSType:       v.Properties.StorageProfile.OSDisk.OSType,
-				Tags:         v.Tags,
+				ID:            v.ID,
+				Name:          v.Name,
+				Location:      v.Location,
+				VMSize:        v.Properties.HardwareProfile.VMSize,
+				OSType:        v.Properties.StorageProfile.OSDisk.OSType,
+				Tags:          v.Tags,
 				ResourceGroup: extractResourceGroup(v.ID),
 			}
 			for _, nic := range v.Properties.NetworkProfile.NetworkInterfaces {
@@ -1056,10 +1056,10 @@ func azureVMToAsset(vm azureVM, ips []string) *model.DiscoveredAsset {
 	}
 
 	extra := map[string]any{
-		"cloud_provider":    "azure",
-		"azure_vm_id":       vm.ID,
-		"azure_location":    vm.Location,
-		"azure_vm_size":     vm.VMSize,
+		"cloud_provider":       "azure",
+		"azure_vm_id":          vm.ID,
+		"azure_location":       vm.Location,
+		"azure_vm_size":        vm.VMSize,
 		"azure_resource_group": vm.ResourceGroup,
 	}
 	if len(ips) > 1 {

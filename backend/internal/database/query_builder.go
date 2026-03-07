@@ -118,7 +118,7 @@ func (qb *QueryBuilder) WhereArrayContainsAll(column string, values []string) *Q
 }
 
 // WhereFTS generates a full-text search condition plus exact IP/tag fallbacks.
-// columns are joined with coalesce(col, '') || ' ' for the tsvector expression.
+// columns are joined with coalesce(col, ”) || ' ' for the tsvector expression.
 func (qb *QueryBuilder) WhereFTS(columns []string, query string) *QueryBuilder {
 	if len(columns) == 0 || query == "" {
 		return qb

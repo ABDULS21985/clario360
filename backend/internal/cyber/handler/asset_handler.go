@@ -235,9 +235,9 @@ func (h *AssetHandler) BulkCreate(w http.ResponseWriter, r *http.Request) {
 		if errors.As(err, &bulkErr) {
 			writeJSON(w, http.StatusBadRequest, map[string]any{
 				"error": map[string]any{
-					"code":    bulkErr.Code,
-					"message": bulkErr.Message,
-					"details": map[string]any{"rows": bulkErr.Rows},
+					"code":       bulkErr.Code,
+					"message":    bulkErr.Message,
+					"details":    map[string]any{"rows": bulkErr.Rows},
 					"request_id": w.Header().Get(middleware.RequestIDHeader),
 				},
 			})
@@ -663,9 +663,9 @@ func writeError(w http.ResponseWriter, status int, code, message string, details
 func writeValidationError(w http.ResponseWriter, fieldErrs map[string]string) {
 	writeJSON(w, http.StatusBadRequest, map[string]any{
 		"error": map[string]any{
-			"code":    "VALIDATION_ERROR",
-			"message": "request validation failed",
-			"details": map[string]any{"fields": fieldErrs},
+			"code":       "VALIDATION_ERROR",
+			"message":    "request validation failed",
+			"details":    map[string]any{"fields": fieldErrs},
 			"request_id": w.Header().Get(middleware.RequestIDHeader),
 		},
 	})

@@ -26,13 +26,13 @@ type AssetUpsertRepo interface {
 
 // NetworkScanner performs TCP probe-based network asset discovery.
 type NetworkScanner struct {
-	repo       AssetUpsertRepo
-	pipeline   *enrichment.Pipeline
-	classifier *classifier.AssetClassifier
-	logger     zerolog.Logger
-	workers    int
-	timeout    time.Duration
-	maxIPs     int
+	repo         AssetUpsertRepo
+	pipeline     *enrichment.Pipeline
+	classifier   *classifier.AssetClassifier
+	logger       zerolog.Logger
+	workers      int
+	timeout      time.Duration
+	maxIPs       int
 	defaultPorts []int
 }
 
@@ -388,9 +388,7 @@ func isNetworkOrBroadcast(ip net.IP, network *net.IPNet) bool {
 	if ones == bits {
 		return false // /32 — no network/broadcast
 	}
-	// Network address: all host bits zero
-	masked := ip.Mask(network.Mask)
-	if masked.Equal(network.IP) {
+	if ip.Equal(network.IP) {
 		return true
 	}
 	// Broadcast: all host bits one

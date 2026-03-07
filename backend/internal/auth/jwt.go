@@ -58,6 +58,12 @@ func NewJWTManager(cfg config.AuthConfig) (*JWTManager, error) {
 			return nil, fmt.Errorf("parsing RSA public key: %w", err)
 		}
 		publicKey = pubKey
+	} else if cfg.RSAPublicKeyPEM != "" {
+		pubKey, err := parseRSAPublicKey([]byte(cfg.RSAPublicKeyPEM))
+		if err != nil {
+			return nil, fmt.Errorf("parsing RSA public key: %w", err)
+		}
+		publicKey = pubKey
 	} else {
 		// Generate ephemeral key pair for development
 		key, err := rsa.GenerateKey(rand.Reader, 2048)
@@ -79,6 +85,9 @@ func NewJWTManager(cfg config.AuthConfig) (*JWTManager, error) {
 
 // GenerateTokenPair creates a new access/refresh token pair signed with RS256.
 func (m *JWTManager) GenerateTokenPair(userID, tenantID, email string, roles []string) (*TokenPair, error) {
+	if m.privateKey == nil {
+		return nil, fmt.Errorf("JWT manager is configured for validation only")
+	}
 	now := time.Now()
 	accessExp := now.Add(m.accessTokenTTL)
 

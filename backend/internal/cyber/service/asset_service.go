@@ -442,9 +442,9 @@ func (s *AssetService) TriggerScan(ctx context.Context, tenantID, userID uuid.UU
 		result, runErr := sc.Scan(scanCtx, cfg)
 		if runErr != nil {
 			result = &model.ScanResult{
-				ScanID:  scan.ID,
-				Status:  model.ScanStatusFailed,
-				Errors:  []string{runErr.Error()},
+				ScanID: scan.ID,
+				Status: model.ScanStatusFailed,
+				Errors: []string{runErr.Error()},
 			}
 			if errors.Is(runErr, context.Canceled) {
 				result.Status = model.ScanStatusCancelled
@@ -507,11 +507,11 @@ func (s *AssetService) GetStats(ctx context.Context, tenantID uuid.UUID) (*dto.A
 	}
 
 	result := &dto.AssetStats{
-		TotalAssets:           getInt(assetStats, "total_assets"),
-		ActiveAssets:          getInt(assetStats, "active_assets"),
-		TotalVulnerabilities:  getInt(vulnStats, "total_vulnerabilities"),
-		OpenVulnerabilities:   getInt(vulnStats, "open_vulnerabilities"),
-		AssetsWithCritical:    getInt(vulnStats, "assets_with_critical_vulns"),
+		TotalAssets:          getInt(assetStats, "total_assets"),
+		ActiveAssets:         getInt(assetStats, "active_assets"),
+		TotalVulnerabilities: getInt(vulnStats, "total_vulnerabilities"),
+		OpenVulnerabilities:  getInt(vulnStats, "open_vulnerabilities"),
+		AssetsWithCritical:   getInt(vulnStats, "assets_with_critical_vulns"),
 	}
 
 	if v, ok := assetStats["by_type"].(map[string]int); ok {
