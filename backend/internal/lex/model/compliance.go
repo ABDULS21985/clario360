@@ -92,3 +92,11 @@ type ComplianceScore struct {
 	RuleCoverage int       `json:"rule_coverage"`
 	CalculatedAt time.Time `json:"calculated_at"`
 }
+
+type ComplianceRunResult struct {
+	TenantID     uuid.UUID           `json:"tenant_id"`
+	Score        float64             `json:"score"`
+	AlertsCreated int                `json:"alerts_created"`
+	Alerts       []ComplianceAlert   `json:"alerts"`
+	CalculatedAt time.Time           `json:"calculated_at"`
+}

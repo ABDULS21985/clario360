@@ -213,3 +213,16 @@ type ContractStats struct {
 	Expiring30Days int            `json:"expiring_30_days"`
 	Expiring7Days  int            `json:"expiring_7_days"`
 }
+
+type LegalWorkflowSummary struct {
+	WorkflowInstanceID uuid.UUID       `json:"workflow_instance_id"`
+	ContractID         uuid.UUID       `json:"contract_id"`
+	ContractTitle      string          `json:"contract_title"`
+	ContractStatus     ContractStatus  `json:"contract_status"`
+	WorkflowStatus     string          `json:"workflow_status"`
+	CurrentStepID      *string         `json:"current_step_id,omitempty"`
+	StartedAt          time.Time       `json:"started_at"`
+	AssigneeID         *uuid.UUID      `json:"assignee_id,omitempty"`
+	AssigneeRole       *string         `json:"assignee_role,omitempty"`
+	TaskStatus         *string         `json:"task_status,omitempty"`
+}

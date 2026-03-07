@@ -3,6 +3,7 @@ package patterns
 import (
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 )
 
