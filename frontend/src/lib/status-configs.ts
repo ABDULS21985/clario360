@@ -50,6 +50,21 @@ export const pipelineStatusConfig: StatusConfig = {
   draft: { label: "Draft", color: "gray", icon: FileEdit },
 };
 
+export const sourceStatusConfig: StatusConfig = {
+  active: { label: 'Active', color: 'green', icon: CheckCircle },
+  syncing: { label: 'Syncing', color: 'blue', icon: Play },
+  inactive: { label: 'Inactive', color: 'gray', icon: Pause },
+  error: { label: 'Error', color: 'red', icon: AlertCircle },
+};
+
+export const datasetStatusConfig: StatusConfig = {
+  active: { label: 'Active', color: 'green', icon: CheckCircle },
+  published: { label: 'Published', color: 'blue', icon: CheckCheck },
+  draft: { label: 'Draft', color: 'gray', icon: FileEdit },
+  archived: { label: 'Archived', color: 'gray', icon: XCircle },
+  deprecated: { label: 'Deprecated', color: 'orange', icon: AlertTriangle },
+};
+
 export const taskStatusConfig: StatusConfig = {
   pending: { label: "Pending", color: "yellow", icon: Clock },
   claimed: { label: "In Progress", color: "blue", icon: UserCheck },
@@ -91,10 +106,39 @@ export const workflowStatusConfig: StatusConfig = {
 export const contractStatusConfig: StatusConfig = {
   draft: { label: "Draft", color: "gray", icon: FileEdit },
   review: { label: "In Review", color: "yellow", icon: Eye },
+  negotiation: { label: 'Negotiation', color: 'orange', icon: Workflow },
+  active: { label: 'Active', color: 'green', icon: CheckCircle },
   approved: { label: "Approved", color: "green", icon: CheckCircle },
   signed: { label: "Signed", color: "blue", icon: CheckCheck },
   expired: { label: "Expired", color: "red", icon: AlertCircle },
   terminated: { label: "Terminated", color: "gray", icon: XCircle },
+};
+
+export const committeeStatusConfig: StatusConfig = {
+  active: { label: 'Active', color: 'green', icon: CheckCircle },
+  inactive: { label: 'Inactive', color: 'gray', icon: Pause },
+  archived: { label: 'Archived', color: 'gray', icon: XCircle },
+};
+
+export const meetingStatusConfig: StatusConfig = {
+  scheduled: { label: 'Scheduled', color: 'blue', icon: Clock },
+  in_progress: { label: 'In Progress', color: 'yellow', icon: Play },
+  completed: { label: 'Completed', color: 'green', icon: CheckCircle },
+  cancelled: { label: 'Cancelled', color: 'gray', icon: Ban },
+};
+
+export const minuteStatusConfig: StatusConfig = {
+  draft: { label: 'Draft', color: 'gray', icon: FileEdit },
+  review: { label: 'In Review', color: 'yellow', icon: Eye },
+  approved: { label: 'Approved', color: 'green', icon: CheckCircle },
+  published: { label: 'Published', color: 'blue', icon: CheckCheck },
+};
+
+export const documentStatusConfig: StatusConfig = {
+  draft: { label: 'Draft', color: 'gray', icon: FileEdit },
+  review: { label: 'In Review', color: 'yellow', icon: Eye },
+  approved: { label: 'Approved', color: 'green', icon: CheckCircle },
+  archived: { label: 'Archived', color: 'gray', icon: XCircle },
 };
 
 // Re-export icons that are referenced in status configs for convenience

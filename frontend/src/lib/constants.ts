@@ -85,8 +85,30 @@ export const API_ENDPOINTS = {
   JOBS: '/api/v1/jobs',
 
   // Data
+  DATA_SOURCES: '/api/v1/data/sources',
   DATA_PIPELINES: '/api/v1/data/pipelines',
+  DATA_DATASETS: '/api/v1/data/datasets',
+  DATA_QUALITY: '/api/v1/data/quality',
   DATA_QUALITY_SCORE: '/api/v1/data/quality/score',
+
+  // Acta
+  ACTA_COMMITTEES: '/api/v1/acta/committees',
+  ACTA_MEETINGS: '/api/v1/acta/meetings',
+  ACTA_ACTION_ITEMS: '/api/v1/acta/action-items',
+  ACTA_DOCUMENTS: '/api/v1/acta/documents',
+  ACTA_TEMPLATES: '/api/v1/acta/templates',
+
+  // Lex
+  LEX_CONTRACTS: '/api/v1/lex/contracts',
+  LEX_DOCUMENTS: '/api/v1/lex/documents',
+  LEX_REGULATIONS: '/api/v1/lex/regulations',
+  LEX_COMPLIANCE: '/api/v1/lex/compliance',
+  LEX_COMPLIANCE_CHECK: '/api/v1/lex/compliance/check',
+
+  // Visus
+  VISUS_DASHBOARDS: '/api/v1/visus/dashboards',
+  VISUS_REPORTS: '/api/v1/visus/reports',
+  VISUS_WIDGETS: '/api/v1/visus/widgets',
 
   // Workflows
   WORKFLOWS_TASKS_COUNT: '/api/v1/workflows/tasks/count',

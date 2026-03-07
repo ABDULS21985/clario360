@@ -24,6 +24,7 @@ import { DataTableEmpty } from "./data-table-empty";
 import { DataTableError } from "./data-table-error";
 import { DataTableColumnHeader } from "./data-table-column-header";
 import { actionsColumn } from "./columns/common-columns";
+import { SearchInput } from "@/components/shared/forms/search-input";
 import { cn } from "@/lib/utils";
 import type { FilterConfig, BulkAction, RowAction, EmptyStateConfig } from "@/types/table";
 
@@ -150,18 +151,22 @@ export function DataTable<TData, TValue = unknown>({
     (v) =>
       v !== undefined && v !== "" && !(Array.isArray(v) && v.length === 0)
   );
+  const resolvedSearchSlot =
+    searchSlot ?? (onSearchChange ? (
+      <SearchInput
+        value={searchValue ?? ""}
+        onChange={onSearchChange}
+        placeholder={searchPlaceholder}
+        loading={isLoading}
+      />
+    ) : undefined);
 
   const cellPadding = compact ? "px-3 py-1.5" : "px-4 py-3";
-
-  // Suppress unused warning for searchPlaceholder (consumed by searchSlot pattern)
-  void searchPlaceholder;
-  void searchValue;
-  void onSearchChange;
 
   return (
     <div className={cn("w-full space-y-3", className)}>
       <DataTableToolbar
-        searchSlot={searchSlot}
+        searchSlot={resolvedSearchSlot}
         filters={filters}
         activeFilters={activeFilters}
         onFilterChange={onFilterChange}
