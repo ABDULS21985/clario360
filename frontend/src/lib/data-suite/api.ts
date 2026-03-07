@@ -2,6 +2,7 @@ import { apiDelete, apiGet, apiPatch, apiPost, apiPut, apiUpload } from '@/lib/a
 import type { FetchParams } from '@/types/table';
 import type { PaginatedResponse } from '@/types/api';
 import type {
+  AggregateSourceStats,
   AnalyticsAuditLog,
   AnalyticsQuery,
   ConnectionTestResult,
@@ -138,7 +139,15 @@ export function buildDataSuiteQueryParams(
     if (value === undefined || value === null || value === '') {
       continue;
     }
-    query[key] = Array.isArray(value) ? value.join(',') : value;
+    if (Array.isArray(value)) {
+      query[key] = value.join(',');
+      continue;
+    }
+    if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+      query[key] = value;
+      continue;
+    }
+    query[key] = JSON.stringify(value);
   }
 
   return query;

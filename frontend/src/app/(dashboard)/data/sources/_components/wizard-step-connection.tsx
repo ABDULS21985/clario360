@@ -2,7 +2,7 @@
 
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMemo } from 'react';
-import { useForm } from 'react-hook-form';
+import { FormProvider, useForm } from 'react-hook-form';
 import { Button } from '@/components/ui/button';
 import { APIForm } from '@/app/(dashboard)/data/sources/_components/connection-forms/api-form';
 import { CSVForm } from '@/app/(dashboard)/data/sources/_components/connection-forms/csv-form';
@@ -22,11 +22,12 @@ import {
   type S3ConnectionValues,
   type SourceTypeValue,
 } from '@/lib/data-suite/forms';
+import type { JsonObject } from '@/lib/data-suite';
 
 interface WizardStepConnectionProps {
   sourceType: SourceTypeValue;
-  defaultValues: Record<string, unknown>;
-  onSave: (value: Record<string, unknown>) => void;
+  defaultValues: JsonObject;
+  onSave: (value: JsonObject) => void;
 }
 
 export function WizardStepConnection({
@@ -98,14 +99,16 @@ function PostgresConnectionStep({
   });
 
   return (
-    <form className="space-y-4" onSubmit={form.handleSubmit(onSave)}>
-      <PostgresForm form={form} />
-      <div className="flex justify-end">
-        <Button type="submit" disabled={!form.formState.isValid}>
-          Continue
-        </Button>
-      </div>
-    </form>
+    <FormProvider {...form}>
+      <form className="space-y-4" onSubmit={form.handleSubmit(onSave)}>
+        <PostgresForm form={form} />
+        <div className="flex justify-end">
+          <Button type="submit" disabled={!form.formState.isValid}>
+            Continue
+          </Button>
+        </div>
+      </form>
+    </FormProvider>
   );
 }
 
@@ -131,14 +134,16 @@ function MySQLConnectionStep({
   });
 
   return (
-    <form className="space-y-4" onSubmit={form.handleSubmit(onSave)}>
-      <MySQLForm form={form} />
-      <div className="flex justify-end">
-        <Button type="submit" disabled={!form.formState.isValid}>
-          Continue
-        </Button>
-      </div>
-    </form>
+    <FormProvider {...form}>
+      <form className="space-y-4" onSubmit={form.handleSubmit(onSave)}>
+        <MySQLForm form={form} />
+        <div className="flex justify-end">
+          <Button type="submit" disabled={!form.formState.isValid}>
+            Continue
+          </Button>
+        </div>
+      </form>
+    </FormProvider>
   );
 }
 
@@ -170,14 +175,16 @@ function APIConnectionStep({
   });
 
   return (
-    <form className="space-y-4" onSubmit={form.handleSubmit(onSave)}>
-      <APIForm form={form} />
-      <div className="flex justify-end">
-        <Button type="submit" disabled={!form.formState.isValid}>
-          Continue
-        </Button>
-      </div>
-    </form>
+    <FormProvider {...form}>
+      <form className="space-y-4" onSubmit={form.handleSubmit(onSave)}>
+        <APIForm form={form} />
+        <div className="flex justify-end">
+          <Button type="submit" disabled={!form.formState.isValid}>
+            Continue
+          </Button>
+        </div>
+      </form>
+    </FormProvider>
   );
 }
 
@@ -207,14 +214,16 @@ function CSVConnectionStep({
   });
 
   return (
-    <form className="space-y-4" onSubmit={form.handleSubmit(onSave)}>
-      <CSVForm form={form} />
-      <div className="flex justify-end">
-        <Button type="submit" disabled={!form.formState.isValid}>
-          Continue
-        </Button>
-      </div>
-    </form>
+    <FormProvider {...form}>
+      <form className="space-y-4" onSubmit={form.handleSubmit(onSave)}>
+        <CSVForm form={form} />
+        <div className="flex justify-end">
+          <Button type="submit" disabled={!form.formState.isValid}>
+            Continue
+          </Button>
+        </div>
+      </form>
+    </FormProvider>
   );
 }
 
@@ -244,13 +253,15 @@ function S3ConnectionStep({
   });
 
   return (
-    <form className="space-y-4" onSubmit={form.handleSubmit(onSave)}>
-      <S3Form form={form} />
-      <div className="flex justify-end">
-        <Button type="submit" disabled={!form.formState.isValid}>
-          Continue
-        </Button>
-      </div>
-    </form>
+    <FormProvider {...form}>
+      <form className="space-y-4" onSubmit={form.handleSubmit(onSave)}>
+        <S3Form form={form} />
+        <div className="flex justify-end">
+          <Button type="submit" disabled={!form.formState.isValid}>
+            Continue
+          </Button>
+        </div>
+      </form>
+    </FormProvider>
   );
 }

@@ -176,7 +176,10 @@ export default function DataPage() {
 
           <SectionCard title="Quality Score Trend" description="30-day rolling quality score from the live quality service.">
             <LineChart
-              data={dashboard.quality_trend_30d}
+              data={dashboard.quality_trend_30d.map((point) => ({
+                day: point.day,
+                value: point.value,
+              }))}
               xKey="day"
               height={320}
               yKeys={[{ key: 'value', label: 'Quality score', color: '#2563eb' }]}

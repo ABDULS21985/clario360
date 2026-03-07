@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -144,17 +145,17 @@ func (s *Store) ListMinutesVersions(ctx context.Context, tenantID, meetingID uui
 
 func scanMinutes(scanner rowScanner) (*model.MeetingMinutes, error) {
 	var (
-		item         model.MeetingMinutes
-		actionsRaw    []byte
-		aiSummary     *string
-		reviewNotes   *string
-		submittedAt   *time.Time
-		submittedBy   *uuid.UUID
-		reviewedBy    *uuid.UUID
-		approvedBy    *uuid.UUID
-		approvedAt    *time.Time
-		publishedAt   *time.Time
-		previousID    *uuid.UUID
+		item        model.MeetingMinutes
+		actionsRaw  []byte
+		aiSummary   *string
+		reviewNotes *string
+		submittedAt *time.Time
+		submittedBy *uuid.UUID
+		reviewedBy  *uuid.UUID
+		approvedBy  *uuid.UUID
+		approvedAt  *time.Time
+		publishedAt *time.Time
+		previousID  *uuid.UUID
 	)
 	err := scanner.Scan(
 		&item.ID,

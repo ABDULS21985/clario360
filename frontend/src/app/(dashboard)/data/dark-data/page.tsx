@@ -1,128 +1,171 @@
 'use client';
 
+import { useState } from 'react';
+import { FileQuestion } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
-import { Boxes, FolderOpen, Package } from 'lucide-react';
-import { KpiCard } from '@/components/shared/kpi-card';
-import { ErrorState } from '@/components/common/error-state';
-import { LoadingSkeleton } from '@/components/common/loading-skeleton';
 import { PageHeader } from '@/components/common/page-header';
 import { PermissionRedirect } from '@/components/common/permission-redirect';
-import { SectionCard } from '@/components/suites/section-card';
-import { API_ENDPOINTS } from '@/lib/constants';
-import { fetchSuitePaginated } from '@/lib/suite-api';
-import { isEmptyObject } from '@/lib/suite-utils';
-import { truncate } from '@/lib/utils';
-import type { Dataset, DataSource } from '@/types/suites';
+import { ErrorState } from '@/components/common/error-state';
+import { LoadingSkeleton } from '@/components/common/loading-skeleton';
+import { Button } from '@/components/ui/button';
+import { DataTable } from '@/components/shared/data-table/data-table';
+import { SearchInput } from '@/components/shared/forms/search-input';
+import { useDataTable } from '@/hooks/use-data-table';
+import { buildDarkDataColumns } from '@/app/(dashboard)/data/dark-data/_components/darkdata-columns';
+import { DarkDataDetailPanel } from '@/app/(dashboard)/data/dark-data/_components/darkdata-detail-panel';
+import { DarkDataGovernDialog } from '@/app/(dashboard)/data/dark-data/_components/darkdata-govern-dialog';
+import { DarkDataKpiCards } from '@/app/(dashboard)/data/dark-data/_components/darkdata-kpi-cards';
+import { DarkDataScanDialog } from '@/app/(dashboard)/data/dark-data/_components/darkdata-scan-dialog';
+import { dataSuiteApi, type DarkDataAsset } from '@/lib/data-suite';
+import type { DarkDataGovernValues } from '@/lib/data-suite/forms';
+import { showApiError, showSuccess } from '@/lib/toast';
+
+const DARK_DATA_FILTERS = [
+  {
+    key: 'reason',
+    label: 'Reason',
+    type: 'multi-select' as const,
+    options: [
+      { label: 'Unmodeled', value: 'unmodeled' },
+      { label: 'Orphaned', value: 'orphaned_file' },
+      { label: 'Stale', value: 'stale' },
+      { label: 'Ungoverned', value: 'ungoverned' },
+      { label: 'Unclassified', value: 'unclassified' },
+    ],
+  },
+  {
+    key: 'governance_status',
+    label: 'Governance',
+    type: 'multi-select' as const,
+    options: [
+      { label: 'Unmanaged', value: 'unmanaged' },
+      { label: 'Under Review', value: 'under_review' },
+      { label: 'Governed', value: 'governed' },
+      { label: 'Archived', value: 'archived' },
+      { label: 'Scheduled Deletion', value: 'scheduled_deletion' },
+    ],
+  },
+];
 
 export default function DataDarkDataPage() {
-  const sourcesQuery = useQuery({
-    queryKey: ['data-dark-data', 'sources'],
-    queryFn: () =>
-      fetchSuitePaginated<DataSource>(API_ENDPOINTS.DATA_SOURCES, {
-        page: 1,
-        per_page: 200,
-        sort: 'updated_at',
-        order: 'desc',
-      }),
-  });
-  const datasetsQuery = useQuery({
-    queryKey: ['data-dark-data', 'datasets'],
-    queryFn: () =>
-      fetchSuitePaginated<Dataset>(API_ENDPOINTS.DATA_DATASETS, {
-        page: 1,
-        per_page: 200,
-        sort: 'updated_at',
-        order: 'desc',
-      }),
+  const [selected, setSelected] = useState<DarkDataAsset | null>(null);
+  const [governing, setGoverning] = useState<DarkDataAsset | null>(null);
+  const [submittingGovern, setSubmittingGovern] = useState(false);
+  const [scanOpen, setScanOpen] = useState(false);
+
+  const statsQuery = useQuery({
+    queryKey: ['data-dark-data-stats'],
+    queryFn: () => dataSuiteApi.getDarkDataStats(),
   });
 
-  if (sourcesQuery.isLoading && datasetsQuery.isLoading) {
+  const { tableProps, searchValue, setSearch, refetch } = useDataTable<DarkDataAsset>({
+    queryKey: 'data-dark-data',
+    fetchFn: (params) => dataSuiteApi.listDarkDataAssets(params),
+    defaultPageSize: 25,
+    defaultSort: { column: 'risk_score', direction: 'desc' },
+  });
+
+  const governAsset = async (values: DarkDataGovernValues) => {
+    if (!governing) {
+      return;
+    }
+    try {
+      setSubmittingGovern(true);
+      await dataSuiteApi.governDarkData(governing.id, values);
+      showSuccess('Asset brought under governance.');
+      setGoverning(null);
+      void refetch();
+      void statsQuery.refetch();
+    } catch (error) {
+      showApiError(error);
+    } finally {
+      setSubmittingGovern(false);
+    }
+  };
+
+  if (statsQuery.isLoading) {
     return (
       <PermissionRedirect permission="data:read">
         <div className="space-y-6">
-          <PageHeader title="Dark Data" description="Derived view of undocumented sources and under-modeled datasets." />
-          <LoadingSkeleton variant="card" count={4} />
+          <PageHeader title="Dark Data" description="Loading dark data inventory and governance posture." />
+          <LoadingSkeleton variant="card" />
         </div>
       </PermissionRedirect>
     );
   }
 
-  if (sourcesQuery.error && datasetsQuery.error) {
+  if (statsQuery.error || !statsQuery.data) {
     return (
       <PermissionRedirect permission="data:read">
-        <ErrorState
-          message="Failed to load dark data indicators."
-          onRetry={() => {
-            void sourcesQuery.refetch();
-            void datasetsQuery.refetch();
-          }}
-        />
+        <ErrorState message="Failed to load dark data statistics." onRetry={() => void statsQuery.refetch()} />
       </PermissionRedirect>
     );
   }
-
-  const sources = sourcesQuery.data?.data ?? [];
-  const datasets = datasetsQuery.data?.data ?? [];
-  const undocumentedSources = sources.filter((source) => isEmptyObject(source.schema_metadata));
-  const schemaLightDatasets = datasets.filter((dataset) => isEmptyObject(dataset.schema_definition));
-  const lineageGaps = datasets.filter((dataset) => isEmptyObject(dataset.lineage));
 
   return (
     <PermissionRedirect permission="data:read">
       <div className="space-y-6">
         <PageHeader
           title="Dark Data"
-          description="Derived governance view over sources and datasets with weak metadata, weak lineage, or low documentation coverage."
+          description="Discovery and governance workflow for unmodeled, stale, or unmanaged data assets."
+          actions={
+            <Button type="button" onClick={() => setScanOpen(true)}>
+              Scan now
+            </Button>
+          }
         />
 
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          <KpiCard title="Undocumented Sources" value={undocumentedSources.length} icon={FolderOpen} iconColor="text-orange-600" />
-          <KpiCard title="Schema-Light Datasets" value={schemaLightDatasets.length} icon={Boxes} iconColor="text-violet-600" />
-          <KpiCard title="Lineage Gaps" value={lineageGaps.length} icon={Package} iconColor="text-red-600" />
-          <KpiCard title="Coverage Scope" value={(sources.length + datasets.length).toLocaleString()} icon={Package} iconColor="text-blue-600" description="Sources and datasets inspected from live APIs" />
-        </div>
+        <DarkDataKpiCards stats={statsQuery.data} />
 
-        <div className="grid gap-4 xl:grid-cols-3">
-          <SectionCard title="Undocumented Sources" description="Sources missing schema metadata." contentClassName="space-y-3">
-            {undocumentedSources.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No undocumented sources detected in the current window.</p>
-            ) : (
-              undocumentedSources.slice(0, 10).map((source) => (
-                <div key={source.id} className="rounded-lg border px-4 py-3">
-                  <p className="font-medium">{source.name}</p>
-                  <p className="text-xs capitalize text-muted-foreground">{source.type.replace(/_/g, ' ')} • {source.status}</p>
-                </div>
-              ))
-            )}
-          </SectionCard>
+        <DataTable
+          {...tableProps}
+          columns={buildDarkDataColumns({ onReview: setSelected, onGovern: setGoverning })}
+          filters={DARK_DATA_FILTERS}
+          searchSlot={
+            <SearchInput
+              value={searchValue}
+              onChange={setSearch}
+              placeholder="Search dark data assets..."
+              loading={tableProps.isLoading}
+            />
+          }
+          emptyState={{
+            icon: FileQuestion,
+            title: 'No dark data assets found',
+            description: 'No dark data assets matched the current filters.',
+          }}
+        />
 
-          <SectionCard title="Schema-Light Datasets" description="Datasets with empty schema definitions." contentClassName="space-y-3">
-            {schemaLightDatasets.length === 0 ? (
-              <p className="text-sm text-muted-foreground">All datasets on this sample include schema definitions.</p>
-            ) : (
-              schemaLightDatasets.slice(0, 10).map((dataset) => (
-                <div key={dataset.id} className="rounded-lg border px-4 py-3">
-                  <p className="font-medium">{dataset.name}</p>
-                  <p className="text-xs text-muted-foreground">v{dataset.version} • {dataset.source_name ?? 'Unknown source'}</p>
-                  {dataset.description ? <p className="mt-2 text-xs text-muted-foreground">{truncate(dataset.description, 120)}</p> : null}
-                </div>
-              ))
-            )}
-          </SectionCard>
+        <DarkDataDetailPanel
+          open={Boolean(selected)}
+          onOpenChange={(open) => {
+            if (!open) {
+              setSelected(null);
+            }
+          }}
+          asset={selected}
+        />
 
-          <SectionCard title="Lineage Gaps" description="Datasets that are not yet mapped into lineage flows." contentClassName="space-y-3">
-            {lineageGaps.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No lineage gaps were detected in the current sample.</p>
-            ) : (
-              lineageGaps.slice(0, 10).map((dataset) => (
-                <div key={dataset.id} className="rounded-lg border px-4 py-3">
-                  <p className="font-medium">{dataset.name}</p>
-                  <p className="text-xs text-muted-foreground">{dataset.status} • {dataset.source_name ?? 'Unknown source'}</p>
-                </div>
-              ))
-            )}
-          </SectionCard>
-        </div>
+        <DarkDataGovernDialog
+          open={Boolean(governing)}
+          onOpenChange={(open) => {
+            if (!open) {
+              setGoverning(null);
+            }
+          }}
+          asset={governing}
+          submitting={submittingGovern}
+          onSubmit={(values) => void governAsset(values)}
+        />
+
+        <DarkDataScanDialog
+          open={scanOpen}
+          onOpenChange={setScanOpen}
+          onComplete={() => {
+            void refetch();
+            void statsQuery.refetch();
+          }}
+        />
       </div>
     </PermissionRedirect>
   );

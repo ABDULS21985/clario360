@@ -2,13 +2,14 @@ import type {
   ConnectionTestResult,
   DataSource,
   DiscoveredSchema,
+  JsonObject,
 } from '@/lib/data-suite';
 import type { SourceConfigureValues, SourceTypeValue } from '@/lib/data-suite/forms';
 
 export interface SourceWizardState {
   step: number;
   sourceType?: SourceTypeValue;
-  connectionConfig: Record<string, unknown>;
+  connectionConfig: JsonObject;
   createdSource: DataSource | null;
   persistedConfigSignature: string | null;
   testResult: ConnectionTestResult | null;

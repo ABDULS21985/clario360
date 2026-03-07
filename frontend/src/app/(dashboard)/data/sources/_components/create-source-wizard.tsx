@@ -24,6 +24,7 @@ interface CreateSourceWizardProps {
 }
 
 const STEPS = ['Type', 'Connection', 'Test', 'Schema', 'Configure'] as const;
+const CONFIGURE_FORM_ID = 'create-source-configure-form';
 
 export function CreateSourceWizard({
   open,
@@ -300,6 +301,7 @@ export function CreateSourceWizard({
           {state.step === 5 ? (
             <WizardStepSync
               defaultValues={state.configuration}
+              formId={CONFIGURE_FORM_ID}
               onSubmit={(configuration) => {
                 setState((current) => ({ ...current, configuration }));
                 void finalizeSource(configuration);
@@ -347,6 +349,9 @@ export function CreateSourceWizard({
               <div className="flex justify-between">
                 <Button type="button" variant="outline" onClick={() => setState((current) => ({ ...current, step: 4 }))}>
                   Back
+                </Button>
+                <Button type="submit" form={CONFIGURE_FORM_ID} disabled={submitting}>
+                  {submitting ? 'Creating…' : 'Create Source'}
                 </Button>
               </div>
             </div>

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useForm } from 'react-hook-form';
+import { FormProvider, useForm } from 'react-hook-form';
 import { X } from 'lucide-react';
 import { FormField } from '@/components/shared/forms/form-field';
 import { Button } from '@/components/ui/button';
@@ -15,6 +15,7 @@ import { sourceConfigureSchema, type SourceConfigureValues } from '@/lib/data-su
 
 interface WizardStepSyncProps {
   defaultValues: SourceConfigureValues;
+  formId: string;
   onSubmit: (values: SourceConfigureValues) => void;
 }
 
@@ -30,6 +31,7 @@ const PRESET_FREQUENCIES = [
 
 export function WizardStepSync({
   defaultValues,
+  formId,
   onSubmit,
 }: WizardStepSyncProps) {
   const form = useForm<SourceConfigureValues>({
@@ -37,7 +39,7 @@ export function WizardStepSync({
     defaultValues,
   });
   const [tagInput, setTagInput] = useState('');
-  const [frequencyMode, setFrequencyMode] = useState(() => {
+  const [frequencyMode, setFrequencyMode] = useState<(typeof PRESET_FREQUENCIES)[number]['value']>(() => {
     if (!defaultValues.sync_frequency) {
       return 'manual';
     }
@@ -50,97 +52,100 @@ export function WizardStepSync({
   }, [defaultValues, form]);
 
   return (
-    <form className="space-y-4" onSubmit={form.handleSubmit((values) => onSubmit(values))}>
-      <FormField name="name" label="Source name" required>
-        <Input {...form.register('name')} />
-      </FormField>
+    <FormProvider {...form}>
+      <form id={formId} className="space-y-4" onSubmit={form.handleSubmit((values) => onSubmit(values))}>
+        <FormField name="name" label="Source name" required>
+          <Input {...form.register('name')} />
+        </FormField>
 
-      <FormField name="description" label="Description">
-        <Textarea rows={4} {...form.register('description')} />
-      </FormField>
+        <FormField name="description" label="Description">
+          <Textarea rows={4} {...form.register('description')} />
+        </FormField>
 
-      <div className="space-y-3">
-        <FormField name="tags" label="Tags">
-          <div className="space-y-3">
-            <div className="flex gap-2">
-              <Input
-                value={tagInput}
-                onChange={(event) => setTagInput(event.target.value)}
-                placeholder="Add tag and press Enter"
-                onKeyDown={(event) => {
-                  if (event.key === 'Enter') {
-                    event.preventDefault();
+        <div className="space-y-3">
+          <FormField name="tags" label="Tags">
+            <div className="space-y-3">
+              <div className="flex gap-2">
+                <Input
+                  value={tagInput}
+                  onChange={(event) => setTagInput(event.target.value)}
+                  placeholder="Add tag and press Enter"
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter') {
+                      event.preventDefault();
+                      const next = tagInput.trim();
+                      if (!next) {
+                        return;
+                      }
+                      form.setValue('tags', Array.from(new Set([...(form.getValues('tags') ?? []), next])), { shouldDirty: true, shouldValidate: true });
+                      setTagInput('');
+                    }
+                  }}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
                     const next = tagInput.trim();
                     if (!next) {
                       return;
                     }
                     form.setValue('tags', Array.from(new Set([...(form.getValues('tags') ?? []), next])), { shouldDirty: true, shouldValidate: true });
                     setTagInput('');
-                  }
-                }}
-              />
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => {
-                  const next = tagInput.trim();
-                  if (!next) {
-                    return;
-                  }
-                  form.setValue('tags', Array.from(new Set([...(form.getValues('tags') ?? []), next])), { shouldDirty: true, shouldValidate: true });
-                  setTagInput('');
-                }}
-              >
-                Add
-              </Button>
+                  }}
+                >
+                  Add
+                </Button>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {(form.watch('tags') ?? []).map((tag) => (
+                  <Badge key={tag} variant="outline" className="gap-1">
+                    {tag}
+                    <button type="button" onClick={() => form.setValue('tags', (form.getValues('tags') ?? []).filter((value) => value !== tag), { shouldDirty: true })}>
+                      <X className="h-3 w-3" />
+                    </button>
+                  </Badge>
+                ))}
+              </div>
             </div>
-            <div className="flex flex-wrap gap-2">
-              {(form.watch('tags') ?? []).map((tag) => (
-                <Badge key={tag} variant="outline" className="gap-1">
-                  {tag}
-                  <button type="button" onClick={() => form.setValue('tags', (form.getValues('tags') ?? []).filter((value) => value !== tag), { shouldDirty: true })}>
-                    <X className="h-3 w-3" />
-                  </button>
-                </Badge>
+          </FormField>
+        </div>
+
+        <FormField name="sync_frequency" label="Sync frequency">
+          <Select
+            value={frequencyMode}
+            onValueChange={(value) => {
+              const nextValue = value as (typeof PRESET_FREQUENCIES)[number]['value'];
+              setFrequencyMode(nextValue);
+              if (nextValue === 'manual') {
+                form.setValue('sync_frequency', null, { shouldValidate: true, shouldDirty: true });
+              } else if (nextValue !== 'custom') {
+                form.setValue('sync_frequency', nextValue, { shouldValidate: true, shouldDirty: true });
+              }
+            }}
+          >
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {PRESET_FREQUENCIES.map((item) => (
+                <SelectItem key={item.value} value={item.value}>
+                  {item.label}
+                </SelectItem>
               ))}
-            </div>
-          </div>
+            </SelectContent>
+          </Select>
         </FormField>
-      </div>
 
-      <FormField name="sync_frequency" label="Sync frequency">
-        <Select
-          value={frequencyMode}
-          onValueChange={(value) => {
-            setFrequencyMode(value);
-            if (value === 'manual') {
-              form.setValue('sync_frequency', null, { shouldValidate: true, shouldDirty: true });
-            } else if (value !== 'custom') {
-              form.setValue('sync_frequency', value, { shouldValidate: true, shouldDirty: true });
-            }
-          }}
-        >
-          <SelectTrigger>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {PRESET_FREQUENCIES.map((item) => (
-              <SelectItem key={item.value} value={item.value}>
-                {item.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </FormField>
-
-      {frequencyMode === 'custom' ? (
-        <CronSchedulePicker
-          value={form.watch('sync_frequency') ?? ''}
-          onChange={(value) => form.setValue('sync_frequency', value, { shouldValidate: true, shouldDirty: true })}
-          name="sync_frequency"
-          label="Custom cron schedule"
-        />
-      ) : null}
-    </form>
+        {frequencyMode === 'custom' ? (
+          <CronSchedulePicker
+            value={form.watch('sync_frequency') ?? ''}
+            onChange={(value) => form.setValue('sync_frequency', value, { shouldValidate: true, shouldDirty: true })}
+            name="sync_frequency"
+            label="Custom cron schedule"
+          />
+        ) : null}
+      </form>
+    </FormProvider>
   );
 }

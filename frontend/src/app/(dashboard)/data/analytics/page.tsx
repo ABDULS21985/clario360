@@ -1,142 +1,387 @@
 'use client';
 
+import { useMemo, useState } from 'react';
+import { FormProvider, useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
 import { useQuery } from '@tanstack/react-query';
-import { BarChart3, Boxes, FolderOpen, GitBranch, TrendingUp } from 'lucide-react';
-import { KpiCard } from '@/components/shared/kpi-card';
-import { ErrorState } from '@/components/common/error-state';
-import { LoadingSkeleton } from '@/components/common/loading-skeleton';
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { PageHeader } from '@/components/common/page-header';
 import { PermissionRedirect } from '@/components/common/permission-redirect';
-import { SectionCard } from '@/components/suites/section-card';
-import { API_ENDPOINTS } from '@/lib/constants';
-import { fetchSuiteData, fetchSuitePaginated } from '@/lib/suite-api';
-import { percent } from '@/lib/suite-utils';
-import type { DataPipeline, Dataset, DataSource, QualityDashboard } from '@/types/suites';
+import { ErrorState } from '@/components/common/error-state';
+import { LoadingSkeleton } from '@/components/common/loading-skeleton';
+import { FormField } from '@/components/shared/forms/form-field';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { ModelBrowser } from '@/app/(dashboard)/data/analytics/_components/model-browser';
+import { QueryBuilder, type QueryOrderRowState } from '@/app/(dashboard)/data/analytics/_components/query-builder';
+import { type QueryAggregationRowState } from '@/app/(dashboard)/data/analytics/_components/query-aggregation-builder';
+import { QueryExecutionStatus } from '@/app/(dashboard)/data/analytics/_components/query-execution-status';
+import { type QueryFilterRowState } from '@/app/(dashboard)/data/analytics/_components/query-filter-builder';
+import { QueryResultsTable } from '@/app/(dashboard)/data/analytics/_components/query-results-table';
+import { SavedQueriesList } from '@/app/(dashboard)/data/analytics/_components/saved-queries-list';
+import { dataSuiteApi, saveQuerySchema, type AnalyticsAggregation, type AnalyticsFilter, type AnalyticsOrder, type AnalyticsQuery, type QueryResult, type SavedQuery, type SaveQueryValues } from '@/lib/data-suite';
+import { showApiError, showSuccess } from '@/lib/toast';
 
 export default function DataAnalyticsPage() {
-  const sourcesQuery = useQuery({
-    queryKey: ['data-analytics', 'sources'],
-    queryFn: () => fetchSuitePaginated<DataSource>(API_ENDPOINTS.DATA_SOURCES, { page: 1, per_page: 100, order: 'desc' }),
-  });
-  const pipelinesQuery = useQuery({
-    queryKey: ['data-analytics', 'pipelines'],
-    queryFn: () => fetchSuitePaginated<DataPipeline>(API_ENDPOINTS.DATA_PIPELINES, { page: 1, per_page: 100, order: 'desc' }),
-  });
-  const datasetsQuery = useQuery({
-    queryKey: ['data-analytics', 'datasets'],
-    queryFn: () => fetchSuitePaginated<Dataset>(API_ENDPOINTS.DATA_DATASETS, { page: 1, per_page: 100, order: 'desc' }),
-  });
-  const qualityQuery = useQuery({
-    queryKey: ['data-analytics', 'quality'],
-    queryFn: () => fetchSuiteData<QualityDashboard>(API_ENDPOINTS.DATA_QUALITY),
+  const [browserSearch, setBrowserSearch] = useState('');
+  const [tab, setTab] = useState<'builder' | 'saved'>('builder');
+  const [selectedModelId, setSelectedModelId] = useState<string | null>(null);
+  const [selectedColumns, setSelectedColumns] = useState<string[]>([]);
+  const [filters, setFilters] = useState<QueryFilterRowState[]>([]);
+  const [aggregations, setAggregations] = useState<QueryAggregationRowState[]>([]);
+  const [groupBy, setGroupBy] = useState<string[]>([]);
+  const [orders, setOrders] = useState<QueryOrderRowState[]>([]);
+  const [limit, setLimit] = useState(100);
+  const [executionState, setExecutionState] = useState<'idle' | 'running' | 'success' | 'error'>('idle');
+  const [executionMessage, setExecutionMessage] = useState<string | undefined>();
+  const [result, setResult] = useState<QueryResult | null>(null);
+  const [saveOpen, setSaveOpen] = useState(false);
+  const [editingSaved, setEditingSaved] = useState<SavedQuery | null>(null);
+
+  const modelsQuery = useQuery({
+    queryKey: ['data-analytics-models'],
+    queryFn: () =>
+      dataSuiteApi.listModels({
+        page: 1,
+        per_page: 200,
+        sort: 'updated_at',
+        order: 'desc',
+      }),
   });
 
-  if (sourcesQuery.isLoading && pipelinesQuery.isLoading && datasetsQuery.isLoading && qualityQuery.isLoading) {
+  const savedQueryQuery = useQuery({
+    queryKey: ['data-analytics-saved'],
+    queryFn: () =>
+      dataSuiteApi.listSavedQueries({
+        page: 1,
+        per_page: 100,
+        sort: 'updated_at',
+        order: 'desc',
+      }),
+  });
+
+  const saveForm = useForm<SaveQueryValues>({
+    resolver: zodResolver(saveQuerySchema),
+    defaultValues: {
+      name: '',
+      description: '',
+      visibility: 'private',
+    },
+  });
+
+  const models = modelsQuery.data?.data ?? [];
+  const selectedModel = models.find((model) => model.id === selectedModelId) ?? null;
+  const modelNames = useMemo<Record<string, string>>(
+    () => Object.fromEntries(models.map((model) => [model.id, model.display_name || model.name])),
+    [models],
+  );
+
+  const buildAnalyticsQuery = (): AnalyticsQuery => {
+    const normalizedFilters: AnalyticsFilter[] = filters
+      .filter((filter) => filter.column && filter.operator)
+      .map((filter) => {
+        let value: AnalyticsFilter['value'];
+        if (filter.operator === 'between') {
+          value = [filter.value, filter.secondaryValue];
+        } else if (filter.operator === 'in' || filter.operator === 'not_in') {
+          value = filter.value.split(',').map((item) => item.trim()).filter(Boolean);
+        } else if (filter.operator === 'is_null' || filter.operator === 'is_not_null') {
+          value = undefined;
+        } else {
+          value = filter.value;
+        }
+        return {
+          column: filter.column,
+          operator: filter.operator,
+          value,
+        };
+      });
+
+    const normalizedAggregations: AnalyticsAggregation[] = aggregations
+      .filter((aggregation) => aggregation.column && aggregation.func && aggregation.alias)
+      .map((aggregation) => ({
+        column: aggregation.column,
+        function: aggregation.func,
+        alias: aggregation.alias,
+      }));
+
+    const normalizedOrders: AnalyticsOrder[] = orders
+      .filter((order) => order.column)
+      .map((order) => ({
+        column: order.column,
+        direction: order.direction,
+      }));
+
+    return {
+      columns: selectedColumns,
+      filters: normalizedFilters.length > 0 ? normalizedFilters : undefined,
+      group_by: groupBy.length > 0 ? groupBy : undefined,
+      aggregations: normalizedAggregations.length > 0 ? normalizedAggregations : undefined,
+      order_by: normalizedOrders.length > 0 ? normalizedOrders : undefined,
+      limit,
+    };
+  };
+
+  const clearBuilder = () => {
+    setSelectedColumns([]);
+    setFilters([]);
+    setAggregations([]);
+    setGroupBy([]);
+    setOrders([]);
+    setLimit(100);
+    setExecutionState('idle');
+    setExecutionMessage(undefined);
+    setResult(null);
+    setEditingSaved(null);
+  };
+
+  const runQuery = async (queryOverride?: AnalyticsQuery, modelIdOverride?: string) => {
+    const modelId = modelIdOverride ?? selectedModelId;
+    if (!modelId) {
+      return;
+    }
+    try {
+      setExecutionState('running');
+      setExecutionMessage('Executing analytics query...');
+      const executionResult = await dataSuiteApi.executeAnalyticsQuery({
+        model_id: modelId,
+        query: queryOverride ?? buildAnalyticsQuery(),
+      });
+      setResult(executionResult);
+      setExecutionState('success');
+      setExecutionMessage(`${executionResult.row_count} row(s) returned.`);
+    } catch (error) {
+      setExecutionState('error');
+      setExecutionMessage(error instanceof Error ? error.message : 'Query execution failed.');
+      showApiError(error);
+    }
+  };
+
+  const onSaveSubmit = async (values: SaveQueryValues) => {
+    if (!selectedModelId) {
+      return;
+    }
+    try {
+      const payload = {
+        name: values.name,
+        description: values.description ?? '',
+        model_id: selectedModelId,
+        query_definition: buildAnalyticsQuery(),
+        visibility: values.visibility,
+      };
+      if (editingSaved) {
+        await dataSuiteApi.updateSavedQuery(editingSaved.id, {
+          description: values.description ?? '',
+          query_definition: payload.query_definition,
+          visibility: values.visibility,
+        });
+      } else {
+        await dataSuiteApi.createSavedQuery(payload);
+      }
+      showSuccess(editingSaved ? 'Saved query updated.' : 'Saved query created.');
+      setSaveOpen(false);
+      setEditingSaved(null);
+      await savedQueryQuery.refetch();
+    } catch (error) {
+      showApiError(error);
+    }
+  };
+
+  const loadSavedQueryIntoBuilder = (saved: SavedQuery) => {
+    setSelectedModelId(saved.model_id);
+    setSelectedColumns(saved.query_definition.columns ?? []);
+    setFilters(
+      (saved.query_definition.filters ?? []).map((filter) => ({
+        id: crypto.randomUUID(),
+        column: filter.column,
+        operator: filter.operator,
+        value: Array.isArray(filter.value) ? `${filter.value[0] ?? ''}` : `${filter.value ?? ''}`,
+        secondaryValue: Array.isArray(filter.value) ? `${filter.value[1] ?? ''}` : '',
+      })),
+    );
+    setAggregations(
+      (saved.query_definition.aggregations ?? []).map((aggregation) => ({
+        id: crypto.randomUUID(),
+        column: aggregation.column,
+        func: aggregation.function,
+        alias: aggregation.alias,
+      })),
+    );
+    setGroupBy(saved.query_definition.group_by ?? []);
+    setOrders(
+      (saved.query_definition.order_by ?? []).map((order) => ({
+        id: crypto.randomUUID(),
+        column: order.column,
+        direction: order.direction,
+      })),
+    );
+    setLimit(saved.query_definition.limit ?? 100);
+    setTab('builder');
+    setEditingSaved(saved);
+  };
+
+  if (modelsQuery.isLoading || savedQueryQuery.isLoading) {
     return (
       <PermissionRedirect permission="data:read">
         <div className="space-y-6">
-          <PageHeader title="Analytics" description="Operational analytics derived from the live data suite." />
-          <LoadingSkeleton variant="card" count={4} />
+          <PageHeader title="Analytics" description="Loading governed models and saved queries." />
+          <LoadingSkeleton variant="card" />
         </div>
       </PermissionRedirect>
     );
   }
 
-  if (sourcesQuery.error && pipelinesQuery.error && datasetsQuery.error && qualityQuery.error) {
+  if (modelsQuery.error || savedQueryQuery.error) {
     return (
       <PermissionRedirect permission="data:read">
-        <ErrorState
-          message="Failed to load data analytics."
-          onRetry={() => {
-            void sourcesQuery.refetch();
-            void pipelinesQuery.refetch();
-            void datasetsQuery.refetch();
-            void qualityQuery.refetch();
-          }}
-        />
+        <ErrorState message="Failed to load analytics workspace." onRetry={() => {
+          void modelsQuery.refetch();
+          void savedQueryQuery.refetch();
+        }} />
       </PermissionRedirect>
     );
   }
-
-  const sources = sourcesQuery.data?.data ?? [];
-  const pipelines = pipelinesQuery.data?.data ?? [];
-  const datasets = datasetsQuery.data?.data ?? [];
-  const quality = qualityQuery.data;
-
-  const sourceTypeCounts = countBy(sources.map((source) => source.type));
-  const pipelineStatusCounts = countBy(pipelines.map((pipeline) => pipeline.status));
-  const datasetStatusCounts = countBy(datasets.map((dataset) => dataset.status));
 
   return (
     <PermissionRedirect permission="data:read">
       <div className="space-y-6">
-        <PageHeader title="Analytics" description="Derived operational analytics across ingestion, modeling, and quality telemetry." />
+        <PageHeader
+          title="Analytics"
+          description="Governed query builder for data models with saved query execution and PII-aware result rendering."
+        />
 
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          <KpiCard title="Source Types" value={Object.keys(sourceTypeCounts).length} icon={FolderOpen} iconColor="text-blue-600" />
-          <KpiCard title="Active Pipelines" value={pipelineStatusCounts.active ?? 0} icon={GitBranch} iconColor="text-green-600" />
-          <KpiCard title="Published Models" value={(datasetStatusCounts.published ?? 0) + (datasetStatusCounts.active ?? 0)} icon={Boxes} iconColor="text-violet-600" />
-          <KpiCard title="Pass Rate" value={quality ? percent(quality.pass_rate, 1) : '—'} icon={TrendingUp} iconColor="text-emerald-600" />
-        </div>
+        <div className="grid gap-4 xl:grid-cols-[0.3fr_0.7fr]">
+          <ModelBrowser
+            models={models}
+            selectedModelId={selectedModelId}
+            search={browserSearch}
+            onSearch={setBrowserSearch}
+            onSelectModel={(modelId) => {
+              setSelectedModelId(modelId);
+              clearBuilder();
+              setSelectedModelId(modelId);
+            }}
+            onAddColumn={(columnName) => {
+              setSelectedColumns((current) => Array.from(new Set([...current, columnName])));
+            }}
+          />
 
-        <div className="grid gap-4 xl:grid-cols-3">
-          <SectionCard title="Source Mix" description="Distribution of connected source types.">
-            <MetricRows rows={sourceTypeCounts} />
-          </SectionCard>
-          <SectionCard title="Pipeline Status" description="Current status distribution across pipelines.">
-            <MetricRows rows={pipelineStatusCounts} />
-          </SectionCard>
-          <SectionCard title="Dataset Lifecycle" description="Observed lifecycle mix for datasets and models.">
-            <MetricRows rows={datasetStatusCounts} />
-          </SectionCard>
-        </div>
+          <div className="space-y-4">
+            <Tabs value={tab} onValueChange={(value) => setTab(value as 'builder' | 'saved')}>
+              <TabsList>
+                <TabsTrigger value="builder">Query Builder</TabsTrigger>
+                <TabsTrigger value="saved">Saved Queries</TabsTrigger>
+              </TabsList>
 
-        <SectionCard title="Quality Analytics" description="Derived quality telemetry from the live quality dashboard.">
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            {[
-              { label: 'Results Last 7d', value: quality?.results_last_7_days ?? 0 },
-              { label: 'Failures Last 7d', value: quality?.failed_last_7_days ?? 0 },
-              { label: 'Critical Failures', value: quality?.critical_failures ?? 0 },
-              { label: 'Enabled Rules', value: quality?.enabled_rules ?? 0 },
-            ].map((item) => (
-              <div key={item.label} className="rounded-lg border bg-muted/20 p-4">
-                <p className="text-sm font-medium">{item.label}</p>
-                <p className="mt-2 text-2xl font-semibold">{item.value}</p>
-              </div>
-            ))}
+              <TabsContent value="builder" className="space-y-4">
+                <QueryBuilder
+                  models={models}
+                  selectedModelId={selectedModelId}
+                  selectedColumns={selectedColumns}
+                  filters={filters}
+                  aggregations={aggregations}
+                  groupBy={groupBy}
+                  orders={orders}
+                  limit={limit}
+                  running={executionState === 'running'}
+                  onSelectModel={(modelId) => {
+                    setSelectedModelId(modelId);
+                    clearBuilder();
+                    setSelectedModelId(modelId);
+                  }}
+                  onToggleColumn={(column) => {
+                    setSelectedColumns((current) =>
+                      current.includes(column) ? current.filter((item) => item !== column) : [...current, column],
+                    );
+                  }}
+                  onSelectAllColumns={() => {
+                    if (!selectedModel) {
+                      return;
+                    }
+                    setSelectedColumns(selectedModel.schema_definition.map((field) => field.name));
+                  }}
+                  onClearColumns={() => setSelectedColumns([])}
+                  onChangeFilters={setFilters}
+                  onChangeAggregations={setAggregations}
+                  onChangeGroupBy={setGroupBy}
+                  onChangeOrders={setOrders}
+                  onChangeLimit={setLimit}
+                  onRun={() => void runQuery()}
+                  onSave={() => {
+                    saveForm.reset({
+                      name: editingSaved?.name ?? '',
+                      description: editingSaved?.description ?? '',
+                      visibility: editingSaved?.visibility ?? 'private',
+                    });
+                    setSaveOpen(true);
+                  }}
+                  onClear={clearBuilder}
+                />
+
+                <QueryExecutionStatus state={executionState} message={executionMessage} />
+                <QueryResultsTable result={result} />
+              </TabsContent>
+
+              <TabsContent value="saved" className="space-y-4">
+                <SavedQueriesList
+                  queries={savedQueryQuery.data?.data ?? []}
+                  modelNames={modelNames}
+                  onRun={(query) => void runQuery(query.query_definition, query.model_id)}
+                  onEdit={loadSavedQueryIntoBuilder}
+                  onDelete={async (query) => {
+                    try {
+                      await dataSuiteApi.deleteSavedQuery(query.id);
+                      showSuccess('Saved query deleted.');
+                      await savedQueryQuery.refetch();
+                    } catch (error) {
+                      showApiError(error);
+                    }
+                  }}
+                />
+              </TabsContent>
+            </Tabs>
           </div>
-        </SectionCard>
+        </div>
+
+        <Dialog open={saveOpen} onOpenChange={setSaveOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>{editingSaved ? 'Edit Saved Query' : 'Save Query'}</DialogTitle>
+            </DialogHeader>
+            <FormProvider {...saveForm}>
+              <form className="space-y-4" onSubmit={saveForm.handleSubmit((values) => void onSaveSubmit(values))}>
+                <FormField name="name" label="Name" required>
+                  <Input {...saveForm.register('name')} />
+                </FormField>
+                <FormField name="description" label="Description">
+                  <Textarea rows={4} {...saveForm.register('description')} />
+                </FormField>
+                <FormField name="visibility" label="Visibility" required>
+                  <Select value={saveForm.watch('visibility')} onValueChange={(value) => saveForm.setValue('visibility', value as SaveQueryValues['visibility'], { shouldValidate: true })}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="private">Private</SelectItem>
+                      <SelectItem value="team">Team</SelectItem>
+                      <SelectItem value="organization">Organization</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </FormField>
+                <DialogFooter>
+                  <Button type="button" variant="outline" onClick={() => setSaveOpen(false)}>
+                    Cancel
+                  </Button>
+                  <Button type="submit">Save</Button>
+                </DialogFooter>
+              </form>
+            </FormProvider>
+          </DialogContent>
+        </Dialog>
       </div>
     </PermissionRedirect>
-  );
-}
-
-function countBy(values: string[]): Record<string, number> {
-  return values.reduce<Record<string, number>>((acc, value) => {
-    acc[value] = (acc[value] ?? 0) + 1;
-    return acc;
-  }, {});
-}
-
-function MetricRows({ rows }: { rows: Record<string, number> }) {
-  const entries = Object.entries(rows).sort((left, right) => right[1] - left[1]);
-  if (entries.length === 0) {
-    return <p className="text-sm text-muted-foreground">No records available.</p>;
-  }
-
-  return (
-    <div className="space-y-3">
-      {entries.map(([label, value]) => (
-        <div key={label}>
-          <div className="mb-1 flex items-center justify-between text-sm">
-            <span className="capitalize text-muted-foreground">{label.replace(/_/g, ' ')}</span>
-            <span className="font-medium">{value}</span>
-          </div>
-          <div className="h-2 overflow-hidden rounded-full bg-muted">
-            <div className="h-full rounded-full bg-primary" style={{ width: `${Math.min(value * 12, 100)}%` }} />
-          </div>
-        </div>
-      ))}
-    </div>
   );
 }

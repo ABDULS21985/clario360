@@ -371,6 +371,40 @@ func (s *Store) DeactivateCommitteeMember(ctx context.Context, q DBTX, tenantID,
 	return nil
 }
 
+func (s *Store) DeactivateMembershipsByUser(ctx context.Context, q DBTX, tenantID, userID uuid.UUID, leftAt time.Time) (int64, error) {
+	tag, err := q.Exec(ctx, `
+		UPDATE committee_members
+		SET active = false,
+		    left_at = $3,
+		    updated_at = $3
+		WHERE tenant_id = $1
+		  AND user_id = $2
+		  AND active = true`,
+		tenantID, userID, leftAt,
+	)
+	if err != nil {
+		return 0, fmt.Errorf("deactivate committee memberships by user: %w", err)
+	}
+	return tag.RowsAffected(), nil
+}
+
+func (s *Store) ClearLeadershipAssignmentsByUser(ctx context.Context, q DBTX, tenantID, userID uuid.UUID, updatedAt time.Time) (int64, error) {
+	tag, err := q.Exec(ctx, `
+		UPDATE committees
+		SET vice_chair_user_id = CASE WHEN vice_chair_user_id = $2 THEN NULL ELSE vice_chair_user_id END,
+		    secretary_user_id = CASE WHEN secretary_user_id = $2 THEN NULL ELSE secretary_user_id END,
+		    updated_at = $3
+		WHERE tenant_id = $1
+		  AND deleted_at IS NULL
+		  AND (vice_chair_user_id = $2 OR secretary_user_id = $2)`,
+		tenantID, userID, updatedAt,
+	)
+	if err != nil {
+		return 0, fmt.Errorf("clear leadership assignments by user: %w", err)
+	}
+	return tag.RowsAffected(), nil
+}
+
 func (s *Store) UserIsCommitteeMember(ctx context.Context, tenantID, committeeID, userID uuid.UUID) (bool, error) {
 	var exists bool
 	err := s.db.QueryRow(ctx, `
@@ -481,7 +515,7 @@ func (s *Store) RefreshCommitteeLeadership(ctx context.Context, q DBTX, tenantID
 
 func scanCommittee(scanner rowScanner) (*model.Committee, error) {
 	var (
-		item            model.Committee
+		item             model.Committee
 		metadataRaw      []byte
 		viceChairUserID  *uuid.UUID
 		secretaryUserID  *uuid.UUID
@@ -558,7 +592,7 @@ func scanCommitteeMember(scanner rowScanner) (*model.CommitteeMember, error) {
 
 func scanCommitteeWithMemberCount(scanner rowScanner) (*model.Committee, int, error) {
 	var (
-		item            model.Committee
+		item             model.Committee
 		metadataRaw      []byte
 		viceChairUserID  *uuid.UUID
 		secretaryUserID  *uuid.UUID

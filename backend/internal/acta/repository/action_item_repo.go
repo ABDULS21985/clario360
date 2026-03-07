@@ -248,6 +248,26 @@ func (s *Store) MarkActionItemOverdue(ctx context.Context, q DBTX, tenantID, ite
 	return nil
 }
 
+func (s *Store) DeferActionItemsAssignedToUser(ctx context.Context, q DBTX, tenantID, userID uuid.UUID, reason string, updatedAt time.Time) (int64, error) {
+	tag, err := q.Exec(ctx, `
+		UPDATE action_items
+		SET status = 'deferred',
+		    metadata = jsonb_set(
+		        jsonb_set(COALESCE(metadata, '{}'::jsonb), '{assignee_unavailable}', 'true'::jsonb, true),
+		        '{assignee_unavailable_reason}', to_jsonb($3::text), true
+		    ),
+		    updated_at = $4
+		WHERE tenant_id = $1
+		  AND assigned_to = $2
+		  AND status IN ('pending', 'in_progress', 'overdue')`,
+		tenantID, userID, reason, updatedAt,
+	)
+	if err != nil {
+		return 0, fmt.Errorf("defer action items assigned to user: %w", err)
+	}
+	return tag.RowsAffected(), nil
+}
+
 func (s *Store) CountActionItemsByStatus(ctx context.Context, tenantID uuid.UUID) (map[string]int, error) {
 	rows, err := s.db.Query(ctx, `SELECT status, COUNT(*) FROM action_items WHERE tenant_id = $1 GROUP BY status`, tenantID)
 	if err != nil {
@@ -286,14 +306,14 @@ func (s *Store) CountActionItemsByPriority(ctx context.Context, tenantID uuid.UU
 
 func scanActionItem(scanner rowScanner) (*model.ActionItem, error) {
 	var (
-		item         model.ActionItem
-		metadataRaw   []byte
-		agendaItemID  *uuid.UUID
-		extensionReason *string
-		completedAt   *time.Time
-		completionNotes *string
+		item              model.ActionItem
+		metadataRaw       []byte
+		agendaItemID      *uuid.UUID
+		extensionReason   *string
+		completedAt       *time.Time
+		completionNotes   *string
 		followUpMeetingID *uuid.UUID
-		reviewedAt    *time.Time
+		reviewedAt        *time.Time
 	)
 	err := scanner.Scan(
 		&item.ID,
