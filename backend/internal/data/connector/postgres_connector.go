@@ -234,6 +234,152 @@ func (c *PostgresConnector) FetchData(ctx context.Context, table string, params 
 	}, nil
 }
 
+func (c *PostgresConnector) ReadQuery(ctx context.Context, query string, args []any) (*DataBatch, error) {
+	if !isReadOnlyQuery(query) {
+		return nil, fmt.Errorf("%w: postgres connector only allows read-only queries", ErrCapabilityUnsupported)
+	}
+
+	pool, err := c.openPool(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	tx, err := pool.BeginTx(ctx, pgx.TxOptions{AccessMode: pgx.ReadOnly})
+	if err != nil {
+		return nil, fmt.Errorf("begin postgres read-only transaction: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
+	rows, err := tx.Query(ctx, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("execute postgres query: %w", err)
+	}
+	defer rows.Close()
+
+	fieldDescriptions := rows.FieldDescriptions()
+	columnNames := make([]string, 0, len(fieldDescriptions))
+	for _, field := range fieldDescriptions {
+		columnNames = append(columnNames, field.Name)
+	}
+
+	resultRows := make([]map[string]any, 0)
+	for rows.Next() {
+		values, err := rows.Values()
+		if err != nil {
+			return nil, fmt.Errorf("read postgres query row: %w", err)
+		}
+		row := make(map[string]any, len(columnNames))
+		for i, column := range columnNames {
+			row[column] = normalizeSQLValue(values[i])
+		}
+		resultRows = append(resultRows, row)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate postgres query rows: %w", err)
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return nil, fmt.Errorf("commit postgres read-only transaction: %w", err)
+	}
+
+	return &DataBatch{
+		Columns:  columnNames,
+		Rows:     resultRows,
+		RowCount: len(resultRows),
+	}, nil
+}
+
+func (c *PostgresConnector) WriteData(ctx context.Context, table string, rows []map[string]any, params WriteParams) (*WriteResult, error) {
+	if len(rows) == 0 {
+		return &WriteResult{}, nil
+	}
+
+	pool, err := c.openPool(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("begin postgres write transaction: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
+	schemaName, tableName := splitQualifiedName(table, c.config.Schema)
+	tableIdent := pgx.Identifier{schemaName, tableName}.Sanitize()
+	if params.Replace {
+		if _, err := tx.Exec(ctx, "TRUNCATE TABLE "+tableIdent); err != nil {
+			return nil, fmt.Errorf("truncate postgres target %s: %w", tableIdent, err)
+		}
+	}
+
+	columns := writeColumns(rows)
+	quotedColumns := make([]string, 0, len(columns))
+	for _, column := range columns {
+		quotedColumns = append(quotedColumns, pgx.Identifier{column}.Sanitize())
+	}
+
+	args := make([]any, 0, len(rows)*len(columns))
+	valueGroups := make([]string, 0, len(rows))
+	argIndex := 1
+	for _, row := range rows {
+		values := rowValues(row, columns)
+		placeholders := make([]string, 0, len(values))
+		for _, value := range values {
+			placeholders = append(placeholders, fmt.Sprintf("$%d", argIndex))
+			args = append(args, value)
+			argIndex++
+		}
+		valueGroups = append(valueGroups, "("+strings.Join(placeholders, ", ")+")")
+	}
+
+	query := fmt.Sprintf(
+		"INSERT INTO %s (%s) VALUES %s",
+		tableIdent,
+		strings.Join(quotedColumns, ", "),
+		strings.Join(valueGroups, ", "),
+	)
+
+	if len(params.MergeKeys) > 0 {
+		mergeColumns := make([]string, 0, len(params.MergeKeys))
+		mergeSet := make(map[string]struct{}, len(params.MergeKeys))
+		for _, key := range params.MergeKeys {
+			mergeColumns = append(mergeColumns, pgx.Identifier{key}.Sanitize())
+			mergeSet[key] = struct{}{}
+		}
+		switch params.Strategy {
+		case "incremental":
+			query += " ON CONFLICT (" + strings.Join(mergeColumns, ", ") + ") DO NOTHING"
+		case "merge":
+			assignments := make([]string, 0, len(columns))
+			for _, column := range columns {
+				if _, skip := mergeSet[column]; skip {
+					continue
+				}
+				quoted := pgx.Identifier{column}.Sanitize()
+				assignments = append(assignments, quoted+" = EXCLUDED."+quoted)
+			}
+			if len(assignments) == 0 {
+				query += " ON CONFLICT (" + strings.Join(mergeColumns, ", ") + ") DO NOTHING"
+			} else {
+				query += " ON CONFLICT (" + strings.Join(mergeColumns, ", ") + ") DO UPDATE SET " + strings.Join(assignments, ", ")
+			}
+		}
+	}
+
+	result, err := tx.Exec(ctx, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("insert postgres target data: %w", err)
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return nil, fmt.Errorf("commit postgres write transaction: %w", err)
+	}
+
+	return &WriteResult{
+		RowsWritten:  result.RowsAffected(),
+		BytesWritten: int64(len(mustJSON(rows))),
+	}, nil
+}
+
 func (c *PostgresConnector) EstimateSize(ctx context.Context) (*SizeEstimate, error) {
 	pool, err := c.openPool(ctx)
 	if err != nil {
@@ -555,4 +701,9 @@ func stringValue(value *string) string {
 		return ""
 	}
 	return *value
+}
+
+func isReadOnlyQuery(query string) bool {
+	normalized := strings.TrimSpace(strings.ToLower(query))
+	return strings.HasPrefix(normalized, "select") || strings.HasPrefix(normalized, "with")
 }

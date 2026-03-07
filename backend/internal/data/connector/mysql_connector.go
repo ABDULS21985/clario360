@@ -217,6 +217,144 @@ func (c *MySQLConnector) FetchData(ctx context.Context, table string, params Fet
 	}, nil
 }
 
+func (c *MySQLConnector) ReadQuery(ctx context.Context, query string, args []any) (*DataBatch, error) {
+	if !isReadOnlyQuery(query) {
+		return nil, fmt.Errorf("%w: mysql connector only allows read-only queries", ErrCapabilityUnsupported)
+	}
+
+	db, err := c.openDB()
+	if err != nil {
+		return nil, err
+	}
+
+	tx, err := db.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
+	if err != nil {
+		return nil, fmt.Errorf("begin mysql read-only transaction: %w", err)
+	}
+	defer tx.Rollback()
+
+	rows, err := tx.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("execute mysql query: %w", err)
+	}
+	defer rows.Close()
+
+	columnNames, err := rows.Columns()
+	if err != nil {
+		return nil, fmt.Errorf("mysql query columns: %w", err)
+	}
+
+	resultRows := make([]map[string]any, 0)
+	for rows.Next() {
+		values := make([]any, len(columnNames))
+		targets := make([]any, len(columnNames))
+		for i := range values {
+			targets[i] = &values[i]
+		}
+		if err := rows.Scan(targets...); err != nil {
+			return nil, fmt.Errorf("scan mysql query row: %w", err)
+		}
+		row := make(map[string]any, len(columnNames))
+		for i, column := range columnNames {
+			row[column] = normalizeSQLValue(values[i])
+		}
+		resultRows = append(resultRows, row)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate mysql query rows: %w", err)
+	}
+	if err := tx.Commit(); err != nil {
+		return nil, fmt.Errorf("commit mysql read-only transaction: %w", err)
+	}
+
+	return &DataBatch{
+		Columns:  columnNames,
+		Rows:     resultRows,
+		RowCount: len(resultRows),
+	}, nil
+}
+
+func (c *MySQLConnector) WriteData(ctx context.Context, table string, rows []map[string]any, params WriteParams) (*WriteResult, error) {
+	if len(rows) == 0 {
+		return &WriteResult{}, nil
+	}
+
+	db, err := c.openDB()
+	if err != nil {
+		return nil, err
+	}
+
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, fmt.Errorf("begin mysql write transaction: %w", err)
+	}
+	defer tx.Rollback()
+
+	if params.Replace {
+		if _, err := tx.ExecContext(ctx, "TRUNCATE TABLE "+backtickQuote(table)); err != nil {
+			return nil, fmt.Errorf("truncate mysql target %s: %w", table, err)
+		}
+	}
+
+	columns := writeColumns(rows)
+	quotedColumns := make([]string, 0, len(columns))
+	placeholders := make([]string, 0, len(columns))
+	args := make([]any, 0, len(rows)*len(columns))
+	valueGroups := make([]string, 0, len(rows))
+	for _, column := range columns {
+		quotedColumns = append(quotedColumns, backtickQuote(column))
+		placeholders = append(placeholders, "?")
+	}
+	for _, row := range rows {
+		args = append(args, rowValues(row, columns)...)
+		valueGroups = append(valueGroups, "("+strings.Join(placeholders, ", ")+")")
+	}
+
+	insertKeyword := "INSERT"
+	if params.Strategy == "incremental" && len(params.MergeKeys) > 0 {
+		insertKeyword = "INSERT IGNORE"
+	}
+	query := fmt.Sprintf(
+		"%s INTO %s (%s) VALUES %s",
+		insertKeyword,
+		backtickQuote(table),
+		strings.Join(quotedColumns, ", "),
+		strings.Join(valueGroups, ", "),
+	)
+
+	if params.Strategy == "merge" && len(params.MergeKeys) > 0 {
+		assignments := make([]string, 0, len(columns))
+		mergeSet := make(map[string]struct{}, len(params.MergeKeys))
+		for _, key := range params.MergeKeys {
+			mergeSet[key] = struct{}{}
+		}
+		for _, column := range columns {
+			if _, skip := mergeSet[column]; skip {
+				continue
+			}
+			quoted := backtickQuote(column)
+			assignments = append(assignments, fmt.Sprintf("%s = VALUES(%s)", quoted, quoted))
+		}
+		if len(assignments) > 0 {
+			query += " ON DUPLICATE KEY UPDATE " + strings.Join(assignments, ", ")
+		}
+	}
+
+	result, err := tx.ExecContext(ctx, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("insert mysql target data: %w", err)
+	}
+	if err := tx.Commit(); err != nil {
+		return nil, fmt.Errorf("commit mysql write transaction: %w", err)
+	}
+
+	affected, _ := result.RowsAffected()
+	return &WriteResult{
+		RowsWritten:  affected,
+		BytesWritten: int64(len(mustJSON(rows))),
+	}, nil
+}
+
 func (c *MySQLConnector) EstimateSize(ctx context.Context) (*SizeEstimate, error) {
 	db, err := c.openDB()
 	if err != nil {
@@ -432,4 +570,13 @@ func (c *MySQLConnector) sampleColumnValues(ctx context.Context, db *sql.DB, tab
 func backtickQuote(identifier string) string {
 	escaped := strings.ReplaceAll(identifier, "`", "``")
 	return "`" + escaped + "`"
+}
+
+func normalizeSQLValue(value any) any {
+	switch typed := value.(type) {
+	case []byte:
+		return string(typed)
+	default:
+		return typed
+	}
 }
