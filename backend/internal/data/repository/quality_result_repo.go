@@ -112,7 +112,7 @@ func (r *QualityResultRepository) Trend(ctx context.Context, tenantID uuid.UUID,
 		       ROUND(AVG(COALESCE(pass_rate, 0)), 2) AS score
 		FROM quality_results
 		WHERE tenant_id = $1
-		  AND checked_at >= NOW() - ($2::text || ' days')::interval
+		  AND checked_at >= NOW() - ($2::int * INTERVAL '1 day')
 		GROUP BY DATE_TRUNC('day', checked_at)
 		ORDER BY day ASC`,
 		tenantID, days,

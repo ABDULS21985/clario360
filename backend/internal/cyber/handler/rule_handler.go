@@ -20,6 +20,19 @@ func NewRuleHandler(svc *service.RuleService) *RuleHandler {
 	return &RuleHandler{svc: svc}
 }
 
+func (h *RuleHandler) Stats(w http.ResponseWriter, r *http.Request) {
+	tenantID, _, ok := requireTenantAndUser(w, r)
+	if !ok {
+		return
+	}
+	total, active, err := h.svc.Stats(r.Context(), tenantID, actorFromRequest(r))
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "STATS_FAILED", err.Error(), nil)
+		return
+	}
+	writeJSON(w, http.StatusOK, envelope{"data": map[string]int{"total": total, "active": active}})
+}
+
 func (h *RuleHandler) ListRules(w http.ResponseWriter, r *http.Request) {
 	tenantID, _, ok := requireTenantAndUser(w, r)
 	if !ok {

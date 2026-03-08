@@ -64,6 +64,11 @@ func (s *RuleService) EnsureTemplates(ctx context.Context) error {
 	return nil
 }
 
+// Stats returns total and active rule counts for a tenant.
+func (s *RuleService) Stats(ctx context.Context, tenantID uuid.UUID, actor *Actor) (total, active int, err error) {
+	return s.ruleRepo.Stats(ctx, tenantID)
+}
+
 // ListRules returns paginated tenant rules.
 func (s *RuleService) ListRules(ctx context.Context, tenantID uuid.UUID, params *dto.RuleListParams, actor *Actor) (*dto.RuleListResponse, error) {
 	params.SetDefaults()
@@ -77,16 +82,9 @@ func (s *RuleService) ListRules(ctx context.Context, tenantID uuid.UUID, params 
 	_ = publishAuditEvent(ctx, s.producer, "cyber.rule.listed", tenantID, actor, map[string]interface{}{
 		"count": len(rules),
 	})
-	totalPages := (total + params.PerPage - 1) / params.PerPage
-	if totalPages < 1 {
-		totalPages = 1
-	}
 	return &dto.RuleListResponse{
-		Data:       rules,
-		Total:      total,
-		Page:       params.Page,
-		PerPage:    params.PerPage,
-		TotalPages: totalPages,
+		Data: rules,
+		Meta: dto.NewPaginationMeta(params.Page, params.PerPage, total),
 	}, nil
 }
 

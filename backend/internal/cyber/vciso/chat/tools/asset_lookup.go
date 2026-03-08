@@ -50,7 +50,7 @@ func (t *AssetLookupTool) Execute(ctx context.Context, tenantID uuid.UUID, userI
 		if listErr != nil {
 			return nil, listErr
 		}
-		if result.Total == 0 || len(result.Data) == 0 {
+		if result.Meta.Total == 0 || len(result.Data) == 0 {
 			return makeListResult(fmt.Sprintf("I couldn't find an asset matching **%s**.", search), map[string]any{"assets": []any{}}, []chatmodel.SuggestedAction{}, nil), nil
 		}
 		asset = &result.Data[0]

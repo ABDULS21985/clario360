@@ -138,18 +138,13 @@ func (s *AssetService) ListAssets(ctx context.Context, tenantID uuid.UUID, param
 	if err != nil {
 		return nil, err
 	}
-
-	totalPages := (total + params.PerPage - 1) / params.PerPage
-	if totalPages < 1 {
-		totalPages = 1
+	if assets == nil {
+		assets = []*model.Asset{}
 	}
 
 	return &dto.AssetListResponse{
-		Data:       assets,
-		Total:      total,
-		Page:       params.Page,
-		PerPage:    params.PerPage,
-		TotalPages: totalPages,
+		Data: assets,
+		Meta: dto.NewPaginationMeta(params.Page, params.PerPage, total),
 	}, nil
 }
 

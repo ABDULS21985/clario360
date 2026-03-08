@@ -87,6 +87,7 @@ func RegisterRoutes(
 		r.Post("/alerts/{id}/merge", alertHandler.Merge)
 
 		// ---- Detection Rules ----
+		r.Get("/rules/stats", ruleHandler.Stats)
 		r.Get("/rules/templates", ruleHandler.ListTemplates)
 		r.Get("/rules/{id}", ruleHandler.GetRule)
 		r.Get("/rules", ruleHandler.ListRules)

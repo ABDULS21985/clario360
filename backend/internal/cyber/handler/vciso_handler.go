@@ -60,7 +60,7 @@ func (h *VCISOHandler) BriefingHistory(w http.ResponseWriter, r *http.Request) {
 		h.writeError(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, envelope{"data": result})
+	writeJSON(w, http.StatusOK, result)
 }
 
 func (h *VCISOHandler) Recommendations(w http.ResponseWriter, r *http.Request) {

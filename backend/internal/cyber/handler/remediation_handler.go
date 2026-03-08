@@ -54,7 +54,7 @@ func (h *RemediationHandler) List(w http.ResponseWriter, r *http.Request) {
 		h.writeError(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, envelope{"data": result})
+	writeJSON(w, http.StatusOK, result)
 }
 
 func (h *RemediationHandler) Get(w http.ResponseWriter, r *http.Request) {

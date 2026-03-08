@@ -56,6 +56,7 @@ func RegisterRoutes(
 		r.Get("/models/{id}/lineage", modelHandler.Lineage)
 
 		r.Get("/pipelines/stats", pipelineHandler.Stats)
+		r.Get("/pipelines/count", pipelineHandler.Count)
 		r.Get("/pipelines/active", pipelineHandler.Active)
 		r.Post("/pipelines", pipelineHandler.Create)
 		r.Get("/pipelines", pipelineHandler.List)

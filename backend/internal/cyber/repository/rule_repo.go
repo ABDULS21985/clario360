@@ -252,6 +252,20 @@ func (r *RuleRepository) Update(ctx context.Context, tenantID, ruleID uuid.UUID,
 	return r.GetByID(ctx, tenantID, ruleID)
 }
 
+// Stats returns total and active rule counts for the tenant.
+func (r *RuleRepository) Stats(ctx context.Context, tenantID uuid.UUID) (total, active int, err error) {
+	row := r.db.QueryRow(ctx, `
+		SELECT
+			COUNT(*) AS total,
+			COUNT(*) FILTER (WHERE enabled = true) AS active
+		FROM detection_rules
+		WHERE tenant_id = $1 AND is_template = false AND deleted_at IS NULL`,
+		tenantID,
+	)
+	err = row.Scan(&total, &active)
+	return
+}
+
 // SoftDelete marks a rule as deleted.
 func (r *RuleRepository) SoftDelete(ctx context.Context, tenantID, ruleID uuid.UUID) error {
 	tag, err := r.db.Exec(ctx, `

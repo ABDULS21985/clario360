@@ -52,11 +52,8 @@ func (p *ThreatListParams) Validate() error {
 
 // ThreatListResponse returns paginated threat data.
 type ThreatListResponse struct {
-	Data       []*model.Threat `json:"data"`
-	Total      int             `json:"total"`
-	Page       int             `json:"page"`
-	PerPage    int             `json:"per_page"`
-	TotalPages int             `json:"total_pages"`
+	Data []*model.Threat `json:"data"`
+	Meta PaginationMeta  `json:"meta"`
 }
 
 // ThreatStatusUpdateRequest updates a threat status.
@@ -124,9 +121,6 @@ func (p *IndicatorListParams) Validate() error {
 
 // IndicatorListResponse returns paginated IOC data.
 type IndicatorListResponse struct {
-	Data       []*model.ThreatIndicator `json:"data"`
-	Total      int                      `json:"total"`
-	Page       int                      `json:"page"`
-	PerPage    int                      `json:"per_page"`
-	TotalPages int                      `json:"total_pages"`
+	Data []*model.ThreatIndicator `json:"data"`
+	Meta PaginationMeta           `json:"meta"`
 }

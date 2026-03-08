@@ -48,11 +48,8 @@ func (p *RuleListParams) Validate() error {
 
 // RuleListResponse returns paginated rules.
 type RuleListResponse struct {
-	Data       []*model.DetectionRule `json:"data"`
-	Total      int                    `json:"total"`
-	Page       int                    `json:"page"`
-	PerPage    int                    `json:"per_page"`
-	TotalPages int                    `json:"total_pages"`
+	Data []*model.DetectionRule `json:"data"`
+	Meta PaginationMeta         `json:"meta"`
 }
 
 // CreateRuleRequest creates a detection rule.

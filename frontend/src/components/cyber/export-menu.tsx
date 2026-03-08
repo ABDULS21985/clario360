@@ -140,11 +140,12 @@ export function ExportMenu({
   }
 
   function handleExportClick(format: 'csv' | 'json') {
-    if (totalCount > EXPORT_LIMIT) {
+    const count = totalCount ?? 0;
+    if (count > EXPORT_LIMIT) {
       setBlockedOpen(true);
       return;
     }
-    if (totalCount > EXPORT_WARN_AT) {
+    if (count > EXPORT_WARN_AT) {
       setPendingFormat(format);
       setWarnOpen(true);
       return;
@@ -177,13 +178,13 @@ export function ExportMenu({
           {enabledFormats.includes('csv') && (
             <DropdownMenuItem onClick={() => handleExportClick('csv')}>
               <FileText className="mr-2 h-4 w-4 text-green-600" />
-              Export as CSV ({totalCount.toLocaleString()} records)
+              Export as CSV ({(totalCount ?? 0).toLocaleString()} records)
             </DropdownMenuItem>
           )}
           {enabledFormats.includes('json') && (
             <DropdownMenuItem onClick={() => handleExportClick('json')}>
               <FileJson className="mr-2 h-4 w-4 text-blue-600" />
-              Export as JSON ({totalCount.toLocaleString()} records)
+              Export as JSON ({(totalCount ?? 0).toLocaleString()} records)
             </DropdownMenuItem>
           )}
           {enabledFormats.includes('pdf') && pdfReportUrl && (
@@ -197,7 +198,7 @@ export function ExportMenu({
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={() => handleExportClick('csv')}>
                 <Download className="mr-2 h-4 w-4" />
-                Export Selected ({selectedCount.toLocaleString()} records)
+                Export Selected ({(selectedCount ?? 0).toLocaleString()} records)
               </DropdownMenuItem>
             </>
           )}
@@ -214,7 +215,7 @@ export function ExportMenu({
             </DialogTitle>
           </DialogHeader>
           <p className="text-sm text-muted-foreground">
-            You are about to export <strong>{totalCount.toLocaleString()}</strong> records. This may
+            You are about to export <strong>{(totalCount ?? 0).toLocaleString()}</strong> records. This may
             take a moment. Consider applying filters to reduce the dataset.
           </p>
           <DialogFooter>
@@ -244,7 +245,7 @@ export function ExportMenu({
           </DialogHeader>
           <p className="text-sm text-muted-foreground">
             Export limit is <strong>50,000 records</strong>. Please apply filters to reduce the
-            dataset. Current filter returns <strong>{totalCount.toLocaleString()}</strong> records.
+            dataset. Current filter returns <strong>{(totalCount ?? 0).toLocaleString()}</strong> records.
           </p>
           <DialogFooter>
             <Button variant="outline" onClick={() => setBlockedOpen(false)}>

@@ -269,6 +269,41 @@ func (h *PipelineHandler) Stats(w http.ResponseWriter, r *http.Request) {
 	suiteapi.WriteData(w, http.StatusOK, item)
 }
 
+// Count handles GET /pipelines/count — returns the count of pipelines filtered by status.
+// Responds with { "count": N } to match the frontend KPI widget contract.
+func (h *PipelineHandler) Count(w http.ResponseWriter, r *http.Request) {
+	tenantID, err := suiteapi.TenantID(r)
+	if err != nil {
+		suiteapi.WriteError(w, r, http.StatusUnauthorized, "UNAUTHORIZED", err.Error(), nil)
+		return
+	}
+
+	stats, err := h.service.Stats(r.Context(), tenantID)
+	if err != nil {
+		h.writeError(w, r, err)
+		return
+	}
+
+	status := r.URL.Query().Get("status")
+	var count int
+	switch status {
+	case "failed", "error":
+		count = stats.ErrorPipelines
+	case "active", "running":
+		count = stats.ActivePipelines
+	case "paused":
+		count = stats.PausedPipelines
+	default:
+		if v, ok := stats.ByStatus[status]; ok {
+			count = v
+		} else {
+			count = stats.TotalPipelines
+		}
+	}
+
+	suiteapi.WriteData(w, http.StatusOK, map[string]int{"count": count})
+}
+
 func (h *PipelineHandler) Active(w http.ResponseWriter, r *http.Request) {
 	tenantID, err := suiteapi.TenantID(r)
 	if err != nil {

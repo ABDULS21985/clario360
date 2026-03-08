@@ -50,16 +50,9 @@ func (s *ThreatService) ListThreats(ctx context.Context, tenantID uuid.UUID, par
 	_ = publishAuditEvent(ctx, s.producer, "cyber.threat.listed", tenantID, actor, map[string]interface{}{
 		"count": len(items),
 	})
-	totalPages := (total + params.PerPage - 1) / params.PerPage
-	if totalPages < 1 {
-		totalPages = 1
-	}
 	return &dto.ThreatListResponse{
-		Data:       items,
-		Total:      total,
-		Page:       params.Page,
-		PerPage:    params.PerPage,
-		TotalPages: totalPages,
+		Data: items,
+		Meta: dto.NewPaginationMeta(params.Page, params.PerPage, total),
 	}, nil
 }
 
@@ -231,15 +224,8 @@ func (s *ThreatService) ListIndicators(ctx context.Context, tenantID uuid.UUID, 
 	_ = publishAuditEvent(ctx, s.producer, "cyber.indicator.listed", tenantID, actor, map[string]interface{}{
 		"count": len(items),
 	})
-	totalPages := (total + params.PerPage - 1) / params.PerPage
-	if totalPages < 1 {
-		totalPages = 1
-	}
 	return &dto.IndicatorListResponse{
-		Data:       items,
-		Total:      total,
-		Page:       params.Page,
-		PerPage:    params.PerPage,
-		TotalPages: totalPages,
+		Data: items,
+		Meta: dto.NewPaginationMeta(params.Page, params.PerPage, total),
 	}, nil
 }

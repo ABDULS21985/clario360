@@ -34,7 +34,7 @@ func (h *DSPMHandler) ListDataAssets(w http.ResponseWriter, r *http.Request) {
 		h.writeError(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, envelope{"data": result})
+	writeJSON(w, http.StatusOK, result)
 }
 
 func (h *DSPMHandler) GetDataAsset(w http.ResponseWriter, r *http.Request) {
@@ -92,7 +92,7 @@ func (h *DSPMHandler) ListScans(w http.ResponseWriter, r *http.Request) {
 		h.writeError(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, envelope{"data": result})
+	writeJSON(w, http.StatusOK, result)
 }
 
 func (h *DSPMHandler) GetScan(w http.ResponseWriter, r *http.Request) {

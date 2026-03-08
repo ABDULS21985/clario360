@@ -76,11 +76,8 @@ func (p *VCISOBriefingHistoryParams) Validate() error {
 }
 
 type VCISOBriefingHistoryResponse struct {
-	Data       []*model.VCISOBriefingRecord `json:"data"`
-	Total      int                          `json:"total"`
-	Page       int                          `json:"page"`
-	PerPage    int                          `json:"per_page"`
-	TotalPages int                          `json:"total_pages"`
+	Data []*model.VCISOBriefingRecord `json:"data"`
+	Meta PaginationMeta               `json:"meta"`
 }
 
 type VCISOReportResponse struct {

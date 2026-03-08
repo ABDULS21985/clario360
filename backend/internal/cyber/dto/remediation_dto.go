@@ -183,10 +183,11 @@ func (p *RemediationListParams) Validate() error {
 
 type RemediationListResponse struct {
 	Data       []*model.RemediationAction `json:"data"`
-	Total      int                        `json:"total"`
-	Page       int                        `json:"page"`
-	PerPage    int                        `json:"per_page"`
-	TotalPages int                        `json:"total_pages"`
+	Meta       PaginationMeta             `json:"meta"`
+	Total      int                        `json:"-"`
+	Page       int                        `json:"-"`
+	PerPage    int                        `json:"-"`
+	TotalPages int                        `json:"-"`
 }
 
 // ConfirmManualExecutionRequest is for custom strategy manual confirmation.

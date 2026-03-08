@@ -355,10 +355,10 @@ func (r *FileRepository) GetSoftDeletedForPurge(ctx context.Context, retentionDa
 		uploaded_by, suite, entity_type, entity_id, tags,
 		version_id, version_number, is_public, lifecycle_policy, expires_at,
 		created_at, updated_at, deleted_at
-	FROM files WHERE deleted_at IS NOT NULL AND deleted_at < now() - ($1 || ' days')::interval
+	FROM files WHERE deleted_at IS NOT NULL AND deleted_at < now() - ($1::int * INTERVAL '1 day')
 	LIMIT $2`
 
-	rows, err := r.db.Query(ctx, query, fmt.Sprintf("%d", retentionDays), limit)
+	rows, err := r.db.Query(ctx, query, retentionDays, limit)
 	if err != nil {
 		return nil, fmt.Errorf("getting purge candidates: %w", err)
 	}
@@ -423,10 +423,10 @@ func (r *FileRepository) GetPendingScans(ctx context.Context, olderThan time.Dur
 func (r *FileRepository) GetOldQuarantine(ctx context.Context, olderThanDays int, limit int) ([]*model.QuarantineLog, error) {
 	query := `SELECT id, file_id, original_bucket, original_key, quarantine_bucket, quarantine_key,
 		virus_name, scanned_at, quarantined_at, resolved, resolved_by, resolved_at, resolution_action
-	FROM file_quarantine_log WHERE resolved = false AND quarantined_at < now() - ($1 || ' days')::interval
+	FROM file_quarantine_log WHERE resolved = false AND quarantined_at < now() - ($1::int * INTERVAL '1 day')
 	LIMIT $2`
 
-	rows, err := r.db.Query(ctx, query, fmt.Sprintf("%d", olderThanDays), limit)
+	rows, err := r.db.Query(ctx, query, olderThanDays, limit)
 	if err != nil {
 		return nil, fmt.Errorf("getting old quarantine: %w", err)
 	}

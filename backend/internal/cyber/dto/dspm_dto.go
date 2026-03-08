@@ -90,18 +90,20 @@ func (p *DSPMScanListParams) Validate() error {
 
 type DSPMAssetListResponse struct {
 	Data       []*model.DSPMDataAsset `json:"data"`
-	Total      int                    `json:"total"`
-	Page       int                    `json:"page"`
-	PerPage    int                    `json:"per_page"`
-	TotalPages int                    `json:"total_pages"`
+	Meta       PaginationMeta         `json:"meta"`
+	Total      int                    `json:"-"`
+	Page       int                    `json:"-"`
+	PerPage    int                    `json:"-"`
+	TotalPages int                    `json:"-"`
 }
 
 type DSPMScanListResponse struct {
 	Data       []*model.DSPMScan `json:"data"`
-	Total      int               `json:"total"`
-	Page       int               `json:"page"`
-	PerPage    int               `json:"per_page"`
-	TotalPages int               `json:"total_pages"`
+	Meta       PaginationMeta    `json:"meta"`
+	Total      int               `json:"-"`
+	Page       int               `json:"-"`
+	PerPage    int               `json:"-"`
+	TotalPages int               `json:"-"`
 }
 
 type DSPMScanTriggerResponse struct {

@@ -52,16 +52,12 @@ func (s *DSPMService) ListDataAssets(ctx context.Context, tenantID uuid.UUID, pa
 	if err != nil {
 		return nil, err
 	}
-	totalPages := (total + params.PerPage - 1) / params.PerPage
-	if totalPages == 0 {
-		totalPages = 1
+	if items == nil {
+		items = []*model.DSPMDataAsset{}
 	}
 	return &dto.DSPMAssetListResponse{
-		Data:       items,
-		Total:      total,
-		Page:       params.Page,
-		PerPage:    params.PerPage,
-		TotalPages: totalPages,
+		Data: items,
+		Meta: dto.NewPaginationMeta(params.Page, params.PerPage, total),
 	}, nil
 }
 
@@ -122,16 +118,12 @@ func (s *DSPMService) ListScans(ctx context.Context, tenantID uuid.UUID, params 
 	if err != nil {
 		return nil, err
 	}
-	totalPages := (total + params.PerPage - 1) / params.PerPage
-	if totalPages == 0 {
-		totalPages = 1
+	if items == nil {
+		items = []*model.DSPMScan{}
 	}
 	return &dto.DSPMScanListResponse{
-		Data:       items,
-		Total:      total,
-		Page:       params.Page,
-		PerPage:    params.PerPage,
-		TotalPages: totalPages,
+		Data: items,
+		Meta: dto.NewPaginationMeta(params.Page, params.PerPage, total),
 	}, nil
 }
 

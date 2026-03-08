@@ -388,10 +388,13 @@ func (h *AssetHandler) ListVulnerabilities(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
-		"data":     vulns,
-		"total":    total,
-		"page":     params.Page,
-		"per_page": params.PerPage,
+		"data": vulns,
+		"meta": map[string]any{
+			"page":        params.Page,
+			"per_page":    params.PerPage,
+			"total":       total,
+			"total_pages": dto.NewPaginationMeta(params.Page, params.PerPage, total).TotalPages,
+		},
 	})
 }
 
@@ -506,10 +509,13 @@ func (h *AssetHandler) ListScans(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
-		"data":     scans,
-		"total":    total,
-		"page":     params.Page,
-		"per_page": params.PerPage,
+		"data": scans,
+		"meta": map[string]any{
+			"page":        params.Page,
+			"per_page":    params.PerPage,
+			"total":       total,
+			"total_pages": dto.NewPaginationMeta(params.Page, params.PerPage, total).TotalPages,
+		},
 	})
 }
 

@@ -15,6 +15,14 @@ const CLASSIFICATION_COLORS: Record<string, string> = {
 };
 
 export function ClassificationChart({ data }: ClassificationChartProps) {
+  if (!data || typeof data !== 'object') {
+    return (
+      <div>
+        <h3 className="mb-3 text-sm font-semibold">Classification Breakdown</h3>
+        <p className="text-xs text-muted-foreground">No classification data available.</p>
+      </div>
+    );
+  }
   const chartData = Object.entries(data).map(([key, count]) => ({
     name: key.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()),
     value: count,
