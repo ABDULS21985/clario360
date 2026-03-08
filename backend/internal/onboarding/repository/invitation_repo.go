@@ -92,13 +92,13 @@ func (r *InvitationRepository) GetByID(ctx context.Context, tenantID, invitation
 	return scanInvitation(row)
 }
 
-func (r *InvitationRepository) ListPendingByPrefix(ctx context.Context, tokenPrefix string) ([]onboardingmodel.Invitation, error) {
+func (r *InvitationRepository) ListByPrefix(ctx context.Context, tokenPrefix string) ([]onboardingmodel.Invitation, error) {
 	rows, err := r.pool.Query(ctx, `
 		SELECT id, tenant_id, email, role_slug, token_hash, token_prefix, status,
 		       invited_by, invited_by_name, accepted_at, accepted_by, expires_at,
 		       message, created_at, updated_at
 		FROM invitations
-		WHERE token_prefix = $1 AND status = 'pending'`,
+		WHERE token_prefix = $1`,
 		tokenPrefix,
 	)
 	if err != nil {

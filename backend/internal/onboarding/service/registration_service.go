@@ -35,7 +35,7 @@ const (
 )
 
 type RegistrationService struct {
-	onboardingRepo *onboardingrepo.OnboardingRepository
+	onboardingRepo registrationOnboardingRepository
 	userRepo       iamrepo.UserRepository
 	roleRepo       iamrepo.RoleRepository
 	sessionRepo    iamrepo.SessionRepository
@@ -43,7 +43,7 @@ type RegistrationService struct {
 	redis          *redis.Client
 	producer       *events.Producer
 	emailSender    EmailSender
-	provisioner    *TenantProvisioner
+	provisioner    provisionerRunner
 	logger         zerolog.Logger
 	metrics        *Metrics
 	bcryptCost     int
@@ -51,7 +51,7 @@ type RegistrationService struct {
 }
 
 func NewRegistrationService(
-	onboardingRepo *onboardingrepo.OnboardingRepository,
+	onboardingRepo registrationOnboardingRepository,
 	userRepo iamrepo.UserRepository,
 	roleRepo iamrepo.RoleRepository,
 	sessionRepo iamrepo.SessionRepository,
@@ -59,7 +59,7 @@ func NewRegistrationService(
 	redisClient *redis.Client,
 	producer *events.Producer,
 	emailSender EmailSender,
-	provisioner *TenantProvisioner,
+	provisioner provisionerRunner,
 	logger zerolog.Logger,
 	metrics *Metrics,
 	bcryptCost int,

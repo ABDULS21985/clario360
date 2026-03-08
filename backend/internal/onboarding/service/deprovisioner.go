@@ -15,14 +15,12 @@ import (
 	"github.com/clario360/platform/internal/events"
 	iammodel "github.com/clario360/platform/internal/iam/model"
 	onboardingdto "github.com/clario360/platform/internal/onboarding/dto"
-	onboardingrepo "github.com/clario360/platform/internal/onboarding/repository"
 	"github.com/clario360/platform/pkg/storage"
 )
 
 type TenantDeprovisioner struct {
-	platformPool   *pgxpool.Pool
-	dbPools        map[string]*pgxpool.Pool
-	onboardingRepo *onboardingrepo.OnboardingRepository
+	store          tenantLifecycleStore
+	onboardingRepo tenantIdentityRepository
 	storage        *storage.MinIOStorage
 	redis          *redis.Client
 	producer       *events.Producer
@@ -30,10 +28,26 @@ type TenantDeprovisioner struct {
 	metrics        *Metrics
 }
 
+type tenantLifecycleStore interface {
+	SuspendUsers(ctx context.Context, tenantID uuid.UUID) error
+	DeleteSessions(ctx context.Context, tenantID uuid.UUID) error
+	RevokeAPIKeys(ctx context.Context, tenantID uuid.UUID) error
+	SoftDeleteTenantRows(ctx context.Context, tenantID uuid.UUID) error
+	RestoreTenantRows(ctx context.Context, tenantID uuid.UUID) error
+	MarkTenantDeprovisioned(ctx context.Context, tenantID, adminID uuid.UUID, retainUntil time.Time) error
+	MarkTenantActive(ctx context.Context, tenantID uuid.UUID) error
+	InsertAuditLog(ctx context.Context, tenantID, adminID uuid.UUID, action string, metadata map[string]any) error
+}
+
+type sqlTenantLifecycleStore struct {
+	platformPool *pgxpool.Pool
+	dbPools      map[string]*pgxpool.Pool
+}
+
 func NewTenantDeprovisioner(
 	platformPool *pgxpool.Pool,
 	dbPools map[string]*pgxpool.Pool,
-	onboardingRepo *onboardingrepo.OnboardingRepository,
+	onboardingRepo tenantIdentityRepository,
 	storageClient *storage.MinIOStorage,
 	redisClient *redis.Client,
 	producer *events.Producer,
@@ -41,8 +55,7 @@ func NewTenantDeprovisioner(
 	metrics *Metrics,
 ) *TenantDeprovisioner {
 	return &TenantDeprovisioner{
-		platformPool:   platformPool,
-		dbPools:        dbPools,
+		store:          &sqlTenantLifecycleStore{platformPool: platformPool, dbPools: dbPools},
 		onboardingRepo: onboardingRepo,
 		storage:        storageClient,
 		redis:          redisClient,
@@ -65,50 +78,33 @@ func (d *TenantDeprovisioner) Deprovision(ctx context.Context, tenantID, adminID
 	}
 	retainUntil := time.Now().AddDate(0, 0, req.RetainDays)
 
-	if _, err := d.platformPool.Exec(ctx, `UPDATE users SET status = 'suspended', updated_at = now() WHERE tenant_id = $1`, tenantID); err != nil {
+	if err := d.store.SuspendUsers(ctx, tenantID); err != nil {
 		return err
 	}
-	if _, err := d.platformPool.Exec(ctx, `DELETE FROM sessions WHERE tenant_id = $1`, tenantID); err != nil {
+	if err := d.store.DeleteSessions(ctx, tenantID); err != nil {
 		return err
 	}
 	if err := d.clearRedisSessions(ctx, tenantID); err != nil {
 		d.logger.Warn().Err(err).Str("tenant_id", tenantID.String()).Msg("redis session invalidation failed")
 	}
-	if _, err := d.platformPool.Exec(ctx, `UPDATE api_keys SET revoked_at = now() WHERE tenant_id = $1 AND revoked_at IS NULL`, tenantID); err != nil {
+	if err := d.store.RevokeAPIKeys(ctx, tenantID); err != nil {
 		return err
 	}
-	if err := d.softDeleteTenantRows(ctx, tenantID); err != nil {
+	if err := d.store.SoftDeleteTenantRows(ctx, tenantID); err != nil {
 		return err
 	}
 	if err := d.tagTenantBuckets(ctx, slug, retainUntil); err != nil {
 		return err
 	}
-	if _, err := d.platformPool.Exec(ctx, `
-		UPDATE tenants
-		SET status = 'deprovisioned',
-		    deprovisioned_at = now(),
-		    deprovisioned_by = $2,
-		    retain_until = $3,
-		    updated_at = now()
-		WHERE id = $1`,
-		tenantID,
-		adminID,
-		retainUntil,
-	); err != nil {
+	if err := d.store.MarkTenantDeprovisioned(ctx, tenantID, adminID, retainUntil); err != nil {
 		return err
 	}
-	if _, err := d.platformPool.Exec(ctx, `
-		INSERT INTO audit_logs (tenant_id, user_id, service, action, resource_type, resource_id, metadata)
-		VALUES ($1, $2, 'iam-service', 'tenant.deprovisioned', 'tenant', $1, $3::jsonb)`,
-		tenantID,
-		adminID,
-		marshalJSON(map[string]any{
-			"reason":       req.Reason,
-			"retain_days":  req.RetainDays,
-			"retain_until": retainUntil,
-			"tenant_name":  name,
-		}),
-	); err != nil {
+	if err := d.store.InsertAuditLog(ctx, tenantID, adminID, "tenant.deprovisioned", map[string]any{
+		"reason":       req.Reason,
+		"retain_days":  req.RetainDays,
+		"retain_until": retainUntil,
+		"tenant_name":  name,
+	}); err != nil {
 		return err
 	}
 	publishOnboardingEvent(ctx, d.producer,
@@ -135,33 +131,16 @@ func (d *TenantDeprovisioner) Reactivate(ctx context.Context, tenantID, adminID 
 	if retainUntil == nil || retainUntil.Before(time.Now()) {
 		return fmt.Errorf("tenant retention window has expired: %w", iammodel.ErrForbidden)
 	}
-	if _, err := d.platformPool.Exec(ctx, `UPDATE users SET status = 'active', updated_at = now() WHERE tenant_id = $1 AND status = 'suspended'`, tenantID); err != nil {
-		return err
-	}
-	if err := d.restoreTenantRows(ctx, tenantID); err != nil {
+	if err := d.store.RestoreTenantRows(ctx, tenantID); err != nil {
 		return err
 	}
 	if err := d.activateTenantBuckets(ctx, slug); err != nil {
 		return err
 	}
-	if _, err := d.platformPool.Exec(ctx, `
-		UPDATE tenants
-		SET status = 'active',
-		    deprovisioned_at = NULL,
-		    deprovisioned_by = NULL,
-		    retain_until = NULL,
-		    updated_at = now()
-		WHERE id = $1`,
-		tenantID,
-	); err != nil {
+	if err := d.store.MarkTenantActive(ctx, tenantID); err != nil {
 		return err
 	}
-	if _, err := d.platformPool.Exec(ctx, `
-		INSERT INTO audit_logs (tenant_id, user_id, service, action, resource_type, resource_id, metadata)
-		VALUES ($1, $2, 'iam-service', 'tenant.reactivated', 'tenant', $1, '{}'::jsonb)`,
-		tenantID,
-		adminID,
-	); err != nil {
+	if err := d.store.InsertAuditLog(ctx, tenantID, adminID, "tenant.reactivated", map[string]any{}); err != nil {
 		return err
 	}
 	publishOnboardingEvent(ctx, d.producer,
@@ -198,20 +177,92 @@ func (d *TenantDeprovisioner) clearRedisSessions(ctx context.Context, tenantID u
 	return nil
 }
 
-func (d *TenantDeprovisioner) softDeleteTenantRows(ctx context.Context, tenantID uuid.UUID) error {
-	if err := d.updateDeletedAtAcrossPools(ctx, tenantID, "deleted_at = now()"); err != nil {
+func (s *sqlTenantLifecycleStore) SuspendUsers(ctx context.Context, tenantID uuid.UUID) error {
+	if _, err := s.platformPool.Exec(ctx, `UPDATE users SET status = 'suspended', updated_at = now() WHERE tenant_id = $1`, tenantID); err != nil {
 		return err
 	}
 	return nil
 }
 
-func (d *TenantDeprovisioner) restoreTenantRows(ctx context.Context, tenantID uuid.UUID) error {
-	return d.updateDeletedAtAcrossPools(ctx, tenantID, "deleted_at = NULL")
+func (s *sqlTenantLifecycleStore) DeleteSessions(ctx context.Context, tenantID uuid.UUID) error {
+	if _, err := s.platformPool.Exec(ctx, `DELETE FROM sessions WHERE tenant_id = $1`, tenantID); err != nil {
+		return err
+	}
+	return nil
 }
 
-func (d *TenantDeprovisioner) updateDeletedAtAcrossPools(ctx context.Context, tenantID uuid.UUID, assignment string) error {
-	allPools := map[string]*pgxpool.Pool{"platform_core": d.platformPool}
-	for name, pool := range d.dbPools {
+func (s *sqlTenantLifecycleStore) RevokeAPIKeys(ctx context.Context, tenantID uuid.UUID) error {
+	if _, err := s.platformPool.Exec(ctx, `UPDATE api_keys SET revoked_at = now() WHERE tenant_id = $1 AND revoked_at IS NULL`, tenantID); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (s *sqlTenantLifecycleStore) SoftDeleteTenantRows(ctx context.Context, tenantID uuid.UUID) error {
+	return s.updateDeletedAtAcrossPools(ctx, tenantID, "deleted_at = now()")
+}
+
+func (s *sqlTenantLifecycleStore) RestoreTenantRows(ctx context.Context, tenantID uuid.UUID) error {
+	return s.updateDeletedAtAcrossPools(ctx, tenantID, "deleted_at = NULL")
+}
+
+func (s *sqlTenantLifecycleStore) MarkTenantDeprovisioned(ctx context.Context, tenantID, adminID uuid.UUID, retainUntil time.Time) error {
+	if _, err := s.platformPool.Exec(ctx, `
+		UPDATE tenants
+		SET status = 'deprovisioned',
+		    deprovisioned_at = now(),
+		    deprovisioned_by = $2,
+		    retain_until = $3,
+		    updated_at = now()
+		WHERE id = $1`,
+		tenantID,
+		adminID,
+		retainUntil,
+	); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (s *sqlTenantLifecycleStore) MarkTenantActive(ctx context.Context, tenantID uuid.UUID) error {
+	if _, err := s.platformPool.Exec(ctx, `
+		UPDATE users SET status = 'active', updated_at = now() WHERE tenant_id = $1 AND status = 'suspended'`,
+		tenantID,
+	); err != nil {
+		return err
+	}
+	if _, err := s.platformPool.Exec(ctx, `
+		UPDATE tenants
+		SET status = 'active',
+		    deprovisioned_at = NULL,
+		    deprovisioned_by = NULL,
+		    retain_until = NULL,
+		    updated_at = now()
+		WHERE id = $1`,
+		tenantID,
+	); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (s *sqlTenantLifecycleStore) InsertAuditLog(ctx context.Context, tenantID, adminID uuid.UUID, action string, metadata map[string]any) error {
+	if _, err := s.platformPool.Exec(ctx, `
+		INSERT INTO audit_logs (tenant_id, user_id, service, action, resource_type, resource_id, metadata)
+		VALUES ($1, $2, 'iam-service', $3, 'tenant', $1, $4::jsonb)`,
+		tenantID,
+		adminID,
+		action,
+		marshalJSON(metadata),
+	); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (s *sqlTenantLifecycleStore) updateDeletedAtAcrossPools(ctx context.Context, tenantID uuid.UUID, assignment string) error {
+	allPools := map[string]*pgxpool.Pool{"platform_core": s.platformPool}
+	for name, pool := range s.dbPools {
 		allPools[name] = pool
 	}
 	for _, pool := range allPools {

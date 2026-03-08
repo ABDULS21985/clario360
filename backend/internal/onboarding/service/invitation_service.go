@@ -23,8 +23,8 @@ import (
 const invitationTTL = 7 * 24 * time.Hour
 
 type InvitationService struct {
-	invitationRepo *onboardingrepo.InvitationRepository
-	onboardingRepo *onboardingrepo.OnboardingRepository
+	invitationRepo invitationRepository
+	onboardingRepo invitationOnboardingRepository
 	userRepo       iamrepo.UserRepository
 	roleRepo       iamrepo.RoleRepository
 	sessionRepo    iamrepo.SessionRepository
@@ -38,8 +38,8 @@ type InvitationService struct {
 }
 
 func NewInvitationService(
-	invitationRepo *onboardingrepo.InvitationRepository,
-	onboardingRepo *onboardingrepo.OnboardingRepository,
+	invitationRepo invitationRepository,
+	onboardingRepo invitationOnboardingRepository,
 	userRepo iamrepo.UserRepository,
 	roleRepo iamrepo.RoleRepository,
 	sessionRepo iamrepo.SessionRepository,
@@ -72,6 +72,9 @@ func (s *InvitationService) CreateBatch(ctx context.Context, tenantID, invitedBy
 		return nil, fmt.Errorf("invitations batch must contain between 1 and 10 invitations: %w", iammodel.ErrValidation)
 	}
 
+	if err := s.invitationRepo.ExpirePastDue(ctx); err != nil {
+		s.logger.Warn().Err(err).Str("tenant_id", tenantID.String()).Msg("expire invitations sweep failed before batch create")
+	}
 	pendingCount, err := s.invitationRepo.CountPending(ctx, tenantID)
 	if err != nil {
 		return nil, err
@@ -218,10 +221,7 @@ func (s *InvitationService) ValidateToken(ctx context.Context, token string) (*o
 	if len(token) < 8 {
 		return nil, fmt.Errorf("invalid or expired invitation: %w", iammodel.ErrInvalidToken)
 	}
-	if err := s.invitationRepo.ExpirePastDue(ctx); err != nil {
-		s.logger.Warn().Err(err).Msg("expire invitations sweep failed")
-	}
-	candidates, err := s.invitationRepo.ListPendingByPrefix(ctx, token[:8])
+	candidates, err := s.invitationRepo.ListByPrefix(ctx, token[:8])
 	if err != nil {
 		return nil, err
 	}
@@ -229,8 +229,16 @@ func (s *InvitationService) ValidateToken(ctx context.Context, token string) (*o
 		if !verification.VerifyInviteToken(candidate.TokenHash, token) {
 			continue
 		}
-		if candidate.ExpiresAt.Before(time.Now()) {
-			_ = s.invitationRepo.UpdateStatus(ctx, candidate.TenantID, candidate.ID, onboardingmodel.InvitationStatusExpired)
+		switch candidate.Status {
+		case onboardingmodel.InvitationStatusAccepted:
+			return nil, fmt.Errorf("this invitation has already been used: %w", iammodel.ErrConflict)
+		case onboardingmodel.InvitationStatusCancelled, onboardingmodel.InvitationStatusRevoked:
+			return nil, fmt.Errorf("invalid or expired invitation: %w", iammodel.ErrInvalidToken)
+		}
+		if candidate.Status == onboardingmodel.InvitationStatusExpired || candidate.ExpiresAt.Before(time.Now()) {
+			if candidate.Status == onboardingmodel.InvitationStatusPending {
+				_ = s.invitationRepo.UpdateStatus(ctx, candidate.TenantID, candidate.ID, onboardingmodel.InvitationStatusExpired)
+			}
 			if s.metrics != nil && s.metrics.invitationsTotal != nil {
 				s.metrics.invitationsTotal.WithLabelValues("expired").Inc()
 			}

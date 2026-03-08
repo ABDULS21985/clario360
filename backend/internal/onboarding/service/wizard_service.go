@@ -12,11 +12,10 @@ import (
 	iammodel "github.com/clario360/platform/internal/iam/model"
 	onboardingdto "github.com/clario360/platform/internal/onboarding/dto"
 	onboardingmodel "github.com/clario360/platform/internal/onboarding/model"
-	onboardingrepo "github.com/clario360/platform/internal/onboarding/repository"
 )
 
 type WizardService struct {
-	onboardingRepo *onboardingrepo.OnboardingRepository
+	onboardingRepo wizardOnboardingRepository
 	invitationSvc  *InvitationService
 	producer       *events.Producer
 	logger         zerolog.Logger
@@ -24,7 +23,7 @@ type WizardService struct {
 }
 
 func NewWizardService(
-	onboardingRepo *onboardingrepo.OnboardingRepository,
+	onboardingRepo wizardOnboardingRepository,
 	invitationSvc *InvitationService,
 	producer *events.Producer,
 	logger zerolog.Logger,

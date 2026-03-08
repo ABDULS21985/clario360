@@ -30,8 +30,8 @@ type TenantProvisioner struct {
 	dbPools                map[string]*pgxpool.Pool
 	dbDSNs                 map[string]string
 	migrationsBasePath     string
-	onboardingRepo         *onboardingrepo.OnboardingRepository
-	provisioningRepo       *onboardingrepo.ProvisioningRepository
+	onboardingRepo         provisioningOnboardingRepository
+	provisioningRepo       provisioningStatusRepository
 	roleSeeder             *seeder.RoleSeeder
 	settingsSeeder         *seeder.SettingsSeeder
 	detectionRuleSeeder    *seeder.DetectionRuleSeeder
@@ -45,6 +45,12 @@ type TenantProvisioner struct {
 	producer               *events.Producer
 	logger                 zerolog.Logger
 	metrics                *Metrics
+	pipeline               []provisioningPipelineStep
+}
+
+type provisioningPipelineStep struct {
+	Name string
+	Run  func(context.Context) error
 }
 
 func NewTenantProvisioner(
@@ -52,8 +58,8 @@ func NewTenantProvisioner(
 	dbPools map[string]*pgxpool.Pool,
 	dbDSNs map[string]string,
 	migrationsBasePath string,
-	onboardingRepo *onboardingrepo.OnboardingRepository,
-	provisioningRepo *onboardingrepo.ProvisioningRepository,
+	onboardingRepo provisioningOnboardingRepository,
+	provisioningRepo provisioningStatusRepository,
 	storageClient *storage.MinIOStorage,
 	emailSender EmailSender,
 	producer *events.Producer,
@@ -108,22 +114,6 @@ func (p *TenantProvisioner) Provision(ctx context.Context, tenantID uuid.UUID) e
 	if err != nil {
 		return fmt.Errorf("load onboarding for provisioning: %w", err)
 	}
-	stepNames := []string{
-		"Verify Database Connectivity",
-		"Verify Migrations",
-		"Seed System Roles",
-		"Seed Default Settings",
-		"Seed Detection Rules",
-		"Seed Default KPIs",
-		"Seed Default Dashboard",
-		"Seed Compliance Rules",
-		"Seed AI Governance Models",
-		"Create Storage Buckets",
-		"Initialize Audit Trail",
-	}
-	if err := p.provisioningRepo.Initialize(ctx, tenantID, onboardingRow.ID, stepNames); err != nil {
-		return fmt.Errorf("initialize provisioning status: %w", err)
-	}
 	startedAt := time.Now()
 	if p.metrics != nil && p.metrics.provisioningTotal != nil {
 		p.metrics.provisioningTotal.WithLabelValues("started").Inc()
@@ -136,66 +126,30 @@ func (p *TenantProvisioner) Provision(ctx context.Context, tenantID uuid.UUID) e
 		p.logger,
 	)
 
-	name, slug, _, _, err := p.onboardingRepo.GetTenantIdentity(ctx, tenantID)
+	steps, err := p.pipelineSteps(ctx, tenantID, onboardingRow, startedAt)
 	if err != nil {
 		return err
 	}
-
-	stepFns := []func(context.Context) error{
-		p.verifyDatabaseConnectivity,
-		p.verifyMigrations,
-		func(stepCtx context.Context) error { return p.roleSeeder.Seed(stepCtx, tenantID) },
-		func(stepCtx context.Context) error {
-			return p.settingsSeeder.Seed(stepCtx, tenantID, onboardingRow.AdminUserID)
-		},
-		func(stepCtx context.Context) error {
-			if p.detectionRuleSeeder == nil {
-				return nil
-			}
-			return p.detectionRuleSeeder.Seed(stepCtx, tenantID, onboardingRow.AdminUserID)
-		},
-		func(stepCtx context.Context) error {
-			if p.kpiSeeder == nil {
-				return nil
-			}
-			return p.kpiSeeder.Seed(stepCtx, tenantID, onboardingRow.AdminUserID)
-		},
-		func(stepCtx context.Context) error {
-			if p.dashboardSeeder == nil {
-				return nil
-			}
-			return p.dashboardSeeder.Seed(stepCtx, tenantID, onboardingRow.AdminUserID)
-		},
-		func(stepCtx context.Context) error {
-			if p.complianceRuleSeeder == nil {
-				return nil
-			}
-			return p.complianceRuleSeeder.Seed(stepCtx, tenantID, onboardingRow.AdminUserID)
-		},
-		func(stepCtx context.Context) error {
-			if p.modelSeeder == nil {
-				return nil
-			}
-			return p.modelSeeder.Seed(stepCtx, tenantID, onboardingRow.AdminUserID)
-		},
-		func(stepCtx context.Context) error { return p.createStorageBuckets(stepCtx, slug) },
-		func(stepCtx context.Context) error {
-			return p.initializeAuditTrail(stepCtx, onboardingRow, name, slug, startedAt)
-		},
+	stepNames := make([]string, 0, len(steps))
+	for idx := range steps {
+		stepNames = append(stepNames, steps[idx].Name)
+	}
+	if err := p.provisioningRepo.Initialize(ctx, tenantID, onboardingRow.ID, stepNames); err != nil {
+		return fmt.Errorf("initialize provisioning status: %w", err)
 	}
 
-	steps, err := p.provisioningRepo.ListSteps(ctx, tenantID)
+	currentSteps, err := p.provisioningRepo.ListSteps(ctx, tenantID)
 	if err != nil {
 		return err
 	}
 	statusByNumber := map[int]onboardingmodel.ProvisioningStepStatus{}
-	for _, step := range steps {
+	for _, step := range currentSteps {
 		statusByNumber[step.StepNumber] = step.Status
 	}
 
-	for idx, stepFn := range stepFns {
+	for idx, step := range steps {
 		stepNumber := idx + 1
-		stepName := stepNames[idx]
+		stepName := step.Name
 		if statusByNumber[stepNumber] == onboardingmodel.ProvisioningStepCompleted {
 			continue
 		}
@@ -203,7 +157,7 @@ func (p *TenantProvisioner) Provision(ctx context.Context, tenantID uuid.UUID) e
 		if err := p.provisioningRepo.StartStep(ctx, tenantID, stepNumber); err != nil {
 			return err
 		}
-		if err := stepFn(ctx); err != nil {
+		if err := step.Run(ctx); err != nil {
 			message := err.Error()
 			_ = p.provisioningRepo.FailStep(ctx, tenantID, stepNumber, message, map[string]any{"step_name": stepName})
 			_ = p.provisioningRepo.MarkFailed(ctx, tenantID, message)
@@ -270,11 +224,65 @@ func (p *TenantProvisioner) Provision(ctx context.Context, tenantID uuid.UUID) e
 		map[string]any{
 			"tenant_id":   tenantID.String(),
 			"duration_ms": time.Since(startedAt).Milliseconds(),
-			"steps_count": len(stepFns),
+			"steps_count": len(steps),
 		},
 		p.logger,
 	)
 	return nil
+}
+
+func (p *TenantProvisioner) pipelineSteps(ctx context.Context, tenantID uuid.UUID, onboardingRow *onboardingmodel.OnboardingStatus, startedAt time.Time) ([]provisioningPipelineStep, error) {
+	if len(p.pipeline) > 0 {
+		return p.pipeline, nil
+	}
+
+	name, slug, _, _, err := p.onboardingRepo.GetTenantIdentity(ctx, tenantID)
+	if err != nil {
+		return nil, err
+	}
+
+	return []provisioningPipelineStep{
+		{Name: "Verify Database Connectivity", Run: p.verifyDatabaseConnectivity},
+		{Name: "Verify Migrations", Run: p.verifyMigrations},
+		{Name: "Seed System Roles", Run: func(stepCtx context.Context) error { return p.roleSeeder.Seed(stepCtx, tenantID) }},
+		{Name: "Seed Default Settings", Run: func(stepCtx context.Context) error {
+			return p.settingsSeeder.Seed(stepCtx, tenantID, onboardingRow.AdminUserID)
+		}},
+		{Name: "Seed Detection Rules", Run: func(stepCtx context.Context) error {
+			if p.detectionRuleSeeder == nil {
+				return nil
+			}
+			return p.detectionRuleSeeder.Seed(stepCtx, tenantID, onboardingRow.AdminUserID)
+		}},
+		{Name: "Seed Default KPIs", Run: func(stepCtx context.Context) error {
+			if p.kpiSeeder == nil {
+				return nil
+			}
+			return p.kpiSeeder.Seed(stepCtx, tenantID, onboardingRow.AdminUserID)
+		}},
+		{Name: "Seed Default Dashboard", Run: func(stepCtx context.Context) error {
+			if p.dashboardSeeder == nil {
+				return nil
+			}
+			return p.dashboardSeeder.Seed(stepCtx, tenantID, onboardingRow.AdminUserID)
+		}},
+		{Name: "Seed Compliance Rules", Run: func(stepCtx context.Context) error {
+			if p.complianceRuleSeeder == nil {
+				return nil
+			}
+			return p.complianceRuleSeeder.Seed(stepCtx, tenantID, onboardingRow.AdminUserID)
+		}},
+		{Name: "Seed AI Governance Models", Run: func(stepCtx context.Context) error {
+			if p.modelSeeder == nil {
+				return nil
+			}
+			return p.modelSeeder.Seed(stepCtx, tenantID, onboardingRow.AdminUserID)
+		}},
+		{Name: "Create Storage Buckets", Run: func(stepCtx context.Context) error { return p.createStorageBuckets(stepCtx, slug) }},
+		{Name: "Initialize Audit Trail", Run: func(stepCtx context.Context) error {
+			return p.initializeAuditTrail(stepCtx, onboardingRow, name, slug, startedAt)
+		}},
+	}, nil
 }
 
 func (p *TenantProvisioner) verifyDatabaseConnectivity(ctx context.Context) error {
