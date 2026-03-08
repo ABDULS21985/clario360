@@ -15,6 +15,7 @@ LEX_HEALTH_URL="${CLARIO360_LEX_HEALTH_URL:-http://localhost:8088/healthz}"
 VISUS_HEALTH_URL="${CLARIO360_VISUS_HEALTH_URL:-http://localhost:8089/healthz}"
 NOTIFICATION_HEALTH_URL="${CLARIO360_NOTIFICATION_HEALTH_URL:-http://localhost:8090/healthz}"
 FILE_HEALTH_URL="${CLARIO360_FILE_HEALTH_URL:-http://localhost:9091/healthz}"
+WS_ORIGIN_URL="${CLARIO360_WS_ORIGIN_URL:-http://localhost:3000}"
 
 TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "${TMP_DIR}"' EXIT
@@ -136,10 +137,11 @@ check_object_endpoint() {
 check_websocket_upgrade() {
   local headers_file="${TMP_DIR}/ws.headers"
   curl -sS --http1.1 --max-time 5 -D "${headers_file}" -o /dev/null \
+    -H "Origin: ${WS_ORIGIN_URL}" \
     -H "Connection: Upgrade" \
     -H "Upgrade: websocket" \
     -H "Sec-WebSocket-Version: 13" \
-    -H "Sec-WebSocket-Key: SGVsbG8sIHdvcmxkIQ==" \
+    -H "Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==" \
     "${BASE_URL}/ws/v1/notifications?token=${TOKEN}" >/dev/null 2>&1 || true
 
   if grep -qi '^HTTP/1.1 101' "${headers_file}"; then

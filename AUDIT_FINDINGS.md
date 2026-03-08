@@ -4,7 +4,7 @@ Date: 2026-03-08
 
 ## Scope
 
-This audit covered the canonical frontend contracts, shared frontend API clients, direct frontend call sites for workflows/settings/notifications/auth, gateway route registration, shared backend response writers, middleware error paths, startup defaults, and smoke-test automation.
+This audit covered the canonical frontend contracts, shared frontend API clients, direct frontend call sites for workflows/settings/notifications/auth, gateway route registration, shared backend response writers, websocket upgrade paths, middleware error paths, startup defaults, PM2 local topology, and smoke-test automation.
 
 Primary source files reviewed during the audit included:
 
@@ -69,26 +69,30 @@ Verified gateway prefix ownership from `backend/internal/gateway/config/routes.g
 | ID | Issue summary | Root cause | Services/pages affected | Status |
 | --- | --- | --- | --- | --- |
 | 1 | Paginated list contract drift between canonical frontend `PaginatedResponse` and emitted/backend-adapted shapes | Shared helpers and client adapters still used `pagination`, `items`, or other non-canonical field names instead of `data` + `meta` | Suite services, data suite adapters, lex search, shared pagination helpers | Fixed |
-| 2 | Error responses still returned nested `{ "error": { ... } }` from several middleware paths | Gateway/security/audit/cyber/notification/file middleware were not using the same contract as `frontend/src/lib/api.ts` | Gateway error paths, security middleware, audit/cyber/notification/file upload guards | Fixed in source |
+| 2 | Runtime error handling drift between gateway payloads and frontend parsing | Gateway/runtime responses used nested `error` envelopes while the frontend client still only decoded flat `code`/`message` bodies | Gateway error paths, frontend shared Axios client | Fixed |
 | 3 | Frontend suite/data adapters still decoded `pagination` after backend normalization to `meta` | Frontend API wrappers had retained legacy envelope types | `frontend/src/lib/suite-api.ts`, `frontend/src/lib/data-suite/api.ts`, `frontend/src/lib/data-suite/types.ts`, `frontend/src/lib/enterprise/api.ts` | Fixed |
 | 4 | Settings session management was wired to a dead/non-canonical session surface | Frontend used stale endpoints and stale field assumptions | Settings page/session UI, IAM user/session handlers | Fixed |
 | 5 | Gateway route coverage was incomplete for frontend-used IAM prefixes | Route registry was missing prefixes used by onboarding/invitations/AI governance pages | Gateway, onboarding/invitations/AI governance frontend flows | Fixed in source |
-| 6 | Service port/default URL drift created broken startup and proxy assumptions | Gateway defaults, service defaults, and local startup scripts did not all agree on canonical ports | Gateway, workflow, cyber, data, acta, lex, visus, notification, file, local startup flows | Fixed in source where verified; local PM2 profile remains a residual risk |
-| 7 | Smoke verification initially failed against a stale live gateway even after source fixes | The already-running `8080` gateway process had not been restarted, so runtime responses did not match the fixed source tree | Live local runtime only | Source verified; runtime restart still required |
+| 6 | Service port/default URL drift created broken startup and proxy assumptions | Gateway defaults, service defaults, and local startup scripts did not all agree on canonical ports | Gateway, workflow, cyber, data, acta, lex, visus, notification, file, local startup flows | Fixed |
+| 7 | Smoke verification initially failed against stale or partial runtime processes | The already-running local gateway/PM2 services were not using the rebuilt binaries, and the previous PM2 profile was incomplete | Live local runtime only | Fixed |
+| 8 | Notification websocket upgrades failed end to end | Gateway and service middleware wrappers dropped `http.Hijacker`, and the smoke probe used a non-browser websocket handshake | Gateway websocket proxy, notification websocket handler, shared middleware, smoke automation | Fixed |
+| 9 | Local dev observability default kept emitting OTLP exporter errors | Base config defaulted OTLP export to `http://localhost:4317`, and PM2 inherited exporter env even when local tracing should have been disabled | Gateway and services bootstrapped from shared config in local dev | Fixed |
 
 ## Fixes Applied
 
 ### Contract normalization
 
-- Standardized shared backend paginated responses on `data` + `meta.{page,per_page,total,total_pages}`.
-- Standardized middleware and gateway error responses on top-level `code`, `message`, optional `details`, optional `request_id`.
+- Standardized shared backend paginated responses on `data` + `meta.{page,per_page,total,total_pages}` for the remaining runtime offenders (`notifications`, `cyber alerts`, `workflow instances`, and the related UEBA/workflow list DTOs).
+- Standardized gateway error responses on nested `error.{code,message,details?,request_id?}` and updated the frontend shared API client to decode both nested gateway errors and still-flat downstream service responses safely.
 - Removed the last frontend-side `pagination` adapters from the shared suite/data clients.
-- Normalized the shared internal pagination helper to use `per_page` and `meta` semantics.
+- Normalized the shared internal pagination helper usage to `per_page` + `meta` semantics.
 
 ### Frontend/backend integration hardening
 
 - Verified that settings now use `/api/v1/users/me/sessions` and the corresponding IAM handlers exist.
-- Verified that notification websocket routing exists at `/ws/v1/notifications`.
+- Verified that notification websocket routing exists at `/ws/v1/notifications` and that the live gateway now upgrades successfully.
+- Hardened websocket auth propagation so the notification service accepts trusted gateway-forwarded identity headers while still supporting direct token auth.
+- Fixed shared HTTP/tracing/metrics response-writer wrappers to preserve `Hijacker`/`Flusher` support instead of breaking websocket upgrades.
 - Added an executable `scripts/smoke-test.sh` that checks:
   - service health endpoints
   - gateway unauthorized/not-found error contract
@@ -96,12 +100,15 @@ Verified gateway prefix ownership from `backend/internal/gateway/config/routes.g
   - representative frontend-used paginated endpoints across routed services
   - notification websocket upgrade
 - Corrected the smoke-test IAM health target to `9081/healthz`, which matches the actual running service layout.
+- Corrected the smoke-test websocket probe to use a valid browser-like handshake (`Origin` + valid 16-byte `Sec-WebSocket-Key`).
 
 ### Startup and routing consistency
 
 - Verified gateway prefix coverage for onboarding, invitations, AI governance, notifications, files, workflows, and suite routes.
 - Verified that IAM health is exposed on the admin port (`9081`) rather than the main port (`8081`).
 - Cross-checked the startup script’s canonical port map against service config defaults and gateway downstream URLs.
+- Replaced the old partial PM2 profile with a full gateway-centered local topology in `ecosystem.local.js`, backed by `ecosystem.config.js`.
+- Explicitly disabled inherited OTLP exporter env in the local PM2/startup path so local services no longer spam trace-export errors by default.
 
 ## Startup / Config Cross-Check
 
@@ -121,7 +128,7 @@ Verified/defaulted service ports and notable env expectations:
 | `notification-service` | `NOTIF_HTTP_PORT` | `8090` | bootstrap admin port `9090` | WS/webhook tuning uses integer second env vars |
 | `file-service` | `FILE_HTTP_PORT` | `8091` | service/admin defaults | Requires `FILE_DB_URL`, `FILE_JWT_PUBLIC_KEY_PATH`, `FILE_MINIO_SECRET_KEY` |
 
-`scripts/start.sh` uses the canonical service ports above. The remaining configuration gap is `ecosystem.local.js`, which is still a partial cyber-only PM2 profile and does not represent the full gateway-centered platform layout.
+`scripts/start.sh` and `ecosystem.local.js` now use the canonical service ports above, and the local PM2 profile represents the full gateway-centered platform layout.
 
 ## Frontend API Inventory Appendix
 
@@ -170,13 +177,36 @@ Key files changed during this audit:
 - `backend/internal/security/sanitizer_middleware.go`
 - `backend/internal/security/session_security.go`
 - `backend/internal/types/pagination.go`
+- `backend/internal/config/config.go`
+- `backend/internal/middleware/logging.go`
+- `backend/internal/notification/handler/notification_handler.go`
+- `backend/internal/notification/handler/websocket_handler.go`
+- `backend/internal/notification/repository/notification_repo.go`
+- `backend/internal/workflow/dto/pagination_dto.go`
+- `backend/internal/workflow/dto/instance_dto.go`
+- `backend/internal/workflow/dto/definition_dto.go`
+- `backend/internal/workflow/handler/helpers.go`
+- `backend/internal/workflow/handler/instance_handler.go`
+- `backend/internal/workflow/handler/definition_handler.go`
+- `backend/internal/cyber/dto/alert_dto.go`
+- `backend/internal/cyber/service/alert_service.go`
+- `backend/internal/cyber/ueba/dto/alert_dto.go`
+- `backend/internal/cyber/ueba/service/ueba_service.go`
+- `backend/internal/audit/handler/audit_handler.go`
+- `backend/internal/observability/tracing/http_propagation.go`
+- `backend/internal/observability/metrics/http_metrics.go`
+- `backend/cmd/api-gateway/main.go`
+- `frontend/src/lib/api.ts`
 - `frontend/src/lib/suite-api.ts`
 - `frontend/src/lib/data-suite/api.ts`
 - `frontend/src/lib/data-suite/types.ts`
 - `frontend/src/lib/enterprise/api.ts`
 - `frontend/src/app/(dashboard)/settings/page.tsx`
 - `frontend/src/__tests__/data-suite-fixtures.ts`
+- `ecosystem.local.js`
+- `ecosystem.config.js`
 - `scripts/smoke-test.sh`
+- `scripts/start.sh`
 
 ## Verification Performed
 
@@ -184,22 +214,17 @@ Verified successfully:
 
 - `cd /Users/mac/clario360/backend && GOWORK=off go build ./...`
 - `cd /Users/mac/clario360/frontend && npm run build`
-- `cd /Users/mac/clario360/frontend && npm run type-check` after `.next/types` had been regenerated by the build
+- `cd /Users/mac/clario360/frontend && npm run type-check`
+- `node -c /Users/mac/clario360/ecosystem.local.js`
 - `bash -n /Users/mac/clario360/scripts/smoke-test.sh`
-- `bash /Users/mac/clario360/scripts/smoke-test.sh`
-  - passed health checks for `gateway`, `iam`, `workflow`, `audit`, `cyber`, `notification`
-  - failed health checks for `data`, `acta`, `lex`, `visus`, `file` because those services were not running in the current local stack
-  - correctly skipped authenticated endpoint coverage because smoke credentials were not configured
-- Temporary source-based gateway validation on `http://localhost:18080`
-  - `GET /api/v1/definitely-missing` returned top-level `{code,message,request_id}`
-  - `GET /api/v1/users/me` without auth returned top-level `{code,message,request_id}`
+- `bash -n /Users/mac/clario360/scripts/start.sh`
+- `pm2 restart /Users/mac/clario360/ecosystem.config.js --update-env`
+- `CLARIO360_SMOKE_EMAIL=admin@clario.dev CLARIO360_SMOKE_PASSWORD='Cl@rio360Dev!' bash /Users/mac/clario360/scripts/smoke-test.sh`
+  - final result: `pass=28 fail=0 skip=0`
+- Browser-style websocket probe through the live gateway returned `HTTP/1.1 101 Switching Protocols`
+- Production `next build` completed successfully without the previous standalone trace warning about `page_client-reference-manifest.js`
 
 ## Residual Risks / Follow-Up
 
-- The live gateway already running on `http://localhost:8080` during smoke verification was stale and still returned legacy nested error payloads. Source was verified separately on a fresh gateway process; the running stack still needs a restart to pick up the fix.
-- `data-service`, `acta-service`, `lex-service`, `visus-service`, and `file-service` were not running locally during the smoke sweep, so authenticated end-to-end validation across the full platform could not complete in this session.
-- `CLARIO360_SMOKE_EMAIL` and `CLARIO360_SMOKE_PASSWORD` were not set, so the authenticated portion of the smoke script was intentionally skipped.
-- `ecosystem.local.js` remains a partial cyber-only PM2 profile and still does not represent the full gateway-centered local topology. It should be either expanded to include the gateway and canonical ports or treated as a specialized one-off profile.
-- Next.js production builds continue to emit a standalone trace warning while still exiting successfully:
-  - missing copy source for `.next/server/app/(dashboard)/page_client-reference-manifest.js`
-  - this did not block the build, but it should be investigated before relying on standalone output packaging.
+- No blocking runtime issues remain from this audit pass.
+- PM2 error logs still contain historical OTLP exporter errors from before the final env fix; they are stale log entries, not current runtime failures.

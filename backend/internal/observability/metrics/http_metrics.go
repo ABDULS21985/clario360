@@ -14,12 +14,12 @@ import (
 
 // HTTPMetrics holds all standard HTTP Prometheus metrics.
 type HTTPMetrics struct {
-	RequestsTotal    *prometheus.CounterVec
-	RequestDuration  *prometheus.HistogramVec
-	RequestSize      *prometheus.HistogramVec
-	ResponseSize     *prometheus.HistogramVec
-	ActiveRequests   *prometheus.GaugeVec
-	PanicsTotal      *prometheus.CounterVec
+	RequestsTotal   *prometheus.CounterVec
+	RequestDuration *prometheus.HistogramVec
+	RequestSize     *prometheus.HistogramVec
+	ResponseSize    *prometheus.HistogramVec
+	ActiveRequests  *prometheus.GaugeVec
+	PanicsTotal     *prometheus.CounterVec
 }
 
 func newHTTPMetrics(reg *prometheus.Registry, serviceName string) *HTTPMetrics {

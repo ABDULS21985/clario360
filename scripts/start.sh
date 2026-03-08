@@ -699,6 +699,7 @@ export MINIO_BUCKET="clario360"
 export OBSERVABILITY_LOG_LEVEL="info"
 export OBSERVABILITY_LOG_FORMAT="json"
 export OBSERVABILITY_OTLP_ENDPOINT=""   # disable tracing export in dev (Jaeger still gets logs via OTEL if set)
+export OTEL_EXPORTER_OTLP_ENDPOINT=""
 export ENVIRONMENT="development"
 
 # start_service <name>
