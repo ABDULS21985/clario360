@@ -1,0 +1,49 @@
+jupyterhub:
+  singleuser:
+    image:
+      name: registry.airgap.local/clario360/notebook
+    profileList:
+      - display_name: "SOC Analyst - Standard"
+        slug: soc-analyst
+        description: "Security analysis, threat hunting, and incident response."
+        default: true
+        kubespawner_override:
+          image: registry.airgap.local/clario360/notebook:1.0.0
+          cpu_limit: 2
+          cpu_guarantee: 0.5
+          mem_limit: 4G
+          mem_guarantee: 1G
+          storage_capacity: 5Gi
+      - display_name: "Data Scientist - ML Workloads"
+        slug: data-scientist
+        description: "Model training, validation, and feature engineering."
+        kubespawner_override:
+          image: registry.airgap.local/clario360/notebook:1.0.0
+          cpu_limit: 4
+          cpu_guarantee: 1
+          mem_limit: 8G
+          mem_guarantee: 2G
+          storage_capacity: 20Gi
+      - display_name: "Spark Connected - Big Data Analysis"
+        slug: spark-connected
+        description: "PySpark, Hadoop, and large-scale correlation workloads."
+        kubespawner_override:
+          image: registry.airgap.local/clario360/notebook-spark:1.0.0
+          cpu_limit: 8
+          cpu_guarantee: 2
+          mem_limit: 16G
+          mem_guarantee: 4G
+          storage_capacity: 50Gi
+      - display_name: "Admin - Full Access"
+        slug: admin
+        description: "Full-access profile for tenant admins and security managers."
+        kubespawner_override:
+          image: registry.airgap.local/clario360/notebook-spark:1.0.0
+          cpu_limit: 8
+          cpu_guarantee: 4
+          mem_limit: 32G
+          mem_guarantee: 8G
+          storage_capacity: 100Gi
+
+networkPolicy:
+  allowInternet: false

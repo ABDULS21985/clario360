@@ -1,0 +1,249 @@
+global:
+  releaseTag: "1.0.0"
+  namespaceLabels:
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/warn: restricted
+
+jupyterhub:
+  hub:
+    image:
+      name: jupyterhub/k8s-hub
+      tag: "3.3.0"
+    config:
+      JupyterHub:
+        authenticator_class: generic-oauth
+        admin_access: true
+        shutdown_on_logout: false
+        active_server_limit: 1
+        concurrent_spawn_limit: 10
+        internal_ssl: false
+      GenericOAuthenticator:
+        client_id: "jupyterhub"
+        client_secret: ""
+        oauth_callback_url: "https://notebooks.clario360.sa/hub/oauth_callback"
+        authorize_url: "https://api.clario360.sa/api/v1/auth/oauth/authorize"
+        token_url: "https://api.clario360.sa/api/v1/auth/oauth/token"
+        userdata_url: "https://api.clario360.sa/api/v1/auth/oauth/userinfo"
+        username_claim: "email"
+        scope:
+          - openid
+          - profile
+          - email
+          - roles
+        pkce: true
+        allowed_users: []
+        admin_users: []
+      Authenticator:
+        enable_auth_state: true
+        auto_login: true
+        refresh_pre_spawn: true
+    extraConfig:
+      roleMapping: |
+        import os
+        from oauthenticator.generic import GenericOAuthenticator
+        async def custom_pre_spawn_start(self, user, spawner):
+            auth_state = await user.get_auth_state()
+            if auth_state:
+                spawner.environment["CLARIO360_USER_ID"] = auth_state.get("user_id", "")
+                spawner.environment["CLARIO360_TENANT_ID"] = auth_state.get("tenant_id", "")
+                spawner.environment["CLARIO360_USER_EMAIL"] = auth_state.get("email", "")
+                spawner.environment["CLARIO360_USER_ROLE"] = auth_state.get("role", "")
+                spawner.environment["CLARIO360_ACCESS_TOKEN"] = auth_state.get("access_token", "")
+                spawner.environment["CLARIO360_REFRESH_TOKEN"] = auth_state.get("refresh_token", "")
+                role = auth_state.get("role", "")
+                if role in ("tenant-admin", "security-manager", "super-admin"):
+                    user.admin = True
+        GenericOAuthenticator.pre_spawn_start = custom_pre_spawn_start
+      auditLogging: |
+        import logging
+        c.JupyterHub.log_level = "INFO"
+        audit_logger = logging.getLogger("jupyterhub.audit")
+        audit_logger.setLevel(logging.INFO)
+        handler = logging.StreamHandler()
+        handler.setFormatter(logging.Formatter(
+            '{"timestamp":"%(asctime)s","level":"%(levelname)s","logger":"%(name)s","message":"%(message)s"}'
+        ))
+        audit_logger.addHandler(handler)
+      idleCuller: |
+        c.JupyterHub.services = [
+            {
+                "name": "cull-idle",
+                "admin": True,
+                "command": [
+                    "python", "-m", "jupyterhub_idle_culler",
+                    "--timeout=1800",
+                    "--max-age=86400",
+                    "--cull-every=300",
+                    "--concurrency=10",
+                ],
+            }
+        ]
+    db:
+      type: postgres
+      url: "postgresql://jupyterhub:${JUPYTERHUB_DB_PASSWORD}@postgresql.db.svc:5432/jupyterhub"
+    resources:
+      requests:
+        cpu: 250m
+        memory: 512Mi
+      limits:
+        cpu: 1000m
+        memory: 1Gi
+
+  proxy:
+    service:
+      type: ClusterIP
+    chp:
+      resources:
+        requests:
+          cpu: 100m
+          memory: 128Mi
+        limits:
+          cpu: 500m
+          memory: 256Mi
+
+  singleuser:
+    image:
+      name: registry.internal/clario360/notebook
+      tag: "1.0.0"
+      pullPolicy: Always
+    defaultUrl: /lab
+    cpu:
+      limit: 4
+      guarantee: 1
+    memory:
+      limit: 8G
+      guarantee: 2G
+    storage:
+      capacity: 10Gi
+      dynamic:
+        storageClass: standard
+    extraEnv:
+      CLARIO360_API_URL:
+        value: http://api-gateway.clario360.svc:8080
+      CLARIO360_SDK_LOG_LEVEL:
+        value: WARNING
+      SPARK_MASTER:
+        value: spark://spark-master.spark.svc:7077
+      SPARK_HOME:
+        value: /opt/spark
+      CLICKHOUSE_HOST:
+        value: clickhouse.data.svc
+      CLICKHOUSE_PORT:
+        value: "9000"
+      CLICKHOUSE_DATABASE:
+        value: clario360
+      IMPALA_HOST:
+        value: impala.data.svc
+      IMPALA_PORT:
+        value: "21050"
+      HIVE_HOST:
+        value: hive-metastore.data.svc
+      HIVE_PORT:
+        value: "10000"
+      HDFS_NAMENODE:
+        value: hdfs://namenode.hadoop.svc:8020
+      DAGSTER_GRAPHQL_URL:
+        value: http://dagster-webserver.dagster.svc:3000/graphql
+      PYSPARK_PYTHON:
+        value: /opt/conda/bin/python
+      PYSPARK_DRIVER_PYTHON:
+        value: /opt/conda/bin/python
+    extraVolumes:
+      - name: shared-notebooks
+        configMap:
+          name: clario360-notebooks
+      - name: data-credentials
+        secret:
+          secretName: notebook-data-credentials
+    extraVolumeMounts:
+      - name: shared-notebooks
+        mountPath: /home/jovyan/examples
+        readOnly: true
+      - name: data-credentials
+        mountPath: /etc/clario360/credentials
+        readOnly: true
+    extraPodConfig:
+      securityContext:
+        runAsUser: 1000
+        runAsGroup: 100
+        fsGroup: 100
+      automountServiceAccountToken: false
+    profileList:
+      - display_name: "SOC Analyst - Standard"
+        slug: soc-analyst
+        description: "Security analysis, threat hunting, and incident response."
+        default: true
+        kubespawner_override:
+          image: registry.internal/clario360/notebook:1.0.0
+          cpu_limit: 2
+          cpu_guarantee: 0.5
+          mem_limit: 4G
+          mem_guarantee: 1G
+          storage_capacity: 5Gi
+      - display_name: "Data Scientist - ML Workloads"
+        slug: data-scientist
+        description: "Model training, validation, and feature engineering."
+        kubespawner_override:
+          image: registry.internal/clario360/notebook:1.0.0
+          cpu_limit: 4
+          cpu_guarantee: 1
+          mem_limit: 8G
+          mem_guarantee: 2G
+          storage_capacity: 20Gi
+      - display_name: "Spark Connected - Big Data Analysis"
+        slug: spark-connected
+        description: "PySpark, Hadoop, and large-scale correlation workloads."
+        kubespawner_override:
+          image: registry.internal/clario360/notebook-spark:1.0.0
+          cpu_limit: 8
+          cpu_guarantee: 2
+          mem_limit: 16G
+          mem_guarantee: 4G
+          storage_capacity: 50Gi
+          extra_env:
+            SPARK_ENABLED: "true"
+            SPARK_DRIVER_MEMORY: 4g
+            SPARK_EXECUTOR_MEMORY: 4g
+            SPARK_EXECUTOR_CORES: "2"
+            SPARK_NUM_EXECUTORS: "4"
+      - display_name: "Admin - Full Access"
+        slug: admin
+        description: "Full-access profile for tenant admins and security managers."
+        kubespawner_override:
+          image: registry.internal/clario360/notebook-spark:1.0.0
+          cpu_limit: 8
+          cpu_guarantee: 4
+          mem_limit: 32G
+          mem_guarantee: 8G
+          storage_capacity: 100Gi
+
+networkPolicy:
+  allowInternet: false
+  namespaceSelectors:
+    clario360:
+      name: clario360
+    data:
+      name: data
+    hadoop:
+      name: hadoop
+    spark:
+      name: spark
+    db:
+      name: db
+    dagster:
+      name: dagster
+
+externalSecrets:
+  enabled: true
+  secretStoreRef:
+    name: vault-backend
+    kind: ClusterSecretStore
+
+resourceQuota:
+  requestsCpu: "32"
+  requestsMemory: 96Gi
+  limitsCpu: "64"
+  limitsMemory: 192Gi
+  persistentVolumeClaims: "50"
+  requestsStorage: 2Ti

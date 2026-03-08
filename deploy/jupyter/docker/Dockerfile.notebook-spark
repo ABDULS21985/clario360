@@ -1,0 +1,11 @@
+FROM registry.internal/clario360/notebook:1.0.0
+
+USER root
+RUN apt-get update && apt-get install -y --no-install-recommends openjdk-17-jre-headless && rm -rf /var/lib/apt/lists/*
+
+USER ${NB_UID}
+COPY deploy/jupyter/docker/requirements-spark.txt /tmp/requirements-spark.txt
+RUN pip install --no-cache-dir -r /tmp/requirements-spark.txt
+
+ENV SPARK_HOME=/opt/spark
+WORKDIR /home/jovyan

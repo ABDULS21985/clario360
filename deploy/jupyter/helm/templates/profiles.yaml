@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: clario360-jupyter-profiles
+data:
+  profiles.yaml: |
+{{ toYaml .Values.jupyterhub.singleuser.profileList | indent 4 }}

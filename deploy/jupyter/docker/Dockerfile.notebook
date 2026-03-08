@@ -1,0 +1,22 @@
+FROM jupyter/scipy-notebook:x86_64-2024-01-15
+
+USER root
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libpq-dev gcc g++ krb5-user libkrb5-dev libldap2-dev libsasl2-dev \
+    libsnappy-dev liblz4-dev curl wget jq vim-tiny \
+    && rm -rf /var/lib/apt/lists/*
+
+USER ${NB_UID}
+COPY deploy/jupyter/docker/requirements.txt /tmp/requirements.txt
+RUN pip install --no-cache-dir -r /tmp/requirements.txt
+
+COPY deploy/jupyter/sdk/clario360_sdk /tmp/clario360_sdk
+RUN pip install --no-cache-dir /tmp/clario360_sdk && rm -rf /tmp/clario360_sdk
+
+COPY deploy/jupyter/docker/jupyter_lab_config.py /home/jovyan/.jupyter/jupyter_lab_config.py
+COPY deploy/jupyter/notebooks /home/jovyan/examples
+
+HEALTHCHECK --interval=30s --timeout=10s --retries=3 \
+  CMD curl -f http://localhost:8888/api/status || exit 1
+
+WORKDIR /home/jovyan
