@@ -1,0 +1,15 @@
+.DS_Store
+.git
+.github
+.pytest_cache
+docs
+frontend/.next
+frontend/node_modules
+frontend/.turbo
+frontend/coverage
+backend/coverage
+backend/tmp
+backend/.cache
+**/__pycache__
+**/*.pyc
+**/*.pyo

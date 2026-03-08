@@ -10,15 +10,14 @@ USER ${NB_UID}
 ENV PIP_DEFAULT_TIMEOUT=300 \
     PIP_DISABLE_PIP_VERSION_CHECK=1 \
     PIP_RETRIES=10
-RUN mamba install -y -c conda-forge xgboost=2.0.3 lightgbm=4.1.0 && mamba clean -afy
 COPY deploy/jupyter/docker/requirements.txt /tmp/requirements.txt
 RUN pip install --no-cache-dir --prefer-binary -r /tmp/requirements.txt
 
-COPY deploy/jupyter/sdk/clario360_sdk /tmp/clario360_sdk
+COPY --chown=${NB_UID}:users deploy/jupyter/sdk/clario360_sdk /tmp/clario360_sdk
 RUN pip install --no-cache-dir /tmp/clario360_sdk && rm -rf /tmp/clario360_sdk
 
-COPY deploy/jupyter/docker/jupyter_lab_config.py /home/jovyan/.jupyter/jupyter_lab_config.py
-COPY deploy/jupyter/notebooks /home/jovyan/examples
+COPY --chown=${NB_UID}:users deploy/jupyter/docker/jupyter_lab_config.py /home/jovyan/.jupyter/jupyter_lab_config.py
+COPY --chown=${NB_UID}:users deploy/jupyter/notebooks /home/jovyan/examples
 
 HEALTHCHECK --interval=30s --timeout=10s --retries=3 \
   CMD curl -f http://localhost:8888/api/status || exit 1

@@ -419,6 +419,7 @@ func startSharedEnv() (*onboardingIntegrationEnv, error) {
 	)
 	wizardService := onboardingsvc.NewWizardService(
 		onboardingRepository,
+		provisioningRepository,
 		invitationService,
 		producer,
 		logger,

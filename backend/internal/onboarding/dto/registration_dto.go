@@ -1,5 +1,9 @@
 package dto
 
+import (
+	iamdto "github.com/clario360/platform/internal/iam/dto"
+)
+
 type RegisterRequest struct {
 	OrganizationName string `json:"organization_name" validate:"required,min=2,max=100"`
 	AdminEmail       string `json:"admin_email" validate:"required,email,max=255"`
@@ -25,12 +29,13 @@ type VerifyEmailRequest struct {
 }
 
 type VerifyEmailResponse struct {
-	AccessToken  string `json:"access_token"`
-	RefreshToken string `json:"refresh_token"`
-	TokenType    string `json:"token_type"`
-	ExpiresAt    string `json:"expires_at"`
-	TenantID     string `json:"tenant_id"`
-	Message      string `json:"message"`
+	AccessToken  string               `json:"access_token"`
+	RefreshToken string               `json:"refresh_token"`
+	TokenType    string               `json:"token_type"`
+	ExpiresAt    string               `json:"expires_at"`
+	TenantID     string               `json:"tenant_id"`
+	User         *iamdto.UserResponse `json:"user,omitempty"`
+	Message      string               `json:"message"`
 }
 
 type ResendOTPRequest struct {

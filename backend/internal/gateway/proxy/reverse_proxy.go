@@ -36,6 +36,15 @@ var internalResponseHeaders = []string{
 	"X-User-Email",
 	"X-User-Roles",
 	"X-User-Permissions",
+	// Strip upstream CORS headers — the gateway's own CORS middleware is the
+	// single authoritative source. Letting upstream CORS headers pass through
+	// causes duplicate Access-Control-Allow-Origin values which browsers reject.
+	"Access-Control-Allow-Origin",
+	"Access-Control-Allow-Methods",
+	"Access-Control-Allow-Headers",
+	"Access-Control-Allow-Credentials",
+	"Access-Control-Expose-Headers",
+	"Access-Control-Max-Age",
 }
 
 // ReverseProxy wraps httputil.ReverseProxy with circuit breaker support.

@@ -7,6 +7,7 @@ import (
 	"github.com/clario360/platform/internal/auth"
 	cyberhealth "github.com/clario360/platform/internal/cyber/health"
 	cybermw "github.com/clario360/platform/internal/cyber/middleware"
+	uebahandler "github.com/clario360/platform/internal/cyber/ueba/handler"
 	"github.com/clario360/platform/internal/middleware"
 )
 
@@ -27,6 +28,7 @@ func RegisterRoutes(
 	remediationHandler *RemediationHandler,
 	dspmHandler *DSPMHandler,
 	vcisoHandler *VCISOHandler,
+	uebaHandler *uebahandler.UEBAHandler,
 	jwtMgr *auth.JWTManager,
 	rdb *redis.Client,
 ) {
@@ -181,6 +183,8 @@ func RegisterRoutes(
 			r.Post("/vciso/report", vcisoHandler.Report)
 			r.Get("/vciso/posture-summary", vcisoHandler.PostureSummary)
 		}
+
+		uebahandler.RegisterRoutes(r, uebaHandler)
 
 		if ctemHandler != nil && ctemReportHandler != nil {
 			r.Route("/ctem", func(r chi.Router) {

@@ -85,3 +85,9 @@ __debug_bin*
 
 # Local test/escrow artifacts
 escrow-0.1.0-test/
+
+# Enterprise dev runtime artifacts (start.sh / stop.sh / status.sh)
+.dev-secrets/
+.dev-bin/
+.dev-logs/
+.dev-pids/

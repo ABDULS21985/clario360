@@ -24,9 +24,11 @@ var Topics = struct {
 	RemediationEvents   string
 	DSPMEvents          string
 	VCISOEvents         string
+	UEBAEvents          string
 
 	// Data
 	DataSourceEvents    string
+	DataAccessEvents    string
 	DarkDataEvents      string
 	PipelineEvents      string
 	QualityEvents       string
@@ -62,9 +64,11 @@ var Topics = struct {
 	RemediationEvents:   "cyber.remediation.events",
 	DSPMEvents:          "cyber.dspm.events",
 	VCISOEvents:         "cyber.vciso.events",
+	UEBAEvents:          "cyber.ueba.events",
 
 	// Data
 	DataSourceEvents:    "data.source.events",
+	DataAccessEvents:    "data.access_events",
 	DarkDataEvents:      "data.darkdata.events",
 	PipelineEvents:      "data.pipeline.events",
 	QualityEvents:       "data.quality.events",
@@ -118,7 +122,9 @@ func AllTopics() []string {
 		Topics.RemediationEvents,
 		Topics.DSPMEvents,
 		Topics.VCISOEvents,
+		Topics.UEBAEvents,
 		Topics.DataSourceEvents,
+		Topics.DataAccessEvents,
 		Topics.DarkDataEvents,
 		Topics.PipelineEvents,
 		Topics.QualityEvents,

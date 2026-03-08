@@ -107,10 +107,10 @@ if ! "${KIND_BIN}" get clusters | grep -qx "${CLUSTER_NAME}"; then
 fi
 
 log "Building local images"
-docker build -f "${ROOT_DIR}/deploy/docker/Dockerfile.backend" --build-arg BUILD_SERVICE=iam-service -t clario360/iam-service:e2e "${ROOT_DIR}"
-docker build -f "${ROOT_DIR}/deploy/docker/Dockerfile.migrator" -t clario360/migrator:e2e "${ROOT_DIR}"
-docker build -f "${ROOT_DIR}/deploy/jupyter/docker/Dockerfile.notebook" -t clario360/notebook:e2e "${ROOT_DIR}"
-docker build -f "${ROOT_DIR}/deploy/jupyter/docker/Dockerfile.notebook-spark" --build-arg BASE_NOTEBOOK_IMAGE=clario360/notebook:e2e -t clario360/notebook-spark:e2e "${ROOT_DIR}"
+DOCKER_BUILDKIT=0 docker build -f "${ROOT_DIR}/deploy/docker/Dockerfile.backend" --build-arg BUILD_SERVICE=iam-service -t clario360/iam-service:e2e "${ROOT_DIR}"
+DOCKER_BUILDKIT=0 docker build -f "${ROOT_DIR}/deploy/docker/Dockerfile.migrator" -t clario360/migrator:e2e "${ROOT_DIR}"
+DOCKER_BUILDKIT=0 docker build -f "${ROOT_DIR}/deploy/jupyter/docker/Dockerfile.notebook" -t clario360/notebook:e2e "${ROOT_DIR}"
+DOCKER_BUILDKIT=0 docker build -f "${ROOT_DIR}/deploy/jupyter/docker/Dockerfile.notebook-spark" -t clario360/notebook-spark:e2e "${ROOT_DIR}"
 
 log "Loading images into kind"
 "${KIND_BIN}" load docker-image --name "${CLUSTER_NAME}" \

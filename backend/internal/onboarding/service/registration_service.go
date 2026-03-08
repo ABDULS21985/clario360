@@ -309,12 +309,14 @@ func (s *RegistrationService) VerifyEmail(ctx context.Context, req onboardingdto
 		}(activation.TenantID)
 	}
 
+	userResp := userToAuthResponse(user)
 	return &onboardingdto.VerifyEmailResponse{
 		AccessToken:  tokens.AccessToken,
 		RefreshToken: tokens.RefreshToken,
 		TokenType:    "Bearer",
 		ExpiresAt:    tokens.ExpiresAt.UTC().Format(time.RFC3339),
 		TenantID:     activation.TenantID.String(),
+		User:         &userResp,
 		Message:      "Email verified. Redirecting to setup.",
 	}, nil
 }

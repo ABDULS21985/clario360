@@ -91,6 +91,7 @@ type OnboardingStatus struct {
 type WizardProgress struct {
 	TenantID                uuid.UUID                    `json:"tenant_id"`
 	CurrentStep             int                          `json:"current_step"`
+	CurrentStepLabel        string                       `json:"current_step_label"`
 	StepsCompleted          []int                        `json:"steps_completed"`
 	WizardCompleted         bool                         `json:"wizard_completed"`
 	EmailVerified           bool                         `json:"email_verified"`
@@ -107,6 +108,7 @@ type WizardProgress struct {
 	ProvisioningStartedAt   *time.Time                   `json:"provisioning_started_at,omitempty"`
 	ProvisioningCompletedAt *time.Time                   `json:"provisioning_completed_at,omitempty"`
 	ProvisioningError       *string                      `json:"provisioning_error,omitempty"`
+	Provisioning            *ProvisioningStatus          `json:"provisioning,omitempty"`
 }
 
 type EmailVerification struct {

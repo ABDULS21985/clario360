@@ -13,6 +13,7 @@ import {
   Bot,
   ShieldCheck,
   Grid3X3,
+  Fingerprint,
 } from 'lucide-react';
 import type { NavItem } from '@/config/navigation';
 
@@ -41,6 +42,7 @@ export const CYBER_NAV_ITEMS: NavItem[] = [
     permission: 'remediation:read',
   },
   { id: 'cyber-dspm', label: 'DSPM', href: '/cyber/dspm', icon: Database },
+  { id: 'cyber-ueba', label: 'UEBA', href: '/cyber/ueba', icon: Fingerprint },
   { id: 'cyber-vciso', label: 'Virtual CISO', href: '/cyber/vciso', icon: Bot },
   {
     id: 'cyber-rules',

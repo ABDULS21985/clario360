@@ -48,6 +48,10 @@ type wizardOnboardingRepository interface {
 	CompleteWizard(ctx context.Context, tenantID uuid.UUID) (*onboardingmodel.WizardProgress, error)
 }
 
+type provisioningStepsReader interface {
+	ListSteps(ctx context.Context, tenantID uuid.UUID) ([]onboardingmodel.ProvisioningStep, error)
+}
+
 type provisioningOnboardingRepository interface {
 	GetOnboardingByTenantID(ctx context.Context, tenantID uuid.UUID) (*onboardingmodel.OnboardingStatus, error)
 	GetTenantIdentity(ctx context.Context, tenantID uuid.UUID) (name, slug string, status iammodel.TenantStatus, retainUntil *time.Time, err error)

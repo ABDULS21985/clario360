@@ -18,6 +18,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"golang.org/x/sync/errgroup"
 
+	"github.com/clario360/platform/internal/aigovernance"
 	aigovconsumer "github.com/clario360/platform/internal/aigovernance/consumer"
 	aigovintegration "github.com/clario360/platform/internal/aigovernance/integration"
 	"github.com/clario360/platform/internal/auth"
@@ -41,6 +42,11 @@ import (
 	riskcomponents "github.com/clario360/platform/internal/cyber/risk/components"
 	"github.com/clario360/platform/internal/cyber/scanner"
 	"github.com/clario360/platform/internal/cyber/service"
+	uebacollector "github.com/clario360/platform/internal/cyber/ueba/collector"
+	uebaengine "github.com/clario360/platform/internal/cyber/ueba/engine"
+	uebahandler "github.com/clario360/platform/internal/cyber/ueba/handler"
+	uebarepository "github.com/clario360/platform/internal/cyber/ueba/repository"
+	uebaservice "github.com/clario360/platform/internal/cyber/ueba/service"
 	cybervciso "github.com/clario360/platform/internal/cyber/vciso"
 	"github.com/clario360/platform/internal/database"
 	"github.com/clario360/platform/internal/events"
@@ -50,6 +56,7 @@ import (
 	workflowrepo "github.com/clario360/platform/internal/workflow/repository"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 func main() {
@@ -113,6 +120,7 @@ func main() {
 	// Use a Gatherers to merge the standard Go/process metrics with the
 	// shared bootstrap registry and cyber-service application metrics.
 	m := cybermetrics.New()
+	uebaMetrics := uebaengine.NewMetrics(m.Registry)
 	promGatherers := prometheus.Gatherers{svc.Metrics.Registry(), m.Registry}
 
 	// ── 5. Kafka producer ──────────────────────────────────────────────────────
@@ -128,6 +136,36 @@ func main() {
 		logger.Warn().Err(aiErr).Msg("ai governance runtime unavailable for cyber-service")
 	} else {
 		defer aiRuntime.Close()
+	}
+	var platformPool *pgxpool.Pool
+	platformPoolOwned := false
+	if aiRuntime != nil && aiRuntime.Pool != nil {
+		platformPool = aiRuntime.Pool
+	} else {
+		platformDSN := aigovernance.BuildPlatformCoreDSN(cfg.Database)
+		poolCfg, parseErr := pgxpool.ParseConfig(platformDSN)
+		if parseErr != nil {
+			logger.Warn().Err(parseErr).Msg("platform core pool unavailable for ueba")
+		} else {
+			poolCfg.MinConns = 1
+			poolCfg.MaxConns = 5
+			poolCfg.MaxConnLifetime = cfg.Database.ConnMaxLifetime
+			poolCfg.MaxConnIdleTime = 5 * time.Minute
+			poolCfg.HealthCheckPeriod = time.Minute
+			pool, openErr := pgxpool.NewWithConfig(ctx, poolCfg)
+			if openErr != nil {
+				logger.Warn().Err(openErr).Msg("platform core pool unavailable for ueba")
+			} else if pingErr := pool.Ping(ctx); pingErr != nil {
+				logger.Warn().Err(pingErr).Msg("platform core pool unavailable for ueba")
+				pool.Close()
+			} else {
+				platformPool = pool
+				platformPoolOwned = true
+			}
+		}
+	}
+	if platformPoolOwned {
+		defer platformPool.Close()
 	}
 
 	// ── 6. Repositories ────────────────────────────────────────────────────────
@@ -150,6 +188,9 @@ func main() {
 	remediationAuditRepo := repository.NewRemediationAuditRepository(db, logger)
 	dspmRepo := repository.NewDSPMRepository(db, logger)
 	vcisoRepo := repository.NewVCISORepository(db, logger)
+	uebaProfileRepo := uebarepository.NewProfileRepository(db, logger)
+	uebaEventRepo := uebarepository.NewEventRepository(db, logger)
+	uebaAlertRepo := uebarepository.NewAlertRepository(db, logger)
 
 	workflowDefRepo := workflowrepo.NewDefinitionRepository(db)
 	workflowInstRepo := workflowrepo.NewInstanceRepository(db)
@@ -191,6 +232,49 @@ func main() {
 		producer, m, cyberCfg, db, logger,
 	)
 	alertSvc := service.NewAlertService(alertRepo, commentRepo, db, producer, logger)
+	if err := uebaEventRepo.EnsurePartitions(ctx); err != nil {
+		logger.Warn().Err(err).Msg("failed to ensure ueba event partitions")
+	}
+	uebaConfigStore := uebaengine.NewConfigStore(ctx, rdb, logger)
+	var uebaCollector *uebacollector.AccessEventCollector
+	if platformPool != nil {
+		uebaCollector = uebacollector.New(platformPool, rdb, uebaEventRepo, logger)
+	} else {
+		logger.Warn().Msg("platform core pool unavailable - ueba collection disabled")
+	}
+	uebaEngine := uebaengine.NewEngine(
+		uebaCollector,
+		uebaProfileRepo,
+		uebaEventRepo,
+		uebaAlertRepo,
+		alertRepo,
+		nil,
+		producer,
+		uebaConfigStore,
+		rdb,
+		uebaMetrics,
+		logger,
+	)
+	if aiRuntime != nil {
+		uebaEngine = uebaengine.NewEngine(
+			uebaCollector,
+			uebaProfileRepo,
+			uebaEventRepo,
+			uebaAlertRepo,
+			alertRepo,
+			aiRuntime.PredictionLogger,
+			producer,
+			uebaConfigStore,
+			rdb,
+			uebaMetrics,
+			logger,
+		)
+	}
+	uebaSvc := uebaservice.NewUEBAService(db, uebaEngine, uebaMetrics, uebaProfileRepo, uebaEventRepo, uebaAlertRepo, producer, logger)
+	var uebaScheduler *uebaengine.Scheduler
+	if uebaCollector != nil {
+		uebaScheduler = uebaengine.NewScheduler(uebaEngine, uebaProfileRepo, uebaCollector, logger)
+	}
 	baselineStore := detection.NewBaselineStore(rdb, logger)
 	ruleSvc := service.NewRuleService(ruleRepo, alertSvc, baselineStore, producer, logger)
 	if err := ruleSvc.EnsureTemplates(ctx); err != nil {
@@ -347,6 +431,7 @@ func main() {
 	remediationHandler := handler.NewRemediationHandler(remediationSvc)
 	dspmHandler := handler.NewDSPMHandler(dspmSvc)
 	vcisoHandler := handler.NewVCISOHandler(vcisoSvc)
+	uebaHTTPHandler := uebahandler.NewUEBAHandler(uebaSvc)
 	handler.RegisterRoutes(
 		svc.Router,
 		assetHandler,
@@ -362,6 +447,7 @@ func main() {
 		remediationHandler,
 		dspmHandler,
 		vcisoHandler,
+		uebaHTTPHandler,
 		jwtMgr,
 		rdb,
 	)
@@ -483,6 +569,15 @@ func main() {
 		}
 		return nil
 	})
+	if uebaScheduler != nil {
+		g.Go(func() error {
+			err := uebaScheduler.Start(gCtx)
+			if err != nil && !errors.Is(err, context.Canceled) {
+				return err
+			}
+			return nil
+		})
+	}
 
 	logger.Info().Int("port", bootstrapCfg.Port).Msg("cyber-service starting")
 	runErr := svc.Run(ctx)

@@ -98,6 +98,11 @@ export const API_ENDPOINTS = {
   // Cyber — Risk
   CYBER_RISK_SCORE: '/api/v1/cyber/risk/score',
   CYBER_RISK_HEATMAP: '/api/v1/cyber/risk/heatmap',
+  CYBER_UEBA_DASHBOARD: '/api/v1/cyber/ueba/dashboard',
+  CYBER_UEBA_RISK_RANKING: '/api/v1/cyber/ueba/risk-ranking',
+  CYBER_UEBA_PROFILES: '/api/v1/cyber/ueba/profiles',
+  CYBER_UEBA_ALERTS: '/api/v1/cyber/ueba/alerts',
+  CYBER_UEBA_CONFIG: '/api/v1/cyber/ueba/config',
 
   // Jobs
   JOBS: '/api/v1/jobs',
@@ -178,6 +183,7 @@ export const ROUTES = {
 
   // Dashboard routes
   CYBER: '/cyber',
+  CYBER_UEBA: '/cyber/ueba',
   CYBER_ALERTS: '/cyber/alerts',
   CYBER_ASSETS: '/cyber/assets',
   DATA: '/data',

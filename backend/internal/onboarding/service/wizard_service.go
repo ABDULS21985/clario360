@@ -15,26 +15,29 @@ import (
 )
 
 type WizardService struct {
-	onboardingRepo wizardOnboardingRepository
-	invitationSvc  *InvitationService
-	producer       *events.Producer
-	logger         zerolog.Logger
-	metrics        *Metrics
+	onboardingRepo   wizardOnboardingRepository
+	provisioningRepo provisioningStepsReader
+	invitationSvc    *InvitationService
+	producer         *events.Producer
+	logger           zerolog.Logger
+	metrics          *Metrics
 }
 
 func NewWizardService(
 	onboardingRepo wizardOnboardingRepository,
+	provisioningRepo provisioningStepsReader,
 	invitationSvc *InvitationService,
 	producer *events.Producer,
 	logger zerolog.Logger,
 	metrics *Metrics,
 ) *WizardService {
 	return &WizardService{
-		onboardingRepo: onboardingRepo,
-		invitationSvc:  invitationSvc,
-		producer:       producer,
-		logger:         logger.With().Str("service", "onboarding_wizard").Logger(),
-		metrics:        metrics,
+		onboardingRepo:   onboardingRepo,
+		provisioningRepo: provisioningRepo,
+		invitationSvc:    invitationSvc,
+		producer:         producer,
+		logger:           logger.With().Str("service", "onboarding_wizard").Logger(),
+		metrics:          metrics,
 	}
 }
 
@@ -43,9 +46,10 @@ func (s *WizardService) GetProgress(ctx context.Context, tenantID uuid.UUID) (*o
 	if err != nil {
 		return nil, err
 	}
-	return &onboardingmodel.WizardProgress{
+	progress := &onboardingmodel.WizardProgress{
 		TenantID:                current.TenantID,
 		CurrentStep:             current.CurrentStep,
+		CurrentStepLabel:        toWizardStepLabel(current.CurrentStep),
 		StepsCompleted:          current.StepsCompleted,
 		WizardCompleted:         current.WizardCompleted,
 		EmailVerified:           current.EmailVerified,
@@ -62,7 +66,15 @@ func (s *WizardService) GetProgress(ctx context.Context, tenantID uuid.UUID) (*o
 		ProvisioningStartedAt:   current.ProvisioningStartedAt,
 		ProvisioningCompletedAt: current.ProvisioningCompletedAt,
 		ProvisioningError:       current.ProvisioningError,
-	}, nil
+	}
+	if s.provisioningRepo != nil && current.ProvisioningStatus != onboardingmodel.OnboardingProvisioningPending {
+		steps, err := s.provisioningRepo.ListSteps(ctx, tenantID)
+		if err == nil && len(steps) > 0 {
+			ps := buildProvisioningStatus(steps)
+			progress.Provisioning = &ps
+		}
+	}
+	return progress, nil
 }
 
 func (s *WizardService) SaveOrganization(ctx context.Context, tenantID uuid.UUID, req onboardingdto.OrganizationDetailsRequest) (*onboardingdto.WizardStepResponse, error) {
@@ -92,13 +104,13 @@ func (s *WizardService) SaveOrganization(ctx context.Context, tenantID uuid.UUID
 		return nil, err
 	}
 	if s.metrics != nil && s.metrics.wizardStepCompletionsTotal != nil {
-		s.metrics.wizardStepCompletionsTotal.WithLabelValues("organization").Inc()
+		s.metrics.wizardStepCompletionsTotal.WithLabelValues(toWizardStepLabel(1)).Inc()
 	}
 	publishOnboardingEvent(ctx, s.producer,
 		"com.clario360.onboarding.wizard.step_completed",
 		tenantID,
 		nil,
-		map[string]any{"step_number": 1, "step_name": "organization"},
+		map[string]any{"step_number": 1, "step_name": toWizardStepLabel(1)},
 		s.logger,
 	)
 	return &onboardingdto.WizardStepResponse{
@@ -125,13 +137,13 @@ func (s *WizardService) SaveBranding(ctx context.Context, tenantID uuid.UUID, lo
 		return nil, err
 	}
 	if s.metrics != nil && s.metrics.wizardStepCompletionsTotal != nil {
-		s.metrics.wizardStepCompletionsTotal.WithLabelValues("branding").Inc()
+		s.metrics.wizardStepCompletionsTotal.WithLabelValues(toWizardStepLabel(2)).Inc()
 	}
 	publishOnboardingEvent(ctx, s.producer,
 		"com.clario360.onboarding.wizard.step_completed",
 		tenantID,
 		nil,
-		map[string]any{"step_number": 2, "step_name": "branding"},
+		map[string]any{"step_number": 2, "step_name": toWizardStepLabel(2)},
 		s.logger,
 	)
 	return &onboardingdto.WizardStepResponse{
@@ -162,13 +174,13 @@ func (s *WizardService) SaveTeam(ctx context.Context, tenantID, invitedBy uuid.U
 		return nil, err
 	}
 	if s.metrics != nil && s.metrics.wizardStepCompletionsTotal != nil {
-		s.metrics.wizardStepCompletionsTotal.WithLabelValues("team").Inc()
+		s.metrics.wizardStepCompletionsTotal.WithLabelValues(toWizardStepLabel(3)).Inc()
 	}
 	publishOnboardingEvent(ctx, s.producer,
 		"com.clario360.onboarding.wizard.step_completed",
 		tenantID,
 		&invitedBy,
-		map[string]any{"step_number": 3, "step_name": "team"},
+		map[string]any{"step_number": 3, "step_name": toWizardStepLabel(3)},
 		s.logger,
 	)
 	return &onboardingdto.WizardStepResponse{
@@ -189,13 +201,13 @@ func (s *WizardService) SaveSuites(ctx context.Context, tenantID uuid.UUID, req 
 		return nil, err
 	}
 	if s.metrics != nil && s.metrics.wizardStepCompletionsTotal != nil {
-		s.metrics.wizardStepCompletionsTotal.WithLabelValues("suites").Inc()
+		s.metrics.wizardStepCompletionsTotal.WithLabelValues(toWizardStepLabel(4)).Inc()
 	}
 	publishOnboardingEvent(ctx, s.producer,
 		"com.clario360.onboarding.wizard.step_completed",
 		tenantID,
 		nil,
-		map[string]any{"step_number": 4, "step_name": "suites"},
+		map[string]any{"step_number": 4, "step_name": toWizardStepLabel(4)},
 		s.logger,
 	)
 	return &onboardingdto.WizardStepResponse{
@@ -212,7 +224,7 @@ func (s *WizardService) Complete(ctx context.Context, tenantID uuid.UUID) (*onbo
 	}
 	if s.metrics != nil {
 		if s.metrics.wizardStepCompletionsTotal != nil {
-			s.metrics.wizardStepCompletionsTotal.WithLabelValues("complete").Inc()
+			s.metrics.wizardStepCompletionsTotal.WithLabelValues(toWizardStepLabel(5)).Inc()
 		}
 		if s.metrics.wizardCompletionsTotal != nil {
 			s.metrics.wizardCompletionsTotal.WithLabelValues().Inc()
@@ -224,7 +236,7 @@ func (s *WizardService) Complete(ctx context.Context, tenantID uuid.UUID) (*onbo
 		nil,
 		map[string]any{
 			"step_number":      5,
-			"step_name":        "complete",
+			"step_name":        toWizardStepLabel(5),
 			"suites_selected":  progress.ActiveSuites,
 			"wizard_completed": true,
 		},

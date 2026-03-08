@@ -290,6 +290,7 @@ func main() {
 	)
 	wizardService := onboardingsvc.NewWizardService(
 		onboardingRepository,
+		provisioningRepository,
 		invitationService,
 		producer,
 		svc.Logger,
