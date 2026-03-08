@@ -27,7 +27,6 @@ func RegisterRoutes(
 	vulnerabilityHandler *VulnerabilityHandler,
 	remediationHandler *RemediationHandler,
 	dspmHandler *DSPMHandler,
-	vcisoHandler *VCISOHandler,
 	uebaHandler *uebahandler.UEBAHandler,
 	jwtMgr *auth.JWTManager,
 	rdb *redis.Client,
@@ -175,14 +174,6 @@ func RegisterRoutes(
 			r.Get("/dspm/exposure", dspmHandler.Exposure)
 			r.Get("/dspm/dependencies", dspmHandler.Dependencies)
 			r.Get("/dspm/dashboard", dspmHandler.Dashboard)
-		}
-
-		if vcisoHandler != nil {
-			r.Get("/vciso/briefing", vcisoHandler.Briefing)
-			r.Get("/vciso/briefing/history", vcisoHandler.BriefingHistory)
-			r.Get("/vciso/recommendations", vcisoHandler.Recommendations)
-			r.Post("/vciso/report", vcisoHandler.Report)
-			r.Get("/vciso/posture-summary", vcisoHandler.PostureSummary)
 		}
 
 		uebahandler.RegisterRoutes(r, uebaHandler)

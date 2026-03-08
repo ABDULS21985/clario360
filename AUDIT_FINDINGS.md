@@ -77,6 +77,12 @@ Verified gateway prefix ownership from `backend/internal/gateway/config/routes.g
 | 7 | Smoke verification initially failed against stale or partial runtime processes | The already-running local gateway/PM2 services were not using the rebuilt binaries, and the previous PM2 profile was incomplete | Live local runtime only | Fixed |
 | 8 | Notification websocket upgrades failed end to end | Gateway and service middleware wrappers dropped `http.Hijacker`, and the smoke probe used a non-browser websocket handshake | Gateway websocket proxy, notification websocket handler, shared middleware, smoke automation | Fixed |
 | 9 | Local dev observability default kept emitting OTLP exporter errors | Base config defaulted OTLP export to `http://localhost:4317`, and PM2 inherited exporter env even when local tracing should have been disabled | Gateway and services bootstrapped from shared config in local dev | Fixed |
+| 10 | Data quality dashboard and score trend endpoints returned 500 through the live gateway | Repository queries built day intervals via string concatenation, which broke pgx argument encoding and caused shared quality trend lookups to fail at runtime | `frontend` data quality page, `data-service` quality trend/dashboard handlers, file-service lifecycle cleanup paths with the same query pattern | Fixed |
+| 11 | Tenant-scoped cyber/UEBA reads failed or behaved inconsistently in live runtime | Shared tenant context setters used `SET LOCAL ... = $1`, which PostgreSQL does not accept with bind parameters | Shared database tenant wrappers, cyber-service tenant-scoped queries, UEBA dashboard/risk ranking/profile surfaces | Fixed |
+| 12 | User session listing returned 500 through the live gateway | IAM session queries scanned PostgreSQL `INET` values directly into Go string pointers instead of converting them to text in SQL | Settings session management, `/api/v1/users/me/sessions`, IAM session repository | Fixed |
+| 13 | Notebook server listing failed hard when JupyterHub was unavailable in local/runtime environments | The notebook service treated upstream connectivity failures as fatal instead of degrading to an empty list for a discovery endpoint | Notebook dashboard and `/api/v1/notebooks/servers` | Fixed |
+| 14 | VCISO executive briefing and posture summary returned 500 for empty-alert tenants | The overall MTTR aggregate query scanned nullable aggregate results into non-nullable float fields | `/api/v1/cyber/vciso/briefing`, `/api/v1/cyber/vciso/posture-summary`, shared cyber MTTR reporting | Fixed |
+| 15 | Lex dashboard queries crashed on empty/default datasets | Contract repository methods appended `ORDER BY c.*` outside the `contractJSONSelect(...)` subquery, referencing an out-of-scope alias | `/api/v1/lex/dashboard`, recent contracts, lex contract list query path | Fixed |
 
 ## Fixes Applied
 
@@ -101,6 +107,15 @@ Verified gateway prefix ownership from `backend/internal/gateway/config/routes.g
   - notification websocket upgrade
 - Corrected the smoke-test IAM health target to `9081/healthz`, which matches the actual running service layout.
 - Corrected the smoke-test websocket probe to use a valid browser-like handshake (`Origin` + valid 16-byte `Sec-WebSocket-Key`).
+- Replaced the remaining string-built day interval queries with typed `int * INTERVAL '1 day'` arithmetic in the data quality trend path and matching file-service lifecycle cleanup queries.
+- Extended `scripts/smoke-test.sh` to hit `/api/v1/data/quality/dashboard` and `/api/v1/data/quality/score/trend?days=30` so this regression is covered in future local sweeps.
+- Replaced the shared tenant-context SQL setter with `set_config(..., true)` in the database helpers so tenant-scoped reads no longer fail on parameterized `SET LOCAL`.
+- Normalized IAM session IP extraction to `host(ip_address)` so session listing returns stable text values instead of crashing on `INET` decoding.
+- Hardened notebook server discovery to degrade to `[]` when JupyterHub is unavailable, which preserves the frontend contract without hiding non-network errors.
+- Coalesced nullable overall MTTR aggregates to `0` for empty-alert tenants so VCISO briefing/posture endpoints return valid zeroed metrics instead of 500s.
+- Fixed the remaining lex contract JSON query builders to order by the outer `t.*` alias instead of the inner `c.*` alias, which restored the dashboard and recent-contract paths.
+- Normalized UEBA profile and timeline list endpoints to the canonical paginated contract and ensured empty results serialize as `data: []`, not `null`.
+- Extended `scripts/smoke-test.sh` to cover the repaired live endpoints: `/api/v1/users/me/sessions`, `/api/v1/notebooks/servers`, `/api/v1/cyber/vciso/briefing`, `/api/v1/cyber/vciso/posture-summary`, `/api/v1/lex/dashboard`, `/api/v1/cyber/ueba/profiles`, `/api/v1/cyber/ueba/alerts`, and `/api/v1/cyber/ueba/profiles/{entityId}/timeline`.
 
 ### Startup and routing consistency
 
@@ -182,6 +197,12 @@ Key files changed during this audit:
 - `backend/internal/notification/handler/notification_handler.go`
 - `backend/internal/notification/handler/websocket_handler.go`
 - `backend/internal/notification/repository/notification_repo.go`
+- `backend/internal/data/repository/quality_result_repo.go`
+- `backend/internal/database/tenant_context.go`
+- `backend/internal/database/instrumented.go`
+- `backend/internal/filemanager/repository/file_repo.go`
+- `backend/internal/iam/repository/session_repo.go`
+- `backend/internal/notebook/service/notebook_service.go`
 - `backend/internal/workflow/dto/pagination_dto.go`
 - `backend/internal/workflow/dto/instance_dto.go`
 - `backend/internal/workflow/dto/definition_dto.go`
@@ -189,9 +210,12 @@ Key files changed during this audit:
 - `backend/internal/workflow/handler/instance_handler.go`
 - `backend/internal/workflow/handler/definition_handler.go`
 - `backend/internal/cyber/dto/alert_dto.go`
+- `backend/internal/cyber/dashboard/mttr.go`
 - `backend/internal/cyber/service/alert_service.go`
 - `backend/internal/cyber/ueba/dto/alert_dto.go`
+- `backend/internal/cyber/ueba/dto/profile_dto.go`
 - `backend/internal/cyber/ueba/service/ueba_service.go`
+- `backend/internal/lex/repository/contract_repo.go`
 - `backend/internal/audit/handler/audit_handler.go`
 - `backend/internal/observability/tracing/http_propagation.go`
 - `backend/internal/observability/metrics/http_metrics.go`
@@ -201,6 +225,7 @@ Key files changed during this audit:
 - `frontend/src/lib/data-suite/api.ts`
 - `frontend/src/lib/data-suite/types.ts`
 - `frontend/src/lib/enterprise/api.ts`
+- `frontend/src/app/(dashboard)/cyber/ueba/_components/types.ts`
 - `frontend/src/app/(dashboard)/settings/page.tsx`
 - `frontend/src/__tests__/data-suite-fixtures.ts`
 - `ecosystem.local.js`
@@ -220,7 +245,17 @@ Verified successfully:
 - `bash -n /Users/mac/clario360/scripts/start.sh`
 - `pm2 restart /Users/mac/clario360/ecosystem.config.js --update-env`
 - `CLARIO360_SMOKE_EMAIL=admin@clario.dev CLARIO360_SMOKE_PASSWORD='Cl@rio360Dev!' bash /Users/mac/clario360/scripts/smoke-test.sh`
-  - final result: `pass=28 fail=0 skip=0`
+  - final result: `pass=38 fail=0 skip=0`
+- Direct authenticated gateway verification after PM2 restart:
+  - `GET /api/v1/data/quality/score/trend?days=30` -> `200 {"data":[]}`
+  - `GET /api/v1/data/quality/dashboard` -> `200 {"data":{...}}`
+  - `GET /api/v1/cyber/vciso/briefing` -> `200 {"data":{...}}`
+  - `GET /api/v1/cyber/vciso/posture-summary` -> `200 {"data":{...}}`
+  - `GET /api/v1/lex/dashboard` -> `200 {"data":{...}}`
+  - `GET /api/v1/cyber/ueba/profiles?page=1&per_page=5` -> `200 {"data":[],"meta":{...}}`
+  - `GET /api/v1/cyber/ueba/profiles/test-entity/timeline?page=1&per_page=20` -> `200 {"data":[],"meta":{...}}`
+  - `GET /api/v1/notebooks/servers` -> `200 []`
+  - `GET /api/v1/users/me/sessions` -> `200 [...]`
 - Browser-style websocket probe through the live gateway returned `HTTP/1.1 101 Switching Protocols`
 - Production `next build` completed successfully without the previous standalone trace warning about `page_client-reference-manifest.js`
 

@@ -1,3 +1,5 @@
+import type { PaginationMeta } from '@/types/api';
+
 export interface UebaRiskFactor {
   alert_id: string;
   alert_type: string;
@@ -166,8 +168,5 @@ export interface UebaTimelineEvent {
 
 export interface UebaTimelineResponse {
   data: UebaTimelineEvent[];
-  total: number;
-  page: number;
-  per_page: number;
-  total_pages: number;
+  meta: PaginationMeta;
 }

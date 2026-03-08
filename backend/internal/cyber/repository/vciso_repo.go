@@ -15,6 +15,7 @@ import (
 
 	"github.com/clario360/platform/internal/cyber/dto"
 	"github.com/clario360/platform/internal/cyber/model"
+	"github.com/clario360/platform/internal/database"
 )
 
 // VCISORepository handles vciso_briefings table operations.
@@ -38,12 +39,15 @@ func (r *VCISORepository) SaveBriefing(ctx context.Context, tenantID, generatedB
 		return nil, fmt.Errorf("marshal briefing content: %w", err)
 	}
 
-	_, err = r.db.Exec(ctx, `
-		INSERT INTO vciso_briefings (id, tenant_id, type, period_start, period_end, content, risk_score_at_time, generated_by, created_at)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
-		id, tenantID, briefingType, periodStart.Format("2006-01-02"), periodEnd.Format("2006-01-02"),
-		contentJSON, riskScore, generatedBy, now,
-	)
+	err = database.RunWithTenant(ctx, r.db, tenantID, func(tx pgx.Tx) error {
+		_, err := tx.Exec(ctx, `
+			INSERT INTO vciso_briefings (id, tenant_id, type, period_start, period_end, content, risk_score_at_time, generated_by, created_at)
+			VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+			id, tenantID, briefingType, periodStart.Format("2006-01-02"), periodEnd.Format("2006-01-02"),
+			contentJSON, riskScore, generatedBy, now,
+		)
+		return err
+	})
 	if err != nil {
 		return nil, fmt.Errorf("save briefing: %w", err)
 	}

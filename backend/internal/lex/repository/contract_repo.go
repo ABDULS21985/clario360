@@ -150,7 +150,7 @@ func (r *ContractRepository) List(ctx context.Context, tenantID uuid.UUID, filte
 	limitIdx := arg
 	offsetIdx := arg + 1
 	args = append(args, perPage, (page-1)*perPage)
-	query := contractJSONSelect(where) + fmt.Sprintf(" ORDER BY c.updated_at DESC LIMIT $%d OFFSET $%d", limitIdx, offsetIdx)
+	query := contractJSONSelect(where) + fmt.Sprintf(" ORDER BY t.updated_at DESC LIMIT $%d OFFSET $%d", limitIdx, offsetIdx)
 	items, err := queryListJSON[model.Contract](ctx, r.db, query, args...)
 	if err != nil {
 		return nil, 0, fmt.Errorf("list contracts: %w", err)
@@ -498,7 +498,7 @@ func (r *ContractRepository) CountByStatus(ctx context.Context, tenantID uuid.UU
 }
 
 func (r *ContractRepository) RecentContracts(ctx context.Context, tenantID uuid.UUID, limit int) ([]model.ContractSummary, error) {
-	query := contractJSONSelect(`c.tenant_id = $1 AND c.deleted_at IS NULL`) + ` ORDER BY c.created_at DESC LIMIT $2`
+	query := contractJSONSelect(`c.tenant_id = $1 AND c.deleted_at IS NULL`) + ` ORDER BY t.created_at DESC LIMIT $2`
 	contracts, err := queryListJSON[model.Contract](ctx, r.db, query, tenantID, limit)
 	if err != nil {
 		return nil, err

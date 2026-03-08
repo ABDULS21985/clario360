@@ -4,8 +4,10 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"path"
@@ -95,6 +97,10 @@ func (s *NotebookService) ListServers(ctx context.Context, actor nbmodel.Actor) 
 	user, err := s.getHubUser(ctx, actor.Email)
 	if err != nil {
 		if isHubNotFound(err) {
+			return []nbmodel.NotebookServer{}, nil
+		}
+		if isHubUnavailable(err) {
+			s.logger.Warn().Err(err).Str("user_email", actor.Email).Msg("jupyterhub unavailable; returning empty server list")
 			return []nbmodel.NotebookServer{}, nil
 		}
 		return nil, err
@@ -551,4 +557,13 @@ func floatFromState(state map[string]any, key string) float64 {
 
 func isHubNotFound(err error) bool {
 	return err == nbmodel.ErrServerNotFound
+}
+
+func isHubUnavailable(err error) bool {
+	var (
+		urlErr *url.Error
+		opErr  *net.OpError
+		dnsErr *net.DNSError
+	)
+	return errors.As(err, &urlErr) || errors.As(err, &opErr) || errors.As(err, &dnsErr)
 }

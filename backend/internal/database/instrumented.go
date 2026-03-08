@@ -172,7 +172,7 @@ func (db *InstrumentedDB) Pool() *pgxpool.Pool {
 // to those belonging to tenantID.
 func (db *InstrumentedDB) RunInTxWithTenant(ctx context.Context, tenantID uuid.UUID, opts pgx.TxOptions, fn func(pgx.Tx) error) error {
 	return db.RunInTx(ctx, opts, func(tx pgx.Tx) error {
-		if _, err := tx.Exec(ctx, "SET LOCAL app.current_tenant_id = $1", tenantID.String()); err != nil {
+		if _, err := tx.Exec(ctx, "SELECT set_config('app.current_tenant_id', $1, true)", tenantID.String()); err != nil {
 			return fmt.Errorf("set tenant context: %w", err)
 		}
 		return fn(tx)

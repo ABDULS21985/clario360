@@ -5,16 +5,20 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
+
 	"github.com/clario360/platform/internal/cyber/dto"
 	"github.com/clario360/platform/internal/cyber/repository"
 )
 
 type VCISOHandler struct {
-	svc vcisoService
+	svc    vcisoService
+	logger zerolog.Logger
 }
 
 func NewVCISOHandler(svc vcisoService) *VCISOHandler {
-	return &VCISOHandler{svc: svc}
+	return &VCISOHandler{svc: svc, logger: log.Logger.With().Str("handler", "vciso").Logger()}
 }
 
 func (h *VCISOHandler) Briefing(w http.ResponseWriter, r *http.Request) {
@@ -115,6 +119,7 @@ func (h *VCISOHandler) writeError(w http.ResponseWriter, err error) {
 	case errors.Is(err, repository.ErrNotFound):
 		writeError(w, http.StatusNotFound, "NOT_FOUND", "resource not found", nil)
 	default:
+		h.logger.Error().Err(err).Msg("vciso handler error")
 		writeError(w, http.StatusInternalServerError, "INTERNAL_ERROR", err.Error(), nil)
 	}
 }

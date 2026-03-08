@@ -37,11 +37,8 @@ func (p *ProfileListParams) Validate() error {
 }
 
 type ProfileListResponse struct {
-	Data       []*model.UEBAProfile `json:"data"`
-	Total      int                  `json:"total"`
-	Page       int                  `json:"page"`
-	PerPage    int                  `json:"per_page"`
-	TotalPages int                  `json:"total_pages"`
+	Data []*model.UEBAProfile `json:"data"`
+	Meta PaginationMeta       `json:"meta"`
 }
 
 type HeatmapResponse struct {
@@ -51,11 +48,8 @@ type HeatmapResponse struct {
 }
 
 type TimelineResponse struct {
-	Data       []*model.DataAccessEvent `json:"data"`
-	Total      int                      `json:"total"`
-	Page       int                      `json:"page"`
-	PerPage    int                      `json:"per_page"`
-	TotalPages int                      `json:"total_pages"`
+	Data []*model.DataAccessEvent `json:"data"`
+	Meta PaginationMeta           `json:"meta"`
 }
 
 type ProfileStatusUpdateRequest struct {

@@ -611,17 +611,21 @@ func main() {
 		vulnerabilityHandler,
 		remediationHandler,
 		dspmHandler,
-		vcisoHandler,
 		uebaHTTPHandler,
 		jwtMgr,
 		rdb,
 	)
 	vcisochathandler.RegisterRoutes(svc.Router, vcisochathandler.RouteDeps{
-		ChatHandler: vcisoChatHandler,
-		WSHandler:   vcisoWSHandler,
-		JWTManager:  jwtMgr,
-		Redis:       rdb,
-		Logger:      logger,
+		ChatHandler:          vcisoChatHandler,
+		WSHandler:            vcisoWSHandler,
+		JWTManager:           jwtMgr,
+		Redis:                rdb,
+		Logger:               logger,
+		VCISOBriefing:        vcisoHandler.Briefing,
+		VCISOBriefingHistory: vcisoHandler.BriefingHistory,
+		VCISORecommendations: vcisoHandler.Recommendations,
+		VCISOReport:          vcisoHandler.Report,
+		VCISOPostureSummary:  vcisoHandler.PostureSummary,
 	})
 	svc.Router.Get("/api/v1/internal/assets/owners", func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("X-Internal-Service") == "" {

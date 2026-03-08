@@ -1,6 +1,8 @@
 package handler
 
 import (
+	"net/http"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/redis/go-redis/v9"
 	"github.com/rs/zerolog"
@@ -16,6 +18,14 @@ type RouteDeps struct {
 	JWTManager  *auth.JWTManager
 	Redis       *redis.Client
 	Logger      zerolog.Logger
+
+	// vCISO executive handler methods — must be registered under the same
+	// /api/v1/cyber/vciso sub-router to avoid chi route shadowing.
+	VCISOBriefing         http.HandlerFunc
+	VCISOBriefingHistory  http.HandlerFunc
+	VCISORecommendations  http.HandlerFunc
+	VCISOReport           http.HandlerFunc
+	VCISOPostureSummary   http.HandlerFunc
 }
 
 func RegisterRoutes(r chi.Router, deps RouteDeps) {
@@ -26,11 +36,29 @@ func RegisterRoutes(r chi.Router, deps RouteDeps) {
 			if deps.Redis != nil {
 				r.Use(cybermw.RateLimiter(deps.Redis, 1200, deps.Logger))
 			}
+			// Chat routes
 			r.Post("/chat", deps.ChatHandler.Chat)
 			r.Get("/conversations", deps.ChatHandler.ListConversations)
 			r.Get("/conversations/{id}", deps.ChatHandler.GetConversation)
 			r.Delete("/conversations/{id}", deps.ChatHandler.DeleteConversation)
 			r.Get("/suggestions", deps.ChatHandler.Suggestions)
+
+			// Executive vCISO routes (co-located to avoid chi sub-router shadowing)
+			if deps.VCISOBriefing != nil {
+				r.Get("/briefing", deps.VCISOBriefing)
+			}
+			if deps.VCISOBriefingHistory != nil {
+				r.Get("/briefing/history", deps.VCISOBriefingHistory)
+			}
+			if deps.VCISORecommendations != nil {
+				r.Get("/recommendations", deps.VCISORecommendations)
+			}
+			if deps.VCISOReport != nil {
+				r.Post("/report", deps.VCISOReport)
+			}
+			if deps.VCISOPostureSummary != nil {
+				r.Get("/posture-summary", deps.VCISOPostureSummary)
+			}
 		})
 	}
 	if deps.WSHandler != nil {

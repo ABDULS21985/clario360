@@ -1,17 +1,18 @@
-Prompt: Clario360 Platform-Wide Quality Audit & Hardening
+Prompt: Clario360 Endpoint Validation, Repair, and Verification
 
-You are performing a full-stack quality audit of the Clario360 platform. Your job is to systematically discover, fix, and verify integration bugs, API contract mismatches, runtime crashes, configuration gaps, routing issues, and reliability problems across the entire system.
+You are performing a platform-wide endpoint audit for the Clario360 platform. Your job is to discover, test, fix, and verify every meaningful HTTP and WebSocket endpoint exposed by this system, starting from the real frontend contracts and tracing all the way through the gateway, handlers, services, repositories, and runtime topology.
 
-Do not narrow the work to a single visible symptom. Treat any observed failure as a signal that similar issues may exist elsewhere. Audit broadly, verify everything, and keep going until the platform is materially hardened.
+Do not stop at the first visible failure. Treat every broken endpoint, 5xx, contract mismatch, routing gap, auth propagation bug, pagination defect, startup drift, websocket failure, or smoke-test blind spot as evidence that similar defects may exist elsewhere. Audit broadly, fix systematically, and verify live.
 
 You are working in:
 
-/Users/mac/clario360
-/Users/mac/clario360/ecosystem.local.js
-/Users/mac/clario360/ecosystem.config.js
+- `/Users/mac/clario360`
+- `/Users/mac/clario360/ecosystem.local.js`
+- `/Users/mac/clario360/ecosystem.config.js`
 
 Repository layout:
 
+```text
 /Users/mac/clario360/
 ├── frontend/                    # Next.js 14 App Router, TypeScript
 │   ├── src/
@@ -41,11 +42,12 @@ Repository layout:
 │   ├── stop.sh
 │   └── smoke-test.sh
 └── migrations/
+```
 
 Current implementation truths you must respect:
 
-- `ecosystem.local.js` is now the canonical full local PM2 topology. Do not treat it as a partial cyber-only profile.
-- `ecosystem.config.js` is the PM2 entrypoint wrapper and should remain consistent with `ecosystem.local.js`.
+- `ecosystem.local.js` is the canonical full local PM2 topology.
+- `ecosystem.config.js` is the PM2 entrypoint wrapper and must remain consistent with `ecosystem.local.js`.
 - Public API traffic goes through the gateway at `http://localhost:8080`.
 - Current local health endpoints are:
   - gateway: `http://localhost:8080/healthz`
@@ -86,89 +88,160 @@ Current implementation truths you must respect:
 }
 ```
 
-- The frontend `ApiError` type in `frontend/src/types/api.ts` remains flat, and `frontend/src/lib/api.ts` is responsible for normalizing nested gateway errors and legacy flat backend errors into that flat client-side shape. Do not change the TypeScript contract types to chase backend drift.
-- Notification websocket routing exists at `/ws/v1/notifications`. Gateway and service middleware must preserve `http.Hijacker` semantics. Browser-like websocket verification must send an allowed `Origin` header and a valid 16-byte `Sec-WebSocket-Key`.
-- Local dev must keep tracing export disabled unless you are explicitly auditing telemetry wiring. Respect:
+- The frontend `ApiError` type in `frontend/src/types/api.ts` remains flat. `frontend/src/lib/api.ts` is responsible for normalizing nested gateway errors and legacy flat backend errors into that flat client-side shape. Do not change TypeScript contract types to chase backend drift.
+- Notification websocket routing exists at `/ws/v1/notifications`.
+- Gateway and downstream middleware must preserve `http.Hijacker` semantics for websocket upgrades.
+- Browser-like websocket verification must send an allowed `Origin` header and a valid 16-byte `Sec-WebSocket-Key`.
+- Local dev must keep tracing export disabled unless you are explicitly auditing telemetry wiring:
   - `OBSERVABILITY_OTLP_ENDPOINT=""`
   - `OTEL_EXPORTER_OTLP_ENDPOINT=""`
-- `scripts/smoke-test.sh` already exists. Update and extend it; do not replace it with a different toolchain.
+- `scripts/smoke-test.sh` already exists. Extend it in place.
 - `AUDIT_FINDINGS.md` already exists. Update it in place.
 
-Critical rules:
+Non-negotiable rules:
 
 - Always prefix Go commands with `GOWORK=off`.
 - Run Go commands from `/Users/mac/clario360/backend`.
 - Build services with `GOWORK=off go build -o <name> ./cmd/<name>/` or equivalent.
-- Never assume something works because it compiles. Trace frontend usage to backend implementation and verify the contract.
-- Never change the TypeScript contract types in `frontend/src/types/` to fit broken backends. Backends must conform to frontend contracts.
+- Never assume an endpoint works because it compiles. Trace frontend usage to backend implementation and verify live behavior.
+- Never change the TypeScript contract types in `frontend/src/types/` to fit broken backends.
 - Never modify `*_test.go` or `*.test.ts(x)` unless a test is factually wrong.
 - Do not add speculative features. Fix real defects and harden real failure paths.
-- Continue beyond the first fix. Audit for adjacent and repeated patterns.
-- If you change live runtime behavior, rebuild the affected binaries and restart the PM2 stack with `pm2 restart ecosystem.config.js --update-env`, then reverify the live ports.
+- Continue past the first fix. Search for repeated defect patterns and fix them platform-wide where truly applicable.
+- If you change live runtime behavior, rebuild the affected binaries, restart PM2 with `pm2 restart ecosystem.config.js --update-env`, and reverify the live ports.
 
-Execution requirements:
+Core objective:
 
-- Work phase by phase.
-- Maintain an internal issue ledger while auditing: discovered issue, impact, root cause, affected files, fix status.
-- For every bug found, fix it, then verify it.
-- When you find one contract mismatch pattern in one service, actively search for the same pattern across all services.
-- Favor platform-wide consistency over one-off local patches.
-- Prefer updating existing shared helpers and middleware when a defect pattern is systemic.
+Test and fix all platform endpoints, including:
 
-Phase 1: Understand the contracts
+- all frontend-used API endpoints
+- all registered gateway-routed HTTP endpoints
+- all meaningful service-level REST endpoints exposed by each backend service
+- all websocket endpoints
+- all health and admin surfaces that are part of the local runtime contract
+
+Work phase by phase. Maintain an internal issue ledger with:
+
+- endpoint
+- failure or risk
+- impact
+- root cause
+- affected files
+- fix status
+- verification performed
+
+Phase 1: Understand the contracts and runtime
 
 Read these files completely first:
 
-Frontend contracts and API access:
+Frontend contracts and shared API access:
+
 - `frontend/src/types/api.ts`
 - `frontend/src/types/models.ts`
 - `frontend/src/types/table.ts`
 - `frontend/src/lib/api.ts`
 - `frontend/src/lib/constants.ts`
+- `frontend/src/lib/suite-api.ts`
+- `frontend/src/lib/data-suite/api.ts`
+- `frontend/src/lib/enterprise/api.ts`
 
-Frontend data hooks:
+Frontend data and realtime hooks:
+
 - `frontend/src/hooks/use-data-table.ts`
 - `frontend/src/hooks/use-realtime-data.ts`
 - `frontend/src/hooks/use-websocket.ts`
 
 Gateway and local runtime:
+
 - `backend/cmd/api-gateway/main.go`
+- `backend/internal/gateway/config/routes.go`
 - `ecosystem.local.js`
+- `scripts/start.sh`
 - `scripts/smoke-test.sh`
 
 Goal:
-- Understand the canonical frontend API contracts.
-- Understand how pagination, errors, auth, and realtime are expected to work.
-- Build a route map of gateway path prefix → backend service.
-- Understand the actual local runtime topology and health ports, not just the nominal service ports.
 
-Phase 2: Full frontend API inventory
+- understand the canonical frontend contracts
+- understand how auth, pagination, errors, and realtime are supposed to work
+- understand the real PM2/local runtime topology and health ports
+- build a route map of gateway prefix to backend service
+
+Phase 2: Build the full endpoint inventory
+
+Inventory endpoints from all of these sources:
+
+1. Frontend call sites
 
 Scan all files under `frontend/src/` for:
+
 - `api.get`, `api.post`, `api.put`, `api.patch`, `api.delete`
-- `apiGet`, `apiPost`, etc.
+- `apiGet`, `apiPost`, `apiPut`, `apiPatch`, `apiDelete`
 - `fetch(`
 - `useDataTable`
 - `useRealtimeData`
 - `useQuery`
 - `useMutation`
-- WebSocket usage
+- direct `WebSocket` usage
 
-For every discovered API call, produce a complete map with:
-- frontend file
+2. Gateway route ownership
+
+Read:
+
+- `backend/internal/gateway/config/routes.go`
+- `backend/cmd/api-gateway/main.go`
+
+3. Backend service router registrations
+
+For every service under `backend/cmd/`, trace router registration down to actual handlers and produce a complete endpoint list.
+
+Your endpoint inventory must include:
+
+- service
+- frontend file if applicable
+- backend handler file
 - HTTP method
-- URL/path pattern
-- expected TypeScript response type
-- expected pagination/error shape if applicable
-- backend service responsible, based on gateway routing
+- route pattern
+- whether it is public, authenticated, tenant-scoped, admin-only, or websocket
+- expected request shape
+- expected response shape
+- whether it is list, detail, mutation, action, health, or websocket
+- whether it is feasible to test automatically in local dev
 
-Do not sample. Inventory all of them.
+Do not sample. Inventory all meaningful endpoints.
 
-Phase 3: Backend handler contract audit
+Phase 3: Execute endpoint testing
 
-For each discovered endpoint, locate the actual Go handler and audit:
+Test the inventory systematically.
+
+For each feasible endpoint:
+
+- call it through the gateway if it is gateway-facing
+- authenticate where required
+- verify status code
+- verify response contract
+- verify tenant/auth propagation
+- verify pagination behavior where applicable
+- verify invalid input handling
+- verify that failures return the correct error shape
+
+For mutations:
+
+- use safe test data
+- prefer idempotent flows where possible
+- clean up created records when needed
+- do not leave the environment in a broken or polluted state
+
+For endpoints that cannot be exercised safely:
+
+- document why
+- inspect implementation deeply instead of skipping casually
+
+Phase 4: Contract and handler audit
+
+For every discovered endpoint, locate the actual handler and audit:
 
 1. Paginated list endpoints
+
 All paginated list endpoints must return exactly:
 
 ```json
@@ -183,7 +256,8 @@ All paginated list endpoints must return exactly:
 }
 ```
 
-Check for any non-standard shapes such as:
+Search for and normalize any non-standard shapes such as:
+
 - `items`
 - `results`
 - `records`
@@ -196,276 +270,290 @@ Check for any non-standard shapes such as:
 - `last_page`
 - `pages`
 - `count`
-- top-level `total/page/per_page/total_pages`
-
-Normalize them to the standard contract.
+- top-level `page`, `per_page`, `total`, `total_pages`
 
 2. Single-resource endpoints
-Check whether the frontend expects:
-- raw object
-or
-- `{ "data": <object> }`
 
-Make backend behavior consistent with frontend expectations.
+Determine whether the frontend expects:
+
+- raw object
+- or `{ "data": <object> }`
+
+Make backend behavior consistent with the actual frontend expectation.
 
 3. Query/filter handling
-Check all handlers for:
+
+Audit every handler for:
+
 - `page`
 - `per_page`
-- sorting params
-- search params
+- search
+- sort field and direction
 - multi-value filters like `status=a,b,c`
+- invalid values
 
 Verify:
+
 - `per_page` is accepted consistently
-- comma-separated values are parsed correctly
-- invalid values return 400, not 500
-- defaults are sane and documented in code
+- invalid values return `400`, not `500`
+- defaults are sane
+- sort fields are validated
+- filters are not silently ignored
 
 4. Error response shape
-Audit each service’s error writer.
 
 Requirements:
-- Gateway-facing/public HTTP errors should use the nested `error` envelope shown above.
-- The frontend normalizer in `frontend/src/lib/api.ts` currently supports both nested gateway errors and legacy flat errors, but new fixes should move backend/runtime behavior toward the canonical nested gateway-facing contract.
-- Do not change frontend TypeScript types to match backend drift.
 
-5. Auth/tenant propagation
-Trace how the gateway authenticates requests and forwards identity/tenant context.
-Verify each downstream service reads auth context correctly and consistently.
+- gateway-facing/public errors must use the nested `error` envelope
+- downstream services should move toward the canonical contract, not away from it
+- frontend `ApiError` types must not be changed to match broken backends
 
-Phase 4: Service-wide backend consistency audit
+5. Auth and tenant propagation
 
-For every service under `backend/cmd/`, inspect:
-- handler layer
-- service layer
-- repository layer
-- DTOs
-- pagination helpers
-- shared response helpers
-- shared middleware that wraps `http.ResponseWriter`
+Trace how identity is authenticated and forwarded through the gateway.
 
-Look for repeated defect patterns across services, including:
-- inconsistent list response wrappers
-- duplicated pagination DTOs with divergent JSON fields
+Verify each service:
+
+- reads tenant context correctly
+- rejects missing auth when required
+- scopes queries by tenant where required
+- does not leak cross-tenant data
+
+Phase 5: Service-wide pattern hunt
+
+When you find one broken pattern, search the whole repo for the same class of defect and fix all real occurrences.
+
+Specifically hunt for:
+
+- inconsistent response wrappers
+- duplicated pagination DTO drift
 - missing `per_page` support
-- silently ignored filters
-- invalid placeholder indexing in SQL builders
-- nil pointer risks in handlers
-- unbounded queries without limits
-- tenant scoping omissions
-- inconsistent status validation
-- top-level response fields that don’t match frontend assumptions
 - nil slices serialized as `null` instead of `[]`
-- middleware wrappers that break websocket upgrades by dropping `http.Hijacker` / `http.Flusher`
-- local config defaults that re-enable unwanted dev behaviors, such as OTLP export noise
+- ignored filters
+- nil pointer risks in handlers
+- invalid SQL placeholder numbering
+- unsafe dynamic SQL or sort injection
+- unbounded queries
+- broken tenant scoping
+- broken websocket upgrades caused by response-writer wrappers dropping `Hijacker` or `Flusher`
+- local config defaults that accidentally re-enable tracing export
+- interval queries built via string concatenation instead of typed query parameters
 
-When you find one pattern, search the whole repo for it and fix all occurrences that are truly broken.
-
-Phase 5: WebSocket and notification audit
+Phase 6: WebSocket and realtime audit
 
 Audit realtime support end to end.
 
-1. Gateway WebSocket proxy
-Verify in `backend/cmd/api-gateway/main.go`:
+1. Gateway websocket proxy
+
+Verify in gateway code:
+
 - `/ws/v1/...` routes exist
-- upgrade/proxy behavior is correct
-- auth token handling for websocket connections is correct
+- proxy/upgrade behavior is correct
+- auth token handling is correct
 - notification websocket path is routed
-- gateway-side middleware does not break the client upgrade path
+- gateway middleware does not break upgrade semantics
 
 2. Notification service
+
 Audit:
+
 - `backend/cmd/notification-service/`
 - `backend/internal/notification/`
 
 Verify:
-- REST endpoints used by frontend exist and are registered
-- unread count endpoint exists
-- list notifications endpoint exists
-- mark-read/update endpoints exist if used
-- websocket handler exists and upgrades properly
-- websocket auth works both for direct token auth and for trusted gateway-forwarded identity headers when proxied
+
+- REST endpoints used by the frontend exist and are registered
+- unread count exists
+- list notifications exists
+- mark-read and related update endpoints exist if used
+- websocket handler upgrades correctly
+- websocket auth works both for direct token auth and trusted gateway-forwarded identity headers
 
 3. Frontend websocket client
+
 Audit `frontend/src/hooks/use-websocket.ts` for:
-- retry behavior
+
+- reconnect behavior
 - cleanup on unmount
-- failure handling when service is unavailable
-- prevention of component tree crashes on socket failures
+- handling when the service is unavailable
+- prevention of component crashes on socket failure
 
-4. Smoke websocket verification
-When verifying the websocket path with `curl`, use a browser-like handshake:
-- send `Origin: http://localhost:3000` unless the allowed origin config differs
-- use a valid `Sec-WebSocket-Key` such as `dGhlIHNhbXBsZSBub25jZQ==`
+4. Websocket verification
 
-Fix any broken routing, missing registration, brittle client behavior, or middleware upgrade breakage.
+When verifying with `curl`, use a browser-like handshake:
 
-Phase 6: Configuration and startup audit
+- `Origin: http://localhost:3000`
+- valid `Sec-WebSocket-Key`, for example `dGhlIHNhbXBsZSBub25jZQ==`
+
+Phase 7: Startup and configuration audit
 
 Read `scripts/start.sh` and `ecosystem.local.js` fully.
 
-For each service, inspect its `main.go`, config loader, and env parsing. Build a verified table of:
+For each service, verify:
+
 - HTTP port env var
-- health/admin port env var
+- admin/health port env var
 - DB env vars
-- JWT/public/private key env vars
+- JWT key env vars
 - required secrets
-- duration env vars
+- timeout/duration env vars
 - defaults
 
-Cross-check against `scripts/start.sh`, `ecosystem.local.js`, and actual service expectations.
+Cross-check actual code expectations against:
+
+- `scripts/start.sh`
+- `ecosystem.local.js`
+- gateway downstream URLs
+- live local health endpoints
 
 Validate:
+
 - env var names match exactly
 - ports do not conflict
-- JWT keys are passed in the expected format
-- duration values use valid Go duration syntax
-- required secrets/keys satisfy service validation rules
-- health checks point to the correct live port
-  - especially IAM on `9081`
-  - especially file-service on `9091`
-- local PM2 config keeps OTLP export disabled unless explicitly enabled for the audit
+- duration strings are valid Go durations where expected
+- health checks hit the correct port
+- IAM health uses `9081`
+- file-service health uses `9091`
+- local PM2 config keeps OTLP export disabled unless explicitly auditing telemetry
 
-Fix broken env names, inconsistent config parsing, startup mismatches, or stale local topology assumptions.
-
-Phase 7: Database and repository audit
+Phase 8: Database and repository audit
 
 For each repository layer:
 
-1. Pool/connection hygiene
+1. Connection hygiene
+
 Verify:
-- only one pool per service
-- `rows.Close()` is always deferred
-- transactions always rollback on failure paths
-- pool settings are reasonable
+
+- one pool per service
+- `rows.Close()` is deferred
+- transactions roll back on failure paths
+- pool settings are sane
 
 2. Query correctness
+
 Audit:
+
 - placeholder numbering
-- dynamic WHERE clauses
-- `IN (...)` placeholder generation
-- `ANY($N)` argument typing
+- dynamic `WHERE` construction
+- `IN (...)` and `ANY($N)` handling
 - pagination offset/limit logic
-- sort field validation to avoid SQL injection
+- sort validation
+- typed interval/date query handling
 
 3. Index coverage
-Compare frequent query filters against migrations.
-Flag and fix missing indexes on important columns such as:
+
+Compare real query patterns against migrations.
+Add indexes only where justified by actual endpoint/query usage.
+
+Focus on columns such as:
+
 - `tenant_id`
 - `status`
 - `created_at`
 - foreign keys used in joins
-- high-cardinality filters used in list endpoints
+- high-cardinality list filters
 
-Only add indexes where justified by real query patterns.
+Phase 9: Frontend defensive hardening
 
-Phase 8: Frontend defensive hardening
+Audit all frontend endpoint consumers for brittle assumptions.
 
-Audit all frontend code under `frontend/src/` for brittle API assumptions.
+Search for:
 
-1. Optional chaining / null safety
-Search for unsafe access patterns including:
-- `.meta.total`
-- `.meta.page`
-- `.data.length`
-- `.pagination.*`
-- nested property access on async query results
+- unsafe `.meta.total`
+- unsafe `.meta.page`
+- unsafe `.data.length`
+- legacy `.pagination.*`
+- nested property access on async results without guards
+- render-time side effects
+- loading/error-state crashes
 
-Fix with proper guards where necessary.
+Fix repeated frontend assumptions systematically.
 
-2. Loading and error states
-Verify components and hooks do not dereference undefined data during loading/error states.
-
-3. Render-time side effects
-Search for `setState` or other side effects during render.
-Move them into effects or handlers.
-
-4. Error boundaries / graceful failure
-Ensure page-level crashes degrade into an error state, empty state, or retryable UI instead of a white screen.
-
-5. Repeated contract assumptions
-If one hook assumes a response shape unsafely, search for similar assumptions everywhere and fix them systematically.
-
-Phase 9: Build and compile verification
+Phase 10: Build, runtime, and smoke verification
 
 After fixes:
 
 Backend:
+
 ```bash
 cd /Users/mac/clario360/backend
 GOWORK=off go build ./...
 ```
 
 Frontend:
+
 ```bash
 cd /Users/mac/clario360/frontend
 npm run type-check
 npm run build
 ```
 
-Do not stop at partial success. Fix all build and type errors introduced or revealed by the audit.
+Runtime:
 
-Phase 10: Smoke-test automation
+- rebuild any affected service binaries
+- restart PM2 with `pm2 restart ecosystem.config.js --update-env`
+- reverify health endpoints
+- reverify the specific endpoints that were fixed
+
+Smoke automation:
 
 Update `scripts/smoke-test.sh` so it:
 
-- checks service health endpoints
+- checks all local health endpoints
 - authenticates through the gateway
 - captures an access token
-- exercises all discovered frontend-used API endpoints where feasible
-- validates 2xx responses where expected
-- validates paginated endpoints return:
-  - `data` as an array
-  - `meta.page` as a number
-  - `meta.per_page` as a number
-  - `meta.total` as a number
-  - `meta.total_pages` as a number
+- exercises representative endpoints from every service
+- covers all critical frontend-used endpoints
+- validates paginated endpoints return `data` plus canonical `meta`
 - validates error endpoints return the canonical nested `error` shape
-- tests WebSocket upgrade for notifications using a valid browser-like handshake
+- tests websocket upgrade for notifications with a valid browser-like handshake
 - prints a clear pass/fail summary
 
-The script must remain self-contained and rely only on:
+The smoke script must remain self-contained and use only:
 
 - bash
 - curl
 - jq
 - python3
 
-Phase 11: Documentation of findings
+Phase 11: Documentation
 
 Update `/Users/mac/clario360/AUDIT_FINDINGS.md` with:
 
 - issue summary
 - root cause
-- services/pages affected
+- affected endpoints and services
 - files changed
 - verification performed
-- any residual risks or follow-up items
+- residual risks or follow-up items
 
-Prioritize fixes in this order:
+Deliverables:
+
+- all discovered endpoint defects fixed where feasible
+- all affected backend services compiling
+- frontend type-check passing
+- frontend production build passing
+- `scripts/smoke-test.sh` updated and passing
+- `AUDIT_FINDINGS.md` updated
+- local PM2 stack aligned with `ecosystem.local.js`
+- concise final report covering:
+  - what endpoints were inventoried
+  - what failed
+  - what was fixed
+  - what was verified live
+  - what remains blocked, if anything
+
+Priority order:
 
 1. Crashes and panics
-2. Broken routing / missing service registration
+2. Broken routing or missing handler registration
 3. Wrong API response shapes
-4. Auth / tenant propagation failures
-5. Config / startup mismatches
+4. Auth or tenant propagation failures
+5. Configuration or startup mismatches
 6. Query correctness and data consistency bugs
 7. Frontend hardening gaps
 8. Performance and reliability issues
 
-Deliverables:
+Final instruction:
 
-- all discovered defects fixed where feasible
-- all affected services compiling
-- frontend type-check and production build passing
-- `scripts/smoke-test.sh` updated and passing
-- `AUDIT_FINDINGS.md` updated
-- local PM2 stack aligned with `ecosystem.local.js`
-- concise final report summarizing:
-  - what was audited
-  - what was fixed
-  - what was verified
-  - what remains blocked, if anything
-
-Do not stop after addressing one obvious symptom. Audit the platform deeply and fix repeated classes of issues across the board.
+Do not stop after addressing one endpoint or one service. Audit the platform endpoint surface deeply, fix repeated classes of defects, rebuild, restart, and verify the live runtime behavior end to end.

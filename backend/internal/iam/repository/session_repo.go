@@ -41,7 +41,7 @@ func (r *sessionRepo) Create(ctx context.Context, session *model.Session) error 
 
 func (r *sessionRepo) GetByTokenHash(ctx context.Context, tokenHash string) (*model.Session, error) {
 	query := `
-		SELECT id, user_id, tenant_id, refresh_token_hash, ip_address, user_agent, expires_at, created_at
+		SELECT id, user_id, tenant_id, refresh_token_hash, host(ip_address), user_agent, expires_at, created_at
 		FROM sessions
 		WHERE refresh_token_hash = $1 AND expires_at > NOW()`
 
@@ -61,7 +61,7 @@ func (r *sessionRepo) GetByTokenHash(ctx context.Context, tokenHash string) (*mo
 
 func (r *sessionRepo) GetByUserID(ctx context.Context, userID string) ([]model.Session, error) {
 	query := `
-		SELECT id, user_id, tenant_id, refresh_token_hash, ip_address, user_agent, expires_at, created_at
+		SELECT id, user_id, tenant_id, refresh_token_hash, host(ip_address), user_agent, expires_at, created_at
 		FROM sessions
 		WHERE user_id = $1 AND expires_at > NOW()
 		ORDER BY created_at DESC`

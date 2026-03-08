@@ -63,16 +63,12 @@ func (s *UEBAService) ListProfiles(ctx context.Context, tenantID uuid.UUID, para
 	if err != nil {
 		return nil, err
 	}
-	totalPages := (total + params.PerPage - 1) / params.PerPage
-	if totalPages < 1 {
-		totalPages = 1
+	if items == nil {
+		items = []*model.UEBAProfile{}
 	}
 	return &dto.ProfileListResponse{
-		Data:       items,
-		Total:      total,
-		Page:       params.Page,
-		PerPage:    params.PerPage,
-		TotalPages: totalPages,
+		Data: items,
+		Meta: dto.NewPaginationMeta(params.Page, params.PerPage, total),
 	}, nil
 }
 
@@ -149,16 +145,12 @@ func (s *UEBAService) GetTimeline(ctx context.Context, tenantID uuid.UUID, entit
 	if err != nil {
 		return nil, err
 	}
-	totalPages := (total + perPage - 1) / perPage
-	if totalPages < 1 {
-		totalPages = 1
+	if items == nil {
+		items = []*model.DataAccessEvent{}
 	}
 	return &dto.TimelineResponse{
-		Data:       items,
-		Total:      total,
-		Page:       page,
-		PerPage:    perPage,
-		TotalPages: totalPages,
+		Data: items,
+		Meta: dto.NewPaginationMeta(page, perPage, total),
 	}, nil
 }
 

@@ -151,6 +151,23 @@ check_array_data_endpoint() {
   fi
 }
 
+check_top_level_array_endpoint() {
+  local name="$1"
+  local path="$2"
+  local body="${TMP_DIR}/${name}.json"
+  local status
+  status="$(curl_status "${body}" -H "Authorization: Bearer ${TOKEN}" "${BASE_URL}${path}")"
+  if [[ "${status}" != "200" ]]; then
+    fail "${name} returned HTTP ${status}"
+    return
+  fi
+  if jq -e '. | type == "array"' "${body}" >/dev/null; then
+    pass "${name} top-level array contract"
+  else
+    fail "${name} did not return a top-level array"
+  fi
+}
+
 check_websocket_upgrade() {
   local headers_file="${TMP_DIR}/ws.headers"
   curl -sS --http1.1 --max-time 5 -D "${headers_file}" -o /dev/null \
@@ -226,14 +243,22 @@ PY
 )"
 
     check_object_endpoint "users-me" "/api/v1/users/me"
+    check_top_level_array_endpoint "users-me-sessions" "/api/v1/users/me/sessions"
     check_object_endpoint "notifications-unread-count" "/api/v1/notifications/unread-count"
     check_object_endpoint "notifications-preferences" "/api/v1/notifications/preferences"
+    check_object_endpoint "cyber-vciso-briefing" "/api/v1/cyber/vciso/briefing"
+    check_object_endpoint "cyber-vciso-posture-summary" "/api/v1/cyber/vciso/posture-summary"
+    check_object_endpoint "lex-dashboard" "/api/v1/lex/dashboard"
     check_object_endpoint "data-quality-dashboard" "/api/v1/data/quality/dashboard"
     check_array_data_endpoint "data-quality-score-trend" "/api/v1/data/quality/score/trend?days=30"
+    check_top_level_array_endpoint "notebooks-servers" "/api/v1/notebooks/servers"
 
     check_paginated_endpoint "notifications" "/api/v1/notifications?page=1&per_page=5"
     check_paginated_endpoint "files" "/api/v1/files?page=1&per_page=5"
     check_paginated_endpoint "cyber-alerts" "/api/v1/cyber/alerts?page=1&per_page=5"
+    check_paginated_endpoint "cyber-ueba-profiles" "/api/v1/cyber/ueba/profiles?page=1&per_page=5"
+    check_paginated_endpoint "cyber-ueba-alerts" "/api/v1/cyber/ueba/alerts?page=1&per_page=5"
+    check_paginated_endpoint "cyber-ueba-timeline" "/api/v1/cyber/ueba/profiles/test-entity/timeline?page=1&per_page=5"
     check_paginated_endpoint "data-sources" "/api/v1/data/sources?page=1&per_page=5"
     check_paginated_endpoint "acta-committees" "/api/v1/acta/committees?page=1&per_page=5"
     check_paginated_endpoint "lex-contracts" "/api/v1/lex/contracts?page=1&per_page=5"
