@@ -82,6 +82,25 @@ func (s *UserService) GetByID(ctx context.Context, userID string) (*dto.UserResp
 	return &resp, nil
 }
 
+func (s *UserService) GetByEmail(ctx context.Context, tenantID, email string) (*dto.UserResponse, error) {
+	var (
+		user *model.User
+		err  error
+	)
+
+	if tenantID != "" {
+		user, err = s.userRepo.GetByEmail(ctx, tenantID, email)
+	} else {
+		user, err = s.userRepo.GetByEmailGlobal(ctx, email)
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	resp := dto.UserToResponse(user)
+	return &resp, nil
+}
+
 func (s *UserService) Update(ctx context.Context, userID string, req *dto.UpdateUserRequest, updatedBy string) (*dto.UserResponse, error) {
 	user, err := s.userRepo.GetByID(ctx, userID)
 	if err != nil {

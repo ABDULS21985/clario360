@@ -325,6 +325,7 @@ func main() {
 	// Routes.
 	svc.Router.Route("/api/v1", func(r chi.Router) {
 		r.Get("/internal/users/by-role", roleHandler.InternalUserIDsByRole)
+		r.Get("/internal/users/by-email", userHandler.InternalGetByEmail)
 		r.Get("/internal/users/{id}/email", userHandler.InternalGetEmail)
 
 		r.Group(func(r chi.Router) {

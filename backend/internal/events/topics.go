@@ -8,6 +8,7 @@ var Topics = struct {
 	OnboardingEvents   string
 	AuditEvents        string
 	NotificationEvents string
+	IntegrationEvents  string
 	WorkflowEvents     string
 	FileEvents         string
 	AIEvents           string
@@ -48,6 +49,7 @@ var Topics = struct {
 	OnboardingEvents:   "platform.onboarding.events",
 	AuditEvents:        "platform.audit.events",
 	NotificationEvents: "platform.notification.events",
+	IntegrationEvents:  "platform.integration.events",
 	WorkflowEvents:     "platform.workflow.events",
 	FileEvents:         "platform.file.events",
 	AIEvents:           "platform.ai.events",
@@ -108,6 +110,7 @@ func AllTopics() []string {
 		Topics.OnboardingEvents,
 		Topics.AuditEvents,
 		Topics.NotificationEvents,
+		Topics.IntegrationEvents,
 		Topics.WorkflowEvents,
 		Topics.FileEvents,
 		Topics.AIEvents,

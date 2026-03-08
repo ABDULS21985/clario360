@@ -49,6 +49,20 @@ type Config struct {
 	DataServiceURL  string
 	ActaServiceURL  string
 	CyberServiceURL string
+	LexServiceURL   string
+	VisusServiceURL string
+	GatewayURL      string
+	PublicAppURL    string
+
+	// External OAuth / bot integration settings.
+	IntegrationStateTTLMin int
+	SlackClientID          string
+	SlackClientSecret      string
+	SlackSigningSecret     string
+	SlackScopes            []string
+	AtlassianClientID      string
+	AtlassianClientSecret  string
+	AtlassianScopes        []string
 
 	// Rate limiting
 	RateLimitPerMinute int
@@ -86,6 +100,18 @@ func LoadFromEnv() *Config {
 		DataServiceURL:          envStr("NOTIF_DATA_SERVICE_URL", "http://localhost:8086"),
 		ActaServiceURL:          envStr("NOTIF_ACTA_SERVICE_URL", "http://localhost:8087"),
 		CyberServiceURL:         envStr("NOTIF_CYBER_SERVICE_URL", "http://localhost:8085"),
+		LexServiceURL:           envStr("NOTIF_LEX_SERVICE_URL", "http://localhost:8088"),
+		VisusServiceURL:         envStr("NOTIF_VISUS_SERVICE_URL", "http://localhost:8089"),
+		GatewayURL:              envStr("NOTIF_GATEWAY_URL", "http://localhost:8080"),
+		PublicAppURL:            envStr("CLARIO360_PUBLIC_URL", "http://localhost:3000"),
+		IntegrationStateTTLMin:  envInt("NOTIF_INTEGRATION_STATE_TTL_MIN", 15),
+		SlackClientID:           envStr("NOTIF_SLACK_CLIENT_ID", ""),
+		SlackClientSecret:       envStr("NOTIF_SLACK_CLIENT_SECRET", ""),
+		SlackSigningSecret:      envStr("NOTIF_SLACK_SIGNING_SECRET", ""),
+		SlackScopes:             envStrSlice("NOTIF_SLACK_SCOPES", []string{"chat:write", "commands", "incoming-webhook", "users:read", "users:read.email"}),
+		AtlassianClientID:       envStr("NOTIF_ATLASSIAN_CLIENT_ID", ""),
+		AtlassianClientSecret:   envStr("NOTIF_ATLASSIAN_CLIENT_SECRET", ""),
+		AtlassianScopes:         envStrSlice("NOTIF_ATLASSIAN_SCOPES", []string{"read:jira-work", "write:jira-work"}),
 		RateLimitPerMinute:      envInt("NOTIF_RATE_LIMIT_PER_MINUTE", 120),
 		Environment:             envStr("NOTIF_ENVIRONMENT", "development"),
 	}

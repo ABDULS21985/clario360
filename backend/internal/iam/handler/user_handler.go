@@ -2,6 +2,7 @@ package handler
 
 import (
 	"net/http"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/rs/zerolog"
@@ -89,6 +90,28 @@ func (h *UserHandler) InternalGetEmail(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, map[string]string{"email": resp.Email})
+}
+
+func (h *UserHandler) InternalGetByEmail(w http.ResponseWriter, r *http.Request) {
+	if r.Header.Get("X-Internal-Service") == "" {
+		writeError(w, http.StatusUnauthorized, "internal access required")
+		return
+	}
+
+	email := strings.TrimSpace(r.URL.Query().Get("email"))
+	tenantID := strings.TrimSpace(r.URL.Query().Get("tenant_id"))
+	if email == "" {
+		writeError(w, http.StatusBadRequest, "email is required")
+		return
+	}
+
+	resp, err := h.userSvc.GetByEmail(r.Context(), tenantID, email)
+	if err != nil {
+		handleServiceError(w, err)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, resp)
 }
 
 func (h *UserHandler) Update(w http.ResponseWriter, r *http.Request) {
