@@ -115,9 +115,11 @@ function VerifyEmailForm() {
       // Store access token in memory
       setAccessToken(resp.access_token);
 
-      await apiPost(API_ENDPOINTS.BFF_SESSION, {
-        access_token: resp.access_token,
-        refresh_token: resp.refresh_token,
+      await fetch(API_ENDPOINTS.BFF_SESSION, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ access_token: resp.access_token, refresh_token: resp.refresh_token }),
       });
 
       // Fetch user session and store in auth store

@@ -41,6 +41,7 @@ type PredictionResult struct {
 	Explanation *aigovmodel.Explanation `json:"explanation"`
 	ModelID     uuid.UUID               `json:"model_id"`
 	VersionID   uuid.UUID               `json:"version_id"`
+	PredictionLogID uuid.UUID           `json:"prediction_log_id"`
 	LatencyMS   int                     `json:"latency_ms"`
 }
 

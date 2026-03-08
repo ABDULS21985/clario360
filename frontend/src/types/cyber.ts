@@ -826,6 +826,73 @@ export interface VCISOBriefing {
   previous_risk_score?: number;
 }
 
+export type VCISOResponseType =
+  | 'text'
+  | 'table'
+  | 'chart'
+  | 'kpi'
+  | 'dashboard'
+  | 'list'
+  | 'investigation';
+
+export interface VCISOSuggestedAction {
+  label: string;
+  type: 'navigate' | 'execute_tool' | 'confirm';
+  params: Record<string, string>;
+}
+
+export interface VCISOResponsePayload {
+  text: string;
+  data?: unknown;
+  data_type: VCISOResponseType;
+  actions: VCISOSuggestedAction[];
+}
+
+export interface VCISOChatResponse {
+  conversation_id: string;
+  message_id: string;
+  response: VCISOResponsePayload;
+  intent: string;
+  confidence: number;
+}
+
+export interface VCISOSuggestion {
+  text: string;
+  category: string;
+  priority: number;
+  reason: string;
+}
+
+export interface VCISOConversationListItem {
+  id: string;
+  title: string;
+  status: string;
+  message_count: number;
+  last_message_at?: string | null;
+  created_at: string;
+}
+
+export interface VCISOConversationMessage {
+  id: string;
+  role: 'user' | 'assistant' | 'system';
+  content: string;
+  intent?: string | null;
+  response_type?: VCISOResponseType | null;
+  actions: VCISOSuggestedAction[];
+  tool_result?: unknown;
+  created_at: string;
+}
+
+export interface VCISOConversationDetail {
+  id: string;
+  title: string;
+  status: string;
+  message_count: number;
+  last_message_at?: string | null;
+  created_at: string;
+  messages: VCISOConversationMessage[];
+}
+
 // ─── MITRE ────────────────────────────────────────────────────────────────────
 
 export interface MITRETechniqueCoverage {

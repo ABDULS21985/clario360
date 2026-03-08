@@ -16,8 +16,11 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"github.com/rs/zerolog"
 	"golang.org/x/sync/errgroup"
 
+	actarepo "github.com/clario360/platform/internal/acta/repository"
+	actaservice "github.com/clario360/platform/internal/acta/service"
 	"github.com/clario360/platform/internal/aigovernance"
 	aigovconsumer "github.com/clario360/platform/internal/aigovernance/consumer"
 	aigovintegration "github.com/clario360/platform/internal/aigovernance/integration"
@@ -48,11 +51,20 @@ import (
 	uebarepository "github.com/clario360/platform/internal/cyber/ueba/repository"
 	uebaservice "github.com/clario360/platform/internal/cyber/ueba/service"
 	cybervciso "github.com/clario360/platform/internal/cyber/vciso"
+	vcisochatengine "github.com/clario360/platform/internal/cyber/vciso/chat/engine"
+	vcisochathandler "github.com/clario360/platform/internal/cyber/vciso/chat/handler"
+	vcisorepository "github.com/clario360/platform/internal/cyber/vciso/chat/repository"
+	vcisotools "github.com/clario360/platform/internal/cyber/vciso/chat/tools"
+	datarepo "github.com/clario360/platform/internal/data/repository"
 	"github.com/clario360/platform/internal/database"
 	"github.com/clario360/platform/internal/events"
+	lexrepo "github.com/clario360/platform/internal/lex/repository"
+	lexservice "github.com/clario360/platform/internal/lex/service"
 	bootstrap "github.com/clario360/platform/internal/observability/bootstrap"
 	"github.com/clario360/platform/internal/observability/tracing"
 	"github.com/clario360/platform/internal/suiteapi"
+	visusrepo "github.com/clario360/platform/internal/visus/repository"
+	visusservice "github.com/clario360/platform/internal/visus/service"
 	workflowrepo "github.com/clario360/platform/internal/workflow/repository"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -121,6 +133,7 @@ func main() {
 	// shared bootstrap registry and cyber-service application metrics.
 	m := cybermetrics.New()
 	uebaMetrics := uebaengine.NewMetrics(m.Registry)
+	vcisoChatMetrics := vcisochatengine.NewMetrics(m.Registry)
 	promGatherers := prometheus.Gatherers{svc.Metrics.Registry(), m.Registry}
 
 	// ── 5. Kafka producer ──────────────────────────────────────────────────────
@@ -167,6 +180,22 @@ func main() {
 	if platformPoolOwned {
 		defer platformPool.Close()
 	}
+	dataPool, dataPoolOwned := openOptionalDBPool(ctx, envOr("DATA_DB_URL", buildPostgresURL(cfg.Database, "data_db")), cfg, logger, "data")
+	if dataPoolOwned {
+		defer dataPool.Close()
+	}
+	actaPool, actaPoolOwned := openOptionalDBPool(ctx, envOr("ACTA_DB_URL", buildPostgresURL(cfg.Database, "acta_db")), cfg, logger, "acta")
+	if actaPoolOwned {
+		defer actaPool.Close()
+	}
+	lexPool, lexPoolOwned := openOptionalDBPool(ctx, envOr("LEX_DB_URL", buildPostgresURL(cfg.Database, "lex_db")), cfg, logger, "lex")
+	if lexPoolOwned {
+		defer lexPool.Close()
+	}
+	visusPool, visusPoolOwned := openOptionalDBPool(ctx, envOr("VISUS_DB_URL", buildPostgresURL(cfg.Database, "visus_db")), cfg, logger, "visus")
+	if visusPoolOwned {
+		defer visusPool.Close()
+	}
 
 	// ── 6. Repositories ────────────────────────────────────────────────────────
 	assetRepo := repository.NewAssetRepository(db, logger)
@@ -188,6 +217,7 @@ func main() {
 	remediationAuditRepo := repository.NewRemediationAuditRepository(db, logger)
 	dspmRepo := repository.NewDSPMRepository(db, logger)
 	vcisoRepo := repository.NewVCISORepository(db, logger)
+	vcisoConversationRepo := vcisorepository.NewConversationRepository(db, logger)
 	uebaProfileRepo := uebarepository.NewProfileRepository(db, logger)
 	uebaEventRepo := uebarepository.NewEventRepository(db, logger)
 	uebaAlertRepo := uebarepository.NewAlertRepository(db, logger)
@@ -406,6 +436,139 @@ func main() {
 		producer,
 		logger,
 	)
+	var (
+		dataPipelineRepo    *datarepo.PipelineRepository
+		dataPipelineRunRepo *datarepo.PipelineRunRepository
+		actaStore           *actarepo.Store
+		actaComplianceSvc   *actaservice.ComplianceService
+		lexContractRepo     *lexrepo.ContractRepository
+		lexAlertRepo        *lexrepo.AlertRepository
+		lexDocumentRepo     *lexrepo.DocumentRepository
+		lexClauseRepo       *lexrepo.ClauseRepository
+		lexComplianceRepo   *lexrepo.ComplianceRepository
+		lexComplianceSvc    *lexservice.ComplianceService
+		visusDashboardRepo  *visusrepo.DashboardRepository
+		visusWidgetRepo     *visusrepo.WidgetRepository
+		visusKPIRepo        *visusrepo.KPIRepository
+		visusSnapshotRepo   *visusrepo.KPISnapshotRepository
+		visusAlertRepo      *visusrepo.AlertRepository
+		visusDashboardSvc   *visusservice.DashboardService
+		visusWidgetSvc      *visusservice.WidgetService
+	)
+	if dataPool != nil {
+		dataPipelineRepo = datarepo.NewPipelineRepository(dataPool, logger)
+		dataPipelineRunRepo = datarepo.NewPipelineRunRepository(dataPool, logger)
+	}
+	if actaPool != nil {
+		actaStore = actarepo.NewStore(actaPool, logger)
+		actaComplianceSvc = actaservice.NewComplianceService(actaStore, producer, nil, logger)
+	}
+	if lexPool != nil {
+		lexContractRepo = lexrepo.NewContractRepository(lexPool, logger)
+		lexAlertRepo = lexrepo.NewAlertRepository(lexPool, logger)
+		lexDocumentRepo = lexrepo.NewDocumentRepository(lexPool, logger)
+		lexClauseRepo = lexrepo.NewClauseRepository(lexPool, logger)
+		lexComplianceRepo = lexrepo.NewComplianceRepository(lexPool, logger)
+		lexComplianceSvc = lexservice.NewComplianceService(
+			lexPool,
+			lexContractRepo,
+			lexClauseRepo,
+			lexDocumentRepo,
+			lexComplianceRepo,
+			lexAlertRepo,
+			producer,
+			nil,
+			events.Topics.LexEvents,
+			logger,
+		)
+	}
+	if visusPool != nil {
+		visusDashboardRepo = visusrepo.NewDashboardRepository(visusPool, logger)
+		visusWidgetRepo = visusrepo.NewWidgetRepository(visusPool, logger)
+		visusKPIRepo = visusrepo.NewKPIRepository(visusPool, logger)
+		visusSnapshotRepo = visusrepo.NewKPISnapshotRepository(visusPool, logger)
+		visusAlertRepo = visusrepo.NewAlertRepository(visusPool, logger)
+		visusDashboardSvc = visusservice.NewDashboardService(visusDashboardRepo, visusWidgetRepo, producer, nil, logger)
+		visusWidgetSvc = visusservice.NewWidgetService(
+			visusDashboardRepo,
+			visusWidgetRepo,
+			visusKPIRepo,
+			visusSnapshotRepo,
+			visusAlertRepo,
+			nil,
+			nil,
+			logger,
+		)
+	}
+	vcisoToolDeps := &vcisotools.Dependencies{
+		CyberDB:                db,
+		AlertService:           alertSvc,
+		AlertRepo:              alertRepo,
+		AssetService:           assetSvc,
+		AssetRepo:              assetRepo,
+		VulnerabilityService:   vulnerabilitySvc,
+		RiskService:            riskSvc,
+		RuleService:            ruleSvc,
+		UEBAService:            uebaSvc,
+		VCISOService:           vcisoSvc,
+		RemediationService:     remediationSvc,
+		DataPool:               dataPool,
+		DataPipelineRepo:       dataPipelineRepo,
+		DataPipelineRunRepo:    dataPipelineRunRepo,
+		ActaPool:               actaPool,
+		ActaStore:              actaStore,
+		ActaComplianceService:  actaComplianceSvc,
+		LexPool:                lexPool,
+		LexContractRepo:        lexContractRepo,
+		LexAlertRepo:           lexAlertRepo,
+		LexDocumentRepo:        lexDocumentRepo,
+		LexClauseRepo:          lexClauseRepo,
+		LexComplianceRepo:      lexComplianceRepo,
+		LexComplianceService:   lexComplianceSvc,
+		VisusPool:              visusPool,
+		VisusDashboardRepo:     visusDashboardRepo,
+		VisusWidgetRepo:        visusWidgetRepo,
+		VisusKPIRepo:           visusKPIRepo,
+		VisusSnapshotRepo:      visusSnapshotRepo,
+		VisusAlertRepo:         visusAlertRepo,
+		VisusDashboardService:  visusDashboardSvc,
+		VisusWidgetService:     visusWidgetSvc,
+		Producer:               producer,
+		Logger:                 logger,
+	}
+	vcisoClassifier := vcisochatengine.NewIntentClassifier()
+	vcisoContextManager := vcisochatengine.NewContextManager(func() time.Time { return time.Now().UTC() }, 30*time.Minute)
+	vcisoChatEngine := vcisochatengine.NewEngine(
+		vcisoClassifier,
+		vcisochatengine.NewEntityExtractor(func() time.Time { return time.Now().UTC() }),
+		vcisoContextManager,
+		vcisotools.NewRegistry(vcisoToolDeps),
+		vcisochatengine.NewToolRouter(vcisotools.NewRegistry(vcisoToolDeps), vcisoChatMetrics, logger),
+		vcisochatengine.NewResponseFormatter(),
+		vcisochatengine.NewSuggestionEngine(vcisoToolDeps, vcisoChatMetrics, logger),
+		vcisoConversationRepo,
+		nil,
+		producer,
+		vcisoChatMetrics,
+		logger,
+	)
+	if aiRuntime != nil && aiRuntime.PredictionLogger != nil {
+		registry := vcisotools.NewRegistry(vcisoToolDeps)
+		vcisoChatEngine = vcisochatengine.NewEngine(
+			vcisoClassifier,
+			vcisochatengine.NewEntityExtractor(func() time.Time { return time.Now().UTC() }),
+			vcisoContextManager,
+			registry,
+			vcisochatengine.NewToolRouter(registry, vcisoChatMetrics, logger),
+			vcisochatengine.NewResponseFormatter(),
+			vcisochatengine.NewSuggestionEngine(vcisoToolDeps, vcisoChatMetrics, logger),
+			vcisoConversationRepo,
+			aiRuntime.PredictionLogger,
+			producer,
+			vcisoChatMetrics,
+			logger,
+		)
+	}
 	guard := events.NewIdempotencyGuard(rdb, 24*time.Hour)
 	crossSuiteMetrics := events.NewCrossSuiteMetrics(svc.Metrics.Registry())
 	dlqTracker := events.NewDLQTracker(rdb)
@@ -432,6 +595,8 @@ func main() {
 	dspmHandler := handler.NewDSPMHandler(dspmSvc)
 	vcisoHandler := handler.NewVCISOHandler(vcisoSvc)
 	uebaHTTPHandler := uebahandler.NewUEBAHandler(uebaSvc)
+	vcisoChatHandler := vcisochathandler.NewChatHandler(vcisoChatEngine, vcisoConversationRepo, logger)
+	vcisoWSHandler := vcisochathandler.NewWebSocketHandler(vcisoChatEngine, jwtMgr, logger)
 	handler.RegisterRoutes(
 		svc.Router,
 		assetHandler,
@@ -451,6 +616,13 @@ func main() {
 		jwtMgr,
 		rdb,
 	)
+	vcisochathandler.RegisterRoutes(svc.Router, vcisochathandler.RouteDeps{
+		ChatHandler: vcisoChatHandler,
+		WSHandler:   vcisoWSHandler,
+		JWTManager:  jwtMgr,
+		Redis:       rdb,
+		Logger:      logger,
+	})
 	svc.Router.Get("/api/v1/internal/assets/owners", func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("X-Internal-Service") == "" {
 			suiteapi.WriteError(w, r, http.StatusUnauthorized, "UNAUTHORIZED", "internal access required", nil)
@@ -669,4 +841,53 @@ func envOr(key, fallback string) string {
 		return value
 	}
 	return fallback
+}
+
+func buildPostgresURL(cfg config.DatabaseConfig, dbName string) string {
+	u := &url.URL{
+		Scheme: "postgres",
+		User:   url.UserPassword(cfg.User, cfg.Password),
+		Host:   fmt.Sprintf("%s:%d", cfg.Host, cfg.Port),
+		Path:   dbName,
+	}
+	q := u.Query()
+	q.Set("sslmode", cfg.SSLMode)
+	u.RawQuery = q.Encode()
+	return u.String()
+}
+
+func openOptionalDBPool(ctx context.Context, dsn string, cfg *config.Config, logger zerolog.Logger, name string) (*pgxpool.Pool, bool) {
+	dsn = strings.TrimSpace(dsn)
+	if dsn == "" {
+		return nil, false
+	}
+	poolCfg, err := pgxpool.ParseConfig(dsn)
+	if err != nil {
+		logger.Warn().Err(err).Str("db", name).Msg("failed to parse optional suite database dsn")
+		return nil, false
+	}
+	minConns := cfg.Database.MaxIdleConns
+	if minConns < 1 {
+		minConns = 1
+	}
+	maxConns := cfg.Database.MaxOpenConns
+	if maxConns < minConns {
+		maxConns = minConns
+	}
+	poolCfg.MinConns = int32(minConns)
+	poolCfg.MaxConns = int32(maxConns)
+	poolCfg.MaxConnLifetime = cfg.Database.ConnMaxLifetime
+	poolCfg.MaxConnIdleTime = 5 * time.Minute
+	poolCfg.HealthCheckPeriod = time.Minute
+	pool, err := pgxpool.NewWithConfig(ctx, poolCfg)
+	if err != nil {
+		logger.Warn().Err(err).Str("db", name).Msg("failed to open optional suite database pool")
+		return nil, false
+	}
+	if err := pool.Ping(ctx); err != nil {
+		logger.Warn().Err(err).Str("db", name).Msg("failed to ping optional suite database pool")
+		pool.Close()
+		return nil, false
+	}
+	return pool, true
 }

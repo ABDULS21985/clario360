@@ -89,6 +89,9 @@ export const API_ENDPOINTS = {
   // Cyber — vCISO
   CYBER_VCISO_BRIEFING: '/api/v1/cyber/vciso/briefing',
   CYBER_VCISO_REPORT: '/api/v1/cyber/vciso/report',
+  CYBER_VCISO_CHAT: '/api/v1/cyber/vciso/chat',
+  CYBER_VCISO_CONVERSATIONS: '/api/v1/cyber/vciso/conversations',
+  CYBER_VCISO_SUGGESTIONS: '/api/v1/cyber/vciso/suggestions',
 
   // Cyber — MITRE
   CYBER_MITRE_COVERAGE: '/api/v1/cyber/mitre/coverage',
@@ -183,6 +186,7 @@ export const ROUTES = {
 
   // Dashboard routes
   CYBER: '/cyber',
+  CYBER_VCISO: '/cyber/vciso',
   CYBER_UEBA: '/cyber/ueba',
   CYBER_ALERTS: '/cyber/alerts',
   CYBER_ASSETS: '/cyber/assets',

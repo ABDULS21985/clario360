@@ -81,13 +81,16 @@ async function hydrateSessionFromBFF(): Promise<{
   accessToken: string;
 } | null> {
   try {
-    // GET /api/auth/session reads the httpOnly cookie and returns session info
-    const sessionData = await apiGet<{
+    // GET /api/auth/session is a Next.js BFF route — must use a relative URL
+    // so it resolves to localhost:3000, not the backend gateway.
+    const resp = await fetch(API_ENDPOINTS.BFF_SESSION, { credentials: 'include' });
+    if (!resp.ok) return null;
+    const sessionData = (await resp.json()) as {
       user: User;
       tenant: Tenant;
       access_token: string;
       expires_at: string;
-    }>(API_ENDPOINTS.BFF_SESSION);
+    };
     return {
       user: sessionData.user,
       tenant: sessionData.tenant,
@@ -102,10 +105,16 @@ async function storeSessionInBFF(
   accessToken: string,
   refreshToken: string,
 ): Promise<void> {
-  await apiPost(API_ENDPOINTS.BFF_SESSION, {
-    access_token: accessToken,
-    refresh_token: refreshToken,
+  // POST /api/auth/session is a Next.js BFF route — must use a relative URL.
+  const resp = await fetch(API_ENDPOINTS.BFF_SESSION, {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ access_token: accessToken, refresh_token: refreshToken }),
   });
+  if (!resp.ok) {
+    throw new Error(`Failed to store session: ${resp.status}`);
+  }
 }
 
 async function clearSessionInBFF(): Promise<void> {

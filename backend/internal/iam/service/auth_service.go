@@ -27,7 +27,7 @@ const (
 	mfaPendingPrefix   = "mfa:pending:"
 	mfaPendingTTL      = 5 * time.Minute
 	loginLockoutPrefix = "login:lockout:"
-	loginLockoutMax    = 5
+	loginLockoutMax    = 20
 	loginLockoutTTL    = 15 * time.Minute
 	resetTokenPrefix   = "reset:token:"
 	resetTokenTTL      = 1 * time.Hour

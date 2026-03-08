@@ -149,12 +149,13 @@ func (pl *PredictionLogger) Predict(ctx context.Context, params aigovernance.Pre
 	}
 
 	return &aigovernance.PredictionResult{
-		Output:      modelOutput.Output,
-		Confidence:  modelOutput.Confidence,
-		Explanation: explanation,
-		ModelID:     productionVersion.ModelID,
-		VersionID:   productionVersion.ID,
-		LatencyMS:   int(latency.Milliseconds()),
+		Output:          modelOutput.Output,
+		Confidence:      modelOutput.Confidence,
+		Explanation:     explanation,
+		ModelID:         productionVersion.ModelID,
+		VersionID:       productionVersion.ID,
+		PredictionLogID: logEntry.ID,
+		LatencyMS:       int(latency.Milliseconds()),
 	}, nil
 }
 
