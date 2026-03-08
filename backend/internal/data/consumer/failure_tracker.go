@@ -15,15 +15,19 @@ import (
 
 const failureTrackerConsumer = "data_failure_tracker"
 
+type eventPublisher interface {
+	Publish(ctx context.Context, topic string, event *events.Event) error
+}
+
 type FailureTracker struct {
 	redis    *redis.Client
 	guard    *events.IdempotencyGuard
-	producer *events.Producer
+	producer eventPublisher
 	logger   zerolog.Logger
 	metrics  *events.CrossSuiteMetrics
 }
 
-func NewFailureTracker(redisClient *redis.Client, guard *events.IdempotencyGuard, producer *events.Producer, logger zerolog.Logger, metrics *events.CrossSuiteMetrics) *FailureTracker {
+func NewFailureTracker(redisClient *redis.Client, guard *events.IdempotencyGuard, producer eventPublisher, logger zerolog.Logger, metrics *events.CrossSuiteMetrics) *FailureTracker {
 	return &FailureTracker{
 		redis:    redisClient,
 		guard:    guard,

@@ -304,6 +304,8 @@ func main() {
 		producer,
 		logger,
 	)
+	guard := events.NewIdempotencyGuard(rdb, 24*time.Hour)
+	crossSuiteMetrics := events.NewCrossSuiteMetrics(svc.Metrics.Registry())
 
 	// ── 12. Route registration ─────────────────────────────────────────────────
 	svc.Router.Handle("/metrics", promhttp.HandlerFor(promGatherers, promhttp.HandlerOpts{}))
@@ -352,10 +354,14 @@ func main() {
 		if err != nil {
 			logger.Warn().Err(err).Msg("Kafka consumer unavailable — event processing disabled")
 		} else {
+			kafkaConsumer.SetDeadLetterProducer(producer)
+			kafkaConsumer.SetCrossSuiteMetrics(crossSuiteMetrics)
 			cyberConsumer = consumer.NewCyberConsumer(assetSvc, detectionSvc, cyberCfg.SecurityEventTopic, kafkaConsumer, logger)
 			_ = consumer.NewCTEMConsumer(ctemSvc, kafkaConsumer, logger)
 			_ = consumer.NewRiskConsumer(riskSvc, dashboardSvc, rdb, kafkaConsumer, logger)
 			_ = consumer.NewRemediationConsumer(remediationSvc, remediationRepo, ctemRemGroupRepo, ctemFindingRepo, kafkaConsumer, logger)
+			kafkaConsumer.Subscribe(events.Topics.IAMEvents, consumer.NewIAMEventConsumer(alertSvc, rdb, guard, producer, logger, crossSuiteMetrics))
+			kafkaConsumer.Subscribe(events.Topics.FileEvents, consumer.NewFileEventConsumer(alertSvc, guard, producer, logger, crossSuiteMetrics))
 		}
 	}
 

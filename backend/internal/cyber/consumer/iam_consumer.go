@@ -14,7 +14,6 @@ import (
 
 	"github.com/clario360/platform/internal/cyber/model"
 	"github.com/clario360/platform/internal/cyber/repository"
-	"github.com/clario360/platform/internal/cyber/service"
 	"github.com/clario360/platform/internal/events"
 )
 
@@ -42,7 +41,7 @@ type IAMEventConsumer struct {
 	now          func() time.Time
 }
 
-func NewIAMEventConsumer(alertService *service.AlertService, redisClient *redis.Client, guard *events.IdempotencyGuard, producer *events.Producer, logger zerolog.Logger, metrics *events.CrossSuiteMetrics) *IAMEventConsumer {
+func NewIAMEventConsumer(alertService alertEventService, redisClient *redis.Client, guard *events.IdempotencyGuard, producer *events.Producer, logger zerolog.Logger, metrics *events.CrossSuiteMetrics) *IAMEventConsumer {
 	return &IAMEventConsumer{
 		alertService: alertService,
 		redis:        redisClient,

@@ -207,6 +207,8 @@ func main() {
 	dashboardCache := datadashboard.NewCache(svc.Redis, 60*time.Second)
 	dashboardCalculator := datadashboard.NewCalculator(sourceRepo, pipelineRepo, dataDashboardRepo, contradictionRepo, darkDataRepo, lineageRepo, qualityScorer, dashboardCache, logger)
 	dashboardSvc := service.NewDashboardService(dashboardCalculator)
+	guard := events.NewIdempotencyGuard(svc.Redis, 24*time.Hour)
+	crossSuiteMetrics := events.NewCrossSuiteMetrics(svc.Metrics.Registry())
 
 	jwtMgr, err := auth.NewJWTManager(cfg.Auth)
 	if err != nil {
@@ -248,8 +250,11 @@ func main() {
 		if err != nil {
 			logger.Warn().Err(err).Msg("Kafka consumer unavailable — background discovery disabled")
 		} else {
+			kafkaConsumer.SetDeadLetterProducer(producer)
+			kafkaConsumer.SetCrossSuiteMetrics(crossSuiteMetrics)
 			dataConsumer = dataconsumer.NewDataConsumer(sourceSvc, kafkaConsumer, logger)
 			lineageConsumer = dataconsumer.NewLineageConsumer(lineageSvc, pipelineRepo, runRepo, dashboardCache, kafkaConsumer, logger)
+			kafkaConsumer.Subscribe(events.Topics.PipelineEvents, dataconsumer.NewFailureTracker(svc.Redis, guard, producer, logger, crossSuiteMetrics))
 		}
 	}
 

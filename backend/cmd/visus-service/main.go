@@ -122,6 +122,7 @@ func main() {
 			logger.Warn().Err(err).Msg("kafka consumer unavailable; visus cross-suite sync disabled")
 		} else {
 			defer kafkaConsumer.Close()
+			kafkaConsumer.SetDeadLetterProducer(producer)
 			app.Consumer.Register(kafkaConsumer)
 			go runBackground(ctx, logger, "visus-consumer", kafkaConsumer.Start)
 		}

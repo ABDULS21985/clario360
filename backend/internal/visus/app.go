@@ -71,6 +71,7 @@ func NewApplication(deps Dependencies) (*Application, error) {
 	}
 	store := repository.NewStore(deps.DB, deps.Logger)
 	appMetrics := metrics.New(reg)
+	crossSuiteMetrics := events.NewCrossSuiteMetrics(reg)
 
 	tokenProvider := aggregator.NewServiceTokenProvider(cfg.ServiceAccountToken, deps.JWTManager, defaultServiceUserID(cfg.ServiceAccountUserID), cfg.ServiceAccountEmail, cfg.ServiceTokenTTL)
 	suiteCache := aggregator.NewSuiteCache(deps.Redis, store.SuiteCache, cfg.SuiteCacheTTL, deps.Logger)
@@ -99,9 +100,11 @@ func NewApplication(deps Dependencies) (*Application, error) {
 		ExecutiveService: service.NewExecutiveService(crossAggregator, deps.Publisher, appMetrics, deps.Logger),
 		KPIScheduler:     kpi.NewScheduler(kpiEngine, store.KPIs, cfg.SchedulerInterval, deps.Logger),
 		ReportScheduler:  report.NewScheduler(store.Reports, reportGenerator, cfg.ReportSchedulerInterval, deps.Logger),
-		Consumer:         consumer.NewVisusConsumer(deps.Logger),
-		cfg:              cfg,
-		logger:           deps.Logger,
+		Consumer: consumer.NewVisusConsumer(deps.Logger).
+			WithDependencies(nil, store.KPIs, store.KPISnapshots, deps.Redis).
+			WithMetrics(crossSuiteMetrics),
+		cfg:    cfg,
+		logger: deps.Logger,
 	}
 
 	app.dashboardHandler = handler.NewDashboardHandler(app.DashboardService, deps.Logger)
@@ -110,7 +113,7 @@ func NewApplication(deps Dependencies) (*Application, error) {
 	app.alertHandler = handler.NewAlertHandler(app.AlertService, deps.Logger)
 	app.reportHandler = handler.NewReportHandler(app.ReportService, deps.Logger)
 	app.executiveHandler = handler.NewExecutiveHandler(app.ExecutiveService, deps.Logger)
-	app.Consumer = app.Consumer.WithAlertService(app.AlertService)
+	app.Consumer = app.Consumer.WithDependencies(app.AlertService, store.KPIs, store.KPISnapshots, deps.Redis)
 
 	return app, nil
 }

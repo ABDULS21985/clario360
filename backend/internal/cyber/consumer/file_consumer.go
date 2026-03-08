@@ -11,7 +11,6 @@ import (
 	"github.com/rs/zerolog"
 
 	"github.com/clario360/platform/internal/cyber/model"
-	"github.com/clario360/platform/internal/cyber/service"
 	"github.com/clario360/platform/internal/events"
 )
 
@@ -26,7 +25,7 @@ type FileEventConsumer struct {
 	now          func() time.Time
 }
 
-func NewFileEventConsumer(alertService *service.AlertService, guard *events.IdempotencyGuard, producer *events.Producer, logger zerolog.Logger, metrics *events.CrossSuiteMetrics) *FileEventConsumer {
+func NewFileEventConsumer(alertService alertEventService, guard *events.IdempotencyGuard, producer *events.Producer, logger zerolog.Logger, metrics *events.CrossSuiteMetrics) *FileEventConsumer {
 	return &FileEventConsumer{
 		alertService: alertService,
 		guard:        guard,
