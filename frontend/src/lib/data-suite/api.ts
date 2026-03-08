@@ -167,7 +167,7 @@ export async function fetchDataSuitePaginated<T>(
   const envelope = await apiGet<DataPaginatedEnvelope<T>>(url, buildDataSuiteQueryParams(params, extra));
   return {
     data: envelope.data,
-    meta: envelope.pagination,
+    meta: envelope.meta,
   };
 }
 

@@ -235,12 +235,10 @@ func (h *AssetHandler) BulkCreate(w http.ResponseWriter, r *http.Request) {
 		var bulkErr *service.BulkValidationError
 		if errors.As(err, &bulkErr) {
 			writeJSON(w, http.StatusBadRequest, map[string]any{
-				"error": map[string]any{
-					"code":       bulkErr.Code,
-					"message":    bulkErr.Message,
-					"details":    map[string]any{"rows": bulkErr.Rows},
-					"request_id": w.Header().Get(middleware.RequestIDHeader),
-				},
+				"code":       bulkErr.Code,
+				"message":    bulkErr.Message,
+				"details":    map[string]any{"rows": bulkErr.Rows},
+				"request_id": w.Header().Get(middleware.RequestIDHeader),
 			})
 			return
 		}

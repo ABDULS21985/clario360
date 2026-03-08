@@ -12,7 +12,7 @@ export interface DataEnvelope<T> {
 
 export interface DataPaginatedEnvelope<T> {
   data: T[];
-  pagination: PaginationMeta;
+  meta: PaginationMeta;
 }
 
 export type DataSourceType =

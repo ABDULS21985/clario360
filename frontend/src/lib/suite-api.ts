@@ -8,7 +8,7 @@ export interface SuiteEnvelope<T> {
 
 interface SuitePaginatedEnvelope<T> {
   data: T[];
-  pagination: PaginationMeta;
+  meta: PaginationMeta;
 }
 
 export function buildSuiteQueryParams(
@@ -42,7 +42,7 @@ export async function fetchSuitePaginated<T>(
   const response = await apiGet<SuitePaginatedEnvelope<T>>(url, buildSuiteQueryParams(params, extra));
   return {
     data: response.data,
-    meta: response.pagination,
+    meta: response.meta,
   };
 }
 

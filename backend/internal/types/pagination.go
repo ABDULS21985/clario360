@@ -13,50 +13,53 @@ const (
 // PaginationRequest holds pagination parameters from the request.
 type PaginationRequest struct {
 	Page     int    `json:"page"`
-	PageSize int    `json:"page_size"`
+	PerPage  int    `json:"per_page"`
 	SortBy   string `json:"sort_by,omitempty"`
 	SortDir  string `json:"sort_dir,omitempty"` // "asc" or "desc"
 }
 
 // Offset returns the SQL offset for the current page.
 func (p PaginationRequest) Offset() int {
-	return (p.Page - 1) * p.PageSize
+	return (p.Page - 1) * p.PerPage
 }
 
 // Limit returns the SQL limit.
 func (p PaginationRequest) Limit() int {
-	return p.PageSize
+	return p.PerPage
 }
 
-// PaginationResponse holds pagination metadata in the response.
-type PaginationResponse struct {
+// PaginationMeta holds pagination metadata in the response.
+type PaginationMeta struct {
 	Page       int   `json:"page"`
-	PageSize   int   `json:"page_size"`
-	TotalItems int64 `json:"total_items"`
+	PerPage    int   `json:"per_page"`
+	Total      int64 `json:"total"`
 	TotalPages int   `json:"total_pages"`
 }
 
 // PaginatedResult wraps a list of items with pagination metadata.
 type PaginatedResult[T any] struct {
-	Items      []T                `json:"items"`
-	Pagination PaginationResponse `json:"pagination"`
+	Data []T            `json:"data"`
+	Meta PaginationMeta `json:"meta"`
 }
 
 // NewPaginatedResult creates a paginated result from items and total count.
 func NewPaginatedResult[T any](items []T, total int64, req PaginationRequest) PaginatedResult[T] {
-	totalPages := int(total) / req.PageSize
-	if int(total)%req.PageSize > 0 {
+	totalPages := int(total) / req.PerPage
+	if int(total)%req.PerPage > 0 {
 		totalPages++
+	}
+	if totalPages == 0 {
+		totalPages = 1
 	}
 	if items == nil {
 		items = []T{}
 	}
 	return PaginatedResult[T]{
-		Items: items,
-		Pagination: PaginationResponse{
+		Data: items,
+		Meta: PaginationMeta{
 			Page:       req.Page,
-			PageSize:   req.PageSize,
-			TotalItems: total,
+			PerPage:    req.PerPage,
+			Total:      total,
 			TotalPages: totalPages,
 		},
 	}
@@ -69,12 +72,15 @@ func PaginationFromRequest(r *http.Request) PaginationRequest {
 		page = 1
 	}
 
-	pageSize := queryInt(r, "page_size", DefaultPageSize)
-	if pageSize < 1 {
-		pageSize = DefaultPageSize
+	perPage := queryInt(r, "per_page", 0)
+	if perPage == 0 {
+		perPage = queryInt(r, "page_size", DefaultPageSize)
 	}
-	if pageSize > MaxPageSize {
-		pageSize = MaxPageSize
+	if perPage < 1 {
+		perPage = DefaultPageSize
+	}
+	if perPage > MaxPageSize {
+		perPage = MaxPageSize
 	}
 
 	sortDir := r.URL.Query().Get("sort_dir")
@@ -84,7 +90,7 @@ func PaginationFromRequest(r *http.Request) PaginationRequest {
 
 	return PaginationRequest{
 		Page:     page,
-		PageSize: pageSize,
+		PerPage:  perPage,
 		SortBy:   r.URL.Query().Get("sort_by"),
 		SortDir:  sortDir,
 	}

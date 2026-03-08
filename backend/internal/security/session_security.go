@@ -288,10 +288,8 @@ func SessionSecurityMiddleware(sm *SessionManager, secLogger *SecurityLogger) fu
 				w.Header().Set("Content-Type", "application/json")
 				w.WriteHeader(http.StatusUnauthorized)
 				_ = json.NewEncoder(w).Encode(map[string]interface{}{
-					"error": map[string]string{
-						"code":    "SESSION_INVALID",
-						"message": "Your session has expired. Please log in again.",
-					},
+					"code":    "SESSION_INVALID",
+					"message": "Your session has expired. Please log in again.",
 				})
 				return
 			}

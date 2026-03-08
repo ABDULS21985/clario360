@@ -827,7 +827,7 @@ export const savedQueries: SavedQuery[] = [
 export function paginated<T>(data: T[]) {
   return {
     data,
-    pagination: {
+    meta: {
       page: 1,
       per_page: data.length || 1,
       total: data.length,

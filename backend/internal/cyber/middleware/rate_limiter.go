@@ -48,10 +48,8 @@ func RateLimiter(rdb *redis.Client, requestsPerMinute int, logger zerolog.Logger
 				w.Header().Set("Content-Type", "application/json")
 				w.WriteHeader(http.StatusTooManyRequests)
 				_ = json.NewEncoder(w).Encode(map[string]any{
-					"error": map[string]any{
-						"code":    "RATE_LIMITED",
-						"message": "too many requests — please retry later",
-					},
+					"code":    "RATE_LIMITED",
+					"message": "too many requests — please retry later",
 				})
 				return
 			}

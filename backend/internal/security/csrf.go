@@ -80,10 +80,8 @@ func CSRFProtection(cfg *CSRFConfig, secLogger *SecurityLogger, logger zerolog.L
 				w.Header().Set("Content-Type", "application/json")
 				w.WriteHeader(http.StatusForbidden)
 				_ = json.NewEncoder(w).Encode(map[string]interface{}{
-					"error": map[string]string{
-						"code":    "CSRF_MISSING",
-						"message": "CSRF token cookie not found. Please refresh the page.",
-					},
+					"code":    "CSRF_MISSING",
+					"message": "CSRF token cookie not found. Please refresh the page.",
 				})
 				return
 			}
@@ -99,10 +97,8 @@ func CSRFProtection(cfg *CSRFConfig, secLogger *SecurityLogger, logger zerolog.L
 				w.Header().Set("Content-Type", "application/json")
 				w.WriteHeader(http.StatusForbidden)
 				_ = json.NewEncoder(w).Encode(map[string]interface{}{
-					"error": map[string]string{
-						"code":    "CSRF_HEADER_MISSING",
-						"message": "X-CSRF-Token header is required for this request.",
-					},
+					"code":    "CSRF_HEADER_MISSING",
+					"message": "X-CSRF-Token header is required for this request.",
 				})
 				return
 			}
@@ -117,10 +113,8 @@ func CSRFProtection(cfg *CSRFConfig, secLogger *SecurityLogger, logger zerolog.L
 				w.Header().Set("Content-Type", "application/json")
 				w.WriteHeader(http.StatusForbidden)
 				_ = json.NewEncoder(w).Encode(map[string]interface{}{
-					"error": map[string]string{
-						"code":    "CSRF_INVALID",
-						"message": "CSRF token validation failed. Please refresh the page and try again.",
-					},
+					"code":    "CSRF_INVALID",
+					"message": "CSRF token validation failed. Please refresh the page and try again.",
 				})
 				return
 			}

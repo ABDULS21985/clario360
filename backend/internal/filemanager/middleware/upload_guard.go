@@ -41,10 +41,8 @@ func writeUploadError(w http.ResponseWriter, status int, code, message string, r
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(map[string]interface{}{
-		"error": map[string]interface{}{
-			"code":       code,
-			"message":    message,
-			"request_id": r.Header.Get("X-Request-ID"),
-		},
+		"code":       code,
+		"message":    message,
+		"request_id": r.Header.Get("X-Request-ID"),
 	})
 }

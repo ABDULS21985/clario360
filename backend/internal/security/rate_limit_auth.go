@@ -338,9 +338,7 @@ func writeRateLimitResponse(w http.ResponseWriter, err error) {
 	}
 	w.WriteHeader(http.StatusTooManyRequests)
 	_ = json.NewEncoder(w).Encode(map[string]interface{}{
-		"error": map[string]string{
-			"code":    "RATE_LIMITED",
-			"message": rlErr.Message,
-		},
+		"code":    "RATE_LIMITED",
+		"message": rlErr.Message,
 	})
 }

@@ -161,7 +161,7 @@ export const enterpriseApi = {
     getDashboard: (): Promise<LexDashboard> => fetchSuiteData('/api/v1/lex/dashboard'),
     listContracts: (params: FetchParams) => fetchSuitePaginated<LexContractSummary>('/api/v1/lex/contracts', params),
     searchContracts: async (query: string, params: FetchParams): Promise<PaginatedResponse<LexContractSummary>> => {
-      const response = await apiGet<{ data: LexContractSummary[]; pagination: PaginatedResponse<LexContractSummary>['meta'] }>(
+      const response = await apiGet<{ data: LexContractSummary[]; meta: PaginatedResponse<LexContractSummary>['meta'] }>(
         '/api/v1/lex/contracts/search',
         {
           q: query,
@@ -171,7 +171,7 @@ export const enterpriseApi = {
       );
       return {
         data: response.data,
-        meta: response.pagination,
+        meta: response.meta,
       };
     },
     getContract: (id: string): Promise<LexContractDetail> => fetchSuiteData(`/api/v1/lex/contracts/${id}`),
