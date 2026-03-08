@@ -33,7 +33,7 @@ type instanceRepo interface {
 type taskRepo interface {
 	Create(ctx context.Context, task *model.HumanTask) error
 	GetByID(ctx context.Context, tenantID, id string) (*model.HumanTask, error)
-	ListForUser(ctx context.Context, tenantID, userID string, roles []string, status string, limit, offset int) ([]*model.HumanTask, int, error)
+	ListForUser(ctx context.Context, tenantID, userID string, roles []string, statuses []string, limit, offset int) ([]*model.HumanTask, int, error)
 	ClaimTask(ctx context.Context, tenantID, taskID, userID string) error
 	CompleteTask(ctx context.Context, tenantID, taskID string, formData map[string]interface{}) error
 	DelegateTask(ctx context.Context, tenantID, taskID, fromUserID, toUserID string) error

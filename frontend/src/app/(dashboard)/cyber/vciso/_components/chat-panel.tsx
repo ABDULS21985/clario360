@@ -54,17 +54,22 @@ export function ChatPanel() {
     staleTime: 30000,
   });
 
-  useQuery({
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages, statusText]);
+
+  const suggestionsQuery = useQuery({
     queryKey: ['vciso-suggestions', conversationId],
     queryFn: () =>
       apiGet<SuggestionsResponse>(API_ENDPOINTS.CYBER_VCISO_SUGGESTIONS, conversationId ? { conversation_id: conversationId } : undefined),
-    onSuccess: (data) => setSuggestions(data.suggestions ?? []),
     staleTime: 15000,
   });
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, statusText]);
+    if (suggestionsQuery.data?.suggestions) {
+      setSuggestions(suggestionsQuery.data.suggestions);
+    }
+  }, [suggestionsQuery.data]);
 
   useEffect(() => {
     const token = getAccessToken();
@@ -133,7 +138,7 @@ export function ChatPanel() {
       socket.close();
       wsRef.current = null;
     };
-  }, [conversationsQuery]);
+  }, []);
 
   function appendAssistantMessage(message: VCISOConversationMessage) {
     setMessages((current) => [...current, message]);

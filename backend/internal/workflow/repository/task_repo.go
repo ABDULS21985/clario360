@@ -106,7 +106,7 @@ func (r *TaskRepository) GetByID(ctx context.Context, tenantID, id string) (*mod
 // assigned (assignee_id = userID), or claimable by the user's roles
 // (assignee_role IN roles AND status = 'pending'). An optional status filter
 // can further restrict results. Returns the matching tasks and the total count.
-func (r *TaskRepository) ListForUser(ctx context.Context, tenantID, userID string, roles []string, status string, limit, offset int) ([]*model.HumanTask, int, error) {
+func (r *TaskRepository) ListForUser(ctx context.Context, tenantID, userID string, roles []string, statuses []string, limit, offset int) ([]*model.HumanTask, int, error) {
 	var conditions []string
 	var args []any
 	argIdx := 1
@@ -137,9 +137,9 @@ func (r *TaskRepository) ListForUser(ctx context.Context, tenantID, userID strin
 
 	conditions = append(conditions, "("+strings.Join(visibilityParts, " OR ")+")")
 
-	if status != "" {
-		conditions = append(conditions, fmt.Sprintf("status = $%d", argIdx))
-		args = append(args, status)
+	if len(statuses) > 0 {
+		conditions = append(conditions, fmt.Sprintf("status = ANY($%d)", argIdx))
+		args = append(args, statuses)
 		argIdx++
 	}
 

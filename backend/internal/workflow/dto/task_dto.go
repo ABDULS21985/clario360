@@ -69,12 +69,18 @@ type TaskResponse struct {
 	UpdatedAt      time.Time              `json:"updated_at"`
 }
 
+// TaskPaginationMeta holds pagination metadata for task list responses.
+type TaskPaginationMeta struct {
+	Page       int `json:"page"`
+	PerPage    int `json:"per_page"`
+	Total      int `json:"total"`
+	TotalPages int `json:"total_pages"`
+}
+
 // ListTasksResponse is the paginated response for listing tasks.
 type ListTasksResponse struct {
-	Tasks    []TaskResponse `json:"tasks"`
-	Total    int            `json:"total"`
-	Page     int            `json:"page"`
-	PageSize int            `json:"page_size"`
+	Data []TaskResponse     `json:"data"`
+	Meta TaskPaginationMeta `json:"meta"`
 }
 
 // TaskCountResponse provides counts of tasks bucketed by status for a user dashboard.

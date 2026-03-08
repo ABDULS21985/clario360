@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"net/http"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/rs/zerolog"
@@ -14,7 +15,7 @@ import (
 
 // taskService defines operations available for human task management.
 type taskService interface {
-	ListTasks(ctx context.Context, tenantID, userID string, roles []string, status string, page, pageSize int) ([]*model.HumanTask, int, error)
+	ListTasks(ctx context.Context, tenantID, userID string, roles []string, statuses []string, page, pageSize int) ([]*model.HumanTask, int, error)
 	GetTask(ctx context.Context, tenantID, taskID string) (*model.HumanTask, error)
 	ClaimTask(ctx context.Context, tenantID, taskID, userID string) error
 	CompleteTask(ctx context.Context, tenantID, taskID, userID string, formData map[string]interface{}) error
@@ -60,15 +61,25 @@ func (h *TaskHandler) ListTasks(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	status := r.URL.Query().Get("status")
-	if status != "" && !model.ValidTaskStatuses[status] {
-		writeError(w, http.StatusBadRequest, "INVALID_STATUS", "status must be one of: pending, claimed, completed, rejected, escalated, cancelled")
-		return
+	// Accept comma-separated statuses (e.g. "pending,claimed").
+	var statuses []string
+	if raw := r.URL.Query().Get("status"); raw != "" {
+		for _, s := range strings.Split(raw, ",") {
+			s = strings.TrimSpace(s)
+			if s == "" {
+				continue
+			}
+			if !model.ValidTaskStatuses[s] {
+				writeError(w, http.StatusBadRequest, "INVALID_STATUS", "status must be one of: pending, claimed, completed, rejected, escalated, cancelled")
+				return
+			}
+			statuses = append(statuses, s)
+		}
 	}
 
 	page, pageSize := parsePagination(r)
 
-	tasks, total, err := h.service.ListTasks(r.Context(), user.TenantID, user.ID, user.Roles, status, page, pageSize)
+	tasks, total, err := h.service.ListTasks(r.Context(), user.TenantID, user.ID, user.Roles, statuses, page, pageSize)
 	if err != nil {
 		h.logger.Error().Err(err).
 			Str("tenant_id", user.TenantID).
@@ -83,11 +94,22 @@ func (h *TaskHandler) ListTasks(w http.ResponseWriter, r *http.Request) {
 		items[i] = dto.TaskToResponse(t)
 	}
 
+	totalPages := total / pageSize
+	if total%pageSize != 0 {
+		totalPages++
+	}
+	if totalPages < 1 {
+		totalPages = 1
+	}
+
 	writeJSON(w, http.StatusOK, dto.ListTasksResponse{
-		Tasks:    items,
-		Total:    total,
-		Page:     page,
-		PageSize: pageSize,
+		Data: items,
+		Meta: dto.TaskPaginationMeta{
+			Page:       page,
+			PerPage:    pageSize,
+			Total:      total,
+			TotalPages: totalPages,
+		},
 	})
 }
 

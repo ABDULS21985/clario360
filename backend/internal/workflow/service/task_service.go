@@ -28,7 +28,7 @@ func NewTaskService(taskRepo taskRepo, engine *EngineService, logger zerolog.Log
 
 // ListTasks returns a paginated list of tasks visible to the specified user,
 // filtered by role assignments and optional status filter.
-func (s *TaskService) ListTasks(ctx context.Context, tenantID, userID string, roles []string, status string, page, pageSize int) ([]*model.HumanTask, int, error) {
+func (s *TaskService) ListTasks(ctx context.Context, tenantID, userID string, roles []string, statuses []string, page, pageSize int) ([]*model.HumanTask, int, error) {
 	if page < 1 {
 		page = 1
 	}
@@ -42,7 +42,7 @@ func (s *TaskService) ListTasks(ctx context.Context, tenantID, userID string, ro
 	limit := pageSize
 	offset := (page - 1) * pageSize
 
-	tasks, total, err := s.taskRepo.ListForUser(ctx, tenantID, userID, roles, status, limit, offset)
+	tasks, total, err := s.taskRepo.ListForUser(ctx, tenantID, userID, roles, statuses, limit, offset)
 	if err != nil {
 		return nil, 0, fmt.Errorf("listing tasks: %w", err)
 	}

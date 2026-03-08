@@ -59,9 +59,12 @@ func parsePagination(r *http.Request) (page, pageSize int) {
 			page = v
 		}
 	}
-	if ps := r.URL.Query().Get("page_size"); ps != "" {
-		if v, err := strconv.Atoi(ps); err == nil && v > 0 && v <= 100 {
-			pageSize = v
+	for _, key := range []string{"page_size", "per_page"} {
+		if ps := r.URL.Query().Get(key); ps != "" {
+			if v, err := strconv.Atoi(ps); err == nil && v > 0 && v <= 100 {
+				pageSize = v
+				break
+			}
 		}
 	}
 	return

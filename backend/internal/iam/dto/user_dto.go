@@ -52,15 +52,15 @@ type MFASetupResponse struct {
 }
 
 type PaginatedResponse struct {
-	Data       any        `json:"data"`
-	Pagination Pagination `json:"pagination"`
+	Data any            `json:"data"`
+	Meta PaginationMeta `json:"meta"`
 }
 
-type Pagination struct {
-	Page     int `json:"page"`
-	PerPage  int `json:"per_page"`
-	Total    int `json:"total"`
-	LastPage int `json:"last_page"`
+type PaginationMeta struct {
+	Page       int `json:"page"`
+	PerPage    int `json:"per_page"`
+	Total      int `json:"total"`
+	TotalPages int `json:"total_pages"`
 }
 
 func UserToResponse(u *model.User) UserResponse {

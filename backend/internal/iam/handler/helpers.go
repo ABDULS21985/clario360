@@ -87,11 +87,11 @@ func paginatedResponse(data any, total, page, perPage int) dto.PaginatedResponse
 	}
 	return dto.PaginatedResponse{
 		Data: data,
-		Pagination: dto.Pagination{
-			Page:     page,
-			PerPage:  perPage,
-			Total:    total,
-			LastPage: lastPage,
+		Meta: dto.PaginationMeta{
+			Page:       page,
+			PerPage:    perPage,
+			Total:      total,
+			TotalPages: lastPage,
 		},
 	}
 }
