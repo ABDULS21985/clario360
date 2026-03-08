@@ -204,6 +204,26 @@ func (cv *CryptoValidator) ValidateKeyStrength(algorithm string, keyBits int) Cr
 	}
 }
 
+// ValidateAll runs a default set of cryptographic checks suitable for automated
+// scanning. Validates TLS with recommended settings and standard hash algorithm.
+func (cv *CryptoValidator) ValidateAll() []CryptoValidationResult {
+	var results []CryptoValidationResult
+
+	// Validate TLS with recommended minimum settings
+	tlsCfg := &tls.Config{
+		MinVersion: tls.VersionTLS12,
+	}
+	results = append(results, cv.ValidateTLSConfig(tlsCfg)...)
+
+	// Validate hash config (assuming argon2id as used in IAM service)
+	results = append(results, cv.ValidateHashingConfig("argon2id", 3, 256)...)
+
+	// Validate RS256 JWT key strength
+	results = append(results, cv.ValidateKeyStrength("RSA", 2048))
+
+	return results
+}
+
 // weakCipherSuites lists TLS cipher suites considered weak.
 var weakCipherSuites = map[uint16]string{
 	tls.TLS_RSA_WITH_RC4_128_SHA:                "TLS_RSA_WITH_RC4_128_SHA",

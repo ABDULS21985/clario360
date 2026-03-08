@@ -50,13 +50,13 @@ type DataLocation struct {
 }
 
 type FileScanResult struct {
-	Path           string               `json:"path"`
-	Format         string               `json:"format"`
-	SizeBytes      int64                `json:"size_bytes"`
+	Path           string                   `json:"path"`
+	Format         string                   `json:"format"`
+	SizeBytes      int64                    `json:"size_bytes"`
 	Columns        []model.DiscoveredColumn `json:"columns"`
-	PIIFindings    []PIIFinding         `json:"pii_findings"`
-	Classification string               `json:"classification"`
-	SampledBytes   int64                `json:"sampled_bytes"`
+	PIIFindings    []PIIFinding             `json:"pii_findings"`
+	Classification string                   `json:"classification"`
+	SampledBytes   int64                    `json:"sampled_bytes"`
 }
 
 type PIIFinding struct {

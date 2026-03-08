@@ -86,32 +86,32 @@ func (c DataClassification) IsValid() bool {
 }
 
 type DataSource struct {
-	ID                 uuid.UUID        `json:"id"`
-	TenantID           uuid.UUID        `json:"tenant_id"`
-	Name               string           `json:"name"`
-	Description        string           `json:"description"`
-	Type               DataSourceType   `json:"type"`
-	ConnectionConfig   json.RawMessage  `json:"connection_config,omitempty"`
-	EncryptionKeyID    string           `json:"encryption_key_id,omitempty"`
-	Status             DataSourceStatus `json:"status"`
-	LastError          *string          `json:"last_error,omitempty"`
+	ID                 uuid.UUID         `json:"id"`
+	TenantID           uuid.UUID         `json:"tenant_id"`
+	Name               string            `json:"name"`
+	Description        string            `json:"description"`
+	Type               DataSourceType    `json:"type"`
+	ConnectionConfig   json.RawMessage   `json:"connection_config,omitempty"`
+	EncryptionKeyID    string            `json:"encryption_key_id,omitempty"`
+	Status             DataSourceStatus  `json:"status"`
+	LastError          *string           `json:"last_error,omitempty"`
 	SchemaMetadata     *DiscoveredSchema `json:"schema_metadata,omitempty"`
-	SchemaDiscoveredAt *time.Time       `json:"schema_discovered_at,omitempty"`
-	LastSyncedAt       *time.Time       `json:"last_synced_at,omitempty"`
-	LastSyncStatus     *string          `json:"last_sync_status,omitempty"`
-	LastSyncError      *string          `json:"last_sync_error,omitempty"`
-	LastSyncDurationMs *int64           `json:"last_sync_duration_ms,omitempty"`
-	SyncFrequency      *string          `json:"sync_frequency,omitempty"`
-	NextSyncAt         *time.Time       `json:"next_sync_at,omitempty"`
-	TableCount         *int             `json:"table_count,omitempty"`
-	TotalRowCount      *int64           `json:"total_row_count,omitempty"`
-	TotalSizeBytes     *int64           `json:"total_size_bytes,omitempty"`
-	Tags               []string         `json:"tags"`
-	Metadata           json.RawMessage  `json:"metadata"`
-	CreatedBy          uuid.UUID        `json:"created_by"`
-	CreatedAt          time.Time        `json:"created_at"`
-	UpdatedAt          time.Time        `json:"updated_at"`
-	DeletedAt          *time.Time       `json:"deleted_at,omitempty"`
+	SchemaDiscoveredAt *time.Time        `json:"schema_discovered_at,omitempty"`
+	LastSyncedAt       *time.Time        `json:"last_synced_at,omitempty"`
+	LastSyncStatus     *string           `json:"last_sync_status,omitempty"`
+	LastSyncError      *string           `json:"last_sync_error,omitempty"`
+	LastSyncDurationMs *int64            `json:"last_sync_duration_ms,omitempty"`
+	SyncFrequency      *string           `json:"sync_frequency,omitempty"`
+	NextSyncAt         *time.Time        `json:"next_sync_at,omitempty"`
+	TableCount         *int              `json:"table_count,omitempty"`
+	TotalRowCount      *int64            `json:"total_row_count,omitempty"`
+	TotalSizeBytes     *int64            `json:"total_size_bytes,omitempty"`
+	Tags               []string          `json:"tags"`
+	Metadata           json.RawMessage   `json:"metadata"`
+	CreatedBy          uuid.UUID         `json:"created_by"`
+	CreatedAt          time.Time         `json:"created_at"`
+	UpdatedAt          time.Time         `json:"updated_at"`
+	DeletedAt          *time.Time        `json:"deleted_at,omitempty"`
 }
 
 type PostgresConnectionConfig struct {
@@ -156,19 +156,19 @@ const (
 )
 
 type APIConnectionConfig struct {
-	BaseURL               string                 `json:"base_url" validate:"required,url"`
-	HealthURL             string                 `json:"health_url,omitempty"`
-	DataPath              string                 `json:"data_path,omitempty"`
-	AuthType              APIAuthType            `json:"auth_type" validate:"required,oneof=none basic bearer api_key oauth2"`
-	AuthConfig            map[string]any         `json:"auth_config,omitempty"`
-	Headers               map[string]string      `json:"headers,omitempty"`
-	AllowHTTP             bool                   `json:"allow_http"`
-	AllowPrivateAddresses bool                   `json:"allow_private_addresses"`
-	AllowlistedHosts      []string               `json:"allowlisted_hosts,omitempty"`
-	RateLimit             int                    `json:"rate_limit,omitempty"`
-	PaginationType        APIPaginationType      `json:"pagination_type" validate:"required,oneof=offset cursor page link_header"`
-	PaginationConfig      map[string]any         `json:"pagination_config,omitempty"`
-	QueryParams           map[string]string      `json:"query_params,omitempty"`
+	BaseURL               string            `json:"base_url" validate:"required,url"`
+	HealthURL             string            `json:"health_url,omitempty"`
+	DataPath              string            `json:"data_path,omitempty"`
+	AuthType              APIAuthType       `json:"auth_type" validate:"required,oneof=none basic bearer api_key oauth2"`
+	AuthConfig            map[string]any    `json:"auth_config,omitempty"`
+	Headers               map[string]string `json:"headers,omitempty"`
+	AllowHTTP             bool              `json:"allow_http"`
+	AllowPrivateAddresses bool              `json:"allow_private_addresses"`
+	AllowlistedHosts      []string          `json:"allowlisted_hosts,omitempty"`
+	RateLimit             int               `json:"rate_limit,omitempty"`
+	PaginationType        APIPaginationType `json:"pagination_type" validate:"required,oneof=offset cursor page link_header"`
+	PaginationConfig      map[string]any    `json:"pagination_config,omitempty"`
+	QueryParams           map[string]string `json:"query_params,omitempty"`
 }
 
 type CSVConnectionConfig struct {
@@ -254,12 +254,12 @@ type HiveConnectionConfig struct {
 }
 
 type HDFSConnectionConfig struct {
-	NameNodes     []string        `json:"name_nodes" validate:"required,min=1,dive,required"`
-	User          string          `json:"user,omitempty"`
+	NameNodes      []string        `json:"name_nodes" validate:"required,min=1,dive,required"`
+	User           string          `json:"user,omitempty"`
 	KerberosConfig *KerberosConfig `json:"kerberos,omitempty"`
-	BasePaths     []string        `json:"base_paths,omitempty"`
-	MaxFileSizeMB int64           `json:"max_file_size_mb,omitempty"`
-	AuditLogPath  string          `json:"audit_log_path,omitempty"`
+	BasePaths      []string        `json:"base_paths,omitempty"`
+	MaxFileSizeMB  int64           `json:"max_file_size_mb,omitempty"`
+	AuditLogPath   string          `json:"audit_log_path,omitempty"`
 }
 
 type SparkThriftConfig struct {

@@ -31,6 +31,7 @@ export type WizardProgress = {
   country: string;
   city?: string | null;
   organization_size?: string | null;
+  logo_file_id?: string | null;
   primary_color?: string | null;
   accent_color?: string | null;
   active_suites: string[];

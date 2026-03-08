@@ -23,6 +23,7 @@ import (
 	dataanalytics "github.com/clario360/platform/internal/data/analytics"
 	dataconfig "github.com/clario360/platform/internal/data/config"
 	"github.com/clario360/platform/internal/data/connector"
+	connectorsecurity "github.com/clario360/platform/internal/data/connector/security"
 	dataconsumer "github.com/clario360/platform/internal/data/consumer"
 	datacontradiction "github.com/clario360/platform/internal/data/contradiction"
 	datadarkdata "github.com/clario360/platform/internal/data/darkdata"
@@ -121,6 +122,7 @@ func main() {
 	analyticsRepo := repository.NewAnalyticsRepository(svc.DBPool, logger)
 	dataDashboardRepo := repository.NewDashboardRepository(svc.DBPool, logger)
 	dataMetrics := datametrics.New(svc.Metrics.Registry())
+	connector.SetMetricsRegisterer(svc.Metrics.Registry())
 
 	registry := connector.NewConnectorRegistry(connector.ConnectorLimits{
 		MaxPoolSize:      dataCfg.ConnectorMaxPoolSize,
@@ -228,6 +230,15 @@ func main() {
 	guard := events.NewIdempotencyGuard(svc.Redis, 24*time.Hour)
 	crossSuiteMetrics := events.NewCrossSuiteMetrics(svc.Metrics.Registry())
 	dlqTracker := events.NewDLQTracker(svc.Redis)
+	accessLogCollector := connectorsecurity.NewAccessLogCollector(
+		registry,
+		sourceRepo,
+		encryptor,
+		svc.Redis,
+		producer,
+		logger,
+		svc.Metrics.Registry(),
+	)
 
 	jwtMgr, err := auth.NewJWTManager(cfg.Auth)
 	if err != nil {
@@ -316,6 +327,15 @@ func main() {
 	if dataConsumer != nil {
 		g.Go(func() error {
 			err := dataConsumer.Start(gCtx)
+			if err != nil && !errors.Is(err, context.Canceled) {
+				return err
+			}
+			return nil
+		})
+	}
+	if producer != nil {
+		g.Go(func() error {
+			err := accessLogCollector.Run(gCtx, envDuration("DATA_ACCESS_LOG_COLLECTION_INTERVAL", 15*time.Minute))
 			if err != nil && !errors.Is(err, context.Canceled) {
 				return err
 			}

@@ -26,6 +26,7 @@ type Handler struct {
 	invitationSvc    *onboardingsvc.InvitationService
 	provisioner      *onboardingsvc.TenantProvisioner
 	deprovisioner    *onboardingsvc.TenantDeprovisioner
+	brandingUploader onboardingsvc.BrandingAssetUploader
 	provisioningRepo *onboardingrepo.ProvisioningRepository
 	logger           zerolog.Logger
 }
@@ -36,6 +37,7 @@ func New(
 	invitationSvc *onboardingsvc.InvitationService,
 	provisioner *onboardingsvc.TenantProvisioner,
 	deprovisioner *onboardingsvc.TenantDeprovisioner,
+	brandingUploader onboardingsvc.BrandingAssetUploader,
 	provisioningRepo *onboardingrepo.ProvisioningRepository,
 	logger zerolog.Logger,
 ) *Handler {
@@ -45,6 +47,7 @@ func New(
 		invitationSvc:    invitationSvc,
 		provisioner:      provisioner,
 		deprovisioner:    deprovisioner,
+		brandingUploader: brandingUploader,
 		provisioningRepo: provisioningRepo,
 		logger:           logger.With().Str("handler", "onboarding").Logger(),
 	}

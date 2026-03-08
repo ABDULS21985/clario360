@@ -201,6 +201,13 @@ func parseInt64Loose(value string) int64 {
 	return parsed
 }
 
+func minInt(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}
+
 func sqlLiteral(value any) string {
 	switch typed := value.(type) {
 	case nil:

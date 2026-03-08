@@ -323,6 +323,66 @@ func (r *SourceRepository) AggregateStats(ctx context.Context, tenantID uuid.UUI
 	return stats, nil
 }
 
+func (r *SourceRepository) ListActive(ctx context.Context, tenantID uuid.UUID) ([]*SourceRecord, error) {
+	rows, err := r.db.Query(ctx, `
+		SELECT id, tenant_id, name, description, type, connection_config, encryption_key_id,
+		       status, last_error, schema_metadata, schema_discovered_at, last_synced_at,
+		       last_sync_status, last_sync_error, last_sync_duration_ms, sync_frequency,
+		       next_sync_at, table_count, total_row_count, total_size_bytes, tags, metadata,
+		       created_by, created_at, updated_at, deleted_at
+		FROM data_sources
+		WHERE tenant_id = $1
+		  AND status = 'active'
+		  AND deleted_at IS NULL
+		ORDER BY updated_at DESC`,
+		tenantID,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("list active data sources: %w", err)
+	}
+	defer rows.Close()
+
+	items := make([]*SourceRecord, 0)
+	for rows.Next() {
+		record, scanErr := scanSourceRecord(rows)
+		if scanErr != nil {
+			return nil, scanErr
+		}
+		items = append(items, record)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate active data sources: %w", err)
+	}
+	return items, nil
+}
+
+func (r *SourceRepository) ListActiveTenants(ctx context.Context) ([]uuid.UUID, error) {
+	rows, err := r.db.Query(ctx, `
+		SELECT DISTINCT tenant_id
+		FROM data_sources
+		WHERE status = 'active'
+		  AND deleted_at IS NULL
+		ORDER BY tenant_id`,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("list active source tenants: %w", err)
+	}
+	defer rows.Close()
+
+	tenantIDs := make([]uuid.UUID, 0)
+	for rows.Next() {
+		var tenantID uuid.UUID
+		if err := rows.Scan(&tenantID); err != nil {
+			return nil, fmt.Errorf("scan active source tenant: %w", err)
+		}
+		tenantIDs = append(tenantIDs, tenantID)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate active source tenants: %w", err)
+	}
+	return tenantIDs, nil
+}
+
 type SizeEstimatePatch struct {
 	TableCount int
 	TotalRows  int64

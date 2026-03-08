@@ -41,30 +41,30 @@ type SparkApplication struct {
 }
 
 type SparkApplicationDetail struct {
-	ID           string             `json:"id"`
-	Name         string             `json:"name"`
-	User         string             `json:"user"`
-	State        string             `json:"state"`
-	StartTime    time.Time          `json:"start_time"`
-	Duration     time.Duration      `json:"duration"`
-	Jobs         []SparkJob         `json:"jobs"`
-	Executors    []SparkExecutor    `json:"executors"`
-	StageMetrics SparkStageMetrics  `json:"stage_metrics"`
+	ID           string            `json:"id"`
+	Name         string            `json:"name"`
+	User         string            `json:"user"`
+	State        string            `json:"state"`
+	StartTime    time.Time         `json:"start_time"`
+	Duration     time.Duration     `json:"duration"`
+	Jobs         []SparkJob        `json:"jobs"`
+	Executors    []SparkExecutor   `json:"executors"`
+	StageMetrics SparkStageMetrics `json:"stage_metrics"`
 }
 
 type SparkJob struct {
-	JobID       int    `json:"job_id"`
-	Name        string `json:"name"`
-	Status      string `json:"status"`
-	NumTasks    int    `json:"num_tasks"`
-	NumCompleted int   `json:"num_completed"`
+	JobID        int    `json:"job_id"`
+	Name         string `json:"name"`
+	Status       string `json:"status"`
+	NumTasks     int    `json:"num_tasks"`
+	NumCompleted int    `json:"num_completed"`
 }
 
 type SparkExecutor struct {
-	ID           string `json:"id"`
-	HostPort     string `json:"host_port"`
-	TotalTasks   int    `json:"total_tasks"`
-	TotalDuration int64 `json:"total_duration"`
+	ID            string `json:"id"`
+	HostPort      string `json:"host_port"`
+	TotalTasks    int    `json:"total_tasks"`
+	TotalDuration int64  `json:"total_duration"`
 }
 
 type SparkStageMetrics struct {
@@ -308,18 +308,10 @@ func (c *SparkConnector) QueryAccessLogs(ctx context.Context, since time.Time) (
 	if strings.TrimSpace(baseURL) == "" {
 		baseURL = c.config.REST.MasterURL
 	}
-	var apps []struct {
-		ID        string `json:"id"`
-		Name      string `json:"name"`
-		SparkUser string `json:"sparkUser"`
-		StartTime string `json:"attempts.0.startTime"`
-		Completed bool   `json:"completed"`
-	}
 	var rawApps []map[string]any
 	if _, err = c.restGET(ctx, baseURL+"/api/v1/applications", &rawApps); err != nil {
 		return nil, newConnectorError(sparkConnectorType, "access_logs", ErrorCodeQueryFailed, "query spark applications", err)
 	}
-	_ = apps
 	events := make([]DataAccessEvent, 0)
 	for _, app := range rawApps {
 		appID := fmt.Sprint(app["id"])
@@ -334,11 +326,15 @@ func (c *SparkConnector) QueryAccessLogs(ctx context.Context, since time.Time) (
 			bytesRead += int64Number(stage["inputBytes"])
 			rowsRead += int64Number(stage["inputRecords"])
 		}
-		started := parseSparkTime(fmt.Sprint(app["attempts"].([]any)[0].(map[string]any)["startTime"]))
+		started := parseSparkTime(anyString(app["attempts"], "startTime"))
 		if started.Before(since) {
 			continue
 		}
-		completedAt := parseSparkTime(fmt.Sprint(app["attempts"].([]any)[0].(map[string]any)["endTime"]))
+		completedAt := parseSparkTime(anyString(app["attempts"], "endTime"))
+		successValue := strings.ToLower(anyString(app["attempts"], "completed"))
+		if successValue == "" {
+			successValue = strings.ToLower(fmt.Sprint(app["completed"]))
+		}
 		event := DataAccessEvent{
 			Timestamp:    completedAt,
 			User:         user,
@@ -349,7 +345,7 @@ func (c *SparkConnector) QueryAccessLogs(ctx context.Context, since time.Time) (
 			RowsRead:     rowsRead,
 			BytesRead:    bytesRead,
 			DurationMs:   completedAt.Sub(started).Milliseconds(),
-			Success:      strings.EqualFold(fmt.Sprint(app["attempts"].([]any)[0].(map[string]any)["completed"]), "true") || strings.EqualFold(fmt.Sprint(app["attempts"].([]any)[0].(map[string]any)["completed"]), "success"),
+			Success:      successValue == "true" || successValue == "success",
 			SourceType:   sparkConnectorType,
 			SourceID:     c.sourceID,
 			TenantID:     c.tenantID,
@@ -412,8 +408,9 @@ func (c *SparkConnector) GetActiveApplications(ctx context.Context) (_ []SparkAp
 		attempts, _ := item["attempts"].([]any)
 		state := fmt.Sprint(item["state"])
 		if len(attempts) > 0 {
-			attempt := attempts[0].(map[string]any)
-			state = fmt.Sprint(attempt["completed"])
+			if attempt, ok := attempts[0].(map[string]any); ok {
+				state = fmt.Sprint(attempt["completed"])
+			}
 		}
 		apps = append(apps, SparkApplication{
 			ID:        fmt.Sprint(item["id"]),

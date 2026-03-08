@@ -13,14 +13,17 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 
-	"github.com/clario360/platform/internal/auth"
+	aigovdrift "github.com/clario360/platform/internal/aigovernance/drift"
 	aigovhandler "github.com/clario360/platform/internal/aigovernance/handler"
 	aigovrepo "github.com/clario360/platform/internal/aigovernance/repository"
 	aigovservice "github.com/clario360/platform/internal/aigovernance/service"
 	aigovshadow "github.com/clario360/platform/internal/aigovernance/shadow"
-	aigovdrift "github.com/clario360/platform/internal/aigovernance/drift"
+	"github.com/clario360/platform/internal/auth"
 	"github.com/clario360/platform/internal/config"
 	"github.com/clario360/platform/internal/events"
+	filemetrics "github.com/clario360/platform/internal/filemanager/metrics"
+	filerepo "github.com/clario360/platform/internal/filemanager/repository"
+	fileservice "github.com/clario360/platform/internal/filemanager/service"
 	iamhandler "github.com/clario360/platform/internal/iam/handler"
 	iamrepo "github.com/clario360/platform/internal/iam/repository"
 	iamservice "github.com/clario360/platform/internal/iam/service"
@@ -185,6 +188,22 @@ func main() {
 	onboardingRepository := onboardingrepo.NewOnboardingRepository(svc.DBPool)
 	invitationRepository := onboardingrepo.NewInvitationRepository(svc.DBPool)
 	provisioningRepository := onboardingrepo.NewProvisioningRepository(svc.DBPool)
+	var brandingUploader onboardingsvc.BrandingAssetUploader
+	if storageClient != nil {
+		fileRepository := filerepo.NewFileRepository(svc.DBPool, svc.Logger)
+		fileService := fileservice.NewFileService(
+			fileRepository,
+			storageClient,
+			nil,
+			producer,
+			filemetrics.NewFileMetrics(svc.Metrics.Registry()),
+			svc.Logger,
+			"clario360",
+			"clario360-quarantine",
+			15*time.Minute,
+		)
+		brandingUploader = onboardingsvc.NewBrandingAssetUploader(fileService)
+	}
 
 	provisioner := onboardingsvc.NewTenantProvisioner(
 		svc.DBPool,
@@ -251,6 +270,7 @@ func main() {
 		invitationService,
 		provisioner,
 		deprovisioner,
+		brandingUploader,
 		provisioningRepository,
 		svc.Logger,
 	)

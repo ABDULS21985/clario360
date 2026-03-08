@@ -11,6 +11,7 @@ type OrganizationDetailsRequest struct {
 type BrandingRequest struct {
 	PrimaryColor string `json:"primary_color,omitempty" validate:"omitempty,len=7"`
 	AccentColor  string `json:"accent_color,omitempty" validate:"omitempty,len=7"`
+	LogoFileID   string `json:"logo_file_id,omitempty" validate:"omitempty,uuid4"`
 }
 
 type TeamStepRequest struct {

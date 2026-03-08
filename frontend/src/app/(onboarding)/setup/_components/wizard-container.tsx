@@ -195,6 +195,7 @@ export function WizardContainer() {
       {currentStep === 2 ? (
         <StepBranding
           initialValues={brandingDefaults}
+          savedLogoFileId={wizard.logo_file_id ?? null}
           onBack={() => syncStep(1)}
           onSaved={async () => {
             await refreshWizard(3);

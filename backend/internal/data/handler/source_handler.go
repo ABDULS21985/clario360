@@ -16,7 +16,7 @@ import (
 
 type SourceHandler struct {
 	baseHandler
-	service *service.SourceService
+	service  *service.SourceService
 	registry *connector.ConnectorRegistry
 }
 

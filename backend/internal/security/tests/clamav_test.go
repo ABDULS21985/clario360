@@ -1,7 +1,9 @@
 package security_test
 
 import (
-	"fmt"
+	"bufio"
+	"encoding/binary"
+	"io"
 	"net"
 	"strings"
 	"testing"
@@ -14,8 +16,7 @@ import (
 )
 
 // mockClamdServer starts a TCP listener that emulates clamd INSTREAM protocol.
-// The handler receives data and returns the configured response.
-func mockClamdServer(t *testing.T, response string) (addr string, close func()) {
+func mockClamdServer(t *testing.T, response string) (addr string, cleanup func()) {
 	t.Helper()
 
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
@@ -45,53 +46,59 @@ func mockClamdServer(t *testing.T, response string) (addr string, close func()) 
 	}
 }
 
+// readNullTerminated reads bytes until a null byte is found, returning the command string.
+func readNullTerminated(r *bufio.Reader) (string, error) {
+	var cmd []byte
+	for {
+		b, err := r.ReadByte()
+		if err != nil {
+			return "", err
+		}
+		if b == 0 {
+			break
+		}
+		cmd = append(cmd, b)
+	}
+	return string(cmd), nil
+}
+
 func handleClamdConn(conn net.Conn, response string) {
 	defer conn.Close()
-	conn.SetDeadline(time.Now().Add(5 * time.Second))
+	conn.SetDeadline(time.Now().Add(10 * time.Second))
 
-	buf := make([]byte, 4096)
-	n, err := conn.Read(buf)
+	reader := bufio.NewReader(conn)
+
+	// Read null-terminated command
+	cmd, err := readNullTerminated(reader)
 	if err != nil {
 		return
 	}
 
-	cmd := strings.TrimRight(string(buf[:n]), "\x00")
-
-	switch {
-	case cmd == "zPING":
+	switch cmd {
+	case "zPING":
 		conn.Write([]byte("PONG\x00"))
-	case cmd == "zINSTREAM":
-		// Drain all chunks until we get a zero-length chunk
+
+	case "zINSTREAM":
+		// Drain all chunks: each is [4-byte big-endian length][data]
+		// Stream ends with 4 zero bytes (length == 0)
 		for {
-			// Read 4-byte length
-			lenBuf := make([]byte, 4)
-			_, err := conn.Read(lenBuf)
-			if err != nil {
+			var chunkLen uint32
+			if err := binary.Read(reader, binary.BigEndian, &chunkLen); err != nil {
 				return
 			}
-			chunkLen := int(lenBuf[0])<<24 | int(lenBuf[1])<<16 | int(lenBuf[2])<<8 | int(lenBuf[3])
 			if chunkLen == 0 {
 				break
 			}
 			// Drain chunk data
-			remaining := chunkLen
-			drain := make([]byte, 4096)
-			for remaining > 0 {
-				toRead := remaining
-				if toRead > len(drain) {
-					toRead = len(drain)
-				}
-				nr, err := conn.Read(drain[:toRead])
-				if err != nil {
-					return
-				}
-				remaining -= nr
+			if _, err := io.CopyN(io.Discard, reader, int64(chunkLen)); err != nil {
+				return
 			}
 		}
 		// Send configured response
 		conn.Write([]byte(response + "\x00"))
+
 	default:
-		conn.Write([]byte(fmt.Sprintf("UNKNOWN COMMAND: %s\x00", cmd)))
+		conn.Write([]byte("UNKNOWN COMMAND\x00"))
 	}
 }
 
@@ -109,8 +116,6 @@ func TestClamAV_ScanCleanFile(t *testing.T) {
 	reg := prometheus.NewRegistry()
 	metrics := security.NewMetrics(reg)
 	scanner := security.NewClamAVScanner(cfg, metrics, zerolog.Nop())
-
-	// Give the background ping a moment
 	time.Sleep(100 * time.Millisecond)
 
 	err := scanner.Scan([]byte("clean file content"), "test.pdf")
@@ -135,7 +140,6 @@ func TestClamAV_ScanMalwareDetected(t *testing.T) {
 	scanner := security.NewClamAVScanner(cfg, metrics, zerolog.Nop())
 	time.Sleep(100 * time.Millisecond)
 
-	// EICAR test string
 	eicar := []byte(`X5O!P%@AP[4\PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*`)
 	err := scanner.Scan(eicar, "malware.exe")
 	if err == nil {
@@ -189,7 +193,6 @@ func TestClamAV_Ping(t *testing.T) {
 	if err := scanner.Ping(); err != nil {
 		t.Fatalf("Ping() failed: %v", err)
 	}
-
 	if !scanner.IsAvailable() {
 		t.Error("expected IsAvailable() == true after successful ping")
 	}
@@ -197,17 +200,16 @@ func TestClamAV_Ping(t *testing.T) {
 
 func TestClamAV_PingUnreachable(t *testing.T) {
 	cfg := &security.ClamAVConfig{
-		Addr:    "127.0.0.1:1", // nobody listens here
+		Addr:    "127.0.0.1:1",
 		Timeout: 1 * time.Second,
 	}
 
 	scanner := security.NewClamAVScanner(cfg, nil, zerolog.Nop())
-	time.Sleep(200 * time.Millisecond) // let background ping fail
+	time.Sleep(200 * time.Millisecond)
 
 	if err := scanner.Ping(); err == nil {
 		t.Fatal("expected Ping() error for unreachable server")
 	}
-
 	if scanner.IsAvailable() {
 		t.Error("expected IsAvailable() == false for unreachable server")
 	}
@@ -244,8 +246,6 @@ func TestClamAV_ScanHookIntegration(t *testing.T) {
 	scanner := security.NewClamAVScanner(cfg, nil, zerolog.Nop())
 	time.Sleep(100 * time.Millisecond)
 
-	// The ScanHook() method returns a func([]byte, string) error
-	// compatible with WithVirusScanHook
 	hook := scanner.ScanHook()
 	err := hook([]byte("clean data"), "document.pdf")
 	if err != nil {

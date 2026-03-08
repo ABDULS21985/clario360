@@ -10,12 +10,12 @@ import (
 
 // blockedTypes are never allowed regardless of suite.
 var blockedTypes = map[string]bool{
-	"application/x-executable":                        true,
-	"application/x-dosexec":                           true,
-	"application/x-shellscript":                       true,
-	"application/java-archive":                        true,
-	"application/x-msdownload":                        true,
-	"application/vnd.microsoft.portable-executable":   true,
+	"application/x-executable":                      true,
+	"application/x-dosexec":                         true,
+	"application/x-shellscript":                     true,
+	"application/java-archive":                      true,
+	"application/x-msdownload":                      true,
+	"application/vnd.microsoft.portable-executable": true,
 }
 
 // AllowedTypes maps suite names to permitted MIME types.
@@ -118,6 +118,12 @@ func detectByMagic(header []byte) string {
 	}
 	// JSON detection (starts with { or [)
 	trimmed := bytes.TrimSpace(header)
+	lowerTrimmed := bytes.ToLower(trimmed)
+	if len(lowerTrimmed) > 0 {
+		if bytes.HasPrefix(lowerTrimmed, []byte("<svg")) || bytes.Contains(lowerTrimmed, []byte("<svg")) {
+			return "image/svg+xml"
+		}
+	}
 	if len(trimmed) > 0 && (trimmed[0] == '{' || trimmed[0] == '[') {
 		return "application/json"
 	}

@@ -803,13 +803,6 @@ func normalizeConnectionConfig(sourceType model.DataSourceType, raw json.RawMess
 	}
 }
 
-func minInt(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}
-
 func safeTags(tags []string) []string {
 	if tags == nil {
 		return []string{}

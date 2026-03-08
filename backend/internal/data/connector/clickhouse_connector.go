@@ -515,9 +515,9 @@ func (c *ClickHouseConnector) openDB(ctx context.Context) (*sql.DB, error) {
 			Username: c.config.Username,
 			Password: c.config.Password,
 		},
-		Protocol:    protocol,
-		DialTimeout: time.Duration(c.config.DialTimeoutSeconds) * time.Second,
-		ReadTimeout: time.Duration(c.config.ReadTimeoutSeconds) * time.Second,
+		Protocol:     protocol,
+		DialTimeout:  time.Duration(c.config.DialTimeoutSeconds) * time.Second,
+		ReadTimeout:  time.Duration(c.config.ReadTimeoutSeconds) * time.Second,
 		MaxOpenConns: c.config.MaxOpenConns,
 		MaxIdleConns: c.config.MaxIdleConns,
 		Settings: clickhouse.Settings{
