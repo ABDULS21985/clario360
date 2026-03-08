@@ -270,6 +270,15 @@ func (m *memUserRepo) GetByEmail(_ context.Context, tenantID, email string) (*mo
 	return u, nil
 }
 
+func (m *memUserRepo) GetByEmailGlobal(_ context.Context, email string) (*model.User, error) {
+	for _, u := range m.users {
+		if u.Email == email {
+			return u, nil
+		}
+	}
+	return nil, model.ErrNotFound
+}
+
 func (m *memUserRepo) List(_ context.Context, _ string, _ repository.UserFilter) ([]model.User, int, error) {
 	return nil, 0, nil
 }
@@ -369,8 +378,8 @@ func (m *memRoleRepo) GetBySlug(_ context.Context, tenantID, slug string) (*mode
 	}
 	return r, nil
 }
-func (m *memRoleRepo) List(_ context.Context, _ string) ([]model.Role, error) { return nil, nil }
-func (m *memRoleRepo) Update(_ context.Context, _ *model.Role) error          { return nil }
+func (m *memRoleRepo) List(_ context.Context, _ string) ([]model.Role, error)  { return nil, nil }
+func (m *memRoleRepo) Update(_ context.Context, _ *model.Role) error           { return nil }
 func (m *memRoleRepo) Delete(_ context.Context, _ string) error                { return nil }
 func (m *memRoleRepo) AssignToUser(_ context.Context, _, _, _, _ string) error { return nil }
 func (m *memRoleRepo) RemoveFromUser(_ context.Context, _, _ string) error     { return nil }

@@ -147,6 +147,15 @@ func (f *fakeUserRepo) GetByEmail(ctx context.Context, tenantID, email string) (
 	return user, nil
 }
 
+func (f *fakeUserRepo) GetByEmailGlobal(ctx context.Context, email string) (*iammodel.User, error) {
+	for _, user := range f.byID {
+		if user.Email == email {
+			return user, nil
+		}
+	}
+	return nil, iammodel.ErrNotFound
+}
+
 func (f *fakeUserRepo) List(ctx context.Context, tenantID string, filter iamrepository.UserFilter) ([]iammodel.User, int, error) {
 	out := make([]iammodel.User, 0)
 	for _, user := range f.byID {

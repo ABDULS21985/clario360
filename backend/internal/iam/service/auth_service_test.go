@@ -66,6 +66,15 @@ func (m *mockUserRepo) GetByEmail(ctx context.Context, tenantID, email string) (
 	return u, nil
 }
 
+func (m *mockUserRepo) GetByEmailGlobal(ctx context.Context, email string) (*model.User, error) {
+	for _, u := range m.users {
+		if u.Email == email {
+			return u, nil
+		}
+	}
+	return nil, model.ErrNotFound
+}
+
 func (m *mockUserRepo) List(ctx context.Context, tenantID string, filter repository.UserFilter) ([]model.User, int, error) {
 	return nil, 0, nil
 }

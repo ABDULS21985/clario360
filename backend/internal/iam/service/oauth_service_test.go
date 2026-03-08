@@ -409,16 +409,27 @@ func (f *fakeUserRepo) GetByEmail(_ context.Context, tenantID, email string) (*m
 	}
 	return nil, model.ErrNotFound
 }
+func (f *fakeUserRepo) GetByEmailGlobal(_ context.Context, email string) (*model.User, error) {
+	for _, user := range f.users {
+		if user.Email == email {
+			copy := *user
+			return &copy, nil
+		}
+	}
+	return nil, model.ErrNotFound
+}
 func (f *fakeUserRepo) List(context.Context, string, repository.UserFilter) ([]model.User, int, error) {
 	return nil, 0, nil
 }
-func (f *fakeUserRepo) Update(context.Context, *model.User) error                          { return nil }
-func (f *fakeUserRepo) SoftDelete(context.Context, string, string) error                    { return nil }
-func (f *fakeUserRepo) UpdateStatus(context.Context, string, model.UserStatus, string) error { return nil }
-func (f *fakeUserRepo) UpdatePassword(context.Context, string, string) error                { return nil }
-func (f *fakeUserRepo) UpdateMFA(context.Context, string, bool, *string) error              { return nil }
-func (f *fakeUserRepo) UpdateLastLogin(context.Context, string) error                        { return nil }
-func (f *fakeUserRepo) CountByTenant(context.Context, string) (int, error)                  { return len(f.users), nil }
+func (f *fakeUserRepo) Update(context.Context, *model.User) error        { return nil }
+func (f *fakeUserRepo) SoftDelete(context.Context, string, string) error { return nil }
+func (f *fakeUserRepo) UpdateStatus(context.Context, string, model.UserStatus, string) error {
+	return nil
+}
+func (f *fakeUserRepo) UpdatePassword(context.Context, string, string) error   { return nil }
+func (f *fakeUserRepo) UpdateMFA(context.Context, string, bool, *string) error { return nil }
+func (f *fakeUserRepo) UpdateLastLogin(context.Context, string) error          { return nil }
+func (f *fakeUserRepo) CountByTenant(context.Context, string) (int, error)     { return len(f.users), nil }
 
 type fakeTenantRepo struct {
 	tenants map[string]*model.Tenant
@@ -442,8 +453,10 @@ func (f *fakeTenantRepo) GetBySlug(_ context.Context, slug string) (*model.Tenan
 	}
 	return nil, model.ErrNotFound
 }
-func (f *fakeTenantRepo) List(context.Context, int, int) ([]model.Tenant, int, error) { return nil, 0, nil }
-func (f *fakeTenantRepo) Update(context.Context, *model.Tenant) error                  { return nil }
+func (f *fakeTenantRepo) List(context.Context, int, int) ([]model.Tenant, int, error) {
+	return nil, 0, nil
+}
+func (f *fakeTenantRepo) Update(context.Context, *model.Tenant) error { return nil }
 
 type fakeSessionRepo struct {
 	sessions map[string]*model.Session
@@ -494,15 +507,21 @@ func (f *fakeSessionRepo) DeleteExpired(context.Context) (int64, error) { return
 
 type fakeRoleRepo struct{}
 
-func (f *fakeRoleRepo) Create(context.Context, *model.Role) error                           { return nil }
-func (f *fakeRoleRepo) GetByID(context.Context, string) (*model.Role, error)               { return nil, model.ErrNotFound }
-func (f *fakeRoleRepo) GetBySlug(context.Context, string, string) (*model.Role, error)     { return nil, model.ErrNotFound }
-func (f *fakeRoleRepo) List(context.Context, string) ([]model.Role, error)                 { return nil, nil }
-func (f *fakeRoleRepo) Update(context.Context, *model.Role) error                           { return nil }
-func (f *fakeRoleRepo) Delete(context.Context, string) error                                { return nil }
-func (f *fakeRoleRepo) AssignToUser(context.Context, string, string, string, string) error { return nil }
-func (f *fakeRoleRepo) RemoveFromUser(context.Context, string, string) error                { return nil }
-func (f *fakeRoleRepo) GetUserRoles(context.Context, string) ([]model.Role, error)         { return nil, nil }
+func (f *fakeRoleRepo) Create(context.Context, *model.Role) error { return nil }
+func (f *fakeRoleRepo) GetByID(context.Context, string) (*model.Role, error) {
+	return nil, model.ErrNotFound
+}
+func (f *fakeRoleRepo) GetBySlug(context.Context, string, string) (*model.Role, error) {
+	return nil, model.ErrNotFound
+}
+func (f *fakeRoleRepo) List(context.Context, string) ([]model.Role, error) { return nil, nil }
+func (f *fakeRoleRepo) Update(context.Context, *model.Role) error          { return nil }
+func (f *fakeRoleRepo) Delete(context.Context, string) error               { return nil }
+func (f *fakeRoleRepo) AssignToUser(context.Context, string, string, string, string) error {
+	return nil
+}
+func (f *fakeRoleRepo) RemoveFromUser(context.Context, string, string) error       { return nil }
+func (f *fakeRoleRepo) GetUserRoles(context.Context, string) ([]model.Role, error) { return nil, nil }
 func (f *fakeRoleRepo) ListUserIDsByRole(context.Context, string, string) ([]string, error) {
 	return nil, nil
 }
