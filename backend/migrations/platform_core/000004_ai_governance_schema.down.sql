@@ -1,0 +1,5 @@
+DROP TABLE IF EXISTS ai_drift_reports CASCADE;
+DROP TABLE IF EXISTS ai_shadow_comparisons CASCADE;
+DROP TABLE IF EXISTS ai_prediction_logs CASCADE;
+DROP TABLE IF EXISTS ai_model_versions CASCADE;
+DROP TABLE IF EXISTS ai_models CASCADE;

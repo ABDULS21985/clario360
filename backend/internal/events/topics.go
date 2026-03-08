@@ -10,6 +10,7 @@ var Topics = struct {
 	NotificationEvents string
 	WorkflowEvents     string
 	FileEvents         string
+	AIEvents           string
 
 	// Cybersecurity
 	AssetEvents         string
@@ -46,6 +47,7 @@ var Topics = struct {
 	NotificationEvents: "platform.notification.events",
 	WorkflowEvents:     "platform.workflow.events",
 	FileEvents:         "platform.file.events",
+	AIEvents:           "platform.ai.events",
 
 	// Cybersecurity
 	AssetEvents:         "cyber.asset.events",
@@ -102,6 +104,7 @@ func AllTopics() []string {
 		Topics.NotificationEvents,
 		Topics.WorkflowEvents,
 		Topics.FileEvents,
+		Topics.AIEvents,
 		Topics.AssetEvents,
 		Topics.VulnerabilityEvents,
 		Topics.ThreatEvents,
