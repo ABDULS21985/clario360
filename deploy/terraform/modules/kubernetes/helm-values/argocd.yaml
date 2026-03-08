@@ -1,0 +1,62 @@
+server:
+  ingress:
+    enabled: true
+    ingressClassName: nginx
+    hosts:
+      - ${domain}
+    tls:
+      - secretName: argocd-tls
+        hosts:
+          - ${domain}
+    annotations:
+      cert-manager.io/cluster-issuer: letsencrypt
+
+  nodeSelector:
+    pool: system
+
+  tolerations:
+    - key: dedicated
+      value: system
+      effect: NoSchedule
+
+controller:
+  nodeSelector:
+    pool: system
+
+  tolerations:
+    - key: dedicated
+      value: system
+      effect: NoSchedule
+
+repoServer:
+  nodeSelector:
+    pool: system
+
+  tolerations:
+    - key: dedicated
+      value: system
+      effect: NoSchedule
+
+applicationSet:
+  nodeSelector:
+    pool: system
+
+  tolerations:
+    - key: dedicated
+      value: system
+      effect: NoSchedule
+
+configs:
+  repositories:
+    clario360-gitops:
+      url: ${repo_url}
+      type: git
+
+%{ if environment == "production" }
+  params:
+    server.insecure: false
+    application.resourceTrackingMethod: annotation
+%{ else }
+  params:
+    server.insecure: true
+%{ endif }
