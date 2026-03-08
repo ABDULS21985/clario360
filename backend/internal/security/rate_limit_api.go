@@ -59,10 +59,19 @@ func NewAPIRateLimiter(rdb *redis.Client, cfg *APIRateLimitConfig, metrics *Metr
 	}
 }
 
+// RateLimitInfo contains rate limit state for inclusion in response headers.
+type RateLimitInfo struct {
+	Limit     int
+	Remaining int
+	Reset     time.Time
+}
+
 // CheckAPIRate checks the API rate limit for a request.
-func (l *APIRateLimiter) CheckAPIRate(ctx context.Context, tenantID, path, ip string) error {
+// Returns (info, nil) on success with current quota info, or (nil, error) when rate-limited.
+func (l *APIRateLimiter) CheckAPIRate(ctx context.Context, tenantID, path, ip string) (*RateLimitInfo, error) {
 	if l.redis == nil {
-		return nil
+		l.logger.Warn().Msg("Redis unavailable — rate limiting disabled (fail-open)")
+		return nil, nil
 	}
 
 	limit := l.config.DefaultPerMinute
@@ -99,8 +108,8 @@ func (l *APIRateLimiter) CheckAPIRate(ctx context.Context, tenantID, path, ip st
 
 	_, err := pipe.Exec(ctx)
 	if err != nil {
-		l.logger.Error().Err(err).Msg("API rate limit check failed")
-		return nil // Fail open
+		l.logger.Error().Err(err).Msg("API rate limit check failed — fail-open")
+		return nil, nil // Fail open
 	}
 
 	count := int(countCmd.Val())
@@ -108,31 +117,37 @@ func (l *APIRateLimiter) CheckAPIRate(ctx context.Context, tenantID, path, ip st
 	if remaining < 0 {
 		remaining = 0
 	}
+	reset := now.Add(window)
 
 	if count >= limit {
 		if l.metrics != nil {
 			l.metrics.RateLimitHits.WithLabelValues("api").Inc()
 		}
-		return &RateLimitError{
+		return nil, &RateLimitError{
 			RetryAfter: window,
 			Message:    "API rate limit exceeded, please try again later",
 			Limit:      limit,
 			Remaining:  0,
-			Reset:      now.Add(window),
+			Reset:      reset,
 		}
 	}
 
-	return nil
+	return &RateLimitInfo{
+		Limit:     limit,
+		Remaining: remaining,
+		Reset:     reset,
+	}, nil
 }
 
 // APIRateLimitMiddleware returns middleware for API rate limiting.
+// Sets X-RateLimit-* headers on both success and 429 responses.
 func APIRateLimitMiddleware(limiter *APIRateLimiter, secLogger *SecurityLogger) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			tenantID := auth.TenantFromContext(r.Context())
 			ip := extractClientIP(r)
 
-			err := limiter.CheckAPIRate(r.Context(), tenantID, r.URL.Path, ip)
+			info, err := limiter.CheckAPIRate(r.Context(), tenantID, r.URL.Path, ip)
 			if err != nil {
 				secLogger.LogFromRequest(r, EventRateLimited, SeverityLow,
 					"API rate limit exceeded", true)
@@ -162,6 +177,13 @@ func APIRateLimitMiddleware(limiter *APIRateLimiter, secLogger *SecurityLogger) 
 					},
 				})
 				return
+			}
+
+			// Set rate-limit headers on successful responses
+			if info != nil {
+				w.Header().Set("X-RateLimit-Limit", strconv.Itoa(info.Limit))
+				w.Header().Set("X-RateLimit-Remaining", strconv.Itoa(info.Remaining))
+				w.Header().Set("X-RateLimit-Reset", strconv.FormatInt(info.Reset.Unix(), 10))
 			}
 
 			next.ServeHTTP(w, r)

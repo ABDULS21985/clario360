@@ -3,6 +3,8 @@ package security
 import (
 	"fmt"
 	"net/url"
+	"os"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -211,6 +213,157 @@ func (c *Config) ClamAVConfigFromConfig() *ClamAVConfig {
 		cfg.MaxSize = c.ClamAVMaxScanSize
 	}
 	return cfg
+}
+
+// ConfigFromEnv loads security configuration from environment variables,
+// using DefaultConfig() as the base and overriding with any set env vars.
+func ConfigFromEnv() *Config {
+	cfg := DefaultConfig()
+
+	if v := os.Getenv("SECURITY_ENVIRONMENT"); v != "" {
+		cfg.Environment = v
+	}
+
+	// CSRF
+	if v := os.Getenv("SECURITY_CSRF_COOKIE_NAME"); v != "" {
+		cfg.CSRFCookieName = v
+	}
+	if v := os.Getenv("SECURITY_CSRF_HEADER_NAME"); v != "" {
+		cfg.CSRFHeaderName = v
+	}
+	if v := os.Getenv("SECURITY_CSRF_COOKIE_DOMAIN"); v != "" {
+		cfg.CSRFCookieDomain = v
+	}
+	if v := os.Getenv("SECURITY_CSRF_COOKIE_SECURE"); v != "" {
+		cfg.CSRFCookieSecure = parseBool(v, cfg.CSRFCookieSecure)
+	}
+
+	// Headers
+	if v := os.Getenv("SECURITY_ALLOWED_ORIGINS"); v != "" {
+		cfg.AllowedOrigins = strings.Split(v, ",")
+	}
+	if v := os.Getenv("SECURITY_CSP_REPORT_URI"); v != "" {
+		cfg.CSPReportURI = v
+	}
+	if v := os.Getenv("SECURITY_HSTS_MAX_AGE"); v != "" {
+		cfg.HSTSMaxAge = parseInt(v, cfg.HSTSMaxAge)
+	}
+	if v := os.Getenv("SECURITY_HSTS_PRELOAD"); v != "" {
+		cfg.HSTSPreload = parseBool(v, cfg.HSTSPreload)
+	}
+	if v := os.Getenv("SECURITY_FRAME_ANCESTORS"); v != "" {
+		cfg.FrameAncestors = v
+	}
+
+	// Rate Limiting — Auth
+	if v := os.Getenv("SECURITY_LOGIN_PER_EMAIL"); v != "" {
+		cfg.LoginPerEmail = parseInt(v, cfg.LoginPerEmail)
+	}
+	if v := os.Getenv("SECURITY_LOGIN_PER_IP"); v != "" {
+		cfg.LoginPerIP = parseInt(v, cfg.LoginPerIP)
+	}
+	if v := os.Getenv("SECURITY_LOGIN_WINDOW"); v != "" {
+		cfg.LoginWindow = parseDuration(v, cfg.LoginWindow)
+	}
+	if v := os.Getenv("SECURITY_LOCKOUT_THRESHOLD"); v != "" {
+		cfg.LockoutThreshold = parseInt(v, cfg.LockoutThreshold)
+	}
+	if v := os.Getenv("SECURITY_LOCKOUT_DURATION"); v != "" {
+		cfg.LockoutDuration = parseDuration(v, cfg.LockoutDuration)
+	}
+	if v := os.Getenv("SECURITY_ESCALATION_THRESHOLD"); v != "" {
+		cfg.EscalationThreshold = parseInt(v, cfg.EscalationThreshold)
+	}
+
+	// Rate Limiting — API
+	if v := os.Getenv("SECURITY_API_RATE_PER_MINUTE"); v != "" {
+		cfg.APIDefaultPerMinute = parseInt(v, cfg.APIDefaultPerMinute)
+	}
+	if v := os.Getenv("SECURITY_API_BURST_MULTIPLIER"); v != "" {
+		if f, err := strconv.ParseFloat(v, 64); err == nil {
+			cfg.APIBurstMultiplier = f
+		}
+	}
+
+	// Session
+	if v := os.Getenv("SECURITY_SESSION_IDLE_TIMEOUT"); v != "" {
+		cfg.SessionIdleTimeout = parseDuration(v, cfg.SessionIdleTimeout)
+	}
+	if v := os.Getenv("SECURITY_SESSION_ABSOLUTE_MAX"); v != "" {
+		cfg.SessionAbsoluteMax = parseDuration(v, cfg.SessionAbsoluteMax)
+	}
+	if v := os.Getenv("SECURITY_MAX_CONCURRENT_SESSIONS"); v != "" {
+		cfg.MaxConcurrentSessions = parseInt(v, cfg.MaxConcurrentSessions)
+	}
+
+	// File Upload
+	if v := os.Getenv("SECURITY_MAX_UPLOAD_SIZE"); v != "" {
+		if n, err := strconv.ParseInt(v, 10, 64); err == nil {
+			cfg.MaxUploadSize = n
+		}
+	}
+	if v := os.Getenv("SECURITY_QUARANTINE_PATH"); v != "" {
+		cfg.QuarantinePath = v
+	}
+	if v := os.Getenv("SECURITY_VIRUS_SCAN_ENABLED"); v != "" {
+		cfg.VirusScanEnabled = parseBool(v, cfg.VirusScanEnabled)
+	}
+	if v := os.Getenv("SECURITY_CLAMAV_ADDR"); v != "" {
+		cfg.ClamAVAddr = v
+	}
+	if v := os.Getenv("SECURITY_CLAMAV_TIMEOUT"); v != "" {
+		cfg.ClamAVTimeout = parseDuration(v, cfg.ClamAVTimeout)
+	}
+
+	// Sanitizer
+	if v := os.Getenv("SECURITY_MAX_STRING_LENGTH"); v != "" {
+		cfg.MaxStringLength = parseInt(v, cfg.MaxStringLength)
+	}
+	if v := os.Getenv("SECURITY_MAX_JSON_DEPTH"); v != "" {
+		cfg.MaxJSONDepth = parseInt(v, cfg.MaxJSONDepth)
+	}
+	if v := os.Getenv("SECURITY_MAX_JSON_SIZE"); v != "" {
+		cfg.MaxJSONSize = parseInt(v, cfg.MaxJSONSize)
+	}
+
+	// SSRF
+	if v := os.Getenv("SECURITY_SSRF_ALLOWED_HOSTS"); v != "" {
+		cfg.SSRFAllowedHosts = strings.Split(v, ",")
+	}
+	if v := os.Getenv("SECURITY_SSRF_BLOCK_PRIVATE"); v != "" {
+		cfg.SSRFBlockPrivate = parseBool(v, cfg.SSRFBlockPrivate)
+	}
+
+	// Logging
+	if v := os.Getenv("SECURITY_LOG_PATH"); v != "" {
+		cfg.SecurityLogPath = v
+	}
+	if v := os.Getenv("SECURITY_TAMPER_PROOF"); v != "" {
+		cfg.EnableTamperProof = parseBool(v, cfg.EnableTamperProof)
+	}
+
+	return cfg
+}
+
+func parseInt(s string, fallback int) int {
+	if n, err := strconv.Atoi(s); err == nil {
+		return n
+	}
+	return fallback
+}
+
+func parseBool(s string, fallback bool) bool {
+	if b, err := strconv.ParseBool(s); err == nil {
+		return b
+	}
+	return fallback
+}
+
+func parseDuration(s string, fallback time.Duration) time.Duration {
+	if d, err := time.ParseDuration(s); err == nil {
+		return d
+	}
+	return fallback
 }
 
 // IsProduction returns true if running in production environment.

@@ -453,6 +453,13 @@ func (s *AuthService) ResetPasswordForUser(ctx context.Context, userID, newPassw
 	return s.sessionRepo.DeleteByUserID(ctx, userID)
 }
 
+// IssueTokens exposes the standard token issuance flow for trusted internal
+// callers such as the OIDC provider. It preserves session creation and refresh
+// token rotation behavior by delegating to the shared token generator.
+func (s *AuthService) IssueTokens(ctx context.Context, user *model.User, ip, userAgent string) (*dto.AuthResponse, error) {
+	return s.generateTokens(ctx, user, ip, userAgent)
+}
+
 func (s *AuthService) generateTokens(ctx context.Context, user *model.User, ip, userAgent string) (*dto.AuthResponse, error) {
 	roleSlugs := user.RoleSlugs()
 

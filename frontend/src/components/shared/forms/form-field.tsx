@@ -35,7 +35,7 @@ export function FormField({
         {label}
         {required && <span className="text-destructive ml-0.5" aria-hidden>*</span>}
       </Label>
-      <div id={name} aria-describedby={description ? `${name}-desc` : undefined} aria-invalid={!!error} aria-required={required}>
+      <div aria-describedby={description ? `${name}-desc` : undefined} aria-invalid={!!error} aria-required={required}>
         {children}
       </div>
       {description && (

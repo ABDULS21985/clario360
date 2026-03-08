@@ -9,14 +9,13 @@ import (
 
 	"github.com/clario360/platform/internal/cyber/dto"
 	"github.com/clario360/platform/internal/cyber/repository"
-	"github.com/clario360/platform/internal/cyber/service"
 )
 
 type DSPMHandler struct {
-	svc *service.DSPMService
+	svc dspmService
 }
 
-func NewDSPMHandler(svc *service.DSPMService) *DSPMHandler {
+func NewDSPMHandler(svc dspmService) *DSPMHandler {
 	return &DSPMHandler{svc: svc}
 }
 

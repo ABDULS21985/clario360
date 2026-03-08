@@ -131,6 +131,22 @@ func (m *JWTManager) GenerateTokenPair(userID, tenantID, email string, roles []s
 	}, nil
 }
 
+// SignClaims signs arbitrary JWT claims with the manager's private key.
+// This is used for standards-based tokens such as OIDC ID tokens while
+// keeping all platform signing centralized in one place.
+func (m *JWTManager) SignClaims(claims jwt.Claims) (string, error) {
+	if m.privateKey == nil {
+		return "", fmt.Errorf("JWT manager is configured for validation only")
+	}
+
+	token := jwt.NewWithClaims(jwt.SigningMethodRS256, claims)
+	signed, err := token.SignedString(m.privateKey)
+	if err != nil {
+		return "", fmt.Errorf("signing token: %w", err)
+	}
+	return signed, nil
+}
+
 // ValidateAccessToken parses and validates an access token, returning the claims.
 func (m *JWTManager) ValidateAccessToken(tokenStr string) (*Claims, error) {
 	token, err := jwt.ParseWithClaims(tokenStr, &Claims{}, func(token *jwt.Token) (any, error) {
@@ -169,6 +185,26 @@ func (m *JWTManager) ValidateRefreshToken(tokenStr string) (string, error) {
 	}
 
 	return claims.Subject, nil
+}
+
+// PublicKey returns the public verification key.
+func (m *JWTManager) PublicKey() *rsa.PublicKey {
+	return m.publicKey
+}
+
+// Issuer returns the configured JWT issuer.
+func (m *JWTManager) Issuer() string {
+	return m.issuer
+}
+
+// AccessTokenTTL returns the configured access-token TTL.
+func (m *JWTManager) AccessTokenTTL() time.Duration {
+	return m.accessTokenTTL
+}
+
+// RefreshTokenTTL returns the configured refresh-token TTL.
+func (m *JWTManager) RefreshTokenTTL() time.Duration {
+	return m.refreshTTL
 }
 
 func parseRSAPrivateKey(pemData []byte) (*rsa.PrivateKey, error) {

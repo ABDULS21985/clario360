@@ -3,6 +3,7 @@ package patterns
 import (
 	"fmt"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -90,15 +91,34 @@ func (e *EntityExtractor) ExtractParties(text string) []model.PartyExtraction {
 }
 
 func (e *EntityExtractor) ExtractDates(text string) []model.ExtractedDate {
-	var out []model.ExtractedDate
-	for label, patterns := range e.datePatterns {
+	// Iterate labels in deterministic order so that the output slice is
+	// ordered by the position of the first match in the source text.
+	labelOrder := []string{"effective_date", "expiry_date", "renewal_date"}
+
+	type match struct {
+		date model.ExtractedDate
+		pos  int
+	}
+	var matches []match
+	for _, label := range labelOrder {
+		patterns := e.datePatterns[label]
 		for _, pattern := range patterns {
-			if match := pattern.FindStringSubmatch(text); len(match) == 2 {
-				value := parseDocumentDate(match[1])
-				out = append(out, model.ExtractedDate{Label: label, Value: value, Source: strings.TrimSpace(match[1])})
+			if m := pattern.FindStringSubmatchIndex(text); m != nil {
+				raw := text[m[2]:m[3]]
+				value := parseDocumentDate(raw)
+				matches = append(matches, match{
+					date: model.ExtractedDate{Label: label, Value: value, Source: strings.TrimSpace(raw)},
+					pos:  m[0],
+				})
 				break
 			}
 		}
+	}
+
+	sort.Slice(matches, func(i, j int) bool { return matches[i].pos < matches[j].pos })
+	out := make([]model.ExtractedDate, len(matches))
+	for i, m := range matches {
+		out[i] = m.date
 	}
 	return out
 }

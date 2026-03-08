@@ -12,14 +12,13 @@ import (
 	"github.com/clario360/platform/internal/cyber/dto"
 	"github.com/clario360/platform/internal/cyber/remediation"
 	"github.com/clario360/platform/internal/cyber/repository"
-	"github.com/clario360/platform/internal/cyber/service"
 )
 
 type RemediationHandler struct {
-	svc *service.RemediationService
+	svc remediationService
 }
 
-func NewRemediationHandler(svc *service.RemediationService) *RemediationHandler {
+func NewRemediationHandler(svc remediationService) *RemediationHandler {
 	return &RemediationHandler{svc: svc}
 }
 

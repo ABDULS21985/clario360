@@ -84,7 +84,8 @@ func (e *RateLimitError) Error() string { return e.Message }
 // CheckLoginRate checks login rate limits for both email and IP dimensions.
 func (l *AuthRateLimiter) CheckLoginRate(ctx context.Context, email, ip string) error {
 	if l.redis == nil {
-		return nil // Fail open if Redis unavailable
+		l.logger.Warn().Msg("Redis unavailable — login rate limiting disabled (fail-open)")
+		return nil
 	}
 
 	// Check account lockout first
@@ -117,6 +118,7 @@ func (l *AuthRateLimiter) CheckLoginRate(ctx context.Context, email, ip string) 
 // RecordLoginFailure records a failed login for lockout tracking.
 func (l *AuthRateLimiter) RecordLoginFailure(ctx context.Context, email, ip string) {
 	if l.redis == nil {
+		l.logger.Warn().Msg("Redis unavailable — login failure not recorded (fail-open)")
 		return
 	}
 
@@ -150,6 +152,7 @@ func (l *AuthRateLimiter) RecordLoginFailure(ctx context.Context, email, ip stri
 // RecordLoginSuccess clears failure counters for the email.
 func (l *AuthRateLimiter) RecordLoginSuccess(ctx context.Context, email string) {
 	if l.redis == nil {
+		l.logger.Warn().Msg("Redis unavailable — login success not recorded (fail-open)")
 		return
 	}
 	emailHash := hashDimension("email", email)
@@ -159,6 +162,7 @@ func (l *AuthRateLimiter) RecordLoginSuccess(ctx context.Context, email string) 
 // CheckRegisterRate checks registration rate limits per IP.
 func (l *AuthRateLimiter) CheckRegisterRate(ctx context.Context, ip string) error {
 	if l.redis == nil {
+		l.logger.Warn().Msg("Redis unavailable — register rate limiting disabled (fail-open)")
 		return nil
 	}
 	ipHash := hashDimension("ip", ip)
@@ -169,6 +173,7 @@ func (l *AuthRateLimiter) CheckRegisterRate(ctx context.Context, ip string) erro
 // CheckPasswordResetRate checks password reset rate limits.
 func (l *AuthRateLimiter) CheckPasswordResetRate(ctx context.Context, email, ip string) error {
 	if l.redis == nil {
+		l.logger.Warn().Msg("Redis unavailable — password reset rate limiting disabled (fail-open)")
 		return nil
 	}
 
@@ -186,6 +191,7 @@ func (l *AuthRateLimiter) CheckPasswordResetRate(ctx context.Context, email, ip 
 // CheckMFARate checks MFA attempt rate limits per session.
 func (l *AuthRateLimiter) CheckMFARate(ctx context.Context, sessionID string) error {
 	if l.redis == nil {
+		l.logger.Warn().Msg("Redis unavailable — MFA rate limiting disabled (fail-open)")
 		return nil
 	}
 	sessionHash := hashDimension("session", sessionID)

@@ -69,6 +69,7 @@ func NewSessionManager(rdb *redis.Client, cfg *SessionConfig, metrics *Metrics, 
 // and optional IP/fingerprint binding.
 func (sm *SessionManager) ValidateSession(ctx context.Context, sessionID string, r *http.Request) error {
 	if sm.redis == nil {
+		sm.logger.Warn().Msg("Redis unavailable — session validation disabled (fail-open)")
 		return nil
 	}
 
@@ -140,6 +141,7 @@ func (sm *SessionManager) ValidateSession(ctx context.Context, sessionID string,
 // CreateSession creates a new session entry.
 func (sm *SessionManager) CreateSession(ctx context.Context, sessionID string, userID, tenantID string, r *http.Request) error {
 	if sm.redis == nil {
+		sm.logger.Warn().Msg("Redis unavailable — session creation skipped (fail-open)")
 		return nil
 	}
 
@@ -184,6 +186,7 @@ func (sm *SessionManager) CreateSession(ctx context.Context, sessionID string, u
 // DestroySession removes a session.
 func (sm *SessionManager) DestroySession(ctx context.Context, sessionID, userID string) {
 	if sm.redis == nil {
+		sm.logger.Warn().Msg("Redis unavailable — session destroy skipped (fail-open)")
 		return
 	}
 
@@ -198,6 +201,7 @@ func (sm *SessionManager) DestroySession(ctx context.Context, sessionID, userID 
 // DestroyAllSessions removes all sessions for a user (e.g., password change).
 func (sm *SessionManager) DestroyAllSessions(ctx context.Context, userID string) {
 	if sm.redis == nil {
+		sm.logger.Warn().Msg("Redis unavailable — destroy all sessions skipped (fail-open)")
 		return
 	}
 
@@ -222,7 +226,8 @@ func (sm *SessionManager) enforceConcurrentLimit(ctx context.Context, userID str
 	userKey := "user:sessions:" + userID
 	sessions, err := sm.redis.SMembers(ctx, userKey).Result()
 	if err != nil {
-		return nil // Fail open
+		sm.logger.Error().Err(err).Msg("concurrent session check failed — fail-open")
+		return nil
 	}
 
 	// Clean up expired sessions from the set

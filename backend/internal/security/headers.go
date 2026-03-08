@@ -50,8 +50,16 @@ func SecurityHeaders(cfg *SecurityHeadersConfig, logger zerolog.Logger, metrics 
 			// 3. XSS Protection (disabled — CSP is the modern layer)
 			h.Set("X-XSS-Protection", "0")
 
-			// 4. Clickjacking prevention
-			h.Set("X-Frame-Options", "DENY")
+			// 4. Clickjacking prevention — respect FrameAncestors config
+			switch cfg.FrameAncestors {
+			case "'none'":
+				h.Set("X-Frame-Options", "DENY")
+			case "'self'":
+				h.Set("X-Frame-Options", "SAMEORIGIN")
+			default:
+				// Custom frame-ancestors: CSP handles it, X-Frame-Options doesn't support arbitrary origins
+				// Omit X-Frame-Options to avoid conflicts with CSP frame-ancestors
+			}
 
 			// 5. Content Security Policy
 			h.Set("Content-Security-Policy", csp)

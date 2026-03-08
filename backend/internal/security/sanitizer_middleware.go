@@ -3,6 +3,7 @@ package security
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"strings"
@@ -96,10 +97,7 @@ func sanitizeJSONValue(s *Sanitizer, data interface{}, prefix string) []violatio
 		}
 	case []interface{}:
 		for i, val := range v {
-			fieldPath := prefix + "[" + strings.Repeat("0", i) + "]"
-			if i < 10 {
-				fieldPath = prefix + "[i]"
-			}
+			fieldPath := fmt.Sprintf("%s[%d]", prefix, i)
 			violations = append(violations, sanitizeJSONValue(s, val, fieldPath)...)
 		}
 	case string:

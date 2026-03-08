@@ -7,14 +7,13 @@ import (
 
 	"github.com/clario360/platform/internal/cyber/dto"
 	"github.com/clario360/platform/internal/cyber/repository"
-	"github.com/clario360/platform/internal/cyber/service"
 )
 
 type VCISOHandler struct {
-	svc *service.VCISOService
+	svc vcisoService
 }
 
-func NewVCISOHandler(svc *service.VCISOService) *VCISOHandler {
+func NewVCISOHandler(svc vcisoService) *VCISOHandler {
 	return &VCISOHandler{svc: svc}
 }
 

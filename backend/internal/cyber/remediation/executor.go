@@ -11,7 +11,6 @@ import (
 
 	"github.com/clario360/platform/internal/cyber/model"
 	"github.com/clario360/platform/internal/cyber/remediation/strategy"
-	"github.com/clario360/platform/internal/cyber/repository"
 	"github.com/clario360/platform/internal/events"
 )
 
@@ -20,10 +19,10 @@ const defaultRollbackWindowHours = 72
 // RemediationExecutor orchestrates the dry-run → execute → verify → rollback lifecycle.
 type RemediationExecutor struct {
 	strategies map[model.RemediationType]strategy.RemediationStrategy
-	auditTrail *AuditTrail
-	remRepo    *repository.RemediationRepository
-	alertRepo  *repository.AlertRepository
-	vulnRepo   *repository.VulnerabilityRepository
+	auditTrail auditRecorder
+	remRepo    remediationRepo
+	alertRepo  alertRepo
+	vulnRepo   vulnerabilityRepo
 	producer   *events.Producer
 	logger     zerolog.Logger
 }
@@ -31,10 +30,10 @@ type RemediationExecutor struct {
 // NewRemediationExecutor creates a RemediationExecutor with all registered strategies.
 func NewRemediationExecutor(
 	strategies map[model.RemediationType]strategy.RemediationStrategy,
-	auditTrail *AuditTrail,
-	remRepo *repository.RemediationRepository,
-	alertRepo *repository.AlertRepository,
-	vulnRepo *repository.VulnerabilityRepository,
+	auditTrail auditRecorder,
+	remRepo remediationRepo,
+	alertRepo alertRepo,
+	vulnRepo vulnerabilityRepo,
 	producer *events.Producer,
 	logger zerolog.Logger,
 ) *RemediationExecutor {
