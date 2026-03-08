@@ -131,6 +131,11 @@ function InviteForm() {
       // Store access token in memory
       setAccessToken(resp.access_token);
 
+      await apiPost(API_ENDPOINTS.BFF_SESSION, {
+        access_token: resp.access_token,
+        refresh_token: resp.refresh_token,
+      });
+
       // Exchange for session cookie via BFF
       try {
         await refreshSession();

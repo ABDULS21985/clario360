@@ -10,6 +10,17 @@ export const loginSchema = z.object({
 
 export const registerSchema = z
   .object({
+    organization_name: z
+      .string()
+      .min(2, 'Organization name is required')
+      .max(100, 'Organization name must be under 100 characters'),
+    industry: z
+      .string()
+      .min(1, 'Industry is required'),
+    country: z
+      .string()
+      .length(2, 'Use a 2-letter country code')
+      .regex(/^[A-Za-z]{2}$/, 'Use a valid 2-letter country code'),
     first_name: z
       .string()
       .min(1, 'First name is required')
@@ -33,22 +44,10 @@ export const registerSchema = z
       .regex(/[0-9]/, 'Password must contain at least one number')
       .regex(/[^a-zA-Z0-9]/, 'Password must contain at least one special character'),
     confirm_password: z.string().min(1, 'Please confirm your password'),
-    tenant_name: z
-      .string()
-      .max(100, 'Tenant name must be under 100 characters')
-      .optional(),
-    invite_code: z
-      .string()
-      .max(50, 'Invite code must be under 50 characters')
-      .optional(),
   })
   .refine((data) => data.password === data.confirm_password, {
     message: 'Passwords do not match',
     path: ['confirm_password'],
-  })
-  .refine((data) => data.tenant_name || data.invite_code, {
-    message: 'Either a tenant name or invite code is required',
-    path: ['tenant_name'],
   });
 
 export const forgotPasswordSchema = z.object({

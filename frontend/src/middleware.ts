@@ -5,6 +5,8 @@ import { COOKIES } from '@/lib/constants';
 const PUBLIC_PATH_PREFIXES = [
   '/login',
   '/register',
+  '/verify',
+  '/invite',
   '/forgot-password',
   '/reset-password',
   '/api/',

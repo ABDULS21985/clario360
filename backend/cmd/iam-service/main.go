@@ -357,3 +357,136 @@ func intToStr(n int) string {
 	}
 	return s
 }
+
+func buildOnboardingDBPools(ctx context.Context, cfg *config.Config, logger zerolog.Logger) (map[string]*pgxpool.Pool, map[string]string, error) {
+	dsns := map[string]string{
+		"platform_core": envOrDefault("PLATFORM_DB_URL", buildPostgresURL(cfg.Database, "platform_core")),
+		"cyber_db":      envOrDefault("CYBER_DB_URL", buildPostgresURL(cfg.Database, "cyber_db")),
+		"data_db":       envOrDefault("DATA_DB_URL", buildPostgresURL(cfg.Database, "data_db")),
+		"acta_db":       envOrDefault("ACTA_DB_URL", buildPostgresURL(cfg.Database, "acta_db")),
+		"lex_db":        envOrDefault("LEX_DB_URL", buildPostgresURL(cfg.Database, "lex_db")),
+		"visus_db":      envOrDefault("VISUS_DB_URL", buildPostgresURL(cfg.Database, "visus_db")),
+	}
+
+	pools := make(map[string]*pgxpool.Pool, len(dsns)-1)
+	for name, dsn := range dsns {
+		if name == "platform_core" {
+			continue
+		}
+
+		pool, err := newPGXPool(ctx, dsn, cfg.Database.MaxIdleConns, cfg.Database.MaxOpenConns)
+		if err != nil {
+			return nil, nil, fmt.Errorf("connect %s: %w", name, err)
+		}
+		pools[name] = pool
+		logger.Info().Str("database", name).Msg("onboarding database pool established")
+	}
+
+	return pools, dsns, nil
+}
+
+func newPGXPool(ctx context.Context, dsn string, minConns, maxConns int) (*pgxpool.Pool, error) {
+	poolCfg, err := pgxpool.ParseConfig(dsn)
+	if err != nil {
+		return nil, fmt.Errorf("parse postgres dsn: %w", err)
+	}
+
+	if minConns < 1 {
+		minConns = 1
+	}
+	if maxConns < minConns {
+		maxConns = minConns
+	}
+
+	poolCfg.MinConns = int32(minConns)
+	poolCfg.MaxConns = int32(maxConns)
+	poolCfg.MaxConnLifetime = 5 * time.Minute
+	poolCfg.MaxConnIdleTime = 5 * time.Minute
+	poolCfg.HealthCheckPeriod = 30 * time.Second
+
+	pool, err := pgxpool.NewWithConfig(ctx, poolCfg)
+	if err != nil {
+		return nil, fmt.Errorf("create postgres pool: %w", err)
+	}
+	if err := pool.Ping(ctx); err != nil {
+		pool.Close()
+		return nil, fmt.Errorf("ping postgres pool: %w", err)
+	}
+	return pool, nil
+}
+
+func buildOnboardingStorage(ctx context.Context, cfg *config.Config, logger zerolog.Logger) *storage.MinIOStorage {
+	storageClient, err := storage.NewMinIOStorage(storage.Config{
+		Backend:      "minio",
+		Endpoint:     cfg.MinIO.Endpoint,
+		AccessKey:    cfg.MinIO.AccessKey,
+		SecretKey:    cfg.MinIO.SecretKey,
+		UseSSL:       cfg.MinIO.UseSSL,
+		BucketPrefix: "clario360",
+	})
+	if err != nil {
+		logger.Warn().Err(err).Msg("failed to initialize onboarding storage client")
+		return nil
+	}
+
+	if _, err := storageClient.Client().ListBuckets(ctx); err != nil {
+		logger.Warn().Err(err).Msg("minio connectivity check failed for onboarding")
+	}
+
+	return storageClient
+}
+
+func buildOnboardingEmailSender(logger zerolog.Logger) onboardingsvc.EmailSender {
+	notifCfg := notifcfg.LoadFromEnv()
+	templateService := notifservice.NewTemplateService(logger)
+	emailChannel := notifchannel.NewEmailChannel(notifchannel.EmailConfig{
+		Provider:       notifCfg.EmailProvider,
+		SMTPHost:       notifCfg.SMTPHost,
+		SMTPPort:       notifCfg.SMTPPort,
+		SMTPUser:       notifCfg.SMTPUsername,
+		SMTPPass:       notifCfg.SMTPPassword,
+		SMTPFrom:       notifCfg.SMTPFrom,
+		TLSEnabled:     notifCfg.SMTPTLSEnabled,
+		SendGridAPIKey: notifCfg.SendGridAPIKey,
+		SendGridFrom:   notifCfg.SendGridFrom,
+	}, templateService, logger)
+
+	return onboardingsvc.NewChannelEmailSender(
+		envOrDefault("CLARIO360_APP_URL", "http://localhost:3000"),
+		emailChannel,
+		logger,
+	)
+}
+
+func resolveMigrationsBasePath() string {
+	candidates := []string{
+		envOrDefault("ONBOARDING_MIGRATIONS_BASE_PATH", ""),
+		"migrations",
+		filepath.Join("backend", "migrations"),
+	}
+
+	for _, candidate := range candidates {
+		if candidate == "" {
+			continue
+		}
+		info, err := os.Stat(filepath.Join(candidate, "platform_core"))
+		if err == nil && info.IsDir() {
+			return candidate
+		}
+	}
+
+	return "migrations"
+}
+
+func buildPostgresURL(cfg config.DatabaseConfig, dbName string) string {
+	u := &url.URL{
+		Scheme: "postgres",
+		User:   url.UserPassword(cfg.User, cfg.Password),
+		Host:   fmt.Sprintf("%s:%d", cfg.Host, cfg.Port),
+		Path:   dbName,
+	}
+	q := u.Query()
+	q.Set("sslmode", cfg.SSLMode)
+	u.RawQuery = q.Encode()
+	return u.String()
+}

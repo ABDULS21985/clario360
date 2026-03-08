@@ -85,6 +85,11 @@ function VerifyEmailForm() {
       // Store access token in memory
       setAccessToken(resp.access_token);
 
+      await apiPost(API_ENDPOINTS.BFF_SESSION, {
+        access_token: resp.access_token,
+        refresh_token: resp.refresh_token,
+      });
+
       // Fetch user session and store in auth store
       try {
         await refreshSession();
@@ -92,7 +97,7 @@ function VerifyEmailForm() {
         // session store is best-effort here
       }
 
-      router.push('/setup');
+      router.push('/setup?step=1');
     } catch (err) {
       setApiError(isApiError(err) ? err.message : 'Verification failed. Please try again.');
       // Reset OTP inputs on error
