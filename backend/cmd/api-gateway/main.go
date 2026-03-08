@@ -14,8 +14,8 @@ import (
 	"github.com/clario360/platform/internal/config"
 	gwconfig "github.com/clario360/platform/internal/gateway/config"
 	"github.com/clario360/platform/internal/gateway/health"
-	gwmw "github.com/clario360/platform/internal/gateway/middleware"
 	gwmetrics "github.com/clario360/platform/internal/gateway/metrics"
+	gwmw "github.com/clario360/platform/internal/gateway/middleware"
 	"github.com/clario360/platform/internal/gateway/proxy"
 	"github.com/clario360/platform/internal/gateway/ratelimit"
 	"github.com/clario360/platform/internal/middleware"
@@ -257,10 +257,9 @@ func main() {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusNotFound)
 		_ = json.NewEncoder(w).Encode(map[string]any{
-			"error": map[string]string{
-				"code":    "NOT_FOUND",
-				"message": "no route matches " + r.URL.Path,
-			},
+			"code":       "NOT_FOUND",
+			"message":    "no route matches " + r.URL.Path,
+			"request_id": middleware.GetRequestID(r.Context()),
 		})
 	})
 

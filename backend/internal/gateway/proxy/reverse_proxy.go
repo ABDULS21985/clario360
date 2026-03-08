@@ -164,11 +164,9 @@ func NewReverseProxy(serviceName string, target *url.URL, timeout time.Duration,
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(status)
 			_ = json.NewEncoder(w).Encode(gatewayError{
-				Error: errorDetail{
-					Code:      code,
-					Message:   message,
-					RequestID: reqID,
-				},
+				Code:      code,
+				Message:   message,
+				RequestID: reqID,
 			})
 		},
 	}
@@ -190,11 +188,9 @@ func (rp *ReverseProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Retry-After", "30")
 		w.WriteHeader(http.StatusServiceUnavailable)
 		_ = json.NewEncoder(w).Encode(gatewayError{
-			Error: errorDetail{
-				Code:      "SERVICE_UNAVAILABLE",
-				Message:   "service is temporarily unavailable, please retry later",
-				RequestID: reqID,
-			},
+			Code:      "SERVICE_UNAVAILABLE",
+			Message:   "service is temporarily unavailable, please retry later",
+			RequestID: reqID,
 		})
 		return
 	}
@@ -212,12 +208,7 @@ func (rp *ReverseProxy) CircuitState() CircuitState {
 	return rp.breaker.State()
 }
 
-// gatewayError is the standard error envelope for all gateway error responses.
 type gatewayError struct {
-	Error errorDetail `json:"error"`
-}
-
-type errorDetail struct {
 	Code      string `json:"code"`
 	Message   string `json:"message"`
 	RequestID string `json:"request_id,omitempty"`
@@ -268,11 +259,9 @@ func WriteGatewayError(w http.ResponseWriter, status int, code, message, request
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(gatewayError{
-		Error: errorDetail{
-			Code:      code,
-			Message:   message,
-			RequestID: requestID,
-		},
+		Code:      code,
+		Message:   message,
+		RequestID: requestID,
 	})
 }
 

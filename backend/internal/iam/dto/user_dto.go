@@ -30,19 +30,19 @@ type DisableMFARequest struct {
 // ---------- Responses ----------
 
 type UserResponse struct {
-	ID        string         `json:"id"`
-	TenantID  string         `json:"tenant_id"`
-	Email     string         `json:"email"`
-	FirstName string         `json:"first_name"`
-	LastName  string         `json:"last_name"`
-	FullName  string         `json:"full_name"`
-	AvatarURL *string        `json:"avatar_url,omitempty"`
-	Status    string         `json:"status"`
-	MFAEnabled bool          `json:"mfa_enabled"`
-	LastLoginAt *time.Time   `json:"last_login_at,omitempty"`
-	CreatedAt time.Time      `json:"created_at"`
-	UpdatedAt time.Time      `json:"updated_at"`
-	Roles     []RoleResponse `json:"roles,omitempty"`
+	ID          string         `json:"id"`
+	TenantID    string         `json:"tenant_id"`
+	Email       string         `json:"email"`
+	FirstName   string         `json:"first_name"`
+	LastName    string         `json:"last_name"`
+	FullName    string         `json:"full_name"`
+	AvatarURL   *string        `json:"avatar_url,omitempty"`
+	Status      string         `json:"status"`
+	MFAEnabled  bool           `json:"mfa_enabled"`
+	LastLoginAt *time.Time     `json:"last_login_at,omitempty"`
+	CreatedAt   time.Time      `json:"created_at"`
+	UpdatedAt   time.Time      `json:"updated_at"`
+	Roles       []RoleResponse `json:"roles,omitempty"`
 }
 
 type MFASetupResponse struct {
@@ -61,6 +61,15 @@ type PaginationMeta struct {
 	PerPage    int `json:"per_page"`
 	Total      int `json:"total"`
 	TotalPages int `json:"total_pages"`
+}
+
+type SessionResponse struct {
+	ID           string    `json:"id"`
+	UserAgent    string    `json:"user_agent"`
+	IPAddress    string    `json:"ip_address"`
+	CreatedAt    time.Time `json:"created_at"`
+	LastActiveAt time.Time `json:"last_active_at"`
+	IsCurrent    bool      `json:"is_current"`
 }
 
 func UserToResponse(u *model.User) UserResponse {
@@ -91,6 +100,34 @@ func UsersToResponse(users []model.User) []UserResponse {
 	resp := make([]UserResponse, len(users))
 	for i := range users {
 		resp[i] = UserToResponse(&users[i])
+	}
+	return resp
+}
+
+func SessionsToResponse(sessions []model.Session) []SessionResponse {
+	currentID := ""
+	if len(sessions) > 0 {
+		currentID = sessions[0].ID
+	}
+
+	resp := make([]SessionResponse, 0, len(sessions))
+	for _, session := range sessions {
+		userAgent := ""
+		if session.UserAgent != nil {
+			userAgent = *session.UserAgent
+		}
+		ipAddress := ""
+		if session.IPAddress != nil {
+			ipAddress = *session.IPAddress
+		}
+		resp = append(resp, SessionResponse{
+			ID:           session.ID,
+			UserAgent:    userAgent,
+			IPAddress:    ipAddress,
+			CreatedAt:    session.CreatedAt,
+			LastActiveAt: session.CreatedAt,
+			IsCurrent:    session.ID == currentID,
+		})
 	}
 	return resp
 }

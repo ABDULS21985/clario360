@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"reflect"
 	"strconv"
 
 	"github.com/google/uuid"
@@ -50,7 +51,7 @@ func decodeJSON(w http.ResponseWriter, r *http.Request, v any) bool {
 func writeJSON(w http.ResponseWriter, status int, value any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(value)
+	_ = json.NewEncoder(w).Encode(normalizePaginatedResponse(value))
 }
 
 func writeError(w http.ResponseWriter, status int, code, message string) {
@@ -59,11 +60,9 @@ func writeError(w http.ResponseWriter, status int, code, message string) {
 		message = "internal server error"
 	}
 	writeJSON(w, status, map[string]any{
-		"error": map[string]any{
-			"code":       code,
-			"message":    message,
-			"request_id": w.Header().Get(middleware.RequestIDHeader),
-		},
+		"code":       code,
+		"message":    message,
+		"request_id": w.Header().Get(middleware.RequestIDHeader),
 	})
 }
 
@@ -90,4 +89,47 @@ func parsePageParams(r *http.Request, defaultPerPage int) (int, int) {
 		}
 	}
 	return page, perPage
+}
+
+func normalizePaginatedResponse(value any) any {
+	rv := reflect.ValueOf(value)
+	if !rv.IsValid() {
+		return value
+	}
+	for rv.Kind() == reflect.Pointer {
+		if rv.IsNil() {
+			return value
+		}
+		rv = rv.Elem()
+	}
+	if rv.Kind() != reflect.Struct {
+		return value
+	}
+
+	dataField := rv.FieldByName("Data")
+	pageField := rv.FieldByName("Page")
+	perPageField := rv.FieldByName("PerPage")
+	totalField := rv.FieldByName("Total")
+	totalPagesField := rv.FieldByName("TotalPages")
+	if !dataField.IsValid() || !pageField.IsValid() || !perPageField.IsValid() || !totalField.IsValid() || !totalPagesField.IsValid() {
+		return value
+	}
+	if pageField.Kind() != reflect.Int || perPageField.Kind() != reflect.Int || totalField.Kind() != reflect.Int || totalPagesField.Kind() != reflect.Int {
+		return value
+	}
+
+	totalPages := int(totalPagesField.Int())
+	if totalPages < 1 {
+		totalPages = 1
+	}
+
+	return map[string]any{
+		"data": dataField.Interface(),
+		"meta": map[string]any{
+			"page":        int(pageField.Int()),
+			"per_page":    int(perPageField.Int()),
+			"total":       int(totalField.Int()),
+			"total_pages": totalPages,
+		},
+	}
 }

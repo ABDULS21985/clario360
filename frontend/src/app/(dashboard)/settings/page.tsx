@@ -49,8 +49,9 @@ type PasswordFormData = z.infer<typeof passwordSchema>;
 
 interface Session {
   id: string;
-  device: string;
+  user_agent: string;
   ip_address: string;
+  created_at: string;
   last_active_at: string;
   is_current: boolean;
 }
@@ -74,13 +75,13 @@ export default function SettingsPage() {
     data: sessionsData,
     isLoading: sessionsLoading,
     refetch: refetchSessions,
-  } = useApiQuery<{ data: Session[] }>(["sessions"], "/api/v1/sessions");
+  } = useApiQuery<Session[]>(["sessions"], "/api/v1/users/me/sessions");
 
   const {
     data: apiKeysData,
     isLoading: apiKeysLoading,
     refetch: refetchKeys,
-  } = useApiQuery<{ data: ApiKey[] }>(["api-keys"], "/api/v1/api-keys");
+  } = useApiQuery<ApiKey[]>(["api-keys"], "/api/v1/api-keys");
 
   const passwordMethods = useForm<PasswordFormData>({
     resolver: zodResolver(passwordSchema),
@@ -137,8 +138,8 @@ export default function SettingsPage() {
     }
   };
 
-  const sessions = sessionsData?.data ?? [];
-  const apiKeys = apiKeysData?.data ?? [];
+  const sessions = sessionsData ?? [];
+  const apiKeys = apiKeysData ?? [];
 
   return (
     <div className="space-y-6 max-w-2xl">
@@ -293,7 +294,7 @@ export default function SettingsPage() {
                 variant="destructive"
                 onClick={async () => {
                   try {
-                    await api.delete("/api/v1/sessions");
+                    await api.delete("/api/v1/users/me/sessions?exclude_current=true");
                     toast.success("All other sessions revoked");
                     refetchSessions();
                   } catch {
@@ -322,7 +323,7 @@ export default function SettingsPage() {
                 >
                   <div>
                     <div className="flex items-center gap-2">
-                      <p className="text-sm font-medium">{session.device}</p>
+                      <p className="text-sm font-medium">{labelSessionDevice(session.user_agent)}</p>
                       {session.is_current && (
                         <Badge variant="outline" className="text-xs">
                           Current
@@ -457,11 +458,11 @@ export default function SettingsPage() {
           open={!!revokeSession}
           onOpenChange={(o) => !o && setRevokeSession(null)}
           title="Revoke Session"
-          description={`Sign out session from ${revokeSession.device} (${revokeSession.ip_address})?`}
+          description={`Sign out session from ${labelSessionDevice(revokeSession.user_agent)} (${revokeSession.ip_address})?`}
           confirmLabel="Revoke"
           variant="destructive"
           onConfirm={async () => {
-            await api.delete(`/api/v1/sessions/${revokeSession.id}`);
+            await api.delete(`/api/v1/users/me/sessions/${revokeSession.id}`);
             toast.success("Session revoked");
             refetchSessions();
           }}
@@ -486,4 +487,15 @@ export default function SettingsPage() {
       )}
     </div>
   );
+}
+
+function labelSessionDevice(userAgent: string): string {
+  const value = userAgent.trim();
+  if (!value) {
+    return "Unknown device";
+  }
+  if (value.length <= 80) {
+    return value;
+  }
+  return `${value.slice(0, 77)}...`;
 }

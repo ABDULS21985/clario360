@@ -49,8 +49,8 @@ type Config struct {
 
 func Default() *Config {
 	return &Config{
-		HTTPPort:                8088,
-		AdminPort:               9088,
+		HTTPPort:                8089,
+		AdminPort:               9089,
 		DBMinConns:              5,
 		DBMaxConns:              20,
 		RedisAddr:               "localhost:6379",
@@ -66,10 +66,10 @@ func Default() *Config {
 		CircuitReset:            time.Minute,
 		SchedulerInterval:       time.Minute,
 		ReportSchedulerInterval: time.Minute,
-		SuiteCyberURL:           "http://localhost:8090",
-		SuiteDataURL:            "http://localhost:8091",
-		SuiteActaURL:            "http://localhost:8092",
-		SuiteLexURL:             "http://localhost:8093",
+		SuiteCyberURL:           "http://localhost:8085",
+		SuiteDataURL:            "http://localhost:8086",
+		SuiteActaURL:            "http://localhost:8087",
+		SuiteLexURL:             "http://localhost:8088",
 		ServiceAccountUserID:    "00000000-0000-0000-0000-000000000360",
 		ServiceAccountEmail:     "service-visus@clario.local",
 		ServiceTokenTTL:         10 * time.Minute,

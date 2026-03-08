@@ -44,6 +44,9 @@ func DefaultRoutes() []RouteConfig {
 
 		// IAM — Auth (public)
 		{Prefix: "/api/v1/auth", Service: "iam-service", Public: true, EndpointGroup: EndpointGroupAuth},
+		{Prefix: "/api/v1/onboarding", Service: "iam-service", Public: true, EndpointGroup: EndpointGroupAuth},
+		{Prefix: "/api/v1/invitations", Service: "iam-service", Public: true, EndpointGroup: EndpointGroupAuth},
+		{Prefix: "/api/v1/ai", Service: "iam-service", Public: false, EndpointGroup: EndpointGroupAdmin},
 
 		// IAM — User/Role/Tenant management
 		{Prefix: "/api/v1/users", Service: "iam-service", Public: false, EndpointGroup: EndpointGroupWrite},
@@ -95,15 +98,15 @@ func DefaultWSRoutes() []RouteConfig {
 func DefaultServices() []ServiceConfig {
 	return []ServiceConfig{
 		{Name: "iam-service", URL: envOrDefault("GW_SVC_URL_IAM", "http://localhost:8081"), Timeout: 30 * time.Second},
-		{Name: "audit-service", URL: envOrDefault("GW_SVC_URL_AUDIT", "http://localhost:8082"), Timeout: 30 * time.Second},
+		{Name: "audit-service", URL: envOrDefault("GW_SVC_URL_AUDIT", "http://localhost:8084"), Timeout: 30 * time.Second},
 		{Name: "workflow-engine", URL: envOrDefault("GW_SVC_URL_WORKFLOW", "http://localhost:8083"), Timeout: 60 * time.Second},
-		{Name: "notification-service", URL: envOrDefault("GW_SVC_URL_NOTIFICATION", "http://localhost:8089"), Timeout: 30 * time.Second},
+		{Name: "notification-service", URL: envOrDefault("GW_SVC_URL_NOTIFICATION", "http://localhost:8090"), Timeout: 30 * time.Second},
 		{Name: "file-service", URL: envOrDefault("GW_SVC_URL_FILE", "http://localhost:8091"), Timeout: 120 * time.Second},
-		{Name: "cyber-service", URL: envOrDefault("GW_SVC_URL_CYBER", "http://localhost:8084"), Timeout: 30 * time.Second},
-		{Name: "data-service", URL: envOrDefault("GW_SVC_URL_DATA", "http://localhost:8085"), Timeout: 60 * time.Second},
-		{Name: "acta-service", URL: envOrDefault("GW_SVC_URL_ACTA", "http://localhost:8086"), Timeout: 30 * time.Second},
-		{Name: "lex-service", URL: envOrDefault("GW_SVC_URL_LEX", "http://localhost:8087"), Timeout: 30 * time.Second},
-		{Name: "visus-service", URL: envOrDefault("GW_SVC_URL_VISUS", "http://localhost:8088"), Timeout: 30 * time.Second},
+		{Name: "cyber-service", URL: envOrDefault("GW_SVC_URL_CYBER", "http://localhost:8085"), Timeout: 30 * time.Second},
+		{Name: "data-service", URL: envOrDefault("GW_SVC_URL_DATA", "http://localhost:8086"), Timeout: 60 * time.Second},
+		{Name: "acta-service", URL: envOrDefault("GW_SVC_URL_ACTA", "http://localhost:8087"), Timeout: 30 * time.Second},
+		{Name: "lex-service", URL: envOrDefault("GW_SVC_URL_LEX", "http://localhost:8088"), Timeout: 30 * time.Second},
+		{Name: "visus-service", URL: envOrDefault("GW_SVC_URL_VISUS", "http://localhost:8089"), Timeout: 30 * time.Second},
 	}
 }
 

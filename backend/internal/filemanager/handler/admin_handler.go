@@ -46,18 +46,7 @@ func (h *AdminHandler) ListQuarantined(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	totalPages := total / perPage
-	if total%perPage > 0 {
-		totalPages++
-	}
-
-	writeJSON(w, http.StatusOK, dto.ListResponse{
-		Data:       entries,
-		Total:      total,
-		Page:       page,
-		PerPage:    perPage,
-		TotalPages: totalPages,
-	})
+	writeJSON(w, http.StatusOK, dto.NewListResponse(entries, total, page, perPage))
 }
 
 // ResolveQuarantine handles POST /api/v1/files/quarantine/:id/resolve

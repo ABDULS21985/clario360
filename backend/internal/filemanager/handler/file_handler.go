@@ -162,18 +162,7 @@ func (h *FileHandler) ListFiles(w http.ResponseWriter, r *http.Request) {
 		responses = append(responses, dto.FileResponseFromModel(f))
 	}
 
-	totalPages := total / params.PerPage
-	if total%params.PerPage > 0 {
-		totalPages++
-	}
-
-	writeJSON(w, http.StatusOK, dto.ListResponse{
-		Data:       responses,
-		Total:      total,
-		Page:       params.Page,
-		PerPage:    params.PerPage,
-		TotalPages: totalPages,
-	})
+	writeJSON(w, http.StatusOK, dto.NewListResponse(responses, total, params.Page, params.PerPage))
 }
 
 // DeleteFile handles DELETE /api/v1/files/:id
@@ -250,18 +239,7 @@ func (h *FileHandler) GetAccessLog(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	totalPages := total / perPage
-	if total%perPage > 0 {
-		totalPages++
-	}
-
-	writeJSON(w, http.StatusOK, dto.ListResponse{
-		Data:       logs,
-		Total:      total,
-		Page:       page,
-		PerPage:    perPage,
-		TotalPages: totalPages,
-	})
+	writeJSON(w, http.StatusOK, dto.NewListResponse(logs, total, page, perPage))
 }
 
 // helpers
@@ -276,11 +254,9 @@ func writeError(w http.ResponseWriter, status int, code, message string, r *http
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(map[string]interface{}{
-		"error": map[string]interface{}{
-			"code":       code,
-			"message":    message,
-			"request_id": r.Header.Get("X-Request-ID"),
-		},
+		"code":       code,
+		"message":    message,
+		"request_id": r.Header.Get("X-Request-ID"),
 	})
 }
 

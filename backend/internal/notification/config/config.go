@@ -60,7 +60,7 @@ type Config struct {
 // LoadFromEnv loads notification-specific config from environment variables.
 func LoadFromEnv() *Config {
 	cfg := &Config{
-		HTTPPort:                envInt("NOTIF_HTTP_PORT", 8089),
+		HTTPPort:                envInt("NOTIF_HTTP_PORT", 8090),
 		EmailProvider:           envStr("NOTIF_EMAIL_PROVIDER", "smtp"),
 		SMTPHost:                envStr("NOTIF_SMTP_HOST", ""),
 		SMTPPort:                envInt("NOTIF_SMTP_PORT", 587),
@@ -82,10 +82,10 @@ func LoadFromEnv() *Config {
 		DigestEnabled:           envBool("NOTIF_DIGEST_ENABLED", true),
 		DigestDailyUTCHour:      envInt("NOTIF_DIGEST_DAILY_UTC_HOUR", 8),
 		DigestWeeklyDay:         envInt("NOTIF_DIGEST_WEEKLY_DAY", 1),
-		IAMServiceURL:           envStr("NOTIF_IAM_SERVICE_URL", "http://iam-service:8083"),
-		DataServiceURL:          envStr("NOTIF_DATA_SERVICE_URL", "http://data-service:8091"),
-		ActaServiceURL:          envStr("NOTIF_ACTA_SERVICE_URL", "http://acta-service:8086"),
-		CyberServiceURL:         envStr("NOTIF_CYBER_SERVICE_URL", "http://cyber-service:8090"),
+		IAMServiceURL:           envStr("NOTIF_IAM_SERVICE_URL", "http://localhost:8081"),
+		DataServiceURL:          envStr("NOTIF_DATA_SERVICE_URL", "http://localhost:8086"),
+		ActaServiceURL:          envStr("NOTIF_ACTA_SERVICE_URL", "http://localhost:8087"),
+		CyberServiceURL:         envStr("NOTIF_CYBER_SERVICE_URL", "http://localhost:8085"),
 		RateLimitPerMinute:      envInt("NOTIF_RATE_LIMIT_PER_MINUTE", 120),
 		Environment:             envStr("NOTIF_ENVIRONMENT", "development"),
 	}

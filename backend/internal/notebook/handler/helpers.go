@@ -19,7 +19,23 @@ func writeJSON(w http.ResponseWriter, status int, data any) {
 func writeError(w http.ResponseWriter, status int, message string) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(map[string]string{"error": message})
+	code := "INTERNAL_ERROR"
+	switch status {
+	case http.StatusBadRequest:
+		code = "VALIDATION_ERROR"
+	case http.StatusForbidden:
+		code = "FORBIDDEN"
+	case http.StatusConflict:
+		code = "CONFLICT"
+	case http.StatusNotFound:
+		code = "NOT_FOUND"
+	case http.StatusBadGateway:
+		code = "BAD_GATEWAY"
+	}
+	_ = json.NewEncoder(w).Encode(map[string]string{
+		"code":    code,
+		"message": message,
+	})
 }
 
 func parseBody(r *http.Request, dst any) error {

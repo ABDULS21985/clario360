@@ -48,7 +48,7 @@ func Load() (*Config, error) {
 		RedisURL:         os.Getenv("DATA_REDIS_URL"),
 		KafkaGroupID:     os.Getenv("DATA_KAFKA_GROUP_ID"),
 		JWTPublicKeyPath: os.Getenv("DATA_JWT_PUBLIC_KEY_PATH"),
-		HTTPPort:         envOr("DATA_HTTP_PORT", "8091"),
+		HTTPPort:         envOr("DATA_HTTP_PORT", "8086"),
 		DBMinConns:       envInt("DATA_DB_MIN_CONNS", 5),
 		DBMaxConns:       envInt("DATA_DB_MAX_CONNS", 20),
 		KafkaTopic:       envOr("DATA_KAFKA_TOPIC", "data.source.events"),

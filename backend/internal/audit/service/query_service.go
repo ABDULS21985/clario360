@@ -63,8 +63,8 @@ func (s *QueryService) Query(ctx context.Context, params *dto.QueryParams, calle
 	metrics.QueryResults.WithLabelValues("list").Add(float64(len(masked)))
 
 	return &dto.PaginatedResult{
-		Data:       masked,
-		Pagination: dto.NewPagination(params.Page, params.PerPage, total),
+		Data: masked,
+		Meta: dto.NewPagination(params.Page, params.PerPage, total),
 	}, nil
 }
 
@@ -123,7 +123,7 @@ func (s *QueryService) GetTimeline(ctx context.Context, tenantID, resourceID str
 	masked := s.masking.MaskEntries(entries, callerRoles)
 
 	return &dto.PaginatedResult{
-		Data:       masked,
-		Pagination: dto.NewPagination(page, perPage, total),
+		Data: masked,
+		Meta: dto.NewPagination(page, perPage, total),
 	}, nil
 }

@@ -144,26 +144,26 @@ func ParseQueryParams(r *http.Request) (*QueryParams, error) {
 
 // Pagination holds pagination metadata for list responses.
 type Pagination struct {
-	Page     int `json:"page"`
-	PerPage  int `json:"per_page"`
-	Total    int `json:"total"`
-	LastPage int `json:"last_page"`
+	Page       int `json:"page"`
+	PerPage    int `json:"per_page"`
+	Total      int `json:"total"`
+	TotalPages int `json:"total_pages"`
 }
 
 // NewPagination creates pagination metadata from query and total count.
 func NewPagination(page, perPage, total int) Pagination {
-	lastPage := total / perPage
+	totalPages := total / perPage
 	if total%perPage != 0 {
-		lastPage++
+		totalPages++
 	}
-	if lastPage < 1 {
-		lastPage = 1
+	if totalPages < 1 {
+		totalPages = 1
 	}
 	return Pagination{
-		Page:     page,
-		PerPage:  perPage,
-		Total:    total,
-		LastPage: lastPage,
+		Page:       page,
+		PerPage:    perPage,
+		Total:      total,
+		TotalPages: totalPages,
 	}
 }
 

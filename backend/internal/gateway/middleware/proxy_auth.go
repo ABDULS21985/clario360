@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"encoding/json"
 	"errors"
 	"net/http"
 	"strings"
@@ -96,6 +97,9 @@ func recordAuthFailure(m *metrics.GatewayMetrics, reason string) {
 func writeGWError(w http.ResponseWriter, status int, code, message, requestID string) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
-	body := `{"error":{"code":"` + code + `","message":"` + message + `","request_id":"` + requestID + `"}}`
-	_, _ = w.Write([]byte(body))
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"code":       code,
+		"message":    message,
+		"request_id": requestID,
+	})
 }

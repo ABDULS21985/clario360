@@ -1,6 +1,7 @@
 package proxy
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -68,13 +69,13 @@ func (p *WebSocketProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if tokenStr == "" {
-		http.Error(w, `{"error":{"code":"UNAUTHORIZED","message":"authentication required"}}`, http.StatusUnauthorized)
+		writeWSError(w, http.StatusUnauthorized, "UNAUTHORIZED", "authentication required")
 		return
 	}
 
 	claims, err := p.jwtMgr.ValidateAccessToken(tokenStr)
 	if err != nil {
-		http.Error(w, `{"error":{"code":"UNAUTHORIZED","message":"invalid or expired token"}}`, http.StatusUnauthorized)
+		writeWSError(w, http.StatusUnauthorized, "UNAUTHORIZED", "invalid or expired token")
 		return
 	}
 
@@ -82,7 +83,7 @@ func (p *WebSocketProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if p.limiter != nil {
 		if allowed, _ := p.limiter.CheckWS(claims.UserID); !allowed {
 			w.Header().Set("Retry-After", "60")
-			http.Error(w, `{"error":{"code":"RATE_LIMITED","message":"too many websocket connections"}}`, http.StatusTooManyRequests)
+			writeWSError(w, http.StatusTooManyRequests, "RATE_LIMITED", "too many websocket connections")
 			return
 		}
 	}
@@ -107,7 +108,7 @@ func (p *WebSocketProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	backendConn, _, err := dialer.Dial(backendURL, backendHeaders)
 	if err != nil {
 		p.logger.Error().Err(err).Str("service", serviceName).Str("url", backendURL).Msg("websocket dial backend failed")
-		http.Error(w, `{"error":{"code":"BAD_GATEWAY","message":"upstream service unavailable"}}`, http.StatusBadGateway)
+		writeWSError(w, http.StatusBadGateway, "BAD_GATEWAY", "upstream service unavailable")
 		return
 	}
 
@@ -261,4 +262,13 @@ func compileOrigins(patterns []string) []*regexp.Regexp {
 		out = append(out, re)
 	}
 	return out
+}
+
+func writeWSError(w http.ResponseWriter, status int, code, message string) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"code":    code,
+		"message": message,
+	})
 }

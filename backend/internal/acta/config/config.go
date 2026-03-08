@@ -13,25 +13,25 @@ import (
 
 // Config contains acta-service specific settings layered on top of the shared platform config.
 type Config struct {
-	HTTPPort                  int
-	AdminPort                 int
-	DBURL                     string
-	DBMinConns                int
-	DBMaxConns                int
-	RedisAddr                 string
-	RedisPassword             string
-	RedisDB                   int
-	KafkaBrokers              []string
-	KafkaGroupID              string
-	KafkaTopic                string
-	JWTPublicKeyPath          string
-	RateLimitPerMinute        int
-	DashboardCacheTTL         time.Duration
-	OverdueCheckInterval      time.Duration
-	MeetingReminderInterval   time.Duration
-	ComplianceCheckInterval   time.Duration
-	ComplianceCheckHourUTC    int
-	SeedDemoData              bool
+	HTTPPort                int
+	AdminPort               int
+	DBURL                   string
+	DBMinConns              int
+	DBMaxConns              int
+	RedisAddr               string
+	RedisPassword           string
+	RedisDB                 int
+	KafkaBrokers            []string
+	KafkaGroupID            string
+	KafkaTopic              string
+	JWTPublicKeyPath        string
+	RateLimitPerMinute      int
+	DashboardCacheTTL       time.Duration
+	OverdueCheckInterval    time.Duration
+	MeetingReminderInterval time.Duration
+	ComplianceCheckInterval time.Duration
+	ComplianceCheckHourUTC  int
+	SeedDemoData            bool
 }
 
 func Load(base *appconfig.Config) (*Config, error) {
@@ -40,8 +40,8 @@ func Load(base *appconfig.Config) (*Config, error) {
 	}
 
 	cfg := &Config{
-		HTTPPort:                envInt("ACTA_HTTP_PORT", 8086),
-		AdminPort:               envInt("ACTA_ADMIN_PORT", 9086),
+		HTTPPort:                envInt("ACTA_HTTP_PORT", 8087),
+		AdminPort:               envInt("ACTA_ADMIN_PORT", 9087),
 		DBURL:                   envOr("ACTA_DB_URL", buildDBURL(base, "acta_db")),
 		DBMinConns:              envInt("ACTA_DB_MIN_CONNS", max(base.Database.MaxIdleConns, 5)),
 		DBMaxConns:              envInt("ACTA_DB_MAX_CONNS", max(base.Database.MaxOpenConns, 20)),

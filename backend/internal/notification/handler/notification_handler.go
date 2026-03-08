@@ -51,8 +51,8 @@ func (h *NotificationHandler) ListNotifications(w http.ResponseWriter, r *http.R
 	}
 
 	writeJSON(w, http.StatusOK, map[string]interface{}{
-		"data":       notifications,
-		"pagination": dto.NewPagination(params.Page, params.PerPage, total),
+		"data": notifications,
+		"meta": dto.NewPagination(params.Page, params.PerPage, total),
 	})
 }
 
@@ -142,10 +142,8 @@ func writeJSON(w http.ResponseWriter, status int, data interface{}) {
 
 func writeErrorResponse(w http.ResponseWriter, status int, code, message string, r *http.Request) {
 	resp := map[string]interface{}{
-		"error": map[string]interface{}{
-			"code":    code,
-			"message": message,
-		},
+		"code":    code,
+		"message": message,
 	}
 	if reqID := r.Context().Value("request_id"); reqID != nil {
 		resp["request_id"] = reqID

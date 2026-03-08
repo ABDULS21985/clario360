@@ -22,11 +22,7 @@ const (
 	maxPageSize     = 200
 )
 
-type ErrorEnvelope struct {
-	Error ErrorBody `json:"error"`
-}
-
-type ErrorBody struct {
+type ErrorResponse struct {
 	Code      string `json:"code"`
 	Message   string `json:"message"`
 	Details   any    `json:"details,omitempty"`
@@ -45,8 +41,8 @@ type DataEnvelope struct {
 }
 
 type PaginatedEnvelope struct {
-	Data       any        `json:"data"`
-	Pagination Pagination `json:"pagination"`
+	Data any        `json:"data"`
+	Meta Pagination `json:"meta"`
 }
 
 func WriteJSON(w http.ResponseWriter, status int, payload any) {
@@ -64,9 +60,12 @@ func WritePaginated(w http.ResponseWriter, status int, data any, page, perPage, 
 	if perPage > 0 {
 		totalPages = int(math.Ceil(float64(total) / float64(perPage)))
 	}
+	if totalPages < 1 {
+		totalPages = 1
+	}
 	WriteJSON(w, status, PaginatedEnvelope{
 		Data: data,
-		Pagination: Pagination{
+		Meta: Pagination{
 			Page:       page,
 			PerPage:    perPage,
 			Total:      total,
@@ -76,13 +75,11 @@ func WritePaginated(w http.ResponseWriter, status int, data any, page, perPage, 
 }
 
 func WriteError(w http.ResponseWriter, r *http.Request, status int, code, message string, details any) {
-	WriteJSON(w, status, ErrorEnvelope{
-		Error: ErrorBody{
-			Code:      code,
-			Message:   message,
-			Details:   details,
-			RequestID: middleware.GetRequestID(r.Context()),
-		},
+	WriteJSON(w, status, ErrorResponse{
+		Code:      code,
+		Message:   message,
+		Details:   details,
+		RequestID: middleware.GetRequestID(r.Context()),
 	})
 }
 

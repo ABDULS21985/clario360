@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"reflect"
 	"strconv"
 	"strings"
 	"time"
@@ -642,7 +643,7 @@ func decodeJSON(w http.ResponseWriter, r *http.Request, v any) bool {
 func writeJSON(w http.ResponseWriter, status int, v any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(v)
+	_ = json.NewEncoder(w).Encode(normalizePaginatedResponse(v))
 }
 
 func writeError(w http.ResponseWriter, status int, code, message string, details ...any) {
@@ -656,24 +657,63 @@ func writeError(w http.ResponseWriter, status int, code, message string, details
 		detailValue = nil
 	}
 	writeJSON(w, status, map[string]any{
-		"error": map[string]any{
-			"code":       code,
-			"message":    message,
-			"details":    detailValue,
-			"request_id": w.Header().Get(middleware.RequestIDHeader),
-		},
+		"code":       code,
+		"message":    message,
+		"details":    detailValue,
+		"request_id": w.Header().Get(middleware.RequestIDHeader),
 	})
 }
 
 func writeValidationError(w http.ResponseWriter, fieldErrs map[string]string) {
 	writeJSON(w, http.StatusBadRequest, map[string]any{
-		"error": map[string]any{
-			"code":       "VALIDATION_ERROR",
-			"message":    "request validation failed",
-			"details":    map[string]any{"fields": fieldErrs},
-			"request_id": w.Header().Get(middleware.RequestIDHeader),
-		},
+		"code":       "VALIDATION_ERROR",
+		"message":    "request validation failed",
+		"details":    map[string]any{"fields": fieldErrs},
+		"request_id": w.Header().Get(middleware.RequestIDHeader),
 	})
+}
+
+func normalizePaginatedResponse(v any) any {
+	rv := reflect.ValueOf(v)
+	if !rv.IsValid() {
+		return v
+	}
+	for rv.Kind() == reflect.Pointer {
+		if rv.IsNil() {
+			return v
+		}
+		rv = rv.Elem()
+	}
+	if rv.Kind() != reflect.Struct {
+		return v
+	}
+
+	dataField := rv.FieldByName("Data")
+	pageField := rv.FieldByName("Page")
+	perPageField := rv.FieldByName("PerPage")
+	totalField := rv.FieldByName("Total")
+	totalPagesField := rv.FieldByName("TotalPages")
+	if !dataField.IsValid() || !pageField.IsValid() || !perPageField.IsValid() || !totalField.IsValid() || !totalPagesField.IsValid() {
+		return v
+	}
+	if pageField.Kind() != reflect.Int || perPageField.Kind() != reflect.Int || totalField.Kind() != reflect.Int || totalPagesField.Kind() != reflect.Int {
+		return v
+	}
+
+	totalPages := int(totalPagesField.Int())
+	if totalPages < 1 {
+		totalPages = 1
+	}
+
+	return map[string]any{
+		"data": dataField.Interface(),
+		"meta": map[string]any{
+			"page":        int(pageField.Int()),
+			"per_page":    int(perPageField.Int()),
+			"total":       int(totalField.Int()),
+			"total_pages": totalPages,
+		},
+	}
 }
 
 func parseAssetListParams(r *http.Request) (*dto.AssetListParams, error) {

@@ -179,6 +179,50 @@ func (s *UserService) ChangePassword(ctx context.Context, userID string, req *dt
 	return nil
 }
 
+func (s *UserService) ListSessions(ctx context.Context, userID string) ([]dto.SessionResponse, error) {
+	sessions, err := s.sessionRepo.GetByUserID(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	return dto.SessionsToResponse(sessions), nil
+}
+
+func (s *UserService) DeleteSession(ctx context.Context, userID, sessionID string) error {
+	sessions, err := s.sessionRepo.GetByUserID(ctx, userID)
+	if err != nil {
+		return err
+	}
+	if len(sessions) > 0 && sessions[0].ID == sessionID {
+		return fmt.Errorf("cannot revoke current session: %w", model.ErrForbidden)
+	}
+	for _, session := range sessions {
+		if session.ID == sessionID {
+			return s.sessionRepo.Delete(ctx, sessionID)
+		}
+	}
+	return model.ErrNotFound
+}
+
+func (s *UserService) DeleteSessions(ctx context.Context, userID string, excludeCurrent bool) error {
+	if !excludeCurrent {
+		return s.sessionRepo.DeleteByUserID(ctx, userID)
+	}
+
+	sessions, err := s.sessionRepo.GetByUserID(ctx, userID)
+	if err != nil {
+		return err
+	}
+	for idx, session := range sessions {
+		if idx == 0 {
+			continue
+		}
+		if err := s.sessionRepo.Delete(ctx, session.ID); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // EnableMFA generates a TOTP secret and recovery codes but does NOT enable MFA yet.
 // The user must call VerifyMFASetup with a valid code to confirm their authenticator is configured.
 func (s *UserService) EnableMFA(ctx context.Context, userID string) (*dto.MFASetupResponse, error) {

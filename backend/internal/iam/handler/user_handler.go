@@ -26,6 +26,9 @@ func (h *UserHandler) Routes() chi.Router {
 	// /users/me routes (must be before /{id} to avoid conflict)
 	r.Get("/me", h.GetProfile)
 	r.Put("/me/password", h.ChangePassword)
+	r.Get("/me/sessions", h.ListSessions)
+	r.Delete("/me/sessions", h.DeleteSessions)
+	r.Delete("/me/sessions/{id}", h.DeleteSession)
 	r.Post("/me/mfa/enable", h.EnableMFA)
 	r.Post("/me/mfa/verify-setup", h.VerifyMFASetup)
 	r.Post("/me/mfa/disable", h.DisableMFA)
@@ -251,4 +254,51 @@ func (h *UserHandler) DisableMFA(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, dto.MessageResponse{Message: "MFA disabled"})
+}
+
+func (h *UserHandler) ListSessions(w http.ResponseWriter, r *http.Request) {
+	currentUser := iamauth.UserFromContext(r.Context())
+	if currentUser == nil {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
+	sessions, err := h.userSvc.ListSessions(r.Context(), currentUser.ID)
+	if err != nil {
+		handleServiceError(w, err)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, sessions)
+}
+
+func (h *UserHandler) DeleteSession(w http.ResponseWriter, r *http.Request) {
+	currentUser := iamauth.UserFromContext(r.Context())
+	if currentUser == nil {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
+	if err := h.userSvc.DeleteSession(r.Context(), currentUser.ID, urlParam(r, "id")); err != nil {
+		handleServiceError(w, err)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, dto.MessageResponse{Message: "session revoked"})
+}
+
+func (h *UserHandler) DeleteSessions(w http.ResponseWriter, r *http.Request) {
+	currentUser := iamauth.UserFromContext(r.Context())
+	if currentUser == nil {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
+	excludeCurrent := r.URL.Query().Get("exclude_current") == "true"
+	if err := h.userSvc.DeleteSessions(r.Context(), currentUser.ID, excludeCurrent); err != nil {
+		handleServiceError(w, err)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, dto.MessageResponse{Message: "sessions revoked"})
 }

@@ -96,7 +96,7 @@ func Load() (*Config, error) {
 	}
 
 	// Optional with defaults
-	c.HTTPPort = envOr("CYBER_HTTP_PORT", "8090")
+	c.HTTPPort = envOr("CYBER_HTTP_PORT", "8085")
 	c.DBMinConn = envInt("CYBER_DB_MIN_CONNS", 5)
 	c.DBMaxConn = envInt("CYBER_DB_MAX_CONNS", 20)
 	c.KafkaTopic = envOr("CYBER_KAFKA_TOPIC", "cyber.asset.events")
