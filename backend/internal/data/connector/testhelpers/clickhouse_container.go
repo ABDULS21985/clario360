@@ -21,13 +21,14 @@ const (
 )
 
 type ClickHouseContainer struct {
-	Container tc.Container
-	Host      string
-	NativePort int
-	HTTPPort   int
-	Database   string
-	Username   string
-	Password   string
+	Container       tc.Container
+	Host            string
+	NativePort      int
+	HTTPPort        int
+	Database        string
+	Username        string
+	Password        string
+	NativeAvailable bool
 }
 
 func StartClickHouseContainer(ctx context.Context, t testing.TB, database string) *ClickHouseContainer {
@@ -64,23 +65,25 @@ func StartClickHouseContainer(ctx context.Context, t testing.TB, database string
 	if err != nil {
 		t.Fatalf("clickhouse host: %v", err)
 	}
-	nativePort, err := container.MappedPort(ctx, "9000/tcp")
-	if err != nil {
-		t.Fatalf("clickhouse native port: %v", err)
-	}
 	httpPort, err := container.MappedPort(ctx, "8123/tcp")
 	if err != nil {
 		t.Fatalf("clickhouse http port: %v", err)
 	}
+	nativePort, err := container.MappedPort(ctx, "9000/tcp")
+	nativeAvailable := err == nil
+	if !nativeAvailable {
+		nativePort = httpPort
+	}
 
 	return &ClickHouseContainer{
-		Container:  container,
-		Host:       host,
-		NativePort: nativePort.Int(),
-		HTTPPort:   httpPort.Int(),
-		Database:   database,
-		Username:   clickHouseUser,
-		Password:   clickHousePassword,
+		Container:       container,
+		Host:            host,
+		NativePort:      nativePort.Int(),
+		HTTPPort:        httpPort.Int(),
+		Database:        database,
+		Username:        clickHouseUser,
+		Password:        clickHousePassword,
+		NativeAvailable: nativeAvailable,
 	}
 }
 
@@ -94,7 +97,7 @@ func (c *ClickHouseContainer) NativeConfig(database string) model.ClickHouseConn
 		Database:           database,
 		Username:           c.Username,
 		Password:           c.Password,
-		Protocol:           "native",
+		Protocol:           clickHouseProtocol(c.NativeAvailable),
 		MaxOpenConns:       4,
 		MaxIdleConns:       2,
 		DialTimeoutSeconds: 10,
@@ -114,6 +117,10 @@ func (c *ClickHouseContainer) OpenDB(ctx context.Context, database string) (*sql
 	if database == "" {
 		database = c.Database
 	}
+	protocol := clickhouse.Native
+	if !c.NativeAvailable {
+		protocol = clickhouse.HTTP
+	}
 	db := clickhouse.OpenDB(&clickhouse.Options{
 		Addr: []string{fmt.Sprintf("%s:%d", c.Host, c.NativePort)},
 		Auth: clickhouse.Auth{
@@ -121,6 +128,7 @@ func (c *ClickHouseContainer) OpenDB(ctx context.Context, database string) (*sql
 			Username: c.Username,
 			Password: c.Password,
 		},
+		Protocol:    protocol,
 		DialTimeout: time.Second * 10,
 		ReadTimeout: time.Second * 30,
 		Settings: clickhouse.Settings{
@@ -136,4 +144,11 @@ func (c *ClickHouseContainer) OpenDB(ctx context.Context, database string) (*sql
 		return nil, err
 	}
 	return db, nil
+}
+
+func clickHouseProtocol(nativeAvailable bool) string {
+	if nativeAvailable {
+		return "native"
+	}
+	return "http"
 }
