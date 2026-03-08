@@ -14,6 +14,8 @@
 
 Clario 360 is a Kubernetes-native, API-first, event-driven enterprise platform consisting of five integrated suites:
 
+AI capabilities in the current codebase are implemented through governed, explainable rule-based and statistical systems across Acta, Lex, and Cyber. See the [AI Capabilities Matrix](docs/architecture/AI_CAPABILITIES_MATRIX.md) for a suite-by-suite breakdown.
+
 | Suite | Purpose | Key Capabilities |
 |-------|---------|-----------------|
 | **Cybersecurity** | Proactive threat detection and exposure management | Asset discovery, AI-powered threat detection, CTEM, governed remediation, DSPM, Virtual CISO |
@@ -399,10 +401,9 @@ make helm-template
 | Document | Description |
 |----------|-------------|
 | [API Reference](docs/api/openapi.yaml) | Complete OpenAPI 3.1 specification |
-| [Architecture Overview](docs/architecture/11_ARCHITECTURE_OVERVIEW.md) | System architecture and design |
 | [Operational Runbooks](docs/runbooks/) | Operational procedures |
 | [Production Checklist](docs/deployment/PRODUCTION_LAUNCH_CHECKLIST.md) | Go-live verification |
-| [AI Governance](docs/architecture/15_AI_GOVERNANCE_AND_MLOPS.md) | Model registry and explainability |
+| [AI Capabilities Matrix](docs/architecture/AI_CAPABILITIES_MATRIX.md) | Implemented AI capabilities by suite, implementation type, governance coverage, and user-facing surface |
 
 ## Security
 

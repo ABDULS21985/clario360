@@ -187,7 +187,16 @@ func (s *AuthService) Login(ctx context.Context, req *dto.LoginRequest, ip, user
 	}
 	// If Redis is unavailable (incrErr != nil), fail-open: allow the request
 
-	user, err := s.userRepo.GetByEmail(ctx, req.TenantID, strings.ToLower(strings.TrimSpace(req.Email)))
+	normalizedEmail := strings.ToLower(strings.TrimSpace(req.Email))
+	var (
+		user *model.User
+		err  error
+	)
+	if req.TenantID == "" {
+		user, err = s.userRepo.GetByEmailGlobal(ctx, normalizedEmail)
+	} else {
+		user, err = s.userRepo.GetByEmail(ctx, req.TenantID, normalizedEmail)
+	}
 	if err != nil {
 		s.publishEvent(ctx, "user.login.failed", req.TenantID, "", map[string]any{
 			"email":         strings.ToLower(strings.TrimSpace(req.Email)),

@@ -62,7 +62,7 @@ func main() {
 		Version:     "1.0.0",
 		Environment: env,
 		Port:        8081,
-		AdminPort:   9091,
+		AdminPort:   9081,
 		LogLevel:    legacyCfg.Observability.LogLevel,
 		DB: &bootstrap.DBConfig{
 			URL:               "postgres://" + legacyCfg.Database.User + ":" + legacyCfg.Database.Password + "@" + legacyCfg.Database.Host + ":" + intToStr(legacyCfg.Database.Port) + "/platform_core?sslmode=" + legacyCfg.Database.SSLMode,

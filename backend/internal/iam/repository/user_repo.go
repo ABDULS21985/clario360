@@ -23,6 +23,7 @@ type UserRepository interface {
 	Create(ctx context.Context, user *model.User) error
 	GetByID(ctx context.Context, id string) (*model.User, error)
 	GetByEmail(ctx context.Context, tenantID, email string) (*model.User, error)
+	GetByEmailGlobal(ctx context.Context, email string) (*model.User, error)
 	List(ctx context.Context, tenantID string, filter UserFilter) ([]model.User, int, error)
 	Update(ctx context.Context, user *model.User) error
 	SoftDelete(ctx context.Context, id, deletedBy string) error
@@ -95,6 +96,38 @@ func (r *userRepo) GetByEmail(ctx context.Context, tenantID, email string) (*mod
 
 	user := &model.User{}
 	err := r.pool.QueryRow(ctx, query, tenantID, email).Scan(
+		&user.ID, &user.TenantID, &user.Email, &user.PasswordHash,
+		&user.FirstName, &user.LastName, &user.AvatarURL, &user.Status,
+		&user.MFAEnabled, &user.MFASecret, &user.LastLoginAt,
+		&user.CreatedAt, &user.UpdatedAt, &user.CreatedBy, &user.UpdatedBy, &user.DeletedAt,
+	)
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			return nil, fmt.Errorf("user with email %s: %w", email, model.ErrNotFound)
+		}
+		return nil, fmt.Errorf("querying user by email: %w", err)
+	}
+
+	roles, err := r.getUserRoles(ctx, user.ID)
+	if err != nil {
+		return nil, err
+	}
+	user.Roles = roles
+
+	return user, nil
+}
+
+func (r *userRepo) GetByEmailGlobal(ctx context.Context, email string) (*model.User, error) {
+	query := `
+		SELECT u.id, u.tenant_id, u.email, u.password_hash, u.first_name, u.last_name,
+		       u.avatar_url, u.status, u.mfa_enabled, u.mfa_secret, u.last_login_at,
+		       u.created_at, u.updated_at, u.created_by, u.updated_by, u.deleted_at
+		FROM users u
+		WHERE u.email = $1 AND u.deleted_at IS NULL
+		LIMIT 1`
+
+	user := &model.User{}
+	err := r.pool.QueryRow(ctx, query, email).Scan(
 		&user.ID, &user.TenantID, &user.Email, &user.PasswordHash,
 		&user.FirstName, &user.LastName, &user.AvatarURL, &user.Status,
 		&user.MFAEnabled, &user.MFASecret, &user.LastLoginAt,

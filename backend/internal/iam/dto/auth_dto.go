@@ -13,7 +13,7 @@ type RegisterRequest struct {
 }
 
 type LoginRequest struct {
-	TenantID string `json:"tenant_id" validate:"required"`
+	TenantID string `json:"tenant_id"`
 	Email    string `json:"email" validate:"required,email"`
 	Password string `json:"password" validate:"required"`
 }
