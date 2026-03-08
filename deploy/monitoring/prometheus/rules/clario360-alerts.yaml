@@ -1,0 +1,303 @@
+groups:
+  - name: clario360-service-health
+    rules:
+      - alert: ServiceDown
+        expr: up{job=~"clario360-.*"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: "Service {{ $labels.job }} is down"
+          description: "{{ $labels.job }} has been unreachable for more than 2 minutes."
+          runbook: "docs/runbooks/incident-response/IR-001-service-outage.md"
+
+      - alert: ServiceHighErrorRate
+        expr: |
+          (
+            sum(rate(clario360_gateway_requests_total{status_code=~"5.."}[5m])) by (service)
+            /
+            sum(rate(clario360_gateway_requests_total[5m])) by (service)
+          ) > 0.05
+        for: 5m
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: "{{ $labels.service }} error rate above 5%"
+          description: "{{ $labels.service }} is returning 5xx errors at {{ $value | humanizePercentage }} rate."
+          runbook: "docs/runbooks/incident-response/IR-001-service-outage.md"
+
+      - alert: ServiceHighLatency
+        expr: |
+          histogram_quantile(0.95,
+            sum(rate(clario360_gateway_request_duration_seconds_bucket[5m])) by (service, le)
+          ) > 1.0
+        for: 10m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "{{ $labels.service }} p95 latency above 1 second"
+          description: "{{ $labels.service }} p95 response time is {{ $value | humanizeDuration }}."
+          runbook: "docs/runbooks/troubleshooting/TS-001-slow-api-responses.md"
+
+      - alert: ServiceHighLatencyCritical
+        expr: |
+          histogram_quantile(0.95,
+            sum(rate(clario360_gateway_request_duration_seconds_bucket[5m])) by (service, le)
+          ) > 5.0
+        for: 5m
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: "{{ $labels.service }} p95 latency above 5 seconds — CRITICAL"
+          runbook: "docs/runbooks/troubleshooting/TS-001-slow-api-responses.md"
+
+  - name: clario360-database
+    rules:
+      - alert: DatabaseConnectionPoolExhaustion
+        expr: clario360_db_connections_active / clario360_db_connections_max > 0.85
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "Database connection pool at {{ $value | humanizePercentage }}"
+          runbook: "docs/runbooks/troubleshooting/TS-008-connection-pool-exhaustion.md"
+
+      - alert: DatabaseSlowQueries
+        expr: |
+          histogram_quantile(0.95,
+            sum(rate(clario360_db_query_duration_seconds_bucket[5m])) by (table, le)
+          ) > 0.5
+        for: 10m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "Slow database queries on table {{ $labels.table }}"
+          runbook: "docs/runbooks/troubleshooting/TS-001-slow-api-responses.md"
+
+      - alert: DatabaseReplicationLag
+        expr: pg_replication_lag_seconds > 30
+        for: 5m
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: "PostgreSQL replication lag is {{ $value }}s"
+
+  - name: clario360-kafka
+    rules:
+      - alert: KafkaConsumerLagHigh
+        expr: clario360_kafka_consumer_lag > 10000
+        for: 10m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "Kafka consumer lag high on {{ $labels.topic }}: {{ $value }} messages"
+          runbook: "docs/runbooks/troubleshooting/TS-003-missing-events.md"
+
+      - alert: KafkaConsumerLagCritical
+        expr: clario360_kafka_consumer_lag > 100000
+        for: 5m
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: "Kafka consumer lag CRITICAL on {{ $labels.topic }}: {{ $value }} messages"
+
+      - alert: DeadLetterQueueGrowing
+        expr: increase(clario360_kafka_messages_consumed_total{topic="platform.dead-letter"}[1h]) > 100
+        for: 0m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "Dead letter queue received {{ $value }} messages in the last hour"
+
+  - name: clario360-security
+    rules:
+      - alert: HighFailedLoginRate
+        expr: sum(rate(clario360_auth_login_failures_total[5m])) > 10
+        for: 5m
+        labels:
+          severity: high
+          team: security
+        annotations:
+          summary: "High rate of failed logins: {{ $value | humanize }}/sec"
+
+      - alert: BruteForceDetected
+        expr: sum by (ip) (increase(clario360_auth_login_failures_total[15m])) > 20
+        for: 0m
+        labels:
+          severity: critical
+          team: security
+        annotations:
+          summary: "Possible brute force attack from IP {{ $labels.ip }}"
+
+      - alert: CriticalSecurityAlert
+        expr: increase(clario360_cyber_alerts_total{severity="critical"}[5m]) > 0
+        for: 0m
+        labels:
+          severity: critical
+          team: security
+        annotations:
+          summary: "New critical security alert detected"
+
+      - alert: AuditHashChainBroken
+        expr: clario360_audit_chain_valid == 0
+        for: 0m
+        labels:
+          severity: critical
+          team: security
+        annotations:
+          summary: "Audit trail hash chain integrity failure detected"
+          runbook: "docs/runbooks/troubleshooting/TS-009-audit-chain-broken.md"
+
+  - name: clario360-business
+    rules:
+      - alert: PipelineFailureRateHigh
+        expr: |
+          (
+            sum(increase(clario360_data_pipeline_runs_total{status="failed"}[24h]))
+            /
+            sum(increase(clario360_data_pipeline_runs_total[24h]))
+          ) > 0.2
+        for: 0m
+        labels:
+          severity: warning
+          team: data
+        annotations:
+          summary: "Pipeline failure rate above 20% in the last 24 hours"
+
+      - alert: DataQualityScoreDrop
+        expr: clario360_data_quality_score < 80
+        for: 30m
+        labels:
+          severity: warning
+          team: data
+        annotations:
+          summary: "Data quality score dropped to {{ $value }}%"
+
+      - alert: ContractsExpiringWithoutAction
+        expr: clario360_lex_contracts_expiring_7d > 0
+        for: 0m
+        labels:
+          severity: high
+          team: legal
+        annotations:
+          summary: "{{ $value }} contracts expiring within 7 days without renewal action"
+
+      - alert: OverdueActionItemsHigh
+        expr: clario360_acta_overdue_action_items > 10
+        for: 24h
+        labels:
+          severity: warning
+          team: governance
+        annotations:
+          summary: "{{ $value }} overdue board action items"
+
+  - name: clario360-slo
+    rules:
+      - alert: SLOBudgetBurnRateHigh_1h
+        expr: |
+          (
+            1 - (sum(rate(clario360_gateway_requests_total{status_code!~"5.."}[1h])) / sum(rate(clario360_gateway_requests_total[1h])))
+          ) > (14.4 * (1 - 0.999))
+        for: 2m
+        labels:
+          severity: critical
+          team: platform
+          slo: availability
+        annotations:
+          summary: "SLO burn rate critical — exhausting monthly error budget in < 1 hour"
+
+      - alert: SLOBudgetBurnRateHigh_6h
+        expr: |
+          (
+            1 - (sum(rate(clario360_gateway_requests_total{status_code!~"5.."}[6h])) / sum(rate(clario360_gateway_requests_total[6h])))
+          ) > (6 * (1 - 0.999))
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+          slo: availability
+        annotations:
+          summary: "SLO burn rate elevated — may exhaust monthly error budget"
+
+  - name: clario360-infrastructure
+    rules:
+      - alert: PodCPUHigh
+        expr: |
+          sum(rate(container_cpu_usage_seconds_total{namespace="clario360"}[5m])) by (pod)
+          /
+          sum(kube_pod_container_resource_limits{namespace="clario360",resource="cpu"}) by (pod)
+          > 0.85
+        for: 15m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "Pod {{ $labels.pod }} CPU usage above 85%"
+
+      - alert: PodMemoryHigh
+        expr: |
+          sum(container_memory_working_set_bytes{namespace="clario360"}) by (pod)
+          /
+          sum(kube_pod_container_resource_limits{namespace="clario360",resource="memory"}) by (pod)
+          > 0.90
+        for: 10m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "Pod {{ $labels.pod }} memory usage above 90%"
+          runbook: "docs/runbooks/incident-response/IR-007-memory-exhaustion.md"
+
+      - alert: PodOOMKilled
+        expr: increase(kube_pod_container_status_restarts_total{namespace="clario360",reason="OOMKilled"}[5m]) > 0
+        for: 0m
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: "Pod {{ $labels.pod }} was OOMKilled"
+          runbook: "docs/runbooks/incident-response/IR-007-memory-exhaustion.md"
+
+      - alert: PVCAlmostFull
+        expr: |
+          kubelet_volume_stats_used_bytes{namespace="clario360"}
+          /
+          kubelet_volume_stats_capacity_bytes{namespace="clario360"}
+          > 0.85
+        for: 30m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "PVC {{ $labels.persistentvolumeclaim }} is {{ $value | humanizePercentage }} full"
+          runbook: "docs/runbooks/incident-response/IR-006-disk-full.md"
+
+      - alert: CertificateExpiringSoon
+        expr: certmanager_certificate_expiration_timestamp_seconds - time() < 604800
+        for: 0m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "Certificate {{ $labels.name }} expires in less than 7 days"
+          runbook: "docs/runbooks/operations/OP-005-certificate-renewal.md"
+
+      - alert: BackupJobFailed
+        expr: kube_job_status_failed{namespace="clario360",job_name=~"database-backup.*"} > 0
+        for: 0m
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: "Database backup job failed"
+          runbook: "docs/runbooks/operations/OP-004-backup-verification.md"

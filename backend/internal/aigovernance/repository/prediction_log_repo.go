@@ -2,7 +2,6 @@ package repository
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -289,6 +288,73 @@ func (r *PredictionLogRepository) PerformanceSeries(ctx context.Context, tenantI
 		points = append(points, item)
 	}
 	return points, rows.Err()
+}
+
+func (r *PredictionLogRepository) CountSince(ctx context.Context, tenantID uuid.UUID, since time.Time) (int64, error) {
+	var total int64
+	if err := r.db.QueryRow(ctx, `
+		SELECT COUNT(*)::bigint
+		FROM ai_prediction_logs
+		WHERE tenant_id = $1 AND created_at >= $2`,
+		tenantID, since,
+	).Scan(&total); err != nil {
+		return 0, fmt.Errorf("count ai predictions since window: %w", err)
+	}
+	return total, nil
+}
+
+func (r *PredictionLogRepository) ListDivergences(ctx context.Context, tenantID, modelID uuid.UUID, page, perPage int) ([]aigovmodel.PredictionLog, int, error) {
+	if page < 1 {
+		page = 1
+	}
+	if perPage < 1 {
+		perPage = 25
+	}
+	var total int
+	if err := r.db.QueryRow(ctx, `
+		SELECT COUNT(*)::int
+		FROM ai_prediction_logs
+		WHERE tenant_id = $1
+		  AND model_id = $2
+		  AND is_shadow = true
+		  AND shadow_divergence IS NOT NULL
+		  AND shadow_divergence::text NOT IN ('{}', 'null')`,
+		tenantID, modelID,
+	).Scan(&total); err != nil {
+		return nil, 0, fmt.Errorf("count ai divergences: %w", err)
+	}
+	rows, err := r.db.Query(ctx, `
+		SELECT l.id, l.tenant_id, l.model_id, l.model_version_id, m.slug, v.version_number, l.input_hash,
+		       l.input_summary, l.prediction, l.confidence, l.explanation_structured, l.explanation_text,
+		       l.explanation_factors, l.suite, l.use_case, COALESCE(l.entity_type, ''), l.entity_id,
+		       l.is_shadow, l.shadow_production_version_id, l.shadow_divergence, l.feedback_correct,
+		       l.feedback_by, l.feedback_at, l.feedback_notes, l.feedback_corrected_output, l.latency_ms,
+		       l.created_at
+		FROM ai_prediction_logs l
+		JOIN ai_models m ON m.id = l.model_id
+		JOIN ai_model_versions v ON v.id = l.model_version_id
+		WHERE l.tenant_id = $1
+		  AND l.model_id = $2
+		  AND l.is_shadow = true
+		  AND l.shadow_divergence IS NOT NULL
+		  AND l.shadow_divergence::text NOT IN ('{}', 'null')
+		ORDER BY l.created_at DESC
+		LIMIT $3 OFFSET $4`,
+		tenantID, modelID, perPage, (page-1)*perPage,
+	)
+	if err != nil {
+		return nil, 0, fmt.Errorf("list ai divergences: %w", err)
+	}
+	defer rows.Close()
+	items := make([]aigovmodel.PredictionLog, 0, perPage)
+	for rows.Next() {
+		item, err := scanPrediction(rows)
+		if err != nil {
+			return nil, 0, err
+		}
+		items = append(items, *item)
+	}
+	return items, total, rows.Err()
 }
 
 type predictionScannable interface {

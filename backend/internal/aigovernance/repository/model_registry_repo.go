@@ -2,24 +2,24 @@ package repository
 
 import (
 	"context"
-	"encoding/json"
+	"errors"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
 	aigovmodel "github.com/clario360/platform/internal/aigovernance/model"
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog"
 )
 
 type ListModelsParams struct {
-	Suite  string
-	Type   string
-	Status string
-	Page   int
+	Suite   string
+	Type    string
+	Status  string
+	Page    int
 	PerPage int
 }
 
@@ -280,6 +280,54 @@ func (r *ModelRegistryRepository) GetCurrentProductionVersion(ctx context.Contex
 	return item, nil
 }
 
+func (r *ModelRegistryRepository) GetCurrentShadowVersion(ctx context.Context, tenantID, modelID uuid.UUID) (*aigovmodel.ModelVersion, error) {
+	row := r.db.QueryRow(ctx, `
+		SELECT v.id, v.tenant_id, v.model_id, m.slug, m.name, m.model_type, m.suite, m.risk_tier,
+		       v.version_number, v.status, v.description, v.artifact_type, v.artifact_config,
+		       v.artifact_hash, v.explainability_type, v.explanation_template, v.training_data_desc,
+		       v.training_data_hash, v.training_metrics, v.prediction_count, v.avg_latency_ms,
+		       v.avg_confidence, v.accuracy_metric, v.false_positive_rate, v.false_negative_rate,
+		       v.feedback_count, v.promoted_to_staging_at, v.promoted_to_shadow_at,
+		       v.promoted_to_production_at, v.promoted_by, v.retired_at, v.retired_by,
+		       v.retirement_reason, v.rolled_back_at, v.rolled_back_by, v.rollback_reason,
+		       v.replaced_version_id, v.created_by, v.created_at, v.updated_at
+		FROM ai_model_versions v
+		JOIN ai_models m ON m.id = v.model_id
+		WHERE v.tenant_id = $1 AND v.model_id = $2 AND v.status = 'shadow'
+		ORDER BY v.version_number DESC
+		LIMIT 1`,
+		tenantID, modelID,
+	)
+	item, err := scanVersion(row)
+	if err != nil {
+		return nil, rowNotFound(err)
+	}
+	return item, nil
+}
+
+func (r *ModelRegistryRepository) GetVersionByID(ctx context.Context, tenantID, versionID uuid.UUID) (*aigovmodel.ModelVersion, error) {
+	row := r.db.QueryRow(ctx, `
+		SELECT v.id, v.tenant_id, v.model_id, m.slug, m.name, m.model_type, m.suite, m.risk_tier,
+		       v.version_number, v.status, v.description, v.artifact_type, v.artifact_config,
+		       v.artifact_hash, v.explainability_type, v.explanation_template, v.training_data_desc,
+		       v.training_data_hash, v.training_metrics, v.prediction_count, v.avg_latency_ms,
+		       v.avg_confidence, v.accuracy_metric, v.false_positive_rate, v.false_negative_rate,
+		       v.feedback_count, v.promoted_to_staging_at, v.promoted_to_shadow_at,
+		       v.promoted_to_production_at, v.promoted_by, v.retired_at, v.retired_by,
+		       v.retirement_reason, v.rolled_back_at, v.rolled_back_by, v.rollback_reason,
+		       v.replaced_version_id, v.created_by, v.created_at, v.updated_at
+		FROM ai_model_versions v
+		JOIN ai_models m ON m.id = v.model_id
+		WHERE v.tenant_id = $1 AND v.id = $2`,
+		tenantID, versionID,
+	)
+	item, err := scanVersion(row)
+	if err != nil {
+		return nil, rowNotFound(err)
+	}
+	return item, nil
+}
+
 func (r *ModelRegistryRepository) ListProductionVersions(ctx context.Context) ([]aigovmodel.ModelVersion, error) {
 	rows, err := r.db.Query(ctx, `
 		SELECT v.id, v.tenant_id, v.model_id, m.slug, m.name, m.model_type, m.suite, m.risk_tier,
@@ -348,6 +396,54 @@ func (r *ModelRegistryRepository) UpdateVersionStatus(ctx context.Context, versi
 		return ErrNotFound
 	}
 	return nil
+}
+
+func (r *ModelRegistryRepository) CountModelsByStatus(ctx context.Context, tenantID uuid.UUID) (map[string]int, error) {
+	rows, err := r.db.Query(ctx, `
+		SELECT status, COUNT(*)::int
+		FROM ai_models
+		WHERE tenant_id = $1 AND deleted_at IS NULL
+		GROUP BY status`,
+		tenantID,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("count ai models by status: %w", err)
+	}
+	defer rows.Close()
+	counts := make(map[string]int)
+	for rows.Next() {
+		var status string
+		var count int
+		if err := rows.Scan(&status, &count); err != nil {
+			return nil, fmt.Errorf("scan ai model status count: %w", err)
+		}
+		counts[status] = count
+	}
+	return counts, rows.Err()
+}
+
+func (r *ModelRegistryRepository) CountVersionsByStatus(ctx context.Context, tenantID uuid.UUID) (map[string]int, error) {
+	rows, err := r.db.Query(ctx, `
+		SELECT status, COUNT(*)::int
+		FROM ai_model_versions
+		WHERE tenant_id = $1
+		GROUP BY status`,
+		tenantID,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("count ai versions by status: %w", err)
+	}
+	defer rows.Close()
+	counts := make(map[string]int)
+	for rows.Next() {
+		var status string
+		var count int
+		if err := rows.Scan(&status, &count); err != nil {
+			return nil, fmt.Errorf("scan ai version status count: %w", err)
+		}
+		counts[status] = count
+	}
+	return counts, rows.Err()
 }
 
 func (r *ModelRegistryRepository) UpdateVersionAggregates(ctx context.Context, tenantID, versionID uuid.UUID) error {
