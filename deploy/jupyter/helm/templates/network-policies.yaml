@@ -66,17 +66,36 @@ spec:
   policyTypes:
     - Egress
   egress:
+{{- $root := . }}
+{{- $targets := .Values.networkPolicy.clario360Targets | default list }}
+{{- if gt (len $targets) 0 }}
+{{- range $target := $targets }}
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              name: {{ $root.Values.networkPolicy.namespaceSelectors.clario360.name | quote }}
+          podSelector:
+            matchLabels:
+              app: {{ $target.app | quote }}
+      ports:
+{{- range $port := $target.ports }}
+        - port: {{ $port }}
+          protocol: TCP
+{{- end }}
+{{- end }}
+{{- else }}
 {{- range .Values.networkPolicy.clario360AllowedApps }}
     - to:
         - namespaceSelector:
             matchLabels:
-              name: {{ .Values.networkPolicy.namespaceSelectors.clario360.name | quote }}
+              name: {{ $root.Values.networkPolicy.namespaceSelectors.clario360.name | quote }}
           podSelector:
             matchLabels:
               app: {{ . | quote }}
       ports:
         - port: 8080
           protocol: TCP
+{{- end }}
 {{- end }}
     - to:
         - namespaceSelector:

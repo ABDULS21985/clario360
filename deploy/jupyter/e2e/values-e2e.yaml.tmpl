@@ -1,0 +1,109 @@
+externalSecrets:
+  enabled: false
+
+networkPolicy:
+  clario360Targets:
+    - app: iam-service
+      ports:
+        - 8081
+
+jupyterhub:
+  hub:
+    config:
+      GenericOAuthenticator:
+        client_id: "jupyterhub"
+        client_secret: "__JUPYTERHUB_CLIENT_SECRET__"
+        oauth_callback_url: "http://localhost:__JUPYTER_PORT__/hub/oauth_callback"
+        authorize_url: "http://localhost:__IAM_PORT__/api/v1/auth/oauth/authorize"
+        token_url: "http://iam-service.clario360.svc.cluster.local:8081/api/v1/auth/oauth/token"
+        userdata_url: "http://iam-service.clario360.svc.cluster.local:8081/api/v1/auth/oauth/userinfo"
+    db:
+      url: "postgresql://jupyterhub:__POSTGRES_PASSWORD__@postgresql.clario360.svc.cluster.local:5432/jupyterhub?sslmode=disable"
+    services:
+      clario360-api:
+        admin: true
+        apiToken: "__JUPYTERHUB_ADMIN_TOKEN__"
+    extraConfig:
+      idleCuller: |
+        c.JupyterHub.services = [
+            {
+                "name": "cull-idle",
+                "admin": True,
+                "command": [
+                    "python", "-m", "jupyterhub_idle_culler",
+                    "--timeout=120",
+                    "--max-age=900",
+                    "--cull-every=30",
+                    "--concurrency=2",
+                ],
+            }
+        ]
+  singleuser:
+    image:
+      name: clario360/notebook
+      tag: e2e
+      pullPolicy: IfNotPresent
+    storage:
+      type: static
+      static:
+        pvcName: jupyterhub-user-home
+        subPath: "{username}"
+    extraEnv:
+      CLARIO360_API_URL:
+        value: http://iam-service.clario360.svc.cluster.local:8081
+      CLICKHOUSE_HOST:
+        value: clickhouse.data.svc.cluster.local
+      CLICKHOUSE_PORT:
+        value: "8123"
+      CLICKHOUSE_DATABASE:
+        value: default
+      SPARK_MASTER:
+        value: spark://spark-master.spark.svc.cluster.local:7077
+    profileList:
+      - display_name: "SOC Analyst - Standard"
+        slug: soc-analyst
+        description: "Security analysis, threat hunting, and incident response."
+        default: true
+        kubespawner_override:
+          image: clario360/notebook:e2e
+          cpu_limit: 2
+          cpu_guarantee: 0.5
+          mem_limit: 4G
+          mem_guarantee: 1G
+          storage_capacity: 5Gi
+      - display_name: "Data Scientist - ML Workloads"
+        slug: data-scientist
+        description: "Model training, validation, and feature engineering."
+        kubespawner_override:
+          image: clario360/notebook:e2e
+          cpu_limit: 4
+          cpu_guarantee: 1
+          mem_limit: 8G
+          mem_guarantee: 2G
+          storage_capacity: 20Gi
+      - display_name: "Spark Connected - Big Data Analysis"
+        slug: spark-connected
+        description: "PySpark, Hadoop, and large-scale correlation workloads."
+        kubespawner_override:
+          image: clario360/notebook-spark:e2e
+          cpu_limit: 4
+          cpu_guarantee: 1
+          mem_limit: 8G
+          mem_guarantee: 2G
+          storage_capacity: 20Gi
+          extra_env:
+            SPARK_ENABLED: "true"
+            SPARK_DRIVER_MEMORY: 2g
+            SPARK_EXECUTOR_MEMORY: 2g
+            SPARK_EXECUTOR_CORES: "1"
+            SPARK_NUM_EXECUTORS: "1"
+      - display_name: "Admin - Full Access"
+        slug: admin
+        description: "Full-access profile for tenant admins and security managers."
+        kubespawner_override:
+          image: clario360/notebook-spark:e2e
+          cpu_limit: 4
+          cpu_guarantee: 2
+          mem_limit: 8G
+          mem_guarantee: 2G
+          storage_capacity: 20Gi

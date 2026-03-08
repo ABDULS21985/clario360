@@ -236,6 +236,10 @@ jupyterhub:
 
 networkPolicy:
   allowInternet: false
+  clario360Targets:
+    - app: api-gateway
+      ports:
+        - 8080
   clario360AllowedApps:
     - api-gateway
   namespaceSelectors:
