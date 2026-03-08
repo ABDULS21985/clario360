@@ -1,0 +1,700 @@
+# =============================================================================
+# Clario 360 — Air-Gapped Environment Overrides
+# =============================================================================
+# For fully isolated networks with no external internet access.
+# Uses an internal Harbor registry and disables all external telemetry.
+# =============================================================================
+
+global:
+  imageRegistry: harbor.internal.corp:5000/clario360
+  imagePullSecrets:
+    - name: harbor-pull-secret
+  imagePullPolicy: IfNotPresent
+  domain: clario360.internal.corp
+  apiDomain: api.clario360.internal.corp
+  tlsEnabled: true
+  tlsSecretName: clario360-internal-tls
+  environment: production
+  logLevel: warn
+  logFormat: json
+
+# ---------------------------------------------------------------------------
+# Database
+# ---------------------------------------------------------------------------
+database:
+  sslMode: require
+  maxConnections: 50
+  minConnections: 10
+  maxIdleTime: 300s
+  maxLifetime: 1800s
+
+# ---------------------------------------------------------------------------
+# Redis
+# ---------------------------------------------------------------------------
+redis:
+  poolSize: 25
+  minIdleConns: 10
+
+# ---------------------------------------------------------------------------
+# Kafka
+# ---------------------------------------------------------------------------
+kafka:
+  brokers:
+    - kafka-0.kafka-headless.clario360:9093
+    - kafka-1.kafka-headless.clario360:9093
+    - kafka-2.kafka-headless.clario360:9093
+  securityProtocol: SASL_SSL
+  saslMechanism: SCRAM-SHA-512
+  existingSecret: clario360-kafka-sasl-credentials
+  topics:
+    # Platform
+    - name: platform.iam.events
+      partitions: 12
+      replicationFactor: 3
+      retentionMs: 604800000
+    - name: platform.onboarding.events
+      partitions: 6
+      replicationFactor: 3
+      retentionMs: 604800000
+    - name: platform.audit.events
+      partitions: 12
+      replicationFactor: 3
+      retentionMs: 7776000000
+    - name: platform.notification.events
+      partitions: 12
+      replicationFactor: 3
+      retentionMs: 604800000
+    - name: platform.workflow.events
+      partitions: 12
+      replicationFactor: 3
+      retentionMs: 604800000
+    - name: platform.file.events
+      partitions: 6
+      replicationFactor: 3
+      retentionMs: 604800000
+    # Cybersecurity
+    - name: cyber.asset.events
+      partitions: 12
+      replicationFactor: 3
+      retentionMs: 604800000
+    - name: cyber.vulnerability.events
+      partitions: 12
+      replicationFactor: 3
+      retentionMs: 604800000
+    - name: cyber.threat.events
+      partitions: 12
+      replicationFactor: 3
+      retentionMs: 604800000
+    - name: cyber.alert.events
+      partitions: 12
+      replicationFactor: 3
+      retentionMs: 604800000
+    - name: cyber.rule.events
+      partitions: 6
+      replicationFactor: 3
+      retentionMs: 604800000
+    - name: cyber.ctem.events
+      partitions: 12
+      replicationFactor: 3
+      retentionMs: 604800000
+    - name: cyber.risk.events
+      partitions: 12
+      replicationFactor: 3
+      retentionMs: 604800000
+    - name: cyber.remediation.events
+      partitions: 6
+      replicationFactor: 3
+      retentionMs: 604800000
+    - name: cyber.dspm.events
+      partitions: 6
+      replicationFactor: 3
+      retentionMs: 604800000
+    - name: cyber.vciso.events
+      partitions: 6
+      replicationFactor: 3
+      retentionMs: 604800000
+    # Data
+    - name: data.source.events
+      partitions: 12
+      replicationFactor: 3
+      retentionMs: 604800000
+    - name: data.pipeline.events
+      partitions: 12
+      replicationFactor: 3
+      retentionMs: 604800000
+    - name: data.quality.events
+      partitions: 12
+      replicationFactor: 3
+      retentionMs: 604800000
+    - name: data.contradiction.events
+      partitions: 6
+      replicationFactor: 3
+      retentionMs: 604800000
+    - name: data.lineage.events
+      partitions: 6
+      replicationFactor: 3
+      retentionMs: 604800000
+    # Enterprise
+    - name: enterprise.acta.events
+      partitions: 6
+      replicationFactor: 3
+      retentionMs: 604800000
+    - name: enterprise.lex.events
+      partitions: 6
+      replicationFactor: 3
+      retentionMs: 604800000
+    - name: enterprise.visus.events
+      partitions: 6
+      replicationFactor: 3
+      retentionMs: 604800000
+    # Dead Letter
+    - name: platform.dead-letter
+      partitions: 6
+      replicationFactor: 3
+      retentionMs: 2592000000
+
+# ---------------------------------------------------------------------------
+# MinIO
+# ---------------------------------------------------------------------------
+minio:
+  endpoint: minio.clario360.internal.corp:9000
+  useSSL: true
+  existingSecret: clario360-minio-credentials
+  defaultBucketPrefix: clario360
+
+# ---------------------------------------------------------------------------
+# Observability — No external telemetry in air-gapped mode
+# ---------------------------------------------------------------------------
+observability:
+  otlpEndpoint: ""
+  otlpProtocol: ""
+  prometheus:
+    serviceMonitor:
+      enabled: true
+      interval: 15s
+      scrapeTimeout: 10s
+  grafana:
+    dashboards:
+      enabled: true
+      labels:
+        grafana_dashboard: "1"
+  alerting:
+    enabled: true
+    rules:
+      - name: clario360-high-error-rate
+        expr: "sum(rate(http_requests_total{status=~\"5..\"}[5m])) / sum(rate(http_requests_total[5m])) > 0.05"
+        for: 5m
+        severity: critical
+      - name: clario360-kafka-consumer-lag
+        expr: "sum(kafka_consumer_group_lag) by (consumergroup) > 10000"
+        for: 15m
+        severity: warning
+
+# ---------------------------------------------------------------------------
+# Email — Disabled in air-gapped environments
+# ---------------------------------------------------------------------------
+email:
+  enabled: false
+
+# ---------------------------------------------------------------------------
+# Ingress — Internal CA TLS
+# ---------------------------------------------------------------------------
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: 100m
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "120"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "120"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/auth-tls-secret: clario360/internal-ca-cert
+    nginx.ingress.kubernetes.io/auth-tls-verify-client: "optional"
+  tls:
+    - secretName: clario360-internal-tls
+      hosts:
+        - clario360.internal.corp
+        - api.clario360.internal.corp
+
+# ---------------------------------------------------------------------------
+# Network Policies & Quotas
+# ---------------------------------------------------------------------------
+networkPolicies:
+  enabled: true
+
+resourceQuotas:
+  enabled: true
+  cpu: "64"
+  memory: 128Gi
+  pods: "200"
+
+# ---------------------------------------------------------------------------
+# Seed Data
+# ---------------------------------------------------------------------------
+seedData:
+  enabled: false
+
+# ---------------------------------------------------------------------------
+# Migration
+# ---------------------------------------------------------------------------
+migration:
+  image:
+    repository: harbor.internal.corp:5000/clario360/migrator
+    tag: "1.0.0"
+
+# =============================================================================
+# Service Overrides — Air-Gapped
+# =============================================================================
+
+apiGateway:
+  replicas: 3
+  image:
+    repository: harbor.internal.corp:5000/clario360/api-gateway
+    tag: "1.0.0"
+  logLevel: warn
+  resources:
+    requests:
+      cpu: 500m
+      memory: 512Mi
+    limits:
+      cpu: "2"
+      memory: 2Gi
+  hpa:
+    enabled: true
+    minReplicas: 3
+    maxReplicas: 10
+    targetCPU: 65
+    targetMemory: 75
+  pdb:
+    enabled: true
+    minAvailable: 2
+  config:
+    rateLimit:
+      enabled: true
+      requestsPerSecond: 500
+      burstSize: 1000
+    cors:
+      allowedOrigins:
+        - "https://clario360.internal.corp"
+      allowedMethods:
+        - GET
+        - POST
+        - PUT
+        - PATCH
+        - DELETE
+        - OPTIONS
+      allowedHeaders:
+        - Authorization
+        - Content-Type
+        - X-Request-ID
+        - X-Tenant-ID
+      maxAge: 86400
+
+iamService:
+  replicas: 3
+  image:
+    repository: harbor.internal.corp:5000/clario360/iam-service
+    tag: "1.0.0"
+  logLevel: warn
+  resources:
+    requests:
+      cpu: 500m
+      memory: 512Mi
+    limits:
+      cpu: "2"
+      memory: 2Gi
+  hpa:
+    enabled: true
+    minReplicas: 3
+    maxReplicas: 8
+    targetCPU: 65
+    targetMemory: 75
+  pdb:
+    enabled: true
+    minAvailable: 2
+  config:
+    bcryptCost: 14
+    accessTokenExpiry: 15m
+    refreshTokenExpiry: 168h
+
+auditService:
+  replicas: 3
+  image:
+    repository: harbor.internal.corp:5000/clario360/audit-service
+    tag: "1.0.0"
+  logLevel: warn
+  resources:
+    requests:
+      cpu: 500m
+      memory: 512Mi
+    limits:
+      cpu: "2"
+      memory: 2Gi
+  hpa:
+    enabled: true
+    minReplicas: 3
+    maxReplicas: 8
+    targetCPU: 65
+    targetMemory: 75
+  pdb:
+    enabled: true
+    minAvailable: 2
+
+workflowEngine:
+  replicas: 2
+  image:
+    repository: harbor.internal.corp:5000/clario360/workflow-engine
+    tag: "1.0.0"
+  logLevel: warn
+  resources:
+    requests:
+      cpu: 500m
+      memory: 512Mi
+    limits:
+      cpu: "2"
+      memory: 2Gi
+  hpa:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 6
+    targetCPU: 65
+    targetMemory: 75
+  pdb:
+    enabled: true
+    minAvailable: 1
+
+notificationService:
+  replicas: 3
+  image:
+    repository: harbor.internal.corp:5000/clario360/notification-service
+    tag: "1.0.0"
+  logLevel: warn
+  resources:
+    requests:
+      cpu: 500m
+      memory: 512Mi
+    limits:
+      cpu: "2"
+      memory: 2Gi
+  hpa:
+    enabled: true
+    minReplicas: 3
+    maxReplicas: 8
+    targetCPU: 65
+    targetMemory: 75
+  pdb:
+    enabled: true
+    minAvailable: 2
+  config:
+    websocket:
+      enabled: true
+      maxConnectionsPerUser: 5
+      pingInterval: 30s
+    emailProvider: smtp
+    digestEnabled: false
+    rateLimitPerMinute: 300
+
+fileService:
+  replicas: 2
+  image:
+    repository: harbor.internal.corp:5000/clario360/file-service
+    tag: "1.0.0"
+  logLevel: warn
+  resources:
+    requests:
+      cpu: 500m
+      memory: 512Mi
+    limits:
+      cpu: "2"
+      memory: 2Gi
+  hpa:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 6
+    targetCPU: 65
+    targetMemory: 75
+  pdb:
+    enabled: true
+    minAvailable: 1
+  config:
+    maxUploadSize: 100MB
+    clamav:
+      enabled: true
+      host: clamd
+      port: 3310
+    presignedUrlExpiryMin: 15
+    quarantineBucket: clario360-quarantine
+    encryptionKeyId: kek-v1
+
+cyberService:
+  replicas: 3
+  image:
+    repository: harbor.internal.corp:5000/clario360/cyber-service
+    tag: "1.0.0"
+  logLevel: warn
+  resources:
+    requests:
+      cpu: "1"
+      memory: 1Gi
+    limits:
+      cpu: "4"
+      memory: 4Gi
+  hpa:
+    enabled: true
+    minReplicas: 3
+    maxReplicas: 10
+    targetCPU: 65
+    targetMemory: 75
+  pdb:
+    enabled: true
+    minAvailable: 2
+  config:
+    scanNetworkWorkers: 200
+    scanNetworkTimeout: 2s
+    scanNetworkMaxIPs: 65536
+    enrichmentCveEnabled: false
+    detectionRuleRefresh: 60s
+
+dataService:
+  replicas: 3
+  image:
+    repository: harbor.internal.corp:5000/clario360/data-service
+    tag: "1.0.0"
+  logLevel: warn
+  resources:
+    requests:
+      cpu: "1"
+      memory: 1Gi
+    limits:
+      cpu: "4"
+      memory: 4Gi
+  hpa:
+    enabled: true
+    minReplicas: 3
+    maxReplicas: 10
+    targetCPU: 65
+    targetMemory: 75
+  pdb:
+    enabled: true
+    minAvailable: 2
+  config:
+    connectorMaxPoolSize: 5
+    discoveryPiiEnabled: true
+    pipelineMaxConcurrent: 10
+
+actaService:
+  replicas: 2
+  image:
+    repository: harbor.internal.corp:5000/clario360/acta-service
+    tag: "1.0.0"
+  logLevel: warn
+  resources:
+    requests:
+      cpu: 500m
+      memory: 512Mi
+    limits:
+      cpu: "2"
+      memory: 2Gi
+  hpa:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 6
+    targetCPU: 65
+    targetMemory: 75
+  pdb:
+    enabled: true
+    minAvailable: 1
+
+lexService:
+  replicas: 2
+  image:
+    repository: harbor.internal.corp:5000/clario360/lex-service
+    tag: "1.0.0"
+  logLevel: warn
+  resources:
+    requests:
+      cpu: 500m
+      memory: 512Mi
+    limits:
+      cpu: "2"
+      memory: 2Gi
+  hpa:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 6
+    targetCPU: 65
+    targetMemory: 75
+  pdb:
+    enabled: true
+    minAvailable: 1
+
+visusService:
+  replicas: 2
+  image:
+    repository: harbor.internal.corp:5000/clario360/visus-service
+    tag: "1.0.0"
+  logLevel: warn
+  resources:
+    requests:
+      cpu: 500m
+      memory: 512Mi
+    limits:
+      cpu: "2"
+      memory: 2Gi
+  hpa:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 6
+    targetCPU: 65
+    targetMemory: 75
+  pdb:
+    enabled: true
+    minAvailable: 1
+
+onboardingService:
+  replicas: 2
+  image:
+    repository: harbor.internal.corp:5000/clario360/onboarding-service
+    tag: "1.0.0"
+  logLevel: warn
+  resources:
+    requests:
+      cpu: 500m
+      memory: 512Mi
+    limits:
+      cpu: "2"
+      memory: 2Gi
+  hpa:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 6
+    targetCPU: 65
+    targetMemory: 75
+  pdb:
+    enabled: true
+    minAvailable: 1
+
+frontend:
+  replicas: 3
+  image:
+    repository: harbor.internal.corp:5000/clario360/frontend
+    tag: "1.0.0"
+  logLevel: warn
+  resources:
+    requests:
+      cpu: 500m
+      memory: 512Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+  hpa:
+    enabled: true
+    minReplicas: 3
+    maxReplicas: 10
+    targetCPU: 65
+    targetMemory: 75
+  pdb:
+    enabled: true
+    minAvailable: 2
+  config:
+    apiBaseUrl: https://api.clario360.internal.corp
+
+# =============================================================================
+# CronJob Overrides — Air-Gapped
+# =============================================================================
+cronjobs:
+  workflowTimerPoll:
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 256Mi
+
+  workflowSlaCheck:
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 256Mi
+
+  workflowInstanceRecovery:
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 256Mi
+
+  notificationDigestDaily:
+    enabled: false
+
+  notificationDigestWeekly:
+    enabled: false
+
+  actaOverdueCheck:
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 256Mi
+
+  actaComplianceCheck:
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 256Mi
+
+  lexExpiryMonitor:
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 256Mi
+
+  lexComplianceMonitor:
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 256Mi
+
+  lexRenewalReminder:
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 256Mi
+
+  cyberDetectionRuleRefresh:
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 256Mi
+
+  visusSchedulerRun:
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 256Mi

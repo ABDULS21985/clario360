@@ -1,0 +1,92 @@
+{{- if .Values.workflowEngine.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "clario360.fullname" . }}-workflow-engine
+  namespace: {{ include "clario360.namespace" . }}
+  labels:
+    {{- include "clario360.componentLabels" (dict "root" . "component" "workflow-engine") | nindent 4 }}
+spec:
+  replicas: {{ .Values.workflowEngine.replicaCount | default 2 }}
+  selector:
+    matchLabels:
+      {{- include "clario360.componentSelectorLabels" (dict "root" . "component" "workflow-engine") | nindent 6 }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/workflow-engine/configmap.yaml") . | sha256sum }}
+        {{- include "clario360.prometheusAnnotations" (dict "metricsPort" "9090") | nindent 8 }}
+      labels:
+        {{- include "clario360.componentSelectorLabels" (dict "root" . "component" "workflow-engine") | nindent 8 }}
+    spec:
+      {{- with .Values.global.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "clario360.serviceAccountName" (dict "root" . "component" "workflow-engine" "svcConfig" .Values.workflowEngine) }}
+      securityContext:
+        {{- include "clario360.podSecurityContext" . | nindent 8 }}
+      containers:
+        - name: workflow-engine
+          securityContext:
+            {{- include "clario360.containerSecurityContext" . | nindent 12 }}
+          image: "{{ .Values.global.imageRegistry }}/{{ .Values.workflowEngine.image.repository }}:{{ .Values.workflowEngine.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.workflowEngine.image.pullPolicy | default "IfNotPresent" }}
+          ports:
+            - name: http
+              containerPort: 8085
+              protocol: TCP
+            - name: metrics
+              containerPort: 9090
+              protocol: TCP
+          envFrom:
+            - configMapRef:
+                name: {{ include "clario360.fullname" . }}-shared-config
+            - configMapRef:
+                name: {{ include "clario360.fullname" . }}-workflow-engine-config
+            - secretRef:
+                name: {{ include "clario360.fullname" . }}-redis-secret
+            - secretRef:
+                name: {{ include "clario360.fullname" . }}-jwt-secret
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "clario360.fullname" . }}-database-secret
+                  key: PLATFORM_DB_URL
+            - name: OTEL_SERVICE_NAME
+              value: "workflow-engine"
+          {{- include "clario360.healthProbes" (dict "portName" "http" "healthPath" "/healthz" "readyPath" "/readyz") | nindent 10 }}
+          resources:
+            {{- toYaml .Values.workflowEngine.resources | nindent 12 }}
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: {{ if eq (default "dev" .Values.global.environment) "production" }}DoNotSchedule{{ else }}ScheduleAnyway{{ end }}
+          labelSelector:
+            matchLabels:
+              {{- include "clario360.componentSelectorLabels" (dict "root" . "component" "workflow-engine") | nindent 14 }}
+      {{- with .Values.workflowEngine.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.workflowEngine.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.workflowEngine.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}

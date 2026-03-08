@@ -8,11 +8,11 @@ import (
 type TenantStatus string
 
 const (
-	TenantStatusActive    TenantStatus = "active"
-	TenantStatusInactive  TenantStatus = "inactive"
-	TenantStatusSuspended TenantStatus = "suspended"
-	TenantStatusTrial     TenantStatus = "trial"
-	TenantStatusOnboarding TenantStatus = "onboarding"
+	TenantStatusActive        TenantStatus = "active"
+	TenantStatusInactive      TenantStatus = "inactive"
+	TenantStatusSuspended     TenantStatus = "suspended"
+	TenantStatusTrial         TenantStatus = "trial"
+	TenantStatusOnboarding    TenantStatus = "onboarding"
 	TenantStatusDeprovisioned TenantStatus = "deprovisioned"
 )
 

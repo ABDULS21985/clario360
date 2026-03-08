@@ -1,0 +1,14 @@
+{{- if and .Values.notificationService.enabled .Values.notificationService.pdb.enabled }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "clario360.fullname" . }}-notification-service
+  namespace: {{ include "clario360.namespace" . }}
+  labels:
+    {{- include "clario360.componentLabels" (dict "root" . "component" "notification-service") | nindent 4 }}
+spec:
+  minAvailable: {{ .Values.notificationService.pdb.minAvailable | default 1 }}
+  selector:
+    matchLabels:
+      {{- include "clario360.componentSelectorLabels" (dict "root" . "component" "notification-service") | nindent 6 }}
+{{- end }}

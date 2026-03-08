@@ -22,16 +22,16 @@ import (
 )
 
 const (
-	registrationPurpose      = "registration"
-	registrationIPWindow     = time.Hour
-	registrationIPLimit      = int64(5)
-	registrationEmailWindow  = 24 * time.Hour
-	registrationEmailLimit   = int64(1)
-	verifyEmailRateWindow    = 10 * time.Minute
-	verifyEmailRateLimit     = int64(20)
-	resendOTPRateWindow      = 60 * time.Second
-	resendOTPRateLimit       = int64(1)
-	emailVerificationTTL     = 10 * time.Minute
+	registrationPurpose     = "registration"
+	registrationIPWindow    = time.Hour
+	registrationIPLimit     = int64(5)
+	registrationEmailWindow = 24 * time.Hour
+	registrationEmailLimit  = int64(1)
+	verifyEmailRateWindow   = 10 * time.Minute
+	verifyEmailRateLimit    = int64(20)
+	resendOTPRateWindow     = 60 * time.Second
+	resendOTPRateLimit      = int64(1)
+	emailVerificationTTL    = 10 * time.Minute
 )
 
 type RegistrationService struct {
@@ -85,6 +85,12 @@ func NewRegistrationService(
 func (s *RegistrationService) Register(ctx context.Context, req onboardingdto.RegisterRequest, ip, userAgent string) (*onboardingdto.RegisterResponse, error) {
 	email := normalizeEmail(req.AdminEmail)
 	if err := validateRegistrationInput(email, req.AdminPassword, req.OrganizationName, req.Country); err != nil {
+		if s.metrics != nil && s.metrics.registrationsTotal != nil {
+			s.metrics.registrationsTotal.WithLabelValues("failed").Inc()
+		}
+		return nil, err
+	}
+	if err := validateIndustry(req.Industry); err != nil {
 		if s.metrics != nil && s.metrics.registrationsTotal != nil {
 			s.metrics.registrationsTotal.WithLabelValues("failed").Inc()
 		}

@@ -1,0 +1,15 @@
+{{- if .Values.visusService.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "clario360.componentName" (dict "root" . "component" "visus-service") }}-config
+  namespace: {{ include "clario360.namespace" . }}
+  labels:
+    {{- include "clario360.componentLabels" (dict "root" . "component" "visus-service") | nindent 4 }}
+data:
+  VISUS_HTTP_PORT: "8088"
+  VISUS_ADMIN_PORT: "9088"
+  {{- with .Values.visusService.config }}
+  {{- toYaml . | nindent 2 }}
+  {{- end }}
+{{- end }}

@@ -1,0 +1,126 @@
+{{- if .Values.cyberService.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "clario360.componentName" (dict "root" . "component" "cyber-service") }}
+  namespace: {{ include "clario360.namespace" . }}
+  labels:
+    {{- include "clario360.componentLabels" (dict "root" . "component" "cyber-service") | nindent 4 }}
+spec:
+  {{- if not .Values.cyberService.autoscaling.enabled }}
+  replicas: {{ .Values.cyberService.replicaCount | default 2 }}
+  {{- end }}
+  revisionHistoryLimit: {{ .Values.cyberService.revisionHistoryLimit | default 5 }}
+  selector:
+    matchLabels:
+      {{- include "clario360.componentSelectorLabels" (dict "root" . "component" "cyber-service") | nindent 6 }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/cyber-service/configmap.yaml") . | sha256sum }}
+        {{- include "clario360.prometheusAnnotations" (dict "metricsPort" "9090") | nindent 8 }}
+        {{- with .Values.cyberService.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      labels:
+        {{- include "clario360.componentSelectorLabels" (dict "root" . "component" "cyber-service") | nindent 8 }}
+        {{- with .Values.cyberService.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- with .Values.global.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "clario360.serviceAccountName" (dict "root" . "component" "cyber-service" "svcConfig" .Values.cyberService) }}
+      securityContext:
+        {{- include "clario360.podSecurityContext" . | nindent 8 }}
+      terminationGracePeriodSeconds: {{ .Values.cyberService.terminationGracePeriodSeconds | default 30 }}
+      containers:
+        - name: cyber-service
+          image: {{ include "clario360.image" (dict "imageConfig" .Values.cyberService.image "root" . "defaultRepo" "clario360/cyber-service") }}
+          imagePullPolicy: {{ .Values.cyberService.image.pullPolicy | default "IfNotPresent" }}
+          securityContext:
+            {{- include "clario360.containerSecurityContext" . | nindent 12 }}
+          ports:
+            - name: http
+              containerPort: 8090
+              protocol: TCP
+            - name: metrics
+              containerPort: 9090
+              protocol: TCP
+          envFrom:
+            - configMapRef:
+                name: {{ include "clario360.fullname" . }}-shared-config
+            - configMapRef:
+                name: {{ include "clario360.componentName" (dict "root" . "component" "cyber-service") }}-config
+          env:
+            - name: CYBER_DB_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "clario360.fullname" . }}-database-credentials
+                  key: CYBER_DB_URL
+            - name: CYBER_REDIS_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "clario360.fullname" . }}-redis-credentials
+                  key: REDIS_URL
+            - name: CYBER_KAFKA_BROKERS
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ include "clario360.fullname" . }}-shared-config
+                  key: KAFKA_BROKERS
+            - name: CYBER_KAFKA_GROUP_ID
+              value: "cyber-service"
+            - name: CYBER_JWT_PUBLIC_KEY_PATH
+              value: "/etc/secrets/jwt-public-key.pem"
+            - name: OTEL_SERVICE_NAME
+              value: "cyber-service"
+            - name: METRICS_PORT
+              value: "9090"
+            {{- with .Values.cyberService.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- include "clario360.healthProbes" (dict "portName" "http" "healthPath" "/healthz" "readyPath" "/readyz") | nindent 10 }}
+          resources:
+            {{- toYaml .Values.cyberService.resources | nindent 12 }}
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+            - name: jwt-public-key
+              mountPath: /etc/secrets
+              readOnly: true
+      volumes:
+        - name: tmp
+          emptyDir: {}
+        - name: jwt-public-key
+          secret:
+            secretName: {{ include "clario360.fullname" . }}-jwt-keys
+            items:
+              - key: jwt-public-key.pem
+                path: jwt-public-key.pem
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              {{- include "clario360.componentSelectorLabels" (dict "root" . "component" "cyber-service") | nindent 14 }}
+      {{- with .Values.cyberService.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.cyberService.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.cyberService.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}

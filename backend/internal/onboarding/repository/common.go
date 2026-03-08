@@ -55,21 +55,21 @@ func marshalJSON(value any) []byte {
 func scanOnboarding(row interface{ Scan(...any) error }) (*onboardingmodel.OnboardingStatus, error) {
 	item := &onboardingmodel.OnboardingStatus{}
 	var (
-		orgIndustry      *string
-		orgSize          *string
-		stepsCompleted   []int32
-		activeSuites     []string
-		logoFileID       *uuid.UUID
-		primaryColor     *string
-		accentColor      *string
-		provisioningErr  *string
-		referralSource   *string
-		emailVerifiedAt  *time.Time
+		orgIndustry       *string
+		orgSize           *string
+		stepsCompleted    []int32
+		activeSuites      []string
+		logoFileID        *uuid.UUID
+		primaryColor      *string
+		accentColor       *string
+		provisioningErr   *string
+		referralSource    *string
+		emailVerifiedAt   *time.Time
 		wizardCompletedAt *time.Time
-		provStartedAt    *time.Time
-		provCompletedAt  *time.Time
-		orgName          *string
-		orgCity          *string
+		provStartedAt     *time.Time
+		provCompletedAt   *time.Time
+		orgName           *string
+		orgCity           *string
 	)
 	if err := row.Scan(
 		&item.ID,

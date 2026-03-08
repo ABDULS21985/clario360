@@ -1,0 +1,14 @@
+{{- if and .Values.auditService.enabled .Values.auditService.pdb.enabled }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "clario360.fullname" . }}-audit-service
+  namespace: {{ include "clario360.namespace" . }}
+  labels:
+    {{- include "clario360.componentLabels" (dict "root" . "component" "audit-service") | nindent 4 }}
+spec:
+  minAvailable: {{ .Values.auditService.pdb.minAvailable | default 1 }}
+  selector:
+    matchLabels:
+      {{- include "clario360.componentSelectorLabels" (dict "root" . "component" "audit-service") | nindent 6 }}
+{{- end }}

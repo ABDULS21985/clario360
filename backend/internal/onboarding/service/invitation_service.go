@@ -234,7 +234,7 @@ func (s *InvitationService) ValidateToken(ctx context.Context, token string) (*o
 			if s.metrics != nil && s.metrics.invitationsTotal != nil {
 				s.metrics.invitationsTotal.WithLabelValues("expired").Inc()
 			}
-			return nil, fmt.Errorf("this invitation has expired: %w", iammodel.ErrInvalidToken)
+			return nil, fmt.Errorf("this invitation has expired: %w", onboardingmodel.ErrExpiredInvitation)
 		}
 		role, _ := s.roleRepo.GetBySlug(ctx, candidate.TenantID.String(), candidate.RoleSlug)
 		roleName := candidate.RoleSlug
@@ -284,14 +284,12 @@ func (s *InvitationService) Accept(ctx context.Context, req onboardingdto.Accept
 		UserID:       userID,
 		TenantID:     details.TenantID,
 		RoleID:       uuid.MustParse(role.ID),
+		InvitationID: &details.InvitationID,
 		Email:        details.Email,
 		FirstName:    strings.TrimSpace(req.FirstName),
 		LastName:     strings.TrimSpace(req.LastName),
 		PasswordHash: string(passwordHash),
 	}); err != nil {
-		return nil, err
-	}
-	if err := s.invitationRepo.MarkAccepted(ctx, details.InvitationID, userID); err != nil {
 		return nil, err
 	}
 	user, err := s.userRepo.GetByID(ctx, userID.String())

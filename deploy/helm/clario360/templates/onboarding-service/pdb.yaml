@@ -1,0 +1,22 @@
+{{- if .Values.onboardingService.enabled }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "clario360.componentName" (dict "root" . "component" "onboarding-service") }}
+  namespace: {{ include "clario360.namespace" . }}
+  labels:
+    {{- include "clario360.componentLabels" (dict "root" . "component" "onboarding-service") | nindent 4 }}
+spec:
+  {{- if .Values.onboardingService.pdb }}
+  {{- if .Values.onboardingService.pdb.minAvailable }}
+  minAvailable: {{ .Values.onboardingService.pdb.minAvailable }}
+  {{- else }}
+  maxUnavailable: {{ .Values.onboardingService.pdb.maxUnavailable | default 1 }}
+  {{- end }}
+  {{- else }}
+  maxUnavailable: 1
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "clario360.componentSelectorLabels" (dict "root" . "component" "onboarding-service") | nindent 6 }}
+{{- end }}

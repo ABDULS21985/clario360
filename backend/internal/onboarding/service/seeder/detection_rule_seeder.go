@@ -7,7 +7,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	cybermodel "github.com/clario360/platform/internal/cyber/model"
 	cyberservice "github.com/clario360/platform/internal/cyber/service"
 )
 
@@ -58,5 +57,3 @@ func stringArray(values []string) []string {
 	}
 	return values
 }
-
-var _ cybermodel.DetectionRule

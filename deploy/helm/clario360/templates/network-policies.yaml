@@ -1,0 +1,421 @@
+{{/*
+Network Policies — zero-trust model.
+Only created when .Values.networkPolicies.enabled is true.
+Policies:
+  1. Default deny all ingress + egress
+  2. Allow DNS egress (kube-system, port 53 UDP+TCP)
+  3. API Gateway: ingress from ingress controller, egress to all backends
+  4. Backend services: ingress from API gateway only, egress to Postgres/Redis/Kafka
+  5. MinIO-consuming services: additional egress to MinIO (9000)
+  6. Visus: egress to all other backend services
+  7. Notification: egress to SMTP (587, 465)
+  8. Frontend: ingress from ingress controller, egress to API gateway
+  9. Migration/seed jobs: egress to DB, Kafka, MinIO
+*/}}
+{{- if .Values.networkPolicies.enabled }}
+
+{{/* ================================================================
+     1. Default deny all ingress and egress
+     ================================================================ */}}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "clario360.fullname" . }}-default-deny
+  namespace: {{ include "clario360.namespace" . }}
+  labels:
+    {{- include "clario360.labels" . | nindent 4 }}
+    app.kubernetes.io/component: network-policy
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+    - Egress
+---
+{{/* ================================================================
+     2. Allow DNS egress (all pods -> kube-dns on port 53)
+     ================================================================ */}}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "clario360.fullname" . }}-allow-dns
+  namespace: {{ include "clario360.namespace" . }}
+  labels:
+    {{- include "clario360.labels" . | nindent 4 }}
+    app.kubernetes.io/component: network-policy
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/part-of: clario360
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+---
+{{/* ================================================================
+     3. API Gateway — ingress from ingress controller, egress to backends
+     ================================================================ */}}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "clario360.componentName" (dict "root" . "component" "api-gateway") }}-netpol
+  namespace: {{ include "clario360.namespace" . }}
+  labels:
+    {{- include "clario360.componentLabels" (dict "root" . "component" "api-gateway") | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "clario360.componentSelectorLabels" (dict "root" . "component" "api-gateway") | nindent 6 }}
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # From ingress controller (nginx / envoy / etc.)
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ .Values.networkPolicies.ingressNamespace | default "ingress-nginx" }}
+      ports:
+        - protocol: TCP
+          port: 8080
+        - protocol: TCP
+          port: 9090
+  egress:
+    # To all backend services within the namespace
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/part-of: clario360
+      ports:
+        - protocol: TCP
+          port: 8081
+        - protocol: TCP
+          port: 8084
+        - protocol: TCP
+          port: 8085
+        - protocol: TCP
+          port: 8086
+        - protocol: TCP
+          port: 8087
+        - protocol: TCP
+          port: 8088
+        - protocol: TCP
+          port: 8089
+        - protocol: TCP
+          port: 8090
+        - protocol: TCP
+          port: 8091
+        - protocol: TCP
+          port: 8092
+        - protocol: TCP
+          port: 8093
+    # Redis for rate limiting / sessions
+    - ports:
+        - protocol: TCP
+          port: 6379
+---
+{{/* ================================================================
+     4. Backend services — ingress from api-gateway, egress to infra
+     Each backend service follows the same pattern: accept traffic only
+     from the API gateway and talk only to PostgreSQL, Redis, and Kafka.
+     ================================================================ */}}
+
+{{- $backendServices := list "iam-service" "audit-service" "workflow-engine" "acta-service" "lex-service" "onboarding-service" }}
+{{- range $svc := $backendServices }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "clario360.componentName" (dict "root" $ "component" $svc) }}-netpol
+  namespace: {{ include "clario360.namespace" $ }}
+  labels:
+    {{- include "clario360.componentLabels" (dict "root" $ "component" $svc) | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "clario360.componentSelectorLabels" (dict "root" $ "component" $svc) | nindent 6 }}
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              {{- include "clario360.componentSelectorLabels" (dict "root" $ "component" "api-gateway") | nindent 14 }}
+      ports:
+        - protocol: TCP
+  egress:
+    # PostgreSQL
+    - ports:
+        - protocol: TCP
+          port: 5432
+    # Redis
+    - ports:
+        - protocol: TCP
+          port: 6379
+    # Kafka
+    - ports:
+        - protocol: TCP
+          port: 9092
+{{- end }}
+---
+{{/* ================================================================
+     5. MinIO-consuming services: file-service, audit-service, data-service
+     Same as backend + egress to MinIO on 9000
+     ================================================================ */}}
+
+{{- $minioServices := list "file-service" "data-service" "cyber-service" }}
+{{- range $svc := $minioServices }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "clario360.componentName" (dict "root" $ "component" $svc) }}-netpol
+  namespace: {{ include "clario360.namespace" $ }}
+  labels:
+    {{- include "clario360.componentLabels" (dict "root" $ "component" $svc) | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "clario360.componentSelectorLabels" (dict "root" $ "component" $svc) | nindent 6 }}
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              {{- include "clario360.componentSelectorLabels" (dict "root" $ "component" "api-gateway") | nindent 14 }}
+      ports:
+        - protocol: TCP
+  egress:
+    # PostgreSQL
+    - ports:
+        - protocol: TCP
+          port: 5432
+    # Redis
+    - ports:
+        - protocol: TCP
+          port: 6379
+    # Kafka
+    - ports:
+        - protocol: TCP
+          port: 9092
+    # MinIO / S3
+    - ports:
+        - protocol: TCP
+          port: 9000
+        - protocol: TCP
+          port: 443
+{{- end }}
+---
+{{/* ================================================================
+     Audit service — also needs MinIO egress for exports
+     (override the generic backend rule above)
+     ================================================================ */}}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "clario360.componentName" (dict "root" . "component" "audit-service") }}-minio-netpol
+  namespace: {{ include "clario360.namespace" . }}
+  labels:
+    {{- include "clario360.componentLabels" (dict "root" . "component" "audit-service") | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "clario360.componentSelectorLabels" (dict "root" . "component" "audit-service") | nindent 6 }}
+  policyTypes:
+    - Egress
+  egress:
+    # MinIO / S3
+    - ports:
+        - protocol: TCP
+          port: 9000
+        - protocol: TCP
+          port: 443
+---
+{{/* ================================================================
+     6. Visus — egress to all other backend services (cross-suite)
+     ================================================================ */}}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "clario360.componentName" (dict "root" . "component" "visus-service") }}-netpol
+  namespace: {{ include "clario360.namespace" . }}
+  labels:
+    {{- include "clario360.componentLabels" (dict "root" . "component" "visus-service") | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "clario360.componentSelectorLabels" (dict "root" . "component" "visus-service") | nindent 6 }}
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              {{- include "clario360.componentSelectorLabels" (dict "root" . "component" "api-gateway") | nindent 14 }}
+      ports:
+        - protocol: TCP
+  egress:
+    # PostgreSQL
+    - ports:
+        - protocol: TCP
+          port: 5432
+    # Redis
+    - ports:
+        - protocol: TCP
+          port: 6379
+    # Kafka
+    - ports:
+        - protocol: TCP
+          port: 9092
+    # Cross-suite calls to other backend services
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/part-of: clario360
+      ports:
+        - protocol: TCP
+          port: 8081
+        - protocol: TCP
+          port: 8084
+        - protocol: TCP
+          port: 8085
+        - protocol: TCP
+          port: 8086
+        - protocol: TCP
+          port: 8087
+        - protocol: TCP
+          port: 8089
+        - protocol: TCP
+          port: 8090
+        - protocol: TCP
+          port: 8091
+---
+{{/* ================================================================
+     7. Notification — egress to SMTP (587, 465) + SendGrid HTTPS
+     ================================================================ */}}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "clario360.componentName" (dict "root" . "component" "notification-service") }}-netpol
+  namespace: {{ include "clario360.namespace" . }}
+  labels:
+    {{- include "clario360.componentLabels" (dict "root" . "component" "notification-service") | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "clario360.componentSelectorLabels" (dict "root" . "component" "notification-service") | nindent 6 }}
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              {{- include "clario360.componentSelectorLabels" (dict "root" . "component" "api-gateway") | nindent 14 }}
+      ports:
+        - protocol: TCP
+  egress:
+    # PostgreSQL
+    - ports:
+        - protocol: TCP
+          port: 5432
+    # Redis
+    - ports:
+        - protocol: TCP
+          port: 6379
+    # Kafka
+    - ports:
+        - protocol: TCP
+          port: 9092
+    # SMTP (STARTTLS + implicit TLS)
+    - ports:
+        - protocol: TCP
+          port: 587
+        - protocol: TCP
+          port: 465
+    # HTTPS for SendGrid / external webhook delivery
+    - ports:
+        - protocol: TCP
+          port: 443
+---
+{{/* ================================================================
+     8. Frontend — ingress from ingress controller, egress to API gateway
+     ================================================================ */}}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "clario360.componentName" (dict "root" . "component" "frontend") }}-netpol
+  namespace: {{ include "clario360.namespace" . }}
+  labels:
+    {{- include "clario360.componentLabels" (dict "root" . "component" "frontend") | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "clario360.componentSelectorLabels" (dict "root" . "component" "frontend") | nindent 6 }}
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ .Values.networkPolicies.ingressNamespace | default "ingress-nginx" }}
+      ports:
+        - protocol: TCP
+          port: 3000
+  egress:
+    # API Gateway only
+    - to:
+        - podSelector:
+            matchLabels:
+              {{- include "clario360.componentSelectorLabels" (dict "root" . "component" "api-gateway") | nindent 14 }}
+      ports:
+        - protocol: TCP
+          port: 8080
+---
+{{/* ================================================================
+     9. Migration / seed jobs — egress to DB, Kafka, MinIO
+     Jobs are labelled with app.kubernetes.io/component: migration
+     ================================================================ */}}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "clario360.fullname" . }}-migration-jobs-netpol
+  namespace: {{ include "clario360.namespace" . }}
+  labels:
+    {{- include "clario360.labels" . | nindent 4 }}
+    app.kubernetes.io/component: network-policy
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/component: migration
+  policyTypes:
+    - Egress
+  egress:
+    # PostgreSQL
+    - ports:
+        - protocol: TCP
+          port: 5432
+    # Kafka
+    - ports:
+        - protocol: TCP
+          port: 9092
+    # MinIO
+    - ports:
+        - protocol: TCP
+          port: 9000
+        - protocol: TCP
+          port: 443
+
+{{- end }}

@@ -1,0 +1,309 @@
+{{/*
+Per-service ConfigMaps — non-sensitive, service-specific configuration.
+Each service gets its own ConfigMap, created only when the service is enabled.
+*/}}
+
+{{/* ================================================================
+     API Gateway
+     ================================================================ */}}
+{{- if .Values.services.apiGateway.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "clario360.componentName" (dict "root" . "component" "api-gateway") }}-config
+  namespace: {{ include "clario360.namespace" . }}
+  labels:
+    {{- include "clario360.componentLabels" (dict "root" . "component" "api-gateway") | nindent 4 }}
+data:
+  GW_HTTP_PORT: "8080"
+  GW_ADMIN_PORT: "9090"
+  GW_CORS_ALLOWED_ORIGINS: {{ .Values.services.apiGateway.corsAllowedOrigins | default "*" | quote }}
+  GW_MAX_REQUEST_BODY_MB: {{ .Values.services.apiGateway.maxRequestBodyMb | default "10" | quote }}
+  GW_PROXY_TIMEOUT_SEC: {{ .Values.services.apiGateway.proxyTimeoutSec | default "30" | quote }}
+  GW_READ_TIMEOUT_SEC: {{ .Values.services.apiGateway.readTimeoutSec | default "15" | quote }}
+  GW_WRITE_TIMEOUT_SEC: {{ .Values.services.apiGateway.writeTimeoutSec | default "15" | quote }}
+  # Rate limiting
+  GW_RATELIMIT_ENABLED: {{ .Values.services.apiGateway.rateLimit.enabled | default "true" | quote }}
+  GW_RATELIMIT_DEFAULT_RPM: {{ .Values.services.apiGateway.rateLimit.defaultRpm | default "600" | quote }}
+  GW_RATELIMIT_BURST_SIZE: {{ .Values.services.apiGateway.rateLimit.burstSize | default "50" | quote }}
+  # Circuit breaker
+  GW_CB_MAX_REQUESTS: {{ .Values.services.apiGateway.circuitBreaker.maxRequests | default "5" | quote }}
+  GW_CB_INTERVAL_SEC: {{ .Values.services.apiGateway.circuitBreaker.intervalSec | default "60" | quote }}
+  GW_CB_TIMEOUT_SEC: {{ .Values.services.apiGateway.circuitBreaker.timeoutSec | default "30" | quote }}
+  GW_CB_FAILURE_RATIO: {{ .Values.services.apiGateway.circuitBreaker.failureRatio | default "0.6" | quote }}
+  # Upstream service URLs (K8s internal DNS)
+  GW_SVC_URL_IAM: "http://{{ include "clario360.componentName" (dict "root" . "component" "iam-service") }}:8081"
+  GW_SVC_URL_AUDIT: "http://{{ include "clario360.componentName" (dict "root" . "component" "audit-service") }}:8084"
+  GW_SVC_URL_WORKFLOW: "http://{{ include "clario360.componentName" (dict "root" . "component" "workflow-engine") }}:8085"
+  GW_SVC_URL_ACTA: "http://{{ include "clario360.componentName" (dict "root" . "component" "acta-service") }}:8086"
+  GW_SVC_URL_LEX: "http://{{ include "clario360.componentName" (dict "root" . "component" "lex-service") }}:8087"
+  GW_SVC_URL_VISUS: "http://{{ include "clario360.componentName" (dict "root" . "component" "visus-service") }}:8088"
+  GW_SVC_URL_NOTIFICATION: "http://{{ include "clario360.componentName" (dict "root" . "component" "notification-service") }}:8089"
+  GW_SVC_URL_CYBER: "http://{{ include "clario360.componentName" (dict "root" . "component" "cyber-service") }}:8090"
+  GW_SVC_URL_DATA: "http://{{ include "clario360.componentName" (dict "root" . "component" "data-service") }}:8091"
+  GW_SVC_URL_FILE: "http://{{ include "clario360.componentName" (dict "root" . "component" "file-service") }}:8092"
+  GW_SVC_URL_ONBOARDING: "http://{{ include "clario360.componentName" (dict "root" . "component" "onboarding-service") }}:8093"
+{{- end }}
+---
+{{/* ================================================================
+     IAM Service
+     ================================================================ */}}
+{{- if .Values.services.iamService.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "clario360.componentName" (dict "root" . "component" "iam-service") }}-config
+  namespace: {{ include "clario360.namespace" . }}
+  labels:
+    {{- include "clario360.componentLabels" (dict "root" . "component" "iam-service") | nindent 4 }}
+data:
+  AUTH_HTTP_PORT: "8081"
+  AUTH_ADMIN_PORT: "9081"
+  AUTH_BCRYPT_COST: {{ .Values.services.iamService.bcryptCost | default "12" | quote }}
+  AUTH_JWT_ACCESS_TOKEN_TTL: {{ .Values.services.iamService.jwtAccessTokenTtl | default "15m" | quote }}
+  AUTH_JWT_REFRESH_TOKEN_TTL: {{ .Values.services.iamService.jwtRefreshTokenTtl | default "7d" | quote }}
+  AUTH_JWT_ISSUER: {{ .Values.services.iamService.jwtIssuer | default "clario360" | quote }}
+{{- end }}
+---
+{{/* ================================================================
+     Audit Service
+     ================================================================ */}}
+{{- if .Values.services.auditService.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "clario360.componentName" (dict "root" . "component" "audit-service") }}-config
+  namespace: {{ include "clario360.namespace" . }}
+  labels:
+    {{- include "clario360.componentLabels" (dict "root" . "component" "audit-service") | nindent 4 }}
+data:
+  AUDIT_HTTP_PORT: "8084"
+  AUDIT_ADMIN_PORT: "9084"
+  AUDIT_BATCH_SIZE: {{ .Values.services.auditService.batchSize | default "100" | quote }}
+  AUDIT_BATCH_WINDOW_MS: {{ .Values.services.auditService.batchWindowMs | default "5000" | quote }}
+  AUDIT_EXPORT_ASYNC_THRESHOLD: {{ .Values.services.auditService.exportAsyncThreshold | default "1000" | quote }}
+  AUDIT_MINIO_BUCKET: {{ .Values.services.auditService.minioBucket | default "audit-exports" | quote }}
+  AUDIT_RATELIMIT_PER_MINUTE: {{ .Values.services.auditService.rateLimitPerMinute | default "300" | quote }}
+{{- end }}
+---
+{{/* ================================================================
+     Workflow Engine
+     ================================================================ */}}
+{{- if .Values.services.workflowEngine.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "clario360.componentName" (dict "root" . "component" "workflow-engine") }}-config
+  namespace: {{ include "clario360.namespace" . }}
+  labels:
+    {{- include "clario360.componentLabels" (dict "root" . "component" "workflow-engine") | nindent 4 }}
+data:
+  WF_HTTP_PORT: "8085"
+  WF_ADMIN_PORT: "9085"
+  WF_SERVICE_TASK_TIMEOUT_SEC: {{ .Values.services.workflowEngine.serviceTaskTimeoutSec | default "300" | quote }}
+  WF_SERVICE_TASK_MAX_RETRIES: {{ .Values.services.workflowEngine.serviceTaskMaxRetries | default "3" | quote }}
+  WF_TIMER_POLL_INTERVAL_SEC: {{ .Values.services.workflowEngine.timerPollIntervalSec | default "10" | quote }}
+  WF_SLA_CHECK_INTERVAL_SEC: {{ .Values.services.workflowEngine.slaCheckIntervalSec | default "60" | quote }}
+{{- end }}
+---
+{{/* ================================================================
+     Notification Service
+     ================================================================ */}}
+{{- if .Values.services.notificationService.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "clario360.componentName" (dict "root" . "component" "notification-service") }}-config
+  namespace: {{ include "clario360.namespace" . }}
+  labels:
+    {{- include "clario360.componentLabels" (dict "root" . "component" "notification-service") | nindent 4 }}
+data:
+  NOTIF_HTTP_PORT: "8089"
+  NOTIF_ADMIN_PORT: "9089"
+  NOTIF_WS_MAX_CONNECTIONS_PER_USER: {{ .Values.services.notificationService.wsMaxConnectionsPerUser | default "5" | quote }}
+  NOTIF_WS_PING_INTERVAL_SEC: {{ .Values.services.notificationService.wsPingIntervalSec | default "30" | quote }}
+  NOTIF_DIGEST_ENABLED: {{ .Values.services.notificationService.digestEnabled | default "true" | quote }}
+  NOTIF_DIGEST_DAILY_UTC_HOUR: {{ .Values.services.notificationService.digestDailyUtcHour | default "8" | quote }}
+  NOTIF_RATE_LIMIT_PER_MINUTE: {{ .Values.services.notificationService.rateLimitPerMinute | default "120" | quote }}
+  NOTIF_ENVIRONMENT: {{ .Values.global.environment | quote }}
+  NOTIF_EMAIL_PROVIDER: {{ .Values.services.notificationService.emailProvider | default "smtp" | quote }}
+{{- end }}
+---
+{{/* ================================================================
+     File Service
+     ================================================================ */}}
+{{- if .Values.services.fileService.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "clario360.componentName" (dict "root" . "component" "file-service") }}-config
+  namespace: {{ include "clario360.namespace" . }}
+  labels:
+    {{- include "clario360.componentLabels" (dict "root" . "component" "file-service") | nindent 4 }}
+data:
+  FILE_HTTP_PORT: "8092"
+  FILE_ADMIN_PORT: "9092"
+  FILE_MINIO_USE_SSL: {{ .Values.global.minio.useSsl | default "true" | quote }}
+  FILE_MINIO_REGION: {{ .Values.services.fileService.minioRegion | default "us-east-1" | quote }}
+  FILE_MINIO_BUCKET_PREFIX: {{ .Values.services.fileService.minioBucketPrefix | default "clario360" | quote }}
+  FILE_CLAMAV_ADDRESS: {{ .Values.services.fileService.clamavAddress | default "clamav:3310" | quote }}
+  FILE_CLAMAV_TIMEOUT_SEC: {{ .Values.services.fileService.clamavTimeoutSec | default "30" | quote }}
+  FILE_MAX_UPLOAD_SIZE_MB: {{ .Values.services.fileService.maxUploadSizeMb | default "100" | quote }}
+  FILE_QUARANTINE_BUCKET: {{ .Values.services.fileService.quarantineBucket | default "quarantine" | quote }}
+  FILE_ENCRYPTION_KEY_ID: {{ .Values.services.fileService.encryptionKeyId | default "alias/clario360-files" | quote }}
+  FILE_PRESIGNED_URL_EXPIRY_MIN: {{ .Values.services.fileService.presignedUrlExpiryMin | default "15" | quote }}
+  FILE_TEMP_EXPIRY_DAYS: {{ .Values.services.fileService.tempExpiryDays | default "7" | quote }}
+  FILE_ENVIRONMENT: {{ .Values.global.environment | quote }}
+{{- end }}
+---
+{{/* ================================================================
+     Cyber Service
+     ================================================================ */}}
+{{- if .Values.services.cyberService.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "clario360.componentName" (dict "root" . "component" "cyber-service") }}-config
+  namespace: {{ include "clario360.namespace" . }}
+  labels:
+    {{- include "clario360.componentLabels" (dict "root" . "component" "cyber-service") | nindent 4 }}
+data:
+  CYBER_HTTP_PORT: "8090"
+  CYBER_ADMIN_PORT: "9090"
+  CYBER_DB_MIN_CONNS: {{ .Values.services.cyberService.dbMinConns | default "2" | quote }}
+  CYBER_DB_MAX_CONNS: {{ .Values.services.cyberService.dbMaxConns | default "20" | quote }}
+  CYBER_SCAN_NETWORK_WORKERS: {{ .Values.services.cyberService.scanNetworkWorkers | default "10" | quote }}
+  CYBER_SCAN_NETWORK_TIMEOUT_SEC: {{ .Values.services.cyberService.scanNetworkTimeoutSec | default "300" | quote }}
+  CYBER_SCAN_NETWORK_MAX_IPS: {{ .Values.services.cyberService.scanNetworkMaxIps | default "65536" | quote }}
+  CYBER_ENRICHMENT_CVE_ENABLED: {{ .Values.services.cyberService.enrichmentCveEnabled | default "true" | quote }}
+  CYBER_DETECTION_RULE_REFRESH_SEC: {{ .Values.services.cyberService.detectionRuleRefreshSec | default "300" | quote }}
+{{- end }}
+---
+{{/* ================================================================
+     Data Service
+     ================================================================ */}}
+{{- if .Values.services.dataService.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "clario360.componentName" (dict "root" . "component" "data-service") }}-config
+  namespace: {{ include "clario360.namespace" . }}
+  labels:
+    {{- include "clario360.componentLabels" (dict "root" . "component" "data-service") | nindent 4 }}
+data:
+  DATA_HTTP_PORT: "8091"
+  DATA_ADMIN_PORT: "9091"
+  DATA_DB_MIN_CONNS: {{ .Values.services.dataService.dbMinConns | default "2" | quote }}
+  DATA_DB_MAX_CONNS: {{ .Values.services.dataService.dbMaxConns | default "20" | quote }}
+  DATA_CONNECTOR_MAX_POOL_SIZE: {{ .Values.services.dataService.connectorMaxPoolSize | default "50" | quote }}
+  DATA_DISCOVERY_PII_ENABLED: {{ .Values.services.dataService.discoveryPiiEnabled | default "true" | quote }}
+  DATA_PIPELINE_MAX_CONCURRENT: {{ .Values.services.dataService.pipelineMaxConcurrent | default "10" | quote }}
+{{- end }}
+---
+{{/* ================================================================
+     Acta Service
+     ================================================================ */}}
+{{- if .Values.services.actaService.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "clario360.componentName" (dict "root" . "component" "acta-service") }}-config
+  namespace: {{ include "clario360.namespace" . }}
+  labels:
+    {{- include "clario360.componentLabels" (dict "root" . "component" "acta-service") | nindent 4 }}
+data:
+  ACTA_HTTP_PORT: "8086"
+  ACTA_ADMIN_PORT: "9086"
+  ACTA_KAFKA_GROUP_ID: {{ .Values.services.actaService.kafkaGroupId | default "acta-service" | quote }}
+  ACTA_KAFKA_TOPIC: {{ .Values.services.actaService.kafkaTopic | default "acta.events" | quote }}
+  ACTA_RATE_LIMIT_PER_MINUTE: {{ .Values.services.actaService.rateLimitPerMinute | default "300" | quote }}
+  ACTA_DASHBOARD_CACHE_TTL: {{ .Values.services.actaService.dashboardCacheTtl | default "60s" | quote }}
+  ACTA_OVERDUE_CHECK_INTERVAL: {{ .Values.services.actaService.overdueCheckInterval | default "5m" | quote }}
+  ACTA_COMPLIANCE_CHECK_INTERVAL: {{ .Values.services.actaService.complianceCheckInterval | default "1h" | quote }}
+  ACTA_COMPLIANCE_CHECK_HOUR_UTC: {{ .Values.services.actaService.complianceCheckHourUtc | default "2" | quote }}
+{{- end }}
+---
+{{/* ================================================================
+     Lex Service
+     ================================================================ */}}
+{{- if .Values.services.lexService.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "clario360.componentName" (dict "root" . "component" "lex-service") }}-config
+  namespace: {{ include "clario360.namespace" . }}
+  labels:
+    {{- include "clario360.componentLabels" (dict "root" . "component" "lex-service") | nindent 4 }}
+data:
+  LEX_HTTP_PORT: "8087"
+  LEX_ADMIN_PORT: "9087"
+  LEX_KAFKA_GROUP_ID: {{ .Values.services.lexService.kafkaGroupId | default "lex-service" | quote }}
+  LEX_KAFKA_TOPIC: {{ .Values.services.lexService.kafkaTopic | default "lex.events" | quote }}
+  LEX_RATE_LIMIT_PER_MINUTE: {{ .Values.services.lexService.rateLimitPerMinute | default "300" | quote }}
+  LEX_EXPIRY_MONITOR_INTERVAL: {{ .Values.services.lexService.expiryMonitorInterval | default "1h" | quote }}
+  LEX_COMPLIANCE_MONITOR_INTERVAL: {{ .Values.services.lexService.complianceMonitorInterval | default "6h" | quote }}
+  LEX_ORG_JURISDICTION: {{ .Values.services.lexService.orgJurisdiction | default "US" | quote }}
+{{- end }}
+---
+{{/* ================================================================
+     Visus Service
+     ================================================================ */}}
+{{- if .Values.services.visusService.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "clario360.componentName" (dict "root" . "component" "visus-service") }}-config
+  namespace: {{ include "clario360.namespace" . }}
+  labels:
+    {{- include "clario360.componentLabels" (dict "root" . "component" "visus-service") | nindent 4 }}
+data:
+  VISUS_HTTP_PORT: "8088"
+  VISUS_ADMIN_PORT: "9088"
+  VISUS_KAFKA_GROUP_ID: {{ .Values.services.visusService.kafkaGroupId | default "visus-service" | quote }}
+  VISUS_KAFKA_TOPIC: {{ .Values.services.visusService.kafkaTopic | default "visus.events" | quote }}
+  VISUS_RATE_LIMIT_PER_MINUTE: {{ .Values.services.visusService.rateLimitPerMinute | default "300" | quote }}
+  VISUS_SERVICE_TOKEN_TTL: {{ .Values.services.visusService.serviceTokenTtl | default "5m" | quote }}
+  VISUS_CIRCUIT_THRESHOLD: {{ .Values.services.visusService.circuitThreshold | default "5" | quote }}
+  VISUS_SCHEDULER_INTERVAL: {{ .Values.services.visusService.schedulerInterval | default "30s" | quote }}
+  # Cross-suite service URLs
+  VISUS_SUITE_ACTA_URL: "http://{{ include "clario360.componentName" (dict "root" . "component" "acta-service") }}:8086"
+  VISUS_SUITE_LEX_URL: "http://{{ include "clario360.componentName" (dict "root" . "component" "lex-service") }}:8087"
+  VISUS_SUITE_CYBER_URL: "http://{{ include "clario360.componentName" (dict "root" . "component" "cyber-service") }}:8090"
+  VISUS_SUITE_DATA_URL: "http://{{ include "clario360.componentName" (dict "root" . "component" "data-service") }}:8091"
+  VISUS_SUITE_WORKFLOW_URL: "http://{{ include "clario360.componentName" (dict "root" . "component" "workflow-engine") }}:8085"
+  VISUS_SUITE_IAM_URL: "http://{{ include "clario360.componentName" (dict "root" . "component" "iam-service") }}:8081"
+{{- end }}
+---
+{{/* ================================================================
+     Onboarding Service
+     ================================================================ */}}
+{{- if .Values.services.onboardingService.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "clario360.componentName" (dict "root" . "component" "onboarding-service") }}-config
+  namespace: {{ include "clario360.namespace" . }}
+  labels:
+    {{- include "clario360.componentLabels" (dict "root" . "component" "onboarding-service") | nindent 4 }}
+data:
+  ONBOARDING_HTTP_PORT: "8093"
+  ONBOARDING_ADMIN_PORT: "9093"
+  ONBOARDING_ENVIRONMENT: {{ .Values.global.environment | quote }}
+{{- end }}
+---
+{{/* ================================================================
+     Frontend
+     ================================================================ */}}
+{{- if .Values.frontend.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "clario360.componentName" (dict "root" . "component" "frontend") }}-config
+  namespace: {{ include "clario360.namespace" . }}
+  labels:
+    {{- include "clario360.componentLabels" (dict "root" . "component" "frontend") | nindent 4 }}
+data:
+  NEXT_PUBLIC_API_URL: {{ .Values.frontend.publicApiUrl | default "https://clario360.example.com/api" | quote }}
+  NODE_ENV: {{ .Values.frontend.nodeEnv | default "production" | quote }}
+  NEXT_TELEMETRY_DISABLED: {{ .Values.frontend.telemetryDisabled | default "1" | quote }}
+{{- end }}

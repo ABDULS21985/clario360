@@ -15,21 +15,21 @@ import (
 )
 
 type CreateRegistrationParams struct {
-	TenantID       uuid.UUID
-	TenantName     string
-	TenantSlug     string
-	AdminUserID    uuid.UUID
-	AdminEmail     string
-	FirstName      string
-	LastName       string
-	PasswordHash   string
-	Country        string
-	Industry       onboardingmodel.OrgIndustry
-	ReferralSource *string
-	OTPHash        string
-	OTPExpiresAt   time.Time
-	IPAddress      *string
-	UserAgent      *string
+	TenantID        uuid.UUID
+	TenantName      string
+	TenantSlug      string
+	AdminUserID     uuid.UUID
+	AdminEmail      string
+	FirstName       string
+	LastName        string
+	PasswordHash    string
+	Country         string
+	Industry        onboardingmodel.OrgIndustry
+	ReferralSource  *string
+	OTPHash         string
+	OTPExpiresAt    time.Time
+	IPAddress       *string
+	UserAgent       *string
 	RolePermissions []string
 }
 
@@ -43,6 +43,7 @@ type CreateTenantUserParams struct {
 	UserID       uuid.UUID
 	TenantID     uuid.UUID
 	RoleID       uuid.UUID
+	InvitationID *uuid.UUID
 	Email        string
 	FirstName    string
 	LastName     string
@@ -310,6 +311,20 @@ func (r *OnboardingRepository) CreateTenantUserWithRole(ctx context.Context, par
 		)
 		if err != nil {
 			return fmt.Errorf("assign invited user role: %w", err)
+		}
+		if params.InvitationID != nil {
+			if _, err := tx.Exec(ctx, `
+				UPDATE invitations
+				SET status = 'accepted',
+				    accepted_at = now(),
+				    accepted_by = $2,
+				    updated_at = now()
+				WHERE id = $1`,
+				*params.InvitationID,
+				params.UserID,
+			); err != nil {
+				return fmt.Errorf("mark invitation accepted: %w", err)
+			}
 		}
 		return nil
 	})

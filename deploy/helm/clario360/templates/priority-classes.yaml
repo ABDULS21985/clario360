@@ -1,0 +1,49 @@
+{{/*
+PriorityClasses — three tiers for workload scheduling priority.
+PriorityClasses are cluster-scoped (not namespaced).
+  - clario360-critical  (1000000) — api-gateway, iam-service
+  - clario360-high      (100000)  — other platform services
+  - clario360-normal    (10000)   — suite services, cronjobs
+*/}}
+
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: clario360-critical
+  labels:
+    {{- include "clario360.labels" . | nindent 4 }}
+    app.kubernetes.io/component: priority-class
+value: 1000000
+globalDefault: false
+preemptionPolicy: PreemptLowerPriority
+description: >-
+  Critical Clario360 services that must remain running at all times.
+  Used by api-gateway and iam-service.
+---
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: clario360-high
+  labels:
+    {{- include "clario360.labels" . | nindent 4 }}
+    app.kubernetes.io/component: priority-class
+value: 100000
+globalDefault: false
+preemptionPolicy: PreemptLowerPriority
+description: >-
+  High-priority Clario360 platform services.
+  Used by audit, workflow, notification, file, and other core services.
+---
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: clario360-normal
+  labels:
+    {{- include "clario360.labels" . | nindent 4 }}
+    app.kubernetes.io/component: priority-class
+value: 10000
+globalDefault: false
+preemptionPolicy: PreemptLowerPriority
+description: >-
+  Normal-priority Clario360 workloads.
+  Used by suite services (acta, lex, visus, cyber, data), cronjobs, and frontend.

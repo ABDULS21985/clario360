@@ -1,0 +1,33 @@
+{{/*
+LimitRange — default container resource constraints.
+Applied automatically to any container that does not specify its own limits.
+Prevents pods from consuming unbounded resources.
+*/}}
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: {{ include "clario360.fullname" . }}-limits
+  namespace: {{ include "clario360.namespace" . }}
+  labels:
+    {{- include "clario360.labels" . | nindent 4 }}
+    app.kubernetes.io/component: limit-range
+spec:
+  limits:
+    - type: Container
+      default:
+        cpu: {{ .Values.limitRange.default.cpu | default "250m" | quote }}
+        memory: {{ .Values.limitRange.default.memory | default "256Mi" | quote }}
+      defaultRequest:
+        cpu: {{ .Values.limitRange.defaultRequest.cpu | default "50m" | quote }}
+        memory: {{ .Values.limitRange.defaultRequest.memory | default "64Mi" | quote }}
+      max:
+        cpu: {{ .Values.limitRange.max.cpu | default "4" | quote }}
+        memory: {{ .Values.limitRange.max.memory | default "4Gi" | quote }}
+      min:
+        cpu: {{ .Values.limitRange.min.cpu | default "10m" | quote }}
+        memory: {{ .Values.limitRange.min.memory | default "16Mi" | quote }}
+    - type: PersistentVolumeClaim
+      max:
+        storage: {{ .Values.limitRange.pvcMax | default "50Gi" | quote }}
+      min:
+        storage: {{ .Values.limitRange.pvcMin | default "1Gi" | quote }}

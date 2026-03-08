@@ -1,0 +1,22 @@
+{{- if .Values.workflowEngine.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "clario360.fullname" . }}-workflow-engine
+  namespace: {{ include "clario360.namespace" . }}
+  labels:
+    {{- include "clario360.componentLabels" (dict "root" . "component" "workflow-engine") | nindent 4 }}
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 8085
+      targetPort: http
+      protocol: TCP
+    - name: metrics
+      port: 9090
+      targetPort: metrics
+      protocol: TCP
+  selector:
+    {{- include "clario360.componentSelectorLabels" (dict "root" . "component" "workflow-engine") | nindent 4 }}
+{{- end }}

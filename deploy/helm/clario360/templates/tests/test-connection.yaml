@@ -1,0 +1,109 @@
+{{/*
+=======================================================================
+Clario360 Platform — Helm Test: Service Connectivity
+=======================================================================
+Verifies that every enabled service is reachable on its /healthz endpoint.
+*/}}
+apiVersion: v1
+kind: Pod
+metadata:
+  name: {{ include "clario360.fullname" . }}-test-connection
+  namespace: {{ include "clario360.namespace" . }}
+  labels:
+    {{- include "clario360.labels" . | nindent 4 }}
+    app.kubernetes.io/component: test-connection
+  annotations:
+    "helm.sh/hook": test
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+spec:
+  restartPolicy: Never
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 65534
+    runAsGroup: 65534
+    fsGroup: 65534
+    seccompProfile:
+      type: RuntimeDefault
+  containers:
+    - name: test-connection
+      image: busybox:1.36
+      imagePullPolicy: IfNotPresent
+      command: ['sh', '-c']
+      args:
+        - |
+          echo "=== Clario360 Service Connectivity Test ==="
+          echo ""
+          FAILED=0
+          TOTAL=0
+          PASSED=0
+
+          test_service() {
+            local name="$1"
+            local url="$2"
+            TOTAL=$((TOTAL + 1))
+            echo -n "  Testing $name ... "
+            if wget --spider --timeout=5 "$url" 2>/dev/null; then
+              echo "OK"
+              PASSED=$((PASSED + 1))
+            else
+              echo "FAILED"
+              FAILED=1
+            fi
+          }
+
+          {{- if .Values.apiGateway.enabled }}
+          test_service "api-gateway" "http://{{ include "clario360.fullname" . }}-api-gateway:{{ .Values.apiGateway.port }}/healthz"
+          {{- end }}
+          {{- if .Values.iamService.enabled }}
+          test_service "iam-service" "http://{{ include "clario360.fullname" . }}-iam-service:{{ .Values.iamService.port }}/healthz"
+          {{- end }}
+          {{- if .Values.auditService.enabled }}
+          test_service "audit-service" "http://{{ include "clario360.fullname" . }}-audit-service:{{ .Values.auditService.port }}/healthz"
+          {{- end }}
+          {{- if .Values.workflowEngine.enabled }}
+          test_service "workflow-engine" "http://{{ include "clario360.fullname" . }}-workflow-engine:{{ .Values.workflowEngine.port }}/healthz"
+          {{- end }}
+          {{- if .Values.notificationService.enabled }}
+          test_service "notification-service" "http://{{ include "clario360.fullname" . }}-notification-service:{{ .Values.notificationService.port }}/healthz"
+          {{- end }}
+          {{- if .Values.fileService.enabled }}
+          test_service "file-service" "http://{{ include "clario360.fullname" . }}-file-service:{{ .Values.fileService.port }}/healthz"
+          {{- end }}
+          {{- if .Values.cyberService.enabled }}
+          test_service "cyber-service" "http://{{ include "clario360.fullname" . }}-cyber-service:{{ .Values.cyberService.port }}/healthz"
+          {{- end }}
+          {{- if .Values.dataService.enabled }}
+          test_service "data-service" "http://{{ include "clario360.fullname" . }}-data-service:{{ .Values.dataService.port }}/healthz"
+          {{- end }}
+          {{- if .Values.actaService.enabled }}
+          test_service "acta-service" "http://{{ include "clario360.fullname" . }}-acta-service:{{ .Values.actaService.port }}/healthz"
+          {{- end }}
+          {{- if .Values.lexService.enabled }}
+          test_service "lex-service" "http://{{ include "clario360.fullname" . }}-lex-service:{{ .Values.lexService.port }}/healthz"
+          {{- end }}
+          {{- if .Values.visusService.enabled }}
+          test_service "visus-service" "http://{{ include "clario360.fullname" . }}-visus-service:{{ .Values.visusService.port }}/healthz"
+          {{- end }}
+          {{- if .Values.onboardingService.enabled }}
+          test_service "onboarding-service" "http://{{ include "clario360.fullname" . }}-onboarding-service:{{ .Values.onboardingService.port }}/healthz"
+          {{- end }}
+          {{- if .Values.frontend.enabled }}
+          test_service "frontend" "http://{{ include "clario360.fullname" . }}-frontend:{{ .Values.frontend.port }}/"
+          {{- end }}
+
+          echo ""
+          echo "=== Results: $PASSED/$TOTAL services reachable ==="
+
+          if [ $FAILED -eq 1 ]; then
+            echo "FAILED: Some services are unreachable"
+            exit 1
+          fi
+          echo "All services reachable!"
+      securityContext:
+        allowPrivilegeEscalation: false
+        readOnlyRootFilesystem: true
+        runAsNonRoot: true
+        runAsUser: 65534
+        capabilities:
+          drop:
+            - ALL

@@ -35,13 +35,13 @@ type Invitation struct {
 }
 
 type InvitationDetails struct {
-	InvitationID     uuid.UUID  `json:"invitation_id"`
-	TenantID         uuid.UUID  `json:"tenant_id"`
-	Email            string     `json:"email"`
-	RoleSlug         string     `json:"role_slug"`
-	RoleName         string     `json:"role_name"`
-	OrganizationName string     `json:"organization_name"`
-	InviterName      string     `json:"inviter_name"`
-	ExpiresAt        time.Time  `json:"expires_at"`
-	Message          *string    `json:"message,omitempty"`
+	InvitationID     uuid.UUID `json:"invitation_id"`
+	TenantID         uuid.UUID `json:"tenant_id"`
+	Email            string    `json:"email"`
+	RoleSlug         string    `json:"role_slug"`
+	RoleName         string    `json:"role_name"`
+	OrganizationName string    `json:"organization_name"`
+	InviterName      string    `json:"inviter_name"`
+	ExpiresAt        time.Time `json:"expires_at"`
+	Message          *string   `json:"message,omitempty"`
 }

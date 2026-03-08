@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"html"
 	"regexp"
@@ -15,7 +16,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
 	"github.com/rs/zerolog"
-	"golang.org/x/crypto/bcrypt"
 
 	"github.com/clario360/platform/internal/auth"
 	"github.com/clario360/platform/internal/events"
@@ -109,6 +109,17 @@ func validateRegistrationInput(reqEmail, password, orgName, country string) erro
 	}
 	if !countryRegex.MatchString(normalizeCountry(country)) {
 		return fmt.Errorf("country must be a valid ISO 3166-1 alpha-2 code: %w", iammodel.ErrValidation)
+	}
+	return nil
+}
+
+func validateIndustry(industry string) error {
+	normalized := onboardingmodel.OrgIndustry(strings.TrimSpace(strings.ToLower(industry)))
+	if normalized == "" {
+		return nil
+	}
+	if _, ok := onboardingmodel.ValidOrgIndustries[normalized]; !ok {
+		return fmt.Errorf("invalid organization industry: %w", iammodel.ErrValidation)
 	}
 	return nil
 }
@@ -257,6 +268,17 @@ func publishOnboardingEvent(ctx context.Context, producer *events.Producer, even
 
 func throttleKey(prefix, value string) string {
 	return prefix + ":" + hashPII(value)
+}
+
+func marshalJSON(value any) []byte {
+	if value == nil {
+		return []byte("{}")
+	}
+	payload, err := json.Marshal(value)
+	if err != nil {
+		return []byte("{}")
+	}
+	return payload
 }
 
 func consumeThrottle(ctx context.Context, redisClient *redis.Client, key string, limit int64, ttl time.Duration) (bool, int64, error) {

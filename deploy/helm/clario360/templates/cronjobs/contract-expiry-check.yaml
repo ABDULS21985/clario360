@@ -1,0 +1,85 @@
+{{- if .Values.cronjobs.contractExpiryCheck.enabled }}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "clario360.fullname" . }}-contract-expiry-check
+  namespace: {{ include "clario360.namespace" . }}
+  labels:
+    {{- include "clario360.labels" . | nindent 4 }}
+    app.kubernetes.io/component: cronjob-contract-expiry-check
+spec:
+  schedule: {{ .Values.cronjobs.contractExpiryCheck.schedule | quote }}
+  concurrencyPolicy: Forbid
+  failedJobsHistoryLimit: 3
+  successfulJobsHistoryLimit: 3
+  startingDeadlineSeconds: 300
+  jobTemplate:
+    spec:
+      activeDeadlineSeconds: {{ .Values.cronjobs.contractExpiryCheck.activeDeadlineSeconds | default 600 }}
+      backoffLimit: {{ .Values.cronjobs.contractExpiryCheck.backoffLimit | default 2 }}
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/component: cronjob-contract-expiry-check
+            app.kubernetes.io/part-of: clario360
+        spec:
+          restartPolicy: OnFailure
+          {{- with .Values.global.imagePullSecrets }}
+          imagePullSecrets:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65534
+            runAsGroup: 65534
+            fsGroup: 65534
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: contract-expiry-check
+              {{- if .Values.cronjobs.contractExpiryCheck.image }}
+              image: "{{ .Values.global.imageRegistry }}/{{ .Values.cronjobs.contractExpiryCheck.image.repository }}:{{ .Values.cronjobs.contractExpiryCheck.image.tag | default .Chart.AppVersion }}"
+              {{- else }}
+              image: "{{ .Values.global.imageRegistry }}/{{ .Values.lexService.image.repository }}:{{ .Values.lexService.image.tag | default .Chart.AppVersion }}"
+              {{- end }}
+              imagePullPolicy: {{ .Values.global.imagePullPolicy | default "IfNotPresent" }}
+              command: ["/app"]
+              args: ["--job=contract-expiry-check"]
+              env:
+                - name: LEX_DB_URL
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ include "clario360.fullname" . }}-database-credentials
+                      key: LEX_DB_URL
+                - name: LEX_REDIS_ADDR
+                  valueFrom:
+                    configMapKeyRef:
+                      name: {{ include "clario360.fullname" . }}-shared
+                      key: REDIS_HOST
+                - name: REDIS_PASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ .Values.redis.existingSecret }}
+                      key: REDIS_PASSWORD
+                - name: LEX_KAFKA_BROKERS
+                  valueFrom:
+                    configMapKeyRef:
+                      name: {{ include "clario360.fullname" . }}-shared
+                      key: KAFKA_BROKERS
+                - name: OTEL_SERVICE_NAME
+                  value: "contract-expiry-check"
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop:
+                    - ALL
+              resources:
+                {{- toYaml .Values.cronjobs.contractExpiryCheck.resources | nindent 16 }}
+              volumeMounts:
+                - name: tmp
+                  mountPath: /tmp
+          volumes:
+            - name: tmp
+              emptyDir: {}
+{{- end }}
