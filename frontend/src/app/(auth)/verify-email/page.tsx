@@ -8,28 +8,58 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Spinner } from '@/components/ui/spinner';
 import { apiPost } from '@/lib/api';
 import { isApiError } from '@/types/api';
-import { API_ENDPOINTS } from '@/lib/constants';
+import { API_ENDPOINTS, ROUTES } from '@/lib/constants';
 import { setAccessToken } from '@/lib/auth';
 import { useAuthStore } from '@/stores/auth-store';
 
 const OTP_LENGTH = 6;
+const RESEND_COOLDOWN_SECONDS = 60;
 
 function VerifyEmailForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const email = searchParams.get('email') ?? '';
+  const verificationTTL = Number(searchParams.get('ttl') ?? '600');
 
   const [otp, setOtp] = useState<string[]>(Array(OTP_LENGTH).fill(''));
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isResending, setIsResending] = useState(false);
   const [apiError, setApiError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [expiresInSeconds, setExpiresInSeconds] = useState(
+    Number.isFinite(verificationTTL) && verificationTTL > 0 ? verificationTTL : 600,
+  );
+  const [resendCooldown, setResendCooldown] = useState(RESEND_COOLDOWN_SECONDS);
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
   const refreshSession = useAuthStore((s) => s.refreshSession);
 
   useEffect(() => {
     inputRefs.current[0]?.focus();
   }, []);
+
+  useEffect(() => {
+    if (expiresInSeconds <= 0) {
+      return undefined;
+    }
+
+    const timer = window.setInterval(() => {
+      setExpiresInSeconds((current) => Math.max(current - 1, 0));
+    }, 1000);
+
+    return () => window.clearInterval(timer);
+  }, [expiresInSeconds]);
+
+  useEffect(() => {
+    if (resendCooldown <= 0) {
+      return undefined;
+    }
+
+    const timer = window.setInterval(() => {
+      setResendCooldown((current) => Math.max(current - 1, 0));
+    }, 1000);
+
+    return () => window.clearInterval(timer);
+  }, [resendCooldown]);
 
   const handleChange = (idx: number, value: string) => {
     const digit = value.replace(/\D/g, '').slice(-1);
@@ -97,7 +127,7 @@ function VerifyEmailForm() {
         // session store is best-effort here
       }
 
-      router.push('/setup?step=1');
+      router.push(`${ROUTES.SETUP}?step=1`);
     } catch (err) {
       setApiError(isApiError(err) ? err.message : 'Verification failed. Please try again.');
       // Reset OTP inputs on error
@@ -126,6 +156,10 @@ function VerifyEmailForm() {
     try {
       await apiPost(API_ENDPOINTS.ONBOARDING_RESEND_OTP, { email });
       setSuccessMessage('A new code has been sent to your email.');
+      setExpiresInSeconds(
+        Number.isFinite(verificationTTL) && verificationTTL > 0 ? verificationTTL : 600,
+      );
+      setResendCooldown(RESEND_COOLDOWN_SECONDS);
       setOtp(Array(OTP_LENGTH).fill(''));
       inputRefs.current[0]?.focus();
     } catch (err) {
@@ -134,6 +168,10 @@ function VerifyEmailForm() {
       setIsResending(false);
     }
   };
+
+  const countdown = `${Math.floor(expiresInSeconds / 60)
+    .toString()
+    .padStart(2, '0')}:${(expiresInSeconds % 60).toString().padStart(2, '0')}`;
 
   return (
     <div className="space-y-6">
@@ -152,6 +190,9 @@ function VerifyEmailForm() {
             'your email address'
           )}
           .
+        </p>
+        <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
+          Code expires in {countdown}
         </p>
       </div>
 
@@ -214,7 +255,7 @@ function VerifyEmailForm() {
           variant="ghost"
           size="sm"
           onClick={handleResend}
-          disabled={isResending}
+          disabled={isResending || resendCooldown > 0}
           className="gap-2"
         >
           {isResending ? (
@@ -222,7 +263,7 @@ function VerifyEmailForm() {
           ) : (
             <RotateCcw className="h-4 w-4" />
           )}
-          Resend code
+          {resendCooldown > 0 ? `Resend in ${resendCooldown}s` : 'Resend code'}
         </Button>
       </div>
     </div>

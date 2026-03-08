@@ -246,11 +246,13 @@ function StepOrganization({
     defaultValues: initialValues,
   });
   const [apiError, setApiError] = useState<string | null>(null);
-  const watched = watch();
 
   useEffect(() => {
-    onPersist(watched as OrganizationFormValues);
-  }, [watched, onPersist]);
+    const subscription = watch((values) => {
+      onPersist(values as OrganizationFormValues);
+    });
+    return () => subscription.unsubscribe();
+  }, [watch, onPersist]);
 
   const submit = handleSubmit(async (values) => {
     setApiError(null);
@@ -361,8 +363,11 @@ function StepBranding({
   const values = watch();
 
   useEffect(() => {
-    onPersist(values as BrandingFormValues);
-  }, [values, onPersist]);
+    const subscription = watch((nextValues) => {
+      onPersist(nextValues as BrandingFormValues);
+    });
+    return () => subscription.unsubscribe();
+  }, [watch, onPersist]);
 
   const submit = handleSubmit(async (branding) => {
     setApiError(null);
@@ -810,6 +815,9 @@ function StepReady({
               <p className="mt-1 text-sm text-slate-500">Begin governance workflows.</p>
             </button>
           </div>
+          <a href="https://docs.clario360.com" className="text-sm font-medium text-[#0f5132] hover:underline">
+            Explore the documentation
+          </a>
         </div>
       ) : (
         <div className="space-y-6">

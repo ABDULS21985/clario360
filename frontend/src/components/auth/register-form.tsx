@@ -76,6 +76,7 @@ export function RegisterForm() {
       const params = new URLSearchParams({
         email: data.email,
         tenantId: response.tenant_id,
+        ttl: String(response.verification_ttl_seconds),
       });
       router.push(`${ROUTES.VERIFY_EMAIL}?${params.toString()}`);
     } catch (err) {
