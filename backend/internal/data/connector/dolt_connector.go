@@ -130,19 +130,34 @@ func (c *DoltConnector) DiscoverSchema(ctx context.Context, opts DiscoveryOption
 	if err != nil {
 		return nil, newConnectorError(doltConnectorType, "discover", ErrorCodeSchemaDiscoveryFailed, "list dolt tables", err)
 	}
-	defer rows.Close()
+	type tableMeta struct {
+		name          string
+		tableType     string
+		estimatedRows int64
+		sizeBytes     int64
+	}
+	tableMetas := make([]tableMeta, 0)
+	for rows.Next() {
+		var meta tableMeta
+		if err = rows.Scan(&meta.name, &meta.tableType, &meta.estimatedRows, &meta.sizeBytes); err != nil {
+			_ = rows.Close()
+			return nil, newConnectorError(doltConnectorType, "discover", ErrorCodeSchemaDiscoveryFailed, "scan dolt table", err)
+		}
+		tableMetas = append(tableMetas, meta)
+	}
+	if closeErr := rows.Close(); closeErr != nil {
+		return nil, newConnectorError(doltConnectorType, "discover", ErrorCodeDriverError, "close dolt table rows", closeErr)
+	}
+	if err = rows.Err(); err != nil {
+		return nil, newConnectorError(doltConnectorType, "discover", ErrorCodeSchemaDiscoveryFailed, "iterate dolt tables", err)
+	}
 
-	tables := make([]model.DiscoveredTable, 0)
+	tables := make([]model.DiscoveredTable, 0, len(tableMetas))
 	totalColumns := 0
 	containsPII := false
 	highest := model.DataClassificationPublic
-	for rows.Next() {
-		var tableName, tableType string
-		var estimatedRows, sizeBytes int64
-		if err = rows.Scan(&tableName, &tableType, &estimatedRows, &sizeBytes); err != nil {
-			return nil, newConnectorError(doltConnectorType, "discover", ErrorCodeSchemaDiscoveryFailed, "scan dolt table", err)
-		}
-		table, tableErr := c.discoverTable(ctx, db, tableName, tableType, estimatedRows, sizeBytes, opts)
+	for _, meta := range tableMetas {
+		table, tableErr := c.discoverTable(ctx, db, meta.name, meta.tableType, meta.estimatedRows, meta.sizeBytes, opts)
 		if tableErr != nil {
 			return nil, tableErr
 		}
@@ -150,9 +165,6 @@ func (c *DoltConnector) DiscoverSchema(ctx context.Context, opts DiscoveryOption
 		totalColumns += len(table.Columns)
 		containsPII = containsPII || table.ContainsPII
 		highest = discovery.MaxClassification(highest, table.InferredClass)
-	}
-	if err = rows.Err(); err != nil {
-		return nil, newConnectorError(doltConnectorType, "discover", ErrorCodeSchemaDiscoveryFailed, "iterate dolt tables", err)
 	}
 	observeSchemaMetrics(doltConnectorType, tables)
 	return &model.DiscoveredSchema{
@@ -449,7 +461,7 @@ func (c *DoltConnector) GetRecentChanges(ctx context.Context, since time.Time) (
 		return nil, err
 	}
 	rows, err := db.QueryContext(ctx, `
-		SELECT hash, CONCAT(committer, ' <', email, '>'), date, message
+		SELECT commit_hash, CONCAT(committer, ' <', email, '>'), date, message
 		FROM dolt_log
 		WHERE date > ?
 		ORDER BY date DESC
@@ -457,28 +469,44 @@ func (c *DoltConnector) GetRecentChanges(ctx context.Context, since time.Time) (
 	if err != nil {
 		return nil, newConnectorError(doltConnectorType, "changes", ErrorCodeQueryFailed, "query dolt log", err)
 	}
-	defer rows.Close()
-
-	changes := make([]DataChangeEvent, 0)
+	type commitMeta struct {
+		hash      string
+		committer string
+		date      time.Time
+		message   string
+	}
+	commits := make([]commitMeta, 0)
 	for rows.Next() {
-		var hash, committer, message string
-		var commitDate time.Time
-		if err = rows.Scan(&hash, &committer, &commitDate, &message); err != nil {
+		var commit commitMeta
+		if err = rows.Scan(&commit.hash, &commit.committer, &commit.date, &commit.message); err != nil {
+			_ = rows.Close()
 			return nil, newConnectorError(doltConnectorType, "changes", ErrorCodeDriverError, "scan dolt log row", err)
 		}
+		commits = append(commits, commit)
+	}
+	if closeErr := rows.Close(); closeErr != nil {
+		return nil, newConnectorError(doltConnectorType, "changes", ErrorCodeDriverError, "close dolt log rows", closeErr)
+	}
+	if err = rows.Err(); err != nil {
+		return nil, newConnectorError(doltConnectorType, "changes", ErrorCodeDriverError, "iterate dolt log rows", err)
+	}
+
+	changes := make([]DataChangeEvent, 0)
+	for _, commit := range commits {
+		previousRef := commit.hash + "~1"
 		diffRows, diffErr := db.QueryContext(ctx, `
 			SELECT table_name, rows_added, rows_deleted, rows_modified,
 			       cells_added, cells_deleted, cells_modified
-			FROM dolt_diff_stat(CONCAT(?, '~1'), ?)`, hash, hash)
+			FROM dolt_diff_stat(?, ?)`, previousRef, commit.hash)
 		if diffErr != nil {
 			return nil, newConnectorError(doltConnectorType, "changes", ErrorCodeQueryFailed, "query dolt diff stat", diffErr)
 		}
 		for diffRows.Next() {
 			var event DataChangeEvent
-			event.CommitHash = hash
-			event.Committer = committer
-			event.CommitDate = commitDate.UTC()
-			event.Message = message
+			event.CommitHash = commit.hash
+			event.Committer = commit.committer
+			event.CommitDate = commit.date.UTC()
+			event.Message = commit.message
 			if err = diffRows.Scan(&event.Table, &event.RowsAdded, &event.RowsDeleted, &event.RowsModified, &event.CellsAdded, &event.CellsDeleted, &event.CellsModified); err != nil {
 				diffRows.Close()
 				return nil, newConnectorError(doltConnectorType, "changes", ErrorCodeDriverError, "scan dolt diff stat", err)
@@ -491,9 +519,6 @@ func (c *DoltConnector) GetRecentChanges(ctx context.Context, since time.Time) (
 		if err = diffRows.Err(); err != nil {
 			return nil, newConnectorError(doltConnectorType, "changes", ErrorCodeDriverError, "iterate dolt diff rows", err)
 		}
-	}
-	if err = rows.Err(); err != nil {
-		return nil, newConnectorError(doltConnectorType, "changes", ErrorCodeDriverError, "iterate dolt log rows", err)
 	}
 	return changes, nil
 }
@@ -613,44 +638,59 @@ func (c *DoltConnector) discoverTable(ctx context.Context, db *sql.DB, tableName
 	if err != nil {
 		return nil, newConnectorError(doltConnectorType, "discover", ErrorCodeSchemaDiscoveryFailed, "query dolt columns", err)
 	}
-	defer rows.Close()
 
-	columns := make([]model.DiscoveredColumn, 0)
-	primaryKeys := make([]string, 0)
+	type columnMeta struct {
+		columnName   string
+		dataType     string
+		columnType   string
+		maxLength    *int
+		nullable     string
+		defaultValue *string
+		comment      string
+		columnKey    string
+	}
+	columnMetas := make([]columnMeta, 0)
 	for rows.Next() {
-		var columnName, dataType, columnType, nullable, comment, columnKey string
-		var maxLength *int
-		var defaultValue *string
-		if err = rows.Scan(&columnName, &dataType, &columnType, &maxLength, &nullable, &defaultValue, &comment, &columnKey); err != nil {
+		var meta columnMeta
+		if err = rows.Scan(&meta.columnName, &meta.dataType, &meta.columnType, &meta.maxLength, &meta.nullable, &meta.defaultValue, &meta.comment, &meta.columnKey); err != nil {
 			return nil, newConnectorError(doltConnectorType, "discover", ErrorCodeDriverError, "scan dolt column", err)
 		}
-		mapped := discovery.MapNativeType(columnType)
+		columnMetas = append(columnMetas, meta)
+	}
+	if err = rows.Err(); err != nil {
+		return nil, newConnectorError(doltConnectorType, "discover", ErrorCodeDriverError, "iterate dolt columns", err)
+	}
+	if err = rows.Close(); err != nil {
+		return nil, newConnectorError(doltConnectorType, "discover", ErrorCodeDriverError, "close dolt columns", err)
+	}
+
+	columns := make([]model.DiscoveredColumn, 0, len(columnMetas))
+	primaryKeys := make([]string, 0)
+	for _, meta := range columnMetas {
+		mapped := discovery.MapNativeType(meta.columnType)
 		column := model.DiscoveredColumn{
-			Name:         columnName,
-			DataType:     dataType,
-			NativeType:   columnType,
+			Name:         meta.columnName,
+			DataType:     meta.dataType,
+			NativeType:   meta.columnType,
 			MappedType:   mapped.Type,
 			Subtype:      mapped.Subtype,
-			MaxLength:    maxLength,
-			Nullable:     strings.EqualFold(nullable, "YES"),
-			DefaultValue: defaultValue,
-			Comment:      comment,
-			IsPrimaryKey: columnKey == "PRI",
+			MaxLength:    meta.maxLength,
+			Nullable:     strings.EqualFold(meta.nullable, "YES"),
+			DefaultValue: meta.defaultValue,
+			Comment:      meta.comment,
+			IsPrimaryKey: meta.columnKey == "PRI",
 		}
-		if columnKey == "PRI" {
-			primaryKeys = append(primaryKeys, columnName)
+		if meta.columnKey == "PRI" {
+			primaryKeys = append(primaryKeys, meta.columnName)
 		}
 		if opts.SampleValues {
-			samples, sampleErr := c.sampleColumnValues(ctx, db, tableName, columnName, opts.MaxSamples)
+			samples, sampleErr := c.sampleColumnValues(ctx, db, tableName, meta.columnName, opts.MaxSamples)
 			if sampleErr == nil {
 				column.SampleValues = samples
 				column.SampleStats = discovery.AnalyzeSamples(samples)
 			}
 		}
 		columns = append(columns, column)
-	}
-	if err = rows.Err(); err != nil {
-		return nil, newConnectorError(doltConnectorType, "discover", ErrorCodeDriverError, "iterate dolt columns", err)
 	}
 	columns = discovery.DetectPII(columns)
 	piiCount := 0

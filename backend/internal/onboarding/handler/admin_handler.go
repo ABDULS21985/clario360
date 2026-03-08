@@ -82,6 +82,11 @@ func (h *Handler) AdminDeprovision(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.deprovisioner.Deprovision(r.Context(), tenantID, adminID, req); err != nil {
+		h.logger.Error().
+			Err(err).
+			Str("tenant_id", tenantID.String()).
+			Str("admin_id", adminID.String()).
+			Msg("admin deprovision failed")
 		handleServiceError(w, err)
 		return
 	}
@@ -127,6 +132,11 @@ func (h *Handler) AdminReactivate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.deprovisioner.Reactivate(r.Context(), tenantID, adminID); err != nil {
+		h.logger.Error().
+			Err(err).
+			Str("tenant_id", tenantID.String()).
+			Str("admin_id", adminID.String()).
+			Msg("admin reactivate failed")
 		handleServiceError(w, err)
 		return
 	}

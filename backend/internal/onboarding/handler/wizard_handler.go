@@ -67,6 +67,11 @@ func (h *Handler) SaveBranding(w http.ResponseWriter, r *http.Request) {
 	if strings.HasPrefix(strings.ToLower(strings.TrimSpace(r.Header.Get("Content-Type"))), "multipart/form-data") {
 		resp, saveErr := h.saveBrandingMultipart(w, r, tenantID, currentUser)
 		if saveErr != nil {
+			h.logger.Error().
+				Err(saveErr).
+				Str("tenant_id", tenantID.String()).
+				Str("user_id", currentUser.ID).
+				Msg("save branding multipart failed")
 			handleServiceError(w, saveErr)
 			return
 		}
@@ -100,6 +105,11 @@ func (h *Handler) SaveBranding(w http.ResponseWriter, r *http.Request) {
 
 	resp, err := h.wizardSvc.SaveBranding(r.Context(), tenantID, logoFileID, primaryColor, accentColor)
 	if err != nil {
+		h.logger.Error().
+			Err(err).
+			Str("tenant_id", tenantID.String()).
+			Str("user_id", currentUser.ID).
+			Msg("save branding failed")
 		handleServiceError(w, err)
 		return
 	}

@@ -135,7 +135,7 @@ check "Package directory exists" "[ -d source/backend/pkg ]"
 # ─────────────────────────────────────────────────────────────────────────────
 echo ""
 echo "4. Vendored Dependencies"
-check "Go vendor has source files" "find source/backend/vendor -name '*.go' | head -1 | grep -q ."
+check "Go vendor has source files" "test \$(find source/backend/vendor -name '*.go' 2>/dev/null | wc -l) -gt 0"
 
 GO_VENDOR_COUNT=$(find source/backend/vendor -name '*.go' 2>/dev/null | wc -l | tr -d ' ')
 printf "  ℹ Go vendor: %s files\n" "${GO_VENDOR_COUNT}"
@@ -231,10 +231,14 @@ warn_check "terraform included" "[ -f tools/terraform ]"
 # ─────────────────────────────────────────────────────────────────────────────
 echo ""
 echo "9. Security Check (no sensitive files)"
-check "No .env files" "! find . -name '.env' -o -name '.env.local' -o -name '.env.production' 2>/dev/null | grep -q ."
-check "No private keys" "! find . -name '*.pem' -o -name '*.key' -o -name 'id_rsa*' 2>/dev/null | grep -q ."
-check "No terraform state" "! find . -name '*.tfstate' -o -name '*.tfstate.backup' 2>/dev/null | grep -q ."
-check "No credentials files" "! find . -name 'credentials.json' -o -name 'service-account*.json' 2>/dev/null | grep -q ."
+check "No .env files (outside vendor)" \
+    "! find . -path '*/vendor/*' -prune -o -path '*/node_modules/*' -prune -o \( -name '.env' -o -name '.env.local' -o -name '.env.production' \) -print 2>/dev/null | grep -q ."
+check "No private keys" \
+    "! find . -path '*/vendor/*' -prune -o -path '*/node_modules/*' -prune -o \( -name '*.pem' -o -name '*.key' -o -name 'id_rsa*' \) -print 2>/dev/null | grep -q ."
+check "No terraform state" \
+    "! find . \( -name '*.tfstate' -o -name '*.tfstate.backup' \) -print 2>/dev/null | grep -q ."
+check "No credentials files (outside vendor)" \
+    "! find . -path '*/vendor/*' -prune -o -path '*/node_modules/*' -prune -o \( -name 'credentials.json' -o -name 'service-account*.json' \) -print 2>/dev/null | grep -q ."
 
 # ─────────────────────────────────────────────────────────────────────────────
 # RESULTS

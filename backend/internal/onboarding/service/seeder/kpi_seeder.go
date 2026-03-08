@@ -37,13 +37,19 @@ func (s *KPISeeder) Seed(ctx context.Context, tenantID, adminUserID uuid.UUID) e
 				value_path, unit, format_pattern, target_value, warning_threshold, critical_threshold,
 				direction, calculation_type, calculation_window, snapshot_frequency, enabled, is_default,
 				tags, created_by
-			) VALUES (
+			)
+			SELECT
 				$1,$2,$3,$4,$5,$6,$7,$8::jsonb,
 				$9,$10,$11,$12,$13,$14,
 				$15,$16,$17,$18,$19,$20,
 				$21,$22
-			)
-			ON CONFLICT (tenant_id, name) DO NOTHING`,
+			WHERE NOT EXISTS (
+				SELECT 1
+				FROM visus_kpi_definitions
+				WHERE tenant_id = $1
+				  AND name = $2
+				  AND deleted_at IS NULL
+			)`,
 			definitions[idx].TenantID,
 			definitions[idx].Name,
 			definitions[idx].Description,

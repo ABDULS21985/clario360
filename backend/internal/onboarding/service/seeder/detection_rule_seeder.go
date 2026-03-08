@@ -26,12 +26,17 @@ func (s *DetectionRuleSeeder) Seed(ctx context.Context, tenantID, adminUserID uu
 				mitre_tactic_ids, mitre_technique_ids, base_confidence, false_positive_count,
 				true_positive_count, trigger_count, tags, is_template, template_id, created_by,
 				created_at, updated_at
-			) VALUES (
+			)
+			SELECT
 				$1, $2, $3, $4, $5, $6, true, $7::jsonb,
 				$8, $9, $10, 0, 0, 0, $11, false, NULL, $12, now(), now()
-			)
-			ON CONFLICT (tenant_id, name)
-			DO NOTHING`,
+			WHERE NOT EXISTS (
+				SELECT 1
+				FROM detection_rules
+				WHERE tenant_id = $2
+				  AND name = $3
+				  AND deleted_at IS NULL
+			)`,
 			uuid.New(),
 			tenantID,
 			rule.Name,

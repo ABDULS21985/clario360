@@ -123,6 +123,8 @@ func (c *FileEventConsumer) Handle(ctx context.Context, event *events.Event) err
 		ConfidenceScore:    1.0,
 		MITRETechniqueID:   &techniqueID,
 		MITRETechniqueName: &techniqueName,
+		AssetIDs:           []uuid.UUID{},
+		Tags:               []string{},
 		EventCount:         1,
 		FirstEventAt:       c.now().UTC(),
 		LastEventAt:        c.now().UTC(),

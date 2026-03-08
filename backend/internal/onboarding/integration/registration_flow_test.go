@@ -33,52 +33,7 @@ func TestFullRegistrationFlow(t *testing.T) {
 		t.Fatalf("expected 11 status steps, got %d", len(apiStatus.Steps))
 	}
 
-	if got := h.countRows(t, h.env.platformPool, `SELECT COUNT(*) FROM roles WHERE tenant_id = $1`, tenant.TenantID); got != 11 {
-		t.Fatalf("expected 11 seeded roles, got %d", got)
-	}
-	if got := h.countRows(t, h.env.platformPool, `SELECT COUNT(*) FROM system_settings WHERE tenant_id = $1`, tenant.TenantID); got != 10 {
-		t.Fatalf("expected 10 seeded settings, got %d", got)
-	}
-	if got := h.countRows(t, h.env.dbPools["cyber_db"], `SELECT COUNT(*) FROM detection_rules WHERE tenant_id = $1`, tenant.TenantID); got != 15 {
-		t.Fatalf("expected 15 seeded detection rules, got %d", got)
-	}
-	if got := h.countRows(t, h.env.dbPools["visus_db"], `SELECT COUNT(*) FROM visus_kpi_definitions WHERE tenant_id = $1`, tenant.TenantID); got != 12 {
-		t.Fatalf("expected 12 seeded KPI definitions, got %d", got)
-	}
-	if got := h.countRows(t, h.env.dbPools["visus_db"], `SELECT COUNT(*) FROM visus_dashboards WHERE tenant_id = $1 AND name = 'Executive Overview'`, tenant.TenantID); got != 1 {
-		t.Fatalf("expected 1 executive overview dashboard, got %d", got)
-	}
-	if got := h.countRows(t, h.env.dbPools["visus_db"], `SELECT COUNT(*) FROM visus_widgets WHERE tenant_id = $1`, tenant.TenantID); got != 8 {
-		t.Fatalf("expected 8 seeded widgets, got %d", got)
-	}
-	if got := h.countRows(t, h.env.dbPools["lex_db"], `SELECT COUNT(*) FROM compliance_rules WHERE tenant_id = $1`, tenant.TenantID); got != 5 {
-		t.Fatalf("expected 5 seeded compliance rules, got %d", got)
-	}
-	if got := h.countRows(t, h.env.platformPool, `SELECT COUNT(*) FROM audit_logs WHERE tenant_id = $1 AND action = 'tenant.provisioned'`, tenant.TenantID); got != 1 {
-		t.Fatalf("expected 1 tenant.provisioned audit record, got %d", got)
-	}
-
-	var tenantStatus string
-	if err := h.env.platformPool.QueryRow(h.newContext(), `SELECT status FROM tenants WHERE id = $1`, tenant.TenantID).Scan(&tenantStatus); err != nil {
-		t.Fatalf("load tenant status: %v", err)
-	}
-	if tenantStatus != "active" {
-		t.Fatalf("expected tenant status active, got %s", tenantStatus)
-	}
-
-	slug := h.tenantSlug(t, tenant.TenantID)
-	for _, bucket := range []string{
-		"clario360-" + slug + "-cyber",
-		"clario360-" + slug + "-data",
-		"clario360-" + slug + "-acta",
-		"clario360-" + slug + "-lex",
-		"clario360-" + slug + "-visus",
-		"clario360-" + slug + "-platform",
-	} {
-		if !h.bucketExists(t, bucket) {
-			t.Fatalf("expected bucket %s to exist", bucket)
-		}
-	}
+	assertProvisionedTenantArtifacts(t, h, tenant.TenantID)
 }
 
 func TestRegistrationWrongOTP(t *testing.T) {

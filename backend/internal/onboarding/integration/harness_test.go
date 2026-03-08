@@ -78,6 +78,7 @@ type onboardingIntegrationEnv struct {
 	producer     *events.Producer
 	emailSender  *recordingEmailSender
 	storage      *storage.MinIOStorage
+	superAdminID uuid.UUID
 
 	onboardingRepo   *onboardingrepo.OnboardingRepository
 	provisioningRepo *onboardingrepo.ProvisioningRepository
@@ -250,6 +251,9 @@ func startSharedEnv() (*onboardingIntegrationEnv, error) {
 			return nil, fmt.Errorf("run migrations for %s: %w", dbName, err)
 		}
 	}
+	if err := applySQLFile(ctx, dbDSNs["platform_core"], filepath.Join(onboardingMigrationsBasePath(), "000010_create_file_storage_tables.up.sql")); err != nil {
+		return nil, fmt.Errorf("apply file storage migration: %w", err)
+	}
 
 	platformPool, err := pgxpool.New(ctx, dbDSNs["platform_core"])
 	if err != nil {
@@ -258,6 +262,11 @@ func startSharedEnv() (*onboardingIntegrationEnv, error) {
 	if err := platformPool.Ping(ctx); err != nil {
 		platformPool.Close()
 		return nil, fmt.Errorf("ping platform pool: %w", err)
+	}
+	superAdminID, err := seedIntegrationSuperAdmin(ctx, platformPool)
+	if err != nil {
+		platformPool.Close()
+		return nil, fmt.Errorf("seed integration super admin: %w", err)
 	}
 
 	dbPools := make(map[string]*pgxpool.Pool, 5)
@@ -531,6 +540,7 @@ func startSharedEnv() (*onboardingIntegrationEnv, error) {
 		producer:         producer,
 		emailSender:      emailSender,
 		storage:          storageClient,
+		superAdminID:     superAdminID,
 		onboardingRepo:   onboardingRepository,
 		provisioningRepo: provisioningRepository,
 		server:           server,
@@ -724,7 +734,7 @@ func (h *onboardingHarness) newContext() context.Context {
 
 func (h *onboardingHarness) superAdminToken(t *testing.T) string {
 	t.Helper()
-	pair, err := h.env.jwtMgr.GenerateTokenPair(uuid.NewString(), uuid.Nil.String(), "super-admin@example.com", []string{"super-admin"})
+	pair, err := h.env.jwtMgr.GenerateTokenPair(h.env.superAdminID.String(), uuid.Nil.String(), "super-admin@example.com", []string{"super-admin"})
 	if err != nil {
 		t.Fatalf("generate super admin token: %v", err)
 	}
@@ -901,6 +911,74 @@ func onboardingMigrationsBasePath() string {
 		panic("runtime.Caller(0) failed")
 	}
 	return filepath.Join(filepath.Dir(currentFile), "..", "..", "..", "migrations")
+}
+
+func seedIntegrationSuperAdmin(ctx context.Context, pool *pgxpool.Pool) (uuid.UUID, error) {
+	tenantID := uuid.New()
+	userID := uuid.New()
+	roleID := uuid.New()
+
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO tenants (id, name, slug, status, subscription_tier, settings)
+		VALUES ($1, $2, $3, 'active', 'enterprise', '{}'::jsonb)`,
+		tenantID,
+		"Platform Administration",
+		"platform-admin",
+	); err != nil {
+		return uuid.Nil, err
+	}
+
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO users (id, tenant_id, email, password_hash, first_name, last_name, status)
+		VALUES ($1, $2, $3, $4, $5, $6, 'active')`,
+		userID,
+		tenantID,
+		"super-admin@example.com",
+		"integration-super-admin",
+		"Platform",
+		"Administrator",
+	); err != nil {
+		return uuid.Nil, err
+	}
+
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO roles (id, tenant_id, name, slug, description, is_system_role, permissions)
+		VALUES ($1, $2, 'Super Admin', 'super-admin', 'Integration test platform super admin', true, '["admin:*"]'::jsonb)`,
+		roleID,
+		tenantID,
+	); err != nil {
+		return uuid.Nil, err
+	}
+
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO user_roles (user_id, role_id, tenant_id, assigned_by)
+		VALUES ($1, $2, $3, $1)`,
+		userID,
+		roleID,
+		tenantID,
+	); err != nil {
+		return uuid.Nil, err
+	}
+
+	return userID, nil
+}
+
+func applySQLFile(ctx context.Context, dsn, path string) error {
+	sqlBytes, err := os.ReadFile(path)
+	if err != nil {
+		return fmt.Errorf("read sql file %s: %w", path, err)
+	}
+
+	pool, err := pgxpool.New(ctx, dsn)
+	if err != nil {
+		return fmt.Errorf("open pool for sql file %s: %w", path, err)
+	}
+	defer pool.Close()
+
+	if _, err := pool.Exec(ctx, string(sqlBytes)); err != nil {
+		return fmt.Errorf("exec sql file %s: %w", path, err)
+	}
+	return nil
 }
 
 func normalizeEmail(value string) string {

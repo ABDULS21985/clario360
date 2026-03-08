@@ -455,6 +455,12 @@ func (s *AlertService) CreateFromEvent(ctx context.Context, alert *model.Alert) 
 	if alert.LastEventAt.IsZero() {
 		alert.LastEventAt = alert.FirstEventAt
 	}
+	if alert.AssetIDs == nil {
+		alert.AssetIDs = []uuid.UUID{}
+	}
+	if alert.Tags == nil {
+		alert.Tags = []string{}
+	}
 
 	created, err := s.alertRepo.Create(ctx, alert)
 	if err != nil {

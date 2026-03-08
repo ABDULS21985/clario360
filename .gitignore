@@ -26,6 +26,7 @@ backend/vendor/
 .vscode/
 *.swp
 *.swo
+.tar.gz
 *~
 
 # OS

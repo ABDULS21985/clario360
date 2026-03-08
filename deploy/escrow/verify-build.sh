@@ -34,7 +34,7 @@ check() {
     local description="$1"
     local command="$2"
     printf "  ${BLUE}…${NC} %s" "$description"
-    if eval "$command" &>/dev/null; then
+    if (eval "$command") &>/dev/null; then
         printf "\r  ${GREEN}✓${NC} %s\n" "$description"
         PASS=$((PASS + 1))
     else

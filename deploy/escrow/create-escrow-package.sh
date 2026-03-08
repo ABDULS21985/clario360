@@ -81,7 +81,6 @@ echo "[2b/10] Caching npm dependencies..."
     cd "${ESCROW_DIR}/source/frontend"
     npm ci --ignore-scripts 2>/dev/null || npm install --ignore-scripts 2>/dev/null || true
     if [ -d node_modules ]; then
-        cp -r node_modules "../../${ESCROW_DIR}/dependencies/node_modules" 2>/dev/null || \
         cp -r node_modules "${REPO_ROOT}/${ESCROW_DIR}/dependencies/node_modules"
         echo "  Node modules cached ($(ls node_modules | wc -l | tr -d ' ') packages)"
     else
@@ -157,7 +156,7 @@ else
         fi
     done
 
-    IMAGE_COUNT=$(ls "${ESCROW_DIR}/dependencies/images/"*.tar 2>/dev/null | wc -l | tr -d ' ')
+    IMAGE_COUNT=$(find "${ESCROW_DIR}/dependencies/images" -name '*.tar' 2>/dev/null | wc -l | tr -d ' ')
     echo "  Saved ${IMAGE_COUNT} container images"
 fi
 
@@ -363,9 +362,9 @@ LINE_COUNT=$(find "${ESCROW_DIR}/source" -type f -name '*.go' -o -name '*.ts' -o
     xargs wc -l 2>/dev/null | tail -1 | awk '{print $1}')
 LINE_COUNT="${LINE_COUNT:-0}"
 MIGRATION_COUNT=$(find "${ESCROW_DIR}/deploy/migrations" -name '*.sql' 2>/dev/null | wc -l | tr -d ' ')
-IMAGE_COUNT=$(ls "${ESCROW_DIR}/dependencies/images/"*.tar 2>/dev/null | wc -l | tr -d ' ')
+IMAGE_COUNT=$(find "${ESCROW_DIR}/dependencies/images" -name '*.tar' 2>/dev/null | wc -l | tr -d ' ')
 TEST_COUNT=$(find "${ESCROW_DIR}/source" -name '*_test.go' -o -name '*.test.ts' -o -name '*.test.tsx' -o -name '*.spec.ts' -o -name '*.spec.tsx' 2>/dev/null | wc -l | tr -d ' ')
-TF_MODULE_COUNT=$(ls -d "${ESCROW_DIR}/deploy/terraform/modules"/*/ 2>/dev/null | wc -l | tr -d ' ')
+TF_MODULE_COUNT=$(find "${ESCROW_DIR}/deploy/terraform/modules" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | wc -l | tr -d ' ')
 
 # Generate manifest from template
 "${SCRIPT_DIR}/generate-manifest.sh" \

@@ -46,6 +46,40 @@ func (c *VisusConsumer) handleComplianceChecked(ctx context.Context, event *even
 	)
 }
 
+func (c *VisusConsumer) handleEnterpriseActaOverdue(ctx context.Context, event *events.Event) error {
+	tenantID, err := c.tenantID(event)
+	if err != nil {
+		return err
+	}
+
+	var payload struct {
+		ActionItemID string `json:"action_item_id"`
+		Title        string `json:"title"`
+	}
+	if err := event.Unmarshal(&payload); err != nil {
+		c.logger.Warn().Err(err).Str("event_id", event.ID).Msg("malformed enterprise acta overdue event")
+		return nil
+	}
+
+	return c.createExecutiveAlert(
+		ctx,
+		tenantID,
+		fmt.Sprintf("Action Item Overdue: %s", payload.Title),
+		"A governance action item has passed its deadline and requires executive attention.",
+		model.AlertCategoryCompliance,
+		model.AlertSeverityHigh,
+		"acta",
+		"event",
+		dedupKey("enterprise_acta_overdue", payload.ActionItemID),
+		map[string]any{
+			"action_item_id":    payload.ActionItemID,
+			"title":             payload.Title,
+			"source_event_type": event.Type,
+			"source_event_id":   event.ID,
+		},
+	)
+}
+
 func (c *VisusConsumer) handleActionItemOverdue(ctx context.Context, event *events.Event) error {
 	tenantID, err := c.tenantID(event)
 	if err != nil {

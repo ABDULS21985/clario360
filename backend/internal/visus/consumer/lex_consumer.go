@@ -8,6 +8,40 @@ import (
 	"github.com/clario360/platform/internal/visus/model"
 )
 
+func (c *VisusConsumer) handleEnterpriseContractExpiring(ctx context.Context, event *events.Event) error {
+	tenantID, err := c.tenantID(event)
+	if err != nil {
+		return err
+	}
+
+	var payload struct {
+		ContractID string `json:"contract_id"`
+		Title      string `json:"title"`
+	}
+	if err := event.Unmarshal(&payload); err != nil {
+		c.logger.Warn().Err(err).Str("event_id", event.ID).Msg("malformed enterprise contract expiry event")
+		return nil
+	}
+
+	return c.createExecutiveAlert(
+		ctx,
+		tenantID,
+		fmt.Sprintf("Contract Expiring: %s", payload.Title),
+		"A contract expiry event was raised and promoted to the executive console.",
+		model.AlertCategoryLegal,
+		model.AlertSeverityHigh,
+		"lex",
+		"event",
+		dedupKey("enterprise_contract_expiring", payload.ContractID),
+		map[string]any{
+			"contract_id":       payload.ContractID,
+			"title":             payload.Title,
+			"source_event_type": event.Type,
+			"source_event_id":   event.ID,
+		},
+	)
+}
+
 func (c *VisusConsumer) handleContractExpiring(ctx context.Context, event *events.Event) error {
 	tenantID, err := c.tenantID(event)
 	if err != nil {

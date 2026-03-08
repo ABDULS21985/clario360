@@ -99,6 +99,7 @@ func (c *VisusConsumer) EventTypes() []string {
 		"com.clario360.data.lineage.graph_updated",
 		"com.clario360.acta.compliance.checked",
 		"com.clario360.acta.action_item.overdue",
+		"com.clario360.enterprise.acta.action_item.overdue",
 		"com.clario360.lex.contract.expiring",
 		"com.clario360.enterprise.lex.contract.expiring",
 		"com.clario360.lex.compliance.alert.created",
@@ -133,8 +134,12 @@ func (c *VisusConsumer) Handle(ctx context.Context, event *events.Event) error {
 		return c.handleComplianceChecked(ctx, event)
 	case "com.clario360.acta.action_item.overdue":
 		return c.handleActionItemOverdue(ctx, event)
-	case "com.clario360.lex.contract.expiring", "com.clario360.enterprise.lex.contract.expiring":
+	case "com.clario360.enterprise.acta.action_item.overdue":
+		return c.handleEnterpriseActaOverdue(ctx, event)
+	case "com.clario360.lex.contract.expiring":
 		return c.handleContractExpiring(ctx, event)
+	case "com.clario360.enterprise.lex.contract.expiring":
+		return c.handleEnterpriseContractExpiring(ctx, event)
 	case "com.clario360.lex.compliance.alert.created", "com.clario360.lex.compliance.alert_created":
 		return c.handleComplianceAlert(ctx, event)
 	case "com.clario360.file.scan.infected":
