@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/rs/zerolog"
 
@@ -146,7 +147,7 @@ func (s *RoleService) GetUserRoles(ctx context.Context, userID string) ([]dto.Ro
 }
 
 func (s *RoleService) ListUsersByRole(ctx context.Context, tenantID, roleSlug string) ([]dto.UserResponse, error) {
-	userIDs, err := s.roleRepo.ListUserIDsByRole(ctx, tenantID, roleSlug)
+	userIDs, err := s.ListUserIDsByRole(ctx, tenantID, roleSlug)
 	if err != nil {
 		return nil, err
 	}
@@ -159,6 +160,11 @@ func (s *RoleService) ListUsersByRole(ctx context.Context, tenantID, roleSlug st
 		users = append(users, dto.UserToResponse(user))
 	}
 	return users, nil
+}
+
+func (s *RoleService) ListUserIDsByRole(ctx context.Context, tenantID, roleSlug string) ([]string, error) {
+	normalized := strings.TrimSpace(strings.ReplaceAll(roleSlug, "_", "-"))
+	return s.roleRepo.ListUserIDsByRole(ctx, tenantID, normalized)
 }
 
 func (s *RoleService) RemoveRole(ctx context.Context, userID, roleID string) error {

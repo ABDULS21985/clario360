@@ -123,6 +123,9 @@ func main() {
 
 	// Routes.
 	svc.Router.Route("/api/v1", func(r chi.Router) {
+		r.Get("/internal/users/by-role", roleHandler.InternalUserIDsByRole)
+		r.Get("/internal/users/{id}/email", userHandler.InternalGetEmail)
+
 		// Public auth routes (no auth middleware).
 		r.Mount("/auth", authHandler.Routes())
 

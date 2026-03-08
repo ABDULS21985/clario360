@@ -5,6 +5,7 @@ package events
 var Topics = struct {
 	// Platform
 	IAMEvents          string
+	OnboardingEvents   string
 	AuditEvents        string
 	NotificationEvents string
 	WorkflowEvents     string
@@ -39,6 +40,7 @@ var Topics = struct {
 }{
 	// Platform
 	IAMEvents:          "platform.iam.events",
+	OnboardingEvents:   "platform.onboarding.events",
 	AuditEvents:        "platform.audit.events",
 	NotificationEvents: "platform.notification.events",
 	WorkflowEvents:     "platform.workflow.events",
@@ -93,6 +95,7 @@ const (
 func AllTopics() []string {
 	return []string{
 		Topics.IAMEvents,
+		Topics.OnboardingEvents,
 		Topics.AuditEvents,
 		Topics.NotificationEvents,
 		Topics.WorkflowEvents,

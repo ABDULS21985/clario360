@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
 
 	gwconfig "github.com/clario360/platform/internal/gateway/config"
@@ -21,13 +22,21 @@ type Result struct {
 
 // Limiter implements Redis-based sliding window rate limiting.
 type Limiter struct {
-	rdb    *redis.Client
-	config Config
+	rdb          *redis.Client
+	config       Config
+	tierResolver TierResolver // optional; if nil, uses config defaults
 }
 
 // NewLimiter creates a new rate limiter.
 func NewLimiter(rdb *redis.Client, cfg Config) *Limiter {
 	return &Limiter{rdb: rdb, config: cfg}
+}
+
+// NewLimiterWithTierResolver creates a rate limiter that uses tier-specific limits
+// when a tenantID is available. Falls back to config defaults when resolver is nil
+// or returns an error.
+func NewLimiterWithTierResolver(rdb *redis.Client, cfg Config, resolver TierResolver) *Limiter {
+	return &Limiter{rdb: rdb, config: cfg, tierResolver: resolver}
 }
 
 // Check determines whether a request should be allowed.
@@ -67,6 +76,52 @@ func (l *Limiter) Check(ctx context.Context, key string, group gwconfig.Endpoint
 		Remaining: remaining,
 		ResetAt:   resetAt,
 	}
+}
+
+// CheckWithTenant checks the rate limit using the tenant's subscription tier limits.
+// Falls back to config defaults if the tier resolver is nil or returns an error.
+func (l *Limiter) CheckWithTenant(ctx context.Context, tenantID uuid.UUID, group gwconfig.EndpointGroup) Result {
+	if l.tierResolver != nil {
+		tier, err := l.tierResolver.ResolveTier(ctx, tenantID)
+		if err == nil {
+			if tierLimits, ok := TierLimits[tier]; ok {
+				groupLimit := tierLimits.ToGroupLimit(group)
+				redisKey := fmt.Sprintf("gw_rl_tier:%s:%s", group, tenantID.String())
+				now := time.Now()
+				windowStart := now.Add(-groupLimit.Window)
+				resetAt := now.Add(groupLimit.Window)
+
+				if l.rdb == nil {
+					return Result{
+						Allowed:   true,
+						Limit:     groupLimit.RequestsPerWindow,
+						Remaining: groupLimit.RequestsPerWindow,
+						ResetAt:   resetAt,
+					}
+				}
+
+				allowed, remaining, err := l.slidingWindowCheck(ctx, redisKey, now, windowStart, groupLimit.RequestsPerWindow, groupLimit.Window)
+				if err != nil {
+					return Result{
+						Allowed:   true,
+						Limit:     groupLimit.RequestsPerWindow,
+						Remaining: groupLimit.RequestsPerWindow,
+						ResetAt:   resetAt,
+					}
+				}
+
+				return Result{
+					Allowed:   allowed,
+					Limit:     groupLimit.RequestsPerWindow,
+					Remaining: remaining,
+					ResetAt:   resetAt,
+				}
+			}
+		}
+	}
+
+	// Fall back to standard config-based check keyed by tenant ID string.
+	return l.Check(ctx, tenantID.String(), group)
 }
 
 // slidingWindowCheck uses Redis sorted sets for precise sliding window rate limiting.

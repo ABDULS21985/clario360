@@ -20,7 +20,7 @@ type CreateTenantRequest struct {
 type UpdateTenantRequest struct {
 	Name             *string         `json:"name,omitempty" validate:"omitempty,min=1,max=255"`
 	Domain           *string         `json:"domain,omitempty"`
-	Status           *string         `json:"status,omitempty" validate:"omitempty,oneof=active inactive suspended trial"`
+	Status           *string         `json:"status,omitempty" validate:"omitempty,oneof=active inactive suspended trial onboarding deprovisioned"`
 	SubscriptionTier *string         `json:"subscription_tier,omitempty" validate:"omitempty,oneof=free starter professional enterprise"`
 	Settings         json.RawMessage `json:"settings,omitempty"`
 }

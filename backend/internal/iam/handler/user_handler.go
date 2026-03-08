@@ -72,6 +72,22 @@ func (h *UserHandler) GetByID(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, resp)
 }
 
+func (h *UserHandler) InternalGetEmail(w http.ResponseWriter, r *http.Request) {
+	if r.Header.Get("X-Internal-Service") == "" {
+		writeError(w, http.StatusUnauthorized, "internal access required")
+		return
+	}
+
+	userID := urlParam(r, "id")
+	resp, err := h.userSvc.GetByID(r.Context(), userID)
+	if err != nil {
+		handleServiceError(w, err)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]string{"email": resp.Email})
+}
+
 func (h *UserHandler) Update(w http.ResponseWriter, r *http.Request) {
 	currentUser := iamauth.UserFromContext(r.Context())
 	if currentUser == nil {

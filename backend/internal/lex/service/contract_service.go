@@ -219,11 +219,14 @@ func (s *ContractService) CreateContract(ctx context.Context, tenantID, userID u
 	}
 
 	writeEvent(ctx, s.publisher, "lex-service", s.topic, "com.clario360.lex.contract.created", tenantID, &userID, map[string]any{
-		"id":           contract.ID,
-		"title":        contract.Title,
-		"type":         contract.Type,
-		"party_b_name": contract.PartyBName,
-		"value":        contract.TotalValue,
+		"id":                contract.ID,
+		"title":             contract.Title,
+		"type":              contract.Type,
+		"party_b_name":      contract.PartyBName,
+		"value":             contract.TotalValue,
+		"owner_user_id":     contract.OwnerUserID,
+		"legal_reviewer_id": contract.LegalReviewerID,
+		"created_by":        contract.CreatedBy,
 	}, s.logger)
 	return contract, nil
 }
@@ -400,22 +403,26 @@ func (s *ContractService) AnalyzeContract(ctx context.Context, tenantID, id uuid
 	}
 
 	writeEvent(ctx, s.publisher, "lex-service", s.topic, "com.clario360.lex.contract.analyzed", tenantID, nil, map[string]any{
-		"id":           contract.ID,
-		"risk_level":   result.Analysis.OverallRisk,
-		"risk_score":   result.Analysis.RiskScore,
-		"clause_count": result.Analysis.ClauseCount,
-		"missing_count": len(result.Analysis.MissingClauses),
+		"id":                contract.ID,
+		"risk_level":        result.Analysis.OverallRisk,
+		"risk_score":        result.Analysis.RiskScore,
+		"clause_count":      result.Analysis.ClauseCount,
+		"missing_count":     len(result.Analysis.MissingClauses),
+		"created_by":        contract.CreatedBy,
+		"owner_user_id":     contract.OwnerUserID,
+		"legal_reviewer_id": contract.LegalReviewerID,
 	}, s.logger)
 	for _, clause := range result.Clauses {
 		if clause.RiskLevel != model.RiskLevelCritical && clause.RiskLevel != model.RiskLevelHigh {
 			continue
 		}
 		writeEvent(ctx, s.publisher, "lex-service", s.topic, "com.clario360.lex.clause.risk_flagged", tenantID, nil, map[string]any{
-			"contract_id":  contract.ID,
-			"clause_type":  clause.ClauseType,
-			"risk_level":   clause.RiskLevel,
-			"section_ref":  clause.SectionReference,
+			"contract_id":   contract.ID,
+			"clause_type":   clause.ClauseType,
+			"risk_level":    clause.RiskLevel,
+			"section_ref":   clause.SectionReference,
 			"risk_keywords": clause.RiskKeywords,
+			"owner_user_id": contract.OwnerUserID,
 		}, s.logger)
 	}
 	return result, nil

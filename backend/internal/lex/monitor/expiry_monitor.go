@@ -185,6 +185,9 @@ func (m *ExpiryMonitor) recordExpiryNotification(ctx context.Context, contract *
 		"days_until_expiry": daysUntilExpiry(contract.ExpiryDate, m.now()),
 		"horizon":           horizon,
 		"recipients":        expiryRecipients(contract, horizon),
+		"owner_user_id":     contract.OwnerUserID,
+		"legal_reviewer_id": contract.LegalReviewerID,
+		"party_name":        contract.PartyBName,
 	}, m.logger)
 	return nil
 }

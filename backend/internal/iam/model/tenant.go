@@ -12,6 +12,8 @@ const (
 	TenantStatusInactive  TenantStatus = "inactive"
 	TenantStatusSuspended TenantStatus = "suspended"
 	TenantStatusTrial     TenantStatus = "trial"
+	TenantStatusOnboarding TenantStatus = "onboarding"
+	TenantStatusDeprovisioned TenantStatus = "deprovisioned"
 )
 
 type SubscriptionTier string
@@ -31,6 +33,9 @@ type Tenant struct {
 	Settings         json.RawMessage
 	Status           TenantStatus
 	SubscriptionTier SubscriptionTier
+	DeprovisionedAt  *time.Time
+	DeprovisionedBy  *string
+	RetainUntil      *time.Time
 	CreatedAt        time.Time
 	UpdatedAt        time.Time
 }
