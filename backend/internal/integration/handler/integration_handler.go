@@ -14,15 +14,39 @@ import (
 )
 
 type IntegrationHandler struct {
-	service *intsvc.IntegrationService
-	logger  zerolog.Logger
+	service   *intsvc.IntegrationService
+	providers []ProviderStatus
+	logger    zerolog.Logger
 }
 
-func NewIntegrationHandler(service *intsvc.IntegrationService, logger zerolog.Logger) *IntegrationHandler {
+type ProviderStatus struct {
+	Type            intmodel.IntegrationType `json:"type"`
+	Name            string                   `json:"name"`
+	Description     string                   `json:"description"`
+	SetupMode       string                   `json:"setup_mode"`
+	Configured      bool                     `json:"configured"`
+	OAuthEnabled    bool                     `json:"oauth_enabled"`
+	OAuthStartURL   string                   `json:"oauth_start_url,omitempty"`
+	MissingConfig   []string                 `json:"missing_config,omitempty"`
+	SupportsInbound bool                     `json:"supports_inbound"`
+	SupportsOutbound bool                    `json:"supports_outbound"`
+}
+
+func NewIntegrationHandler(service *intsvc.IntegrationService, providers []ProviderStatus, logger zerolog.Logger) *IntegrationHandler {
 	return &IntegrationHandler{
-		service: service,
-		logger:  logger.With().Str("component", "integration_handler").Logger(),
+		service:   service,
+		providers: providers,
+		logger:    logger.With().Str("component", "integration_handler").Logger(),
 	}
+}
+
+func (h *IntegrationHandler) ListProviders(w http.ResponseWriter, r *http.Request) {
+	user, _ := requireAuth(r)
+	if user == nil {
+		writeError(w, r, http.StatusUnauthorized, "UNAUTHORIZED", "authentication required")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"data": h.providers})
 }
 
 func (h *IntegrationHandler) List(w http.ResponseWriter, r *http.Request) {
@@ -213,6 +237,7 @@ func (h *IntegrationHandler) ListTicketLinks(w http.ResponseWriter, r *http.Requ
 		return
 	}
 	query := &intdto.TicketLinkQuery{
+		IntegrationID: r.URL.Query().Get("integration_id"),
 		EntityType:     r.URL.Query().Get("entity_type"),
 		EntityID:       r.URL.Query().Get("entity_id"),
 		ExternalSystem: r.URL.Query().Get("external_system"),
@@ -223,6 +248,20 @@ func (h *IntegrationHandler) ListTicketLinks(w http.ResponseWriter, r *http.Requ
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"data": items})
+}
+
+func (h *IntegrationHandler) GetTicketLink(w http.ResponseWriter, r *http.Request) {
+	user, tenantID := requireAuth(r)
+	if user == nil {
+		writeError(w, r, http.StatusUnauthorized, "UNAUTHORIZED", "authentication required")
+		return
+	}
+	item, err := h.service.GetTicketLink(r.Context(), tenantID, chi.URLParam(r, "id"))
+	if err != nil {
+		writeError(w, r, http.StatusNotFound, "NOT_FOUND", "ticket link not found")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"data": item})
 }
 
 func (h *IntegrationHandler) SyncTicketLink(w http.ResponseWriter, r *http.Request) {

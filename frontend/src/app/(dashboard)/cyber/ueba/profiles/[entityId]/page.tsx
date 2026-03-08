@@ -35,7 +35,7 @@ function badgeVariant(level: string) {
 
 export default function UebaProfileDetailPage() {
   const params = useParams<{ entityId: string }>();
-  const entityId = decodeURIComponent(params.entityId);
+  const entityId = decodeURIComponent(params?.entityId ?? '');
 
   const profileQuery = useQuery({
     queryKey: ['cyber-ueba-profile', entityId],

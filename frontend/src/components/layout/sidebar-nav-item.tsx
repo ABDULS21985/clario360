@@ -14,10 +14,11 @@ interface SidebarNavItemProps {
 
 export function SidebarNavItem({ item, collapsed, badgeCount }: SidebarNavItemProps) {
   const pathname = usePathname();
+  const currentPath = pathname ?? '';
   const isActive =
     item.href === '/dashboard'
-      ? pathname === '/dashboard'
-      : pathname.startsWith(item.href);
+      ? currentPath === '/dashboard'
+      : currentPath.startsWith(item.href);
 
   const Icon = item.icon;
   const showBadge = badgeCount !== undefined && badgeCount > 0;

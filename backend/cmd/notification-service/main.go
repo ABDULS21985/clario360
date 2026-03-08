@@ -23,6 +23,7 @@ import (
 	intconsumer "github.com/clario360/platform/internal/integration/consumer"
 	intencrypt "github.com/clario360/platform/internal/integration/encryption"
 	inthandler "github.com/clario360/platform/internal/integration/handler"
+	intmodel "github.com/clario360/platform/internal/integration/model"
 	intrepo "github.com/clario360/platform/internal/integration/repository"
 	intservice "github.com/clario360/platform/internal/integration/service"
 	jirasvc "github.com/clario360/platform/internal/integration/service/jira"
@@ -207,13 +208,70 @@ func main() {
 	)
 	integrationWorker := intservice.NewDeliveryWorker(integrationDeliverySvc, integrationDeliveryRepo, logger)
 	botRouter := intbot.NewRouter(clarioAPI, logger)
+	gatewayURL := strings.TrimRight(notifCfg.GatewayURL, "/")
+	providerStatuses := []inthandler.ProviderStatus{
+		{
+			Type:             intmodel.IntegrationTypeSlack,
+			Name:             "Slack",
+			Description:      "Workspace install plus slash commands, interactions, and outbound alert delivery.",
+			SetupMode:        "oauth",
+			Configured:       strings.TrimSpace(notifCfg.SlackClientID) != "" && strings.TrimSpace(notifCfg.SlackClientSecret) != "" && strings.TrimSpace(notifCfg.SlackSigningSecret) != "",
+			OAuthEnabled:     true,
+			OAuthStartURL:    gatewayURL + "/api/v1/integrations/slack/oauth/start",
+			MissingConfig:    missingProviderConfig(map[string]string{"NOTIF_SLACK_CLIENT_ID": notifCfg.SlackClientID, "NOTIF_SLACK_CLIENT_SECRET": notifCfg.SlackClientSecret, "NOTIF_SLACK_SIGNING_SECRET": notifCfg.SlackSigningSecret}),
+			SupportsInbound:  true,
+			SupportsOutbound: true,
+		},
+		{
+			Type:             intmodel.IntegrationTypeTeams,
+			Name:             "Microsoft Teams",
+			Description:      "Manual Bot Framework setup for outbound cards and inbound bot commands.",
+			SetupMode:        "manual",
+			Configured:       true,
+			OAuthEnabled:     false,
+			SupportsInbound:  true,
+			SupportsOutbound: true,
+		},
+		{
+			Type:             intmodel.IntegrationTypeJira,
+			Name:             "Jira Cloud",
+			Description:      "OAuth install for outbound ticket creation and inbound status synchronization.",
+			SetupMode:        "oauth",
+			Configured:       strings.TrimSpace(notifCfg.AtlassianClientID) != "" && strings.TrimSpace(notifCfg.AtlassianClientSecret) != "",
+			OAuthEnabled:     true,
+			OAuthStartURL:    gatewayURL + "/api/v1/integrations/jira/oauth/start",
+			MissingConfig:    missingProviderConfig(map[string]string{"NOTIF_ATLASSIAN_CLIENT_ID": notifCfg.AtlassianClientID, "NOTIF_ATLASSIAN_CLIENT_SECRET": notifCfg.AtlassianClientSecret}),
+			SupportsInbound:  true,
+			SupportsOutbound: true,
+		},
+		{
+			Type:             intmodel.IntegrationTypeServiceNow,
+			Name:             "ServiceNow",
+			Description:      "Manual incident integration with bidirectional webhook synchronization.",
+			SetupMode:        "manual",
+			Configured:       true,
+			OAuthEnabled:     false,
+			SupportsInbound:  true,
+			SupportsOutbound: true,
+		},
+		{
+			Type:             intmodel.IntegrationTypeWebhook,
+			Name:             "Generic Webhook",
+			Description:      "Signed outbound webhook delivery to arbitrary HTTP endpoints.",
+			SetupMode:        "manual",
+			Configured:       true,
+			OAuthEnabled:     false,
+			SupportsInbound:  false,
+			SupportsOutbound: true,
+		},
+	}
 
 	// 11. Initialize handlers.
 	notifHandler := handler.NewNotificationHandler(notifSvc, notifRepo, logger)
 	prefHandler := handler.NewPreferenceHandler(prefSvc, webhookRepo, logger)
 	wsHandler := handler.NewWebSocketHandler(hub, srv.JWTManager, notifRepo, notifCfg, logger)
 	adminHandler := handler.NewAdminHandler(notifSvc, deliveryRepo, dispatcher, logger)
-	integrationHandler := inthandler.NewIntegrationHandler(integrationSvc, logger)
+	integrationHandler := inthandler.NewIntegrationHandler(integrationSvc, providerStatuses, logger)
 	slackHandler := inthandler.NewSlackHandler(
 		integrationSvc,
 		clarioAPI,
@@ -424,4 +482,14 @@ func main() {
 	}
 
 	logger.Info().Msg("notification-service stopped")
+}
+
+func missingProviderConfig(values map[string]string) []string {
+	missing := make([]string, 0, len(values))
+	for key, value := range values {
+		if strings.TrimSpace(value) == "" {
+			missing = append(missing, key)
+		}
+	}
+	return missing
 }

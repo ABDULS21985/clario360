@@ -24,8 +24,8 @@ import { showApiError } from '@/lib/toast';
 
 export default function DataLineagePage() {
   const searchParams = useSearchParams();
-  const focusType = searchParams.get('type');
-  const focusId = searchParams.get('id');
+  const focusType = searchParams?.get('type');
+  const focusId = searchParams?.get('id');
   const [direction, setDirection] = useState<'LR' | 'TB'>('LR');
   const [search, setSearch] = useState('');
   const [selectedNode, setSelectedNode] = useState<LineageNode | null>(null);

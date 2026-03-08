@@ -105,6 +105,7 @@ export function useDataTable<TData>(
   );
   const router = useRouter();
   const pathname = usePathname();
+  const currentPath = pathname ?? "";
   const searchParams = useSearchParams();
   const urlSearchParams = useMemo(() => cloneSearchParams(searchParams), [searchParams]);
 
@@ -156,9 +157,9 @@ export function useDataTable<TData>(
           params.set(key, value);
         }
       }
-      router.push(`${pathname}?${params.toString()}`);
+      router.push(params.toString() ? `${currentPath}?${params.toString()}` : currentPath);
     },
-    [router, pathname, searchParams]
+    [router, currentPath, searchParams]
   );
 
   const setPage = useCallback(
@@ -190,8 +191,8 @@ export function useDataTable<TData>(
       if (v) params.set(k, v);
     });
     params.set("page", "1");
-    router.push(`${pathname}?${params.toString()}`);
-  }, [router, pathname, searchParams]);
+    router.push(params.toString() ? `${currentPath}?${params.toString()}` : currentPath);
+  }, [router, currentPath, searchParams]);
 
   const fetchParams: FetchParams = useMemo(
     () => ({

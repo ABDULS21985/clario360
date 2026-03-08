@@ -3,12 +3,14 @@ package handler
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"strings"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/redis/go-redis/v9"
 	"github.com/rs/zerolog"
 
@@ -24,6 +26,11 @@ type jiraOAuthState struct {
 	UserID     string `json:"user_id"`
 	Name       string `json:"name,omitempty"`
 	ProjectKey string `json:"project_key,omitempty"`
+}
+
+type jiraOAuthSessionRequest struct {
+	Name       string `json:"name"`
+	ProjectKey string `json:"project_key"`
 }
 
 type createTicketRequest struct {
@@ -69,9 +76,49 @@ func NewJiraHandler(
 }
 
 func (h *JiraHandler) OAuthStart(w http.ResponseWriter, r *http.Request) {
+	if missing := h.oauthMissingConfig(); len(missing) > 0 {
+		writeError(w, r, http.StatusServiceUnavailable, "JIRA_OAUTH_NOT_CONFIGURED", "jira oauth is not configured: "+strings.Join(missing, ", "))
+		return
+	}
+	if h.redis == nil {
+		writeError(w, r, http.StatusServiceUnavailable, "STATE_STORE_UNAVAILABLE", "oauth state store is unavailable")
+		return
+	}
+	stateID := strings.TrimSpace(r.URL.Query().Get("state"))
+	if stateID == "" {
+		user, tenantID := requireAuth(r)
+		if user == nil {
+			writeError(w, r, http.StatusBadRequest, "INVALID_OAUTH_STATE", "missing oauth state")
+			return
+		}
+		var err error
+		stateID, err = h.prepareOAuthState(r.Context(), tenantID, user.ID, strings.TrimSpace(r.URL.Query().Get("name")), strings.TrimSpace(r.URL.Query().Get("project_key")))
+		if err != nil {
+			writeError(w, r, http.StatusInternalServerError, "STATE_STORE_FAILED", "failed to persist oauth state")
+			return
+		}
+	} else {
+		exists, err := h.redis.Exists(r.Context(), "integration:jira:oauth:"+stateID).Result()
+		if err != nil {
+			writeError(w, r, http.StatusInternalServerError, "STATE_STORE_FAILED", "failed to load oauth state")
+			return
+		}
+		if exists == 0 {
+			writeError(w, r, http.StatusBadRequest, "INVALID_OAUTH_STATE", "oauth state is missing or expired")
+			return
+		}
+	}
+	http.Redirect(w, r, jirasvc.BuildOAuthURL(h.oauthCfg, stateID), http.StatusFound)
+}
+
+func (h *JiraHandler) CreateOAuthSession(w http.ResponseWriter, r *http.Request) {
 	user, tenantID := requireAuth(r)
 	if user == nil {
 		writeError(w, r, http.StatusUnauthorized, "UNAUTHORIZED", "authentication required")
+		return
+	}
+	if missing := h.oauthMissingConfig(); len(missing) > 0 {
+		writeError(w, r, http.StatusServiceUnavailable, "JIRA_OAUTH_NOT_CONFIGURED", "jira oauth is not configured: "+strings.Join(missing, ", "))
 		return
 	}
 	if h.redis == nil {
@@ -79,26 +126,32 @@ func (h *JiraHandler) OAuthStart(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	stateID := events.GenerateUUID()
-	state := jiraOAuthState{
-		TenantID:   tenantID,
-		UserID:     user.ID,
-		Name:       strings.TrimSpace(r.URL.Query().Get("name")),
-		ProjectKey: strings.TrimSpace(r.URL.Query().Get("project_key")),
+	var req jiraOAuthSessionRequest
+	if r.Body != nil && r.ContentLength != 0 {
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			writeError(w, r, http.StatusBadRequest, "INVALID_BODY", "invalid jira oauth session payload")
+			return
+		}
 	}
-	raw, err := json.Marshal(state)
+
+	stateID, err := h.prepareOAuthState(r.Context(), tenantID, user.ID, req.Name, req.ProjectKey)
 	if err != nil {
-		writeError(w, r, http.StatusInternalServerError, "STATE_ENCODE_FAILED", "failed to initialize oauth state")
-		return
-	}
-	if err := h.redis.Set(r.Context(), "integration:jira:oauth:"+stateID, raw, h.stateTTL).Err(); err != nil {
 		writeError(w, r, http.StatusInternalServerError, "STATE_STORE_FAILED", "failed to persist oauth state")
 		return
 	}
-	http.Redirect(w, r, jirasvc.BuildOAuthURL(h.oauthCfg, stateID), http.StatusFound)
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"data": map[string]any{
+			"url": jirasvc.BuildOAuthURL(h.oauthCfg, stateID),
+		},
+	})
 }
 
 func (h *JiraHandler) OAuthCallback(w http.ResponseWriter, r *http.Request) {
+	if missing := h.oauthMissingConfig(); len(missing) > 0 {
+		writeError(w, r, http.StatusServiceUnavailable, "JIRA_OAUTH_NOT_CONFIGURED", "jira oauth is not configured: "+strings.Join(missing, ", "))
+		return
+	}
 	if h.redis == nil {
 		writeError(w, r, http.StatusServiceUnavailable, "STATE_STORE_UNAVAILABLE", "oauth state store is unavailable")
 		return
@@ -215,6 +268,11 @@ func (h *JiraHandler) Webhook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if _, err := h.jiraService.SyncWebhookStatus(r.Context(), integration, cfg, event.Issue.ID, newStatus); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			h.logger.Debug().Str("external_id", event.Issue.ID).Msg("jira webhook did not match a linked ticket")
+			writeJSON(w, http.StatusOK, map[string]any{"ok": true})
+			return
+		}
 		writeError(w, r, http.StatusBadGateway, "JIRA_SYNC_FAILED", err.Error())
 		return
 	}
@@ -259,6 +317,35 @@ func (h *JiraHandler) CreateTicket(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, map[string]any{"data": link})
 }
 
+func (h *JiraHandler) oauthMissingConfig() []string {
+	missing := make([]string, 0, 2)
+	if strings.TrimSpace(h.oauthCfg.ClientID) == "" {
+		missing = append(missing, "NOTIF_ATLASSIAN_CLIENT_ID")
+	}
+	if strings.TrimSpace(h.oauthCfg.ClientSecret) == "" {
+		missing = append(missing, "NOTIF_ATLASSIAN_CLIENT_SECRET")
+	}
+	return missing
+}
+
+func (h *JiraHandler) prepareOAuthState(ctx context.Context, tenantID, userID, name, projectKey string) (string, error) {
+	stateID := events.GenerateUUID()
+	state := jiraOAuthState{
+		TenantID:   tenantID,
+		UserID:     userID,
+		Name:       strings.TrimSpace(name),
+		ProjectKey: strings.TrimSpace(projectKey),
+	}
+	raw, err := json.Marshal(state)
+	if err != nil {
+		return "", err
+	}
+	if err := h.redis.Set(ctx, "integration:jira:oauth:"+stateID, raw, h.stateTTL).Err(); err != nil {
+		return "", err
+	}
+	return stateID, nil
+}
+
 func (h *JiraHandler) findWebhookIntegration(ctx context.Context, signature string, body []byte) (*intmodel.Integration, intmodel.JiraConfig, error) {
 	integration, configMap, err := h.service.FindActiveByType(ctx, intmodel.IntegrationTypeJira, func(_ *intmodel.Integration, config map[string]any) bool {
 		secret := strings.TrimSpace(stringValue(config["webhook_secret"]))
@@ -301,4 +388,3 @@ func fetchAccessibleResource(ctx context.Context, accessToken string) (map[strin
 	}
 	return resources[0], nil
 }
-

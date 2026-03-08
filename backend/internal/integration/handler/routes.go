@@ -32,6 +32,7 @@ func RegisterRoutes(r chi.Router, deps RouteDependencies) {
 			r.Use(notifmw.TenantGuard)
 			r.Use(notifmw.RateLimiter(deps.Redis, deps.RateLimitPerMinute, deps.Logger))
 
+			r.Get("/providers", deps.Integration.ListProviders)
 			r.Get("/", deps.Integration.List)
 			r.Post("/", deps.Integration.Create)
 			r.Get("/{id}", deps.Integration.Get)
@@ -43,14 +44,16 @@ func RegisterRoutes(r chi.Router, deps RouteDependencies) {
 			r.Put("/{id}/status", deps.Integration.UpdateStatus)
 
 			r.Get("/ticket-links", deps.Integration.ListTicketLinks)
+			r.Get("/ticket-links/{id}", deps.Integration.GetTicketLink)
 			r.Get("/ticket-links/{id}/sync", deps.Integration.SyncTicketLink)
 
-			r.Get("/slack/oauth/start", deps.Slack.OAuthStart)
-			r.Get("/jira/oauth/start", deps.Jira.OAuthStart)
+			r.Post("/slack/oauth/session", deps.Slack.CreateOAuthSession)
 			r.Post("/jira/create-ticket", deps.Jira.CreateTicket)
+			r.Post("/jira/oauth/session", deps.Jira.CreateOAuthSession)
 			r.Post("/servicenow/create-incident", deps.ServiceNow.CreateIncident)
 		})
 
+		r.Get("/slack/oauth/start", deps.Slack.OAuthStart)
 		r.Get("/slack/oauth/callback", deps.Slack.OAuthCallback)
 		r.Post("/slack/events", deps.Slack.Events)
 		r.Post("/slack/commands", deps.Slack.Commands)
@@ -58,6 +61,7 @@ func RegisterRoutes(r chi.Router, deps RouteDependencies) {
 
 		r.Post("/teams/messages", deps.Teams.Messages)
 
+		r.Get("/jira/oauth/start", deps.Jira.OAuthStart)
 		r.Get("/jira/oauth/callback", deps.Jira.OAuthCallback)
 		r.Post("/jira/webhook", deps.Jira.Webhook)
 
@@ -65,4 +69,3 @@ func RegisterRoutes(r chi.Router, deps RouteDependencies) {
 		r.MethodFunc(http.MethodPost, "/webhook/test-receiver", deps.Webhook.TestReceiver)
 	})
 }
-

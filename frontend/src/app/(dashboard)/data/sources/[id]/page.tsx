@@ -30,9 +30,9 @@ export default function SourceDetailPage() {
   const router = useRouter();
   const { hasPermission } = useAuth();
 
-  const sourceId = params.id;
-  const activeTab = TABS.includes((searchParams.get('tab') ?? 'overview') as SourceTabValue)
-    ? (searchParams.get('tab') as SourceTabValue | null) ?? 'overview'
+  const sourceId = params?.id ?? '';
+  const activeTab = TABS.includes((searchParams?.get('tab') ?? 'overview') as SourceTabValue)
+    ? (searchParams?.get('tab') as SourceTabValue | null) ?? 'overview'
     : 'overview';
 
   const [sourceQuery, schemaQuery, statsQuery, syncHistoryQuery, modelsQuery, pipelinesQuery, rulesQuery, lineageQuery] =
@@ -147,7 +147,7 @@ export default function SourceDetailPage() {
         <Tabs
           value={activeTab}
           onValueChange={(nextValue) => {
-            const params = new URLSearchParams(searchParams.toString());
+            const params = new URLSearchParams(searchParams?.toString() ?? '');
             params.set('tab', nextValue);
             router.replace(`/data/sources/${sourceId}?${params.toString()}`);
           }}

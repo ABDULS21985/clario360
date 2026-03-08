@@ -16,6 +16,14 @@ function readTrimmed(filePath) {
   return fs.readFileSync(filePath, "utf8").trim();
 }
 
+function readOptionalSecret(name, fallback = "") {
+  const filePath = path.join(secretsDir, name);
+  if (fs.existsSync(filePath)) {
+    return readTrimmed(filePath);
+  }
+  return fallback;
+}
+
 function ensureBase64Secret(name) {
   const filePath = path.join(secretsDir, name);
   if (!fs.existsSync(filePath)) {
@@ -67,6 +75,10 @@ if (!fs.existsSync(slackSigningSecretPath)) {
   fs.writeFileSync(slackSigningSecretPath, crypto.randomBytes(32).toString("hex"));
 }
 const slackSigningSecret = readTrimmed(slackSigningSecretPath);
+const slackClientID = process.env.NOTIF_SLACK_CLIENT_ID || readOptionalSecret("slack-client-id");
+const slackClientSecret = process.env.NOTIF_SLACK_CLIENT_SECRET || readOptionalSecret("slack-client-secret");
+const atlassianClientID = process.env.NOTIF_ATLASSIAN_CLIENT_ID || readOptionalSecret("atlassian-client-id");
+const atlassianClientSecret = process.env.NOTIF_ATLASSIAN_CLIENT_SECRET || readOptionalSecret("atlassian-client-secret");
 
 const sharedEnv = {
   ENVIRONMENT: "development",
@@ -144,7 +156,11 @@ module.exports = {
       NOTIF_GATEWAY_URL: "http://localhost:8080",
       CLARIO360_PUBLIC_URL: "http://localhost:3000",
       NOTIF_INTEGRATION_STATE_TTL_MIN: "15",
+      NOTIF_SLACK_CLIENT_ID: slackClientID,
+      NOTIF_SLACK_CLIENT_SECRET: slackClientSecret,
       NOTIF_SLACK_SIGNING_SECRET: slackSigningSecret,
+      NOTIF_ATLASSIAN_CLIENT_ID: atlassianClientID,
+      NOTIF_ATLASSIAN_CLIENT_SECRET: atlassianClientSecret,
       NOTIF_ENVIRONMENT: "development",
     }),
     serviceApp("workflow-engine", {

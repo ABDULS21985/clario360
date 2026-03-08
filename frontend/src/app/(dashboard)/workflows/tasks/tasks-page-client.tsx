@@ -41,10 +41,11 @@ const TASK_WS_TOPICS = [
 export function WorkflowTasksPageClient() {
   const router = useRouter();
   const pathname = usePathname();
+  const currentPath = pathname ?? '/workflows/tasks';
   const searchParams = useSearchParams();
   const queryClient = useQueryClient();
   const { user } = useAuth();
-  const activeTab = searchParams.get('tab') ?? 'all';
+  const activeTab = searchParams?.get('tab') ?? 'all';
   const [delegateTask, setDelegateTask] = useState<HumanTask | null>(null);
 
   const {
@@ -138,14 +139,14 @@ export function WorkflowTasksPageClient() {
   });
 
   const handleTabChange = (tab: string) => {
-    const nextParams = new URLSearchParams(searchParams.toString());
+    const nextParams = new URLSearchParams(searchParams?.toString() ?? '');
     if (tab === 'all') {
       nextParams.delete('tab');
     } else {
       nextParams.set('tab', tab);
     }
     nextParams.set('page', '1');
-    router.push(`${pathname}?${nextParams.toString()}`);
+    router.push(`${currentPath}?${nextParams.toString()}`);
   };
 
   if (taskTable.error || countsError) {

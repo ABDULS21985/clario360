@@ -30,6 +30,10 @@ type slackOAuthState struct {
 	Name     string `json:"name,omitempty"`
 }
 
+type slackOAuthSessionRequest struct {
+	Name string `json:"name"`
+}
+
 type slackCommandPayload struct {
 	Command     string
 	Text        string
@@ -113,34 +117,82 @@ func NewSlackHandler(
 }
 
 func (h *SlackHandler) OAuthStart(w http.ResponseWriter, r *http.Request) {
-	user, tenantID := requireAuth(r)
-	if user == nil {
-		writeError(w, r, http.StatusUnauthorized, "UNAUTHORIZED", "authentication required")
+	if missing := h.oauthMissingConfig(); len(missing) > 0 {
+		writeError(w, r, http.StatusServiceUnavailable, "SLACK_OAUTH_NOT_CONFIGURED", "slack oauth is not configured: "+strings.Join(missing, ", "))
 		return
 	}
 	if h.redis == nil {
 		writeError(w, r, http.StatusServiceUnavailable, "STATE_STORE_UNAVAILABLE", "oauth state store is unavailable")
 		return
 	}
-	stateID := events.GenerateUUID()
-	state := slackOAuthState{
-		TenantID: tenantID,
-		UserID:   user.ID,
-		Name:     strings.TrimSpace(r.URL.Query().Get("name")),
-	}
-	raw, err := json.Marshal(state)
-	if err != nil {
-		writeError(w, r, http.StatusInternalServerError, "STATE_ENCODE_FAILED", "failed to initialize oauth state")
-		return
-	}
-	if err := h.redis.Set(r.Context(), "integration:slack:oauth:"+stateID, raw, h.stateTTL).Err(); err != nil {
-		writeError(w, r, http.StatusInternalServerError, "STATE_STORE_FAILED", "failed to persist oauth state")
-		return
+	stateID := strings.TrimSpace(r.URL.Query().Get("state"))
+	if stateID == "" {
+		user, tenantID := requireAuth(r)
+		if user == nil {
+			writeError(w, r, http.StatusBadRequest, "INVALID_OAUTH_STATE", "missing oauth state")
+			return
+		}
+		var err error
+		stateID, err = h.prepareOAuthState(r.Context(), tenantID, user.ID, strings.TrimSpace(r.URL.Query().Get("name")))
+		if err != nil {
+			writeError(w, r, http.StatusInternalServerError, "STATE_STORE_FAILED", "failed to persist oauth state")
+			return
+		}
+	} else {
+		exists, err := h.redis.Exists(r.Context(), "integration:slack:oauth:"+stateID).Result()
+		if err != nil {
+			writeError(w, r, http.StatusInternalServerError, "STATE_STORE_FAILED", "failed to load oauth state")
+			return
+		}
+		if exists == 0 {
+			writeError(w, r, http.StatusBadRequest, "INVALID_OAUTH_STATE", "oauth state is missing or expired")
+			return
+		}
 	}
 	http.Redirect(w, r, slacksvc.BuildOAuthURL(h.oauthCfg, stateID), http.StatusFound)
 }
 
+func (h *SlackHandler) CreateOAuthSession(w http.ResponseWriter, r *http.Request) {
+	user, tenantID := requireAuth(r)
+	if user == nil {
+		writeError(w, r, http.StatusUnauthorized, "UNAUTHORIZED", "authentication required")
+		return
+	}
+	if missing := h.oauthMissingConfig(); len(missing) > 0 {
+		writeError(w, r, http.StatusServiceUnavailable, "SLACK_OAUTH_NOT_CONFIGURED", "slack oauth is not configured: "+strings.Join(missing, ", "))
+		return
+	}
+	if h.redis == nil {
+		writeError(w, r, http.StatusServiceUnavailable, "STATE_STORE_UNAVAILABLE", "oauth state store is unavailable")
+		return
+	}
+
+	var req slackOAuthSessionRequest
+	if r.Body != nil && r.ContentLength != 0 {
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			writeError(w, r, http.StatusBadRequest, "INVALID_BODY", "invalid slack oauth session payload")
+			return
+		}
+	}
+
+	stateID, err := h.prepareOAuthState(r.Context(), tenantID, user.ID, req.Name)
+	if err != nil {
+		writeError(w, r, http.StatusInternalServerError, "STATE_STORE_FAILED", "failed to persist oauth state")
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"data": map[string]any{
+			"url": slacksvc.BuildOAuthURL(h.oauthCfg, stateID),
+		},
+	})
+}
+
 func (h *SlackHandler) OAuthCallback(w http.ResponseWriter, r *http.Request) {
+	if missing := h.oauthMissingConfig(); len(missing) > 0 {
+		writeError(w, r, http.StatusServiceUnavailable, "SLACK_OAUTH_NOT_CONFIGURED", "slack oauth is not configured: "+strings.Join(missing, ", "))
+		return
+	}
 	if h.redis == nil {
 		writeError(w, r, http.StatusServiceUnavailable, "STATE_STORE_UNAVAILABLE", "oauth state store is unavailable")
 		return
@@ -367,6 +419,37 @@ func (h *SlackHandler) verifySignature(w http.ResponseWriter, r *http.Request) b
 		return false
 	}
 	return true
+}
+
+func (h *SlackHandler) oauthMissingConfig() []string {
+	missing := make([]string, 0, 3)
+	if strings.TrimSpace(h.oauthCfg.ClientID) == "" {
+		missing = append(missing, "NOTIF_SLACK_CLIENT_ID")
+	}
+	if strings.TrimSpace(h.oauthCfg.ClientSecret) == "" {
+		missing = append(missing, "NOTIF_SLACK_CLIENT_SECRET")
+	}
+	if strings.TrimSpace(h.signingSecret) == "" {
+		missing = append(missing, "NOTIF_SLACK_SIGNING_SECRET")
+	}
+	return missing
+}
+
+func (h *SlackHandler) prepareOAuthState(ctx context.Context, tenantID, userID, name string) (string, error) {
+	stateID := events.GenerateUUID()
+	state := slackOAuthState{
+		TenantID: tenantID,
+		UserID:   userID,
+		Name:     strings.TrimSpace(name),
+	}
+	raw, err := json.Marshal(state)
+	if err != nil {
+		return "", err
+	}
+	if err := h.redis.Set(ctx, "integration:slack:oauth:"+stateID, raw, h.stateTTL).Err(); err != nil {
+		return "", err
+	}
+	return stateID, nil
 }
 
 func (h *SlackHandler) findIntegration(ctx context.Context, teamID string) (*intmodel.Integration, intmodel.SlackConfig, error) {

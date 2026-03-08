@@ -47,6 +47,11 @@ func (r *TicketLinkRepository) List(ctx context.Context, tenantID string, query 
 	args := []any{tenantID}
 	argIdx := 2
 	if query != nil {
+		if query.IntegrationID != "" {
+			where = append(where, fmt.Sprintf("integration_id = $%d", argIdx))
+			args = append(args, query.IntegrationID)
+			argIdx++
+		}
 		if query.EntityType != "" {
 			where = append(where, fmt.Sprintf("entity_type = $%d", argIdx))
 			args = append(args, query.EntityType)

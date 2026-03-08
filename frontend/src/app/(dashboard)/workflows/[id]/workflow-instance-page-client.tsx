@@ -20,7 +20,7 @@ export function WorkflowInstancePageClient() {
   const params = useParams();
   const router = useRouter();
   const queryClient = useQueryClient();
-  const instanceId = params.id as string;
+  const instanceId = (params?.id as string | undefined) ?? '';
   const [cancelOpen, setCancelOpen] = useState(false);
 
   const { data: instance, isLoading, isError, refetch } = useQuery({

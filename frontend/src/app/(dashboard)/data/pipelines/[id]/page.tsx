@@ -22,7 +22,7 @@ import { formatMaybeCompact, formatMaybeDateTime, formatMaybeDurationMs } from '
 
 export default function DataPipelineDetailPage() {
   const params = useParams<{ id: string }>();
-  const pipelineId = params.id;
+  const pipelineId = params?.id ?? '';
   const [selectedRun, setSelectedRun] = useState<PipelineRun | null>(null);
 
   const [pipelineQuery, runsQuery, lineageQuery] = useQueries({

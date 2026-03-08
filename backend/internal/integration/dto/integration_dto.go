@@ -204,6 +204,7 @@ func ParseDeliveryQuery(r *http.Request) (*DeliveryQuery, error) {
 }
 
 type TicketLinkQuery struct {
+	IntegrationID string
 	EntityType     string
 	EntityID       string
 	ExternalSystem string

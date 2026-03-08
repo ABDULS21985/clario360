@@ -19,7 +19,7 @@ import { formatMaybeDateTime, getClassificationBadge } from '@/lib/data-suite/ut
 
 export default function DataModelDetailPage() {
   const params = useParams<{ id: string }>();
-  const modelId = params.id;
+  const modelId = params?.id ?? '';
 
   const [modelQuery, versionsQuery, lineageQuery, rulesQuery] = useQueries({
     queries: [

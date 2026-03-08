@@ -197,9 +197,19 @@ func (s *IntegrationService) Update(ctx context.Context, tenantID, id string, re
 		item.EventFilters = req.EventFilters
 	}
 
-	config, err = NormalizeAndValidateConfig(item.Type, config)
-	if err != nil {
-		return nil, err
+	if item.Status == intmodel.IntegrationStatusSetupPending {
+		if validated, validateErr := NormalizeAndValidateConfig(item.Type, cloneConfig(config)); validateErr == nil {
+			config = validated
+			item.Status = intmodel.IntegrationStatusActive
+			item.ErrorMessage = nil
+			item.ErrorCount = 0
+			item.LastErrorAt = nil
+		}
+	} else {
+		config, err = NormalizeAndValidateConfig(item.Type, config)
+		if err != nil {
+			return nil, err
+		}
 	}
 	ciphertext, nonce, keyID, err := s.encryptor.Encrypt(config)
 	if err != nil {
@@ -320,6 +330,10 @@ func (s *IntegrationService) RetryFailed(ctx context.Context, tenantID, integrat
 
 func (s *IntegrationService) ListTicketLinks(ctx context.Context, tenantID string, query *dto.TicketLinkQuery) ([]intmodel.ExternalTicketLink, error) {
 	return s.ticketRepo.List(ctx, tenantID, query)
+}
+
+func (s *IntegrationService) GetTicketLink(ctx context.Context, tenantID, linkID string) (*intmodel.ExternalTicketLink, error) {
+	return s.ticketRepo.GetByID(ctx, tenantID, linkID)
 }
 
 func (s *IntegrationService) ForceSync(ctx context.Context, tenantID, linkID string) error {
@@ -471,4 +485,15 @@ func firstNonEmpty(values ...string) string {
 		}
 	}
 	return ""
+}
+
+func cloneConfig(input map[string]any) map[string]any {
+	if input == nil {
+		return map[string]any{}
+	}
+	cloned := make(map[string]any, len(input))
+	for key, value := range input {
+		cloned[key] = value
+	}
+	return cloned
 }

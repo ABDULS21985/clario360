@@ -34,7 +34,8 @@ import { showApiError, showSuccess } from '@/lib/toast';
 
 export default function ActaMeetingDetailPage() {
   const queryClient = useQueryClient();
-  const { id } = useParams<{ id: string }>();
+  const params = useParams<{ id: string }>();
+  const id = params?.id ?? '';
   const { user } = useAuth();
   const [voteItem, setVoteItem] = useState<ActaAgendaItem | null>(null);
 

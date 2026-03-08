@@ -61,7 +61,7 @@ interface InviteDetails {
 function InviteForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const token = searchParams.get('token') ?? '';
+  const token = searchParams?.get('token') ?? '';
 
   const [details, setDetails] = useState<InviteDetails | null>(null);
   const [loadingDetails, setLoadingDetails] = useState(true);

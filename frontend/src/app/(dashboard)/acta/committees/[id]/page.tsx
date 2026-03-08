@@ -20,7 +20,7 @@ import { MemberManagement } from '../_components/member-management';
 
 export default function CommitteeDetailPage() {
   const params = useParams<{ id: string }>();
-  const committeeId = params.id;
+  const committeeId = params?.id ?? '';
 
   const committeeQuery = useQuery({
     queryKey: ['acta-committee', committeeId],

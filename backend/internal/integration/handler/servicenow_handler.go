@@ -3,10 +3,12 @@ package handler
 import (
 	"context"
 	"crypto/hmac"
+	"errors"
 	"encoding/json"
 	"net/http"
 	"strings"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/rs/zerolog"
 
 	"github.com/clario360/platform/internal/events"
@@ -71,6 +73,11 @@ func (h *ServiceNowHandler) Webhook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if _, err := h.snService.SyncWebhookStatus(r.Context(), integration, cfg, externalID, externalStatus); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			h.logger.Debug().Str("external_id", externalID).Msg("servicenow webhook did not match a linked ticket")
+			writeJSON(w, http.StatusOK, map[string]any{"ok": true})
+			return
+		}
 		writeError(w, r, http.StatusBadGateway, "SERVICENOW_SYNC_FAILED", err.Error())
 		return
 	}

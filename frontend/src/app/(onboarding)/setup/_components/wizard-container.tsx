@@ -65,7 +65,7 @@ export function WizardContainer() {
       return;
     }
 
-    const queryStep = Number(searchParams.get('step'));
+    const queryStep = Number(searchParams?.get('step'));
     const resolvedStep =
       preferredStep ??
       (Number.isFinite(queryStep) && queryStep >= 1 && queryStep <= 5
@@ -107,7 +107,7 @@ export function WizardContainer() {
     if (!wizard) {
       return;
     }
-    const queryStep = Number(searchParams.get('step'));
+    const queryStep = Number(searchParams?.get('step'));
     if (Number.isFinite(queryStep) && queryStep >= 1 && queryStep <= 5 && queryStep !== currentStep) {
       setCurrentStep(queryStep);
     }

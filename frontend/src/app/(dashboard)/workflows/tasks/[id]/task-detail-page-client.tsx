@@ -42,7 +42,7 @@ export function TaskDetailPageClient() {
   const params = useParams();
   const router = useRouter();
   const queryClient = useQueryClient();
-  const taskId = params.id as string;
+  const taskId = (params?.id as string | undefined) ?? '';
   const { user } = useAuth();
   const formRef = useRef<TaskDetailFormHandle>(null);
 

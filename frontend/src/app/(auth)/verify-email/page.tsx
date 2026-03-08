@@ -18,8 +18,8 @@ const RESEND_COOLDOWN_SECONDS = 60;
 function VerifyEmailForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const email = searchParams.get('email') ?? '';
-  const verificationTTL = Number(searchParams.get('ttl') ?? '600');
+  const email = searchParams?.get('email') ?? '';
+  const verificationTTL = Number(searchParams?.get('ttl') ?? '600');
 
   const [otp, setOtp] = useState<string[]>(Array(OTP_LENGTH).fill(''));
   const [isSubmitting, setIsSubmitting] = useState(false);

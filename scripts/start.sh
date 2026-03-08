@@ -41,6 +41,13 @@ write_base64_secret() {
   fi
 }
 
+read_optional_secret_file() {
+  local file="$1"
+  if [ -f "${file}" ]; then
+    tr -d '\n' < "${file}"
+  fi
+}
+
 # ── Flags ─────────────────────────────────────────────────────────────────────
 OPT_NO_BUILD=false
 OPT_INFRA_ONLY=false
@@ -396,6 +403,25 @@ if [ ! -f "${WEBHOOK_SECRET_FILE}" ]; then
   openssl rand -hex 32 > "${WEBHOOK_SECRET_FILE}"
 fi
 WEBHOOK_HMAC_SECRET=$(cat "${WEBHOOK_SECRET_FILE}")
+
+SLACK_SIGNING_SECRET_FILE="${SECRETS_DIR}/slack-signing-secret.key"
+if [ ! -f "${SLACK_SIGNING_SECRET_FILE}" ]; then
+  openssl rand -hex 32 > "${SLACK_SIGNING_SECRET_FILE}"
+fi
+SLACK_SIGNING_SECRET=$(cat "${SLACK_SIGNING_SECRET_FILE}")
+
+if [ -z "${NOTIF_SLACK_CLIENT_ID:-}" ]; then
+  NOTIF_SLACK_CLIENT_ID="$(read_optional_secret_file "${SECRETS_DIR}/slack-client-id")"
+fi
+if [ -z "${NOTIF_SLACK_CLIENT_SECRET:-}" ]; then
+  NOTIF_SLACK_CLIENT_SECRET="$(read_optional_secret_file "${SECRETS_DIR}/slack-client-secret")"
+fi
+if [ -z "${NOTIF_ATLASSIAN_CLIENT_ID:-}" ]; then
+  NOTIF_ATLASSIAN_CLIENT_ID="$(read_optional_secret_file "${SECRETS_DIR}/atlassian-client-id")"
+fi
+if [ -z "${NOTIF_ATLASSIAN_CLIENT_SECRET:-}" ]; then
+  NOTIF_ATLASSIAN_CLIENT_SECRET="$(read_optional_secret_file "${SECRETS_DIR}/atlassian-client-secret")"
+fi
 
 JWT_PRIVATE_PEM=$(cat "${JWT_PRIVATE_KEY}")
 JWT_PUBLIC_PEM=$(cat "${JWT_PUBLIC_KEY}")
@@ -851,7 +877,11 @@ export NOTIF_VISUS_SERVICE_URL="http://localhost:${VISUS_SERVICE_HTTP_PORT}"
 export NOTIF_GATEWAY_URL="http://localhost:${API_GATEWAY_HTTP_PORT}"
 export CLARIO360_PUBLIC_URL="http://localhost:3000"
 export NOTIF_INTEGRATION_STATE_TTL_MIN="15"
-export NOTIF_SLACK_SIGNING_SECRET="${WEBHOOK_HMAC_SECRET}"
+export NOTIF_SLACK_CLIENT_ID="${NOTIF_SLACK_CLIENT_ID:-}"
+export NOTIF_SLACK_CLIENT_SECRET="${NOTIF_SLACK_CLIENT_SECRET:-}"
+export NOTIF_SLACK_SIGNING_SECRET="${SLACK_SIGNING_SECRET}"
+export NOTIF_ATLASSIAN_CLIENT_ID="${NOTIF_ATLASSIAN_CLIENT_ID:-}"
+export NOTIF_ATLASSIAN_CLIENT_SECRET="${NOTIF_ATLASSIAN_CLIENT_SECRET:-}"
 export NOTIF_ENVIRONMENT="development"
 
 # ── file-service ──────────────────────────────────────────────────────────────

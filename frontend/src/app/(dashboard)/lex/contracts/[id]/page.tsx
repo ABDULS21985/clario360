@@ -23,7 +23,8 @@ import { formatDateTime } from '@/lib/utils';
 import type { ComplianceCheckResult, LexContract } from '@/types/suites';
 
 export default function LexContractDetailPage() {
-  const { id } = useParams<{ id: string }>();
+  const params = useParams<{ id: string }>();
+  const id = params?.id ?? '';
   const [checkResults, setCheckResults] = useState<ComplianceCheckResult[] | null>(null);
   const [checking, setChecking] = useState(false);
 

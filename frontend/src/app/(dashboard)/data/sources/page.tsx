@@ -63,13 +63,14 @@ const SOURCE_FILTERS: FilterConfig[] = [
 export default function DataSourcesPage() {
   const router = useRouter();
   const pathname = usePathname();
+  const currentPath = pathname ?? '/data/sources';
   const searchParams = useSearchParams();
   const [wizardOpen, setWizardOpen] = useState(false);
   const [editingSource, setEditingSource] = useState<DataSource | null>(null);
   const [syncSource, setSyncSource] = useState<DataSource | null>(null);
   const [testStates, setTestStates] = useState<Record<string, TestState>>({});
 
-  const view = searchParams.get('view') === 'table' ? 'table' : 'cards';
+  const view = searchParams?.get('view') === 'table' ? 'table' : 'cards';
 
   const { tableProps, searchValue, setSearch, refetch } = useDataTable<DataSource>({
     queryKey: 'data-sources',
@@ -89,9 +90,9 @@ export default function DataSourcesPage() {
           size="icon"
           variant={view === 'cards' ? 'default' : 'outline'}
           onClick={() => {
-            const params = new URLSearchParams(searchParams.toString());
+            const params = new URLSearchParams(searchParams?.toString() ?? '');
             params.set('view', 'cards');
-            router.push(`${pathname}?${params.toString()}`);
+            router.push(`${currentPath}?${params.toString()}`);
           }}
         >
           <LayoutGrid className="h-4 w-4" />
@@ -101,16 +102,16 @@ export default function DataSourcesPage() {
           size="icon"
           variant={view === 'table' ? 'default' : 'outline'}
           onClick={() => {
-            const params = new URLSearchParams(searchParams.toString());
+            const params = new URLSearchParams(searchParams?.toString() ?? '');
             params.set('view', 'table');
-            router.push(`${pathname}?${params.toString()}`);
+            router.push(`${currentPath}?${params.toString()}`);
           }}
         >
           <Rows3 className="h-4 w-4" />
         </Button>
       </div>
     ),
-    [pathname, router, searchParams, view],
+    [currentPath, router, searchParams, view],
   );
 
   const clearTestStateLater = (sourceId: string) => {

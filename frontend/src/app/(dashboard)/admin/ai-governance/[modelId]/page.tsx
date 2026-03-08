@@ -24,7 +24,7 @@ import { RollbackDialog } from '../_components/rollback-dialog';
 
 export default function AIModelDetailPage() {
   const params = useParams<{ modelId: string }>();
-  const modelId = params.modelId;
+  const modelId = params?.modelId ?? '';
 
   const [busyVersionId, setBusyVersionId] = useState<string | null>(null);
   const [promoteTarget, setPromoteTarget] = useState<AIModelVersion | null>(null);
