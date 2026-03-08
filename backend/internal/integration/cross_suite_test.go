@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -424,7 +423,7 @@ func crossSuiteEnvForTest(t *testing.T) *crossSuiteEnv {
 
 func startCrossSuiteEnv() (*crossSuiteEnv, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
-	logger := zerolog.New(io.Discard)
+	logger := zerolog.New(os.Stderr).With().Timestamp().Logger()
 
 	env := &crossSuiteEnv{
 		logger:    logger,
