@@ -222,7 +222,7 @@ func (r *OnboardingRepository) IncrementVerificationAttempts(ctx context.Context
 		SET attempts = attempts + 1,
 		    locked_at = CASE WHEN attempts + 1 >= max_attempts THEN now() ELSE locked_at END
 		WHERE id = $1
-		RETURNING GREATEST(max_attempts - attempts, 0) - 1`,
+		RETURNING GREATEST(max_attempts - attempts, 0)`,
 		verificationID,
 	).Scan(&remaining)
 	return remaining, err

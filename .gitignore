@@ -14,6 +14,7 @@ coverage.txt
 
 # Go
 /vendor/
+backend/vendor/
 
 # Environment
 .env
@@ -80,3 +81,6 @@ build/
 *.bak
 debug
 __debug_bin*
+
+# Local test/escrow artifacts
+escrow-0.1.0-test/

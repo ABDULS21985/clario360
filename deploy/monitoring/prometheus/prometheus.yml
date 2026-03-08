@@ -33,6 +33,18 @@ scrape_configs:
         regex: 'gw_(.*)'
         target_label: __name__
         replacement: 'clario360_gateway_${1}'
+      - source_labels: [__name__]
+        regex: 'db_(.*)'
+        target_label: __name__
+        replacement: 'clario360_db_${1}'
+      - source_labels: [__name__]
+        regex: 'kafka_(.*)'
+        target_label: __name__
+        replacement: 'clario360_kafka_${1}'
+      - source_labels: [__name__]
+        regex: 'http_(.*)'
+        target_label: __name__
+        replacement: 'clario360_http_${1}'
 
   - job_name: "clario360-iam-service"
     metrics_path: /metrics
@@ -46,6 +58,18 @@ scrape_configs:
         regex: 'iam_(.*)'
         target_label: __name__
         replacement: 'clario360_iam_${1}'
+      - source_labels: [__name__]
+        regex: 'db_(.*)'
+        target_label: __name__
+        replacement: 'clario360_db_${1}'
+      - source_labels: [__name__]
+        regex: 'kafka_(.*)'
+        target_label: __name__
+        replacement: 'clario360_kafka_${1}'
+      - source_labels: [__name__]
+        regex: 'http_(.*)'
+        target_label: __name__
+        replacement: 'clario360_http_${1}'
 
   - job_name: "clario360-audit-service"
     metrics_path: /metrics
@@ -59,6 +83,18 @@ scrape_configs:
         regex: 'audit_(.*)'
         target_label: __name__
         replacement: 'clario360_audit_${1}'
+      - source_labels: [__name__]
+        regex: 'db_(.*)'
+        target_label: __name__
+        replacement: 'clario360_db_${1}'
+      - source_labels: [__name__]
+        regex: 'kafka_(.*)'
+        target_label: __name__
+        replacement: 'clario360_kafka_${1}'
+      - source_labels: [__name__]
+        regex: 'http_(.*)'
+        target_label: __name__
+        replacement: 'clario360_http_${1}'
 
   - job_name: "clario360-workflow-engine"
     metrics_path: /metrics
@@ -72,6 +108,18 @@ scrape_configs:
         regex: 'workflow_(.*)'
         target_label: __name__
         replacement: 'clario360_workflow_${1}'
+      - source_labels: [__name__]
+        regex: 'db_(.*)'
+        target_label: __name__
+        replacement: 'clario360_db_${1}'
+      - source_labels: [__name__]
+        regex: 'kafka_(.*)'
+        target_label: __name__
+        replacement: 'clario360_kafka_${1}'
+      - source_labels: [__name__]
+        regex: 'http_(.*)'
+        target_label: __name__
+        replacement: 'clario360_http_${1}'
 
   - job_name: "clario360-notification-service"
     metrics_path: /metrics
@@ -85,6 +133,18 @@ scrape_configs:
         regex: 'notification_(.*)'
         target_label: __name__
         replacement: 'clario360_notification_${1}'
+      - source_labels: [__name__]
+        regex: 'db_(.*)'
+        target_label: __name__
+        replacement: 'clario360_db_${1}'
+      - source_labels: [__name__]
+        regex: 'kafka_(.*)'
+        target_label: __name__
+        replacement: 'clario360_kafka_${1}'
+      - source_labels: [__name__]
+        regex: 'http_(.*)'
+        target_label: __name__
+        replacement: 'clario360_http_${1}'
 
   - job_name: "clario360-file-service"
     metrics_path: /metrics
@@ -98,6 +158,18 @@ scrape_configs:
         regex: 'file_(.*)'
         target_label: __name__
         replacement: 'clario360_file_${1}'
+      - source_labels: [__name__]
+        regex: 'db_(.*)'
+        target_label: __name__
+        replacement: 'clario360_db_${1}'
+      - source_labels: [__name__]
+        regex: 'kafka_(.*)'
+        target_label: __name__
+        replacement: 'clario360_kafka_${1}'
+      - source_labels: [__name__]
+        regex: 'http_(.*)'
+        target_label: __name__
+        replacement: 'clario360_http_${1}'
 
   # --- Domain Services ---
 
@@ -113,6 +185,18 @@ scrape_configs:
         regex: 'cyber_(.*)'
         target_label: __name__
         replacement: 'clario360_cyber_${1}'
+      - source_labels: [__name__]
+        regex: 'db_(.*)'
+        target_label: __name__
+        replacement: 'clario360_db_${1}'
+      - source_labels: [__name__]
+        regex: 'kafka_(.*)'
+        target_label: __name__
+        replacement: 'clario360_kafka_${1}'
+      - source_labels: [__name__]
+        regex: 'http_(.*)'
+        target_label: __name__
+        replacement: 'clario360_http_${1}'
 
   - job_name: "clario360-data-service"
     metrics_path: /metrics
@@ -121,6 +205,19 @@ scrape_configs:
       - targets: ["data-service:9097"]
         labels:
           service: "data-service"
+    metric_relabel_configs:
+      - source_labels: [__name__]
+        regex: 'db_(.*)'
+        target_label: __name__
+        replacement: 'clario360_db_${1}'
+      - source_labels: [__name__]
+        regex: 'kafka_(.*)'
+        target_label: __name__
+        replacement: 'clario360_kafka_${1}'
+      - source_labels: [__name__]
+        regex: 'http_(.*)'
+        target_label: __name__
+        replacement: 'clario360_http_${1}'
 
   - job_name: "clario360-lex-service"
     metrics_path: /metrics
@@ -129,6 +226,23 @@ scrape_configs:
       - targets: ["lex-service:9098"]
         labels:
           service: "lex-service"
+    metric_relabel_configs:
+      - source_labels: [__name__]
+        regex: 'lex_(.*)'
+        target_label: __name__
+        replacement: 'clario360_lex_${1}'
+      - source_labels: [__name__]
+        regex: 'db_(.*)'
+        target_label: __name__
+        replacement: 'clario360_db_${1}'
+      - source_labels: [__name__]
+        regex: 'kafka_(.*)'
+        target_label: __name__
+        replacement: 'clario360_kafka_${1}'
+      - source_labels: [__name__]
+        regex: 'http_(.*)'
+        target_label: __name__
+        replacement: 'clario360_http_${1}'
 
   - job_name: "clario360-acta-service"
     metrics_path: /metrics
@@ -137,6 +251,23 @@ scrape_configs:
       - targets: ["acta-service:9099"]
         labels:
           service: "acta-service"
+    metric_relabel_configs:
+      - source_labels: [__name__]
+        regex: 'acta_(.*)'
+        target_label: __name__
+        replacement: 'clario360_acta_${1}'
+      - source_labels: [__name__]
+        regex: 'db_(.*)'
+        target_label: __name__
+        replacement: 'clario360_db_${1}'
+      - source_labels: [__name__]
+        regex: 'kafka_(.*)'
+        target_label: __name__
+        replacement: 'clario360_kafka_${1}'
+      - source_labels: [__name__]
+        regex: 'http_(.*)'
+        target_label: __name__
+        replacement: 'clario360_http_${1}'
 
   - job_name: "clario360-visus-service"
     metrics_path: /metrics
@@ -145,6 +276,19 @@ scrape_configs:
       - targets: ["visus-service:9100"]
         labels:
           service: "visus-service"
+    metric_relabel_configs:
+      - source_labels: [__name__]
+        regex: 'db_(.*)'
+        target_label: __name__
+        replacement: 'clario360_db_${1}'
+      - source_labels: [__name__]
+        regex: 'kafka_(.*)'
+        target_label: __name__
+        replacement: 'clario360_kafka_${1}'
+      - source_labels: [__name__]
+        regex: 'http_(.*)'
+        target_label: __name__
+        replacement: 'clario360_http_${1}'
 
   # --- Shared Metrics (DB, Kafka via observability) ---
   # These are scraped from each service above and relabeled globally
@@ -162,19 +306,3 @@ scrape_configs:
   - job_name: "clario360-cadvisor"
     static_configs:
       - targets: ["cadvisor:8080"]
-
-  # Global relabeling for observability-layer metrics (db, kafka, http)
-  # These are emitted by the shared observability package and need the clario360_ prefix
-  metric_relabel_configs:
-    - source_labels: [__name__]
-      regex: 'db_(.*)'
-      target_label: __name__
-      replacement: 'clario360_db_${1}'
-    - source_labels: [__name__]
-      regex: 'kafka_(.*)'
-      target_label: __name__
-      replacement: 'clario360_kafka_${1}'
-    - source_labels: [__name__]
-      regex: 'http_(.*)'
-      target_label: __name__
-      replacement: 'clario360_http_${1}'
