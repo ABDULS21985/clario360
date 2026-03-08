@@ -325,10 +325,19 @@ func (s *MinutesService) Approve(ctx context.Context, tenantID, userID, meetingI
 		return nil, internalError("failed to refresh meeting minutes state", err)
 	}
 	s.recordMinutesTransition(string(oldStatus), string(minutes.Status))
+	attendance, err := s.store.ListAttendance(ctx, tenantID, meetingID)
+	if err != nil {
+		return nil, internalError("failed to load meeting attendance", err)
+	}
+	attendeeIDs := make([]uuid.UUID, 0, len(attendance))
+	for _, attendee := range attendance {
+		attendeeIDs = append(attendeeIDs, attendee.UserID)
+	}
 	publishEvent(ctx, s.publisher, "acta-service", events.Topics.ActaEvents, "acta.minutes.approved", tenantID, &userID, map[string]any{
-		"id":          minutes.ID,
-		"meeting_id":  meetingID,
-		"approved_by": userID,
+		"id":           minutes.ID,
+		"meeting_id":   meetingID,
+		"approved_by":  userID,
+		"attendee_ids": attendeeIDs,
 	}, s.logger)
 	return s.store.GetLatestMinutes(ctx, tenantID, meetingID)
 }

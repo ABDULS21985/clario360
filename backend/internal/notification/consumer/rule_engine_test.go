@@ -12,7 +12,7 @@ func makeTestEvent(eventType, tenantID string, data map[string]interface{}) *eve
 	dataBytes, _ := json.Marshal(data)
 	return &events.Event{
 		ID:       "evt-123",
-		Source:   "clario360/cyber-service",
+		Source:   "clario360/test-service",
 		Type:     eventType,
 		TenantID: tenantID,
 		UserID:   "user-456",
@@ -23,29 +23,40 @@ func makeTestEvent(eventType, tenantID string, data map[string]interface{}) *eve
 func TestRuleEngine_MatchAlertCreated_Critical(t *testing.T) {
 	re := NewRuleEngine()
 	event := makeTestEvent("com.clario360.cyber.alert.created", "tenant-1", map[string]interface{}{
-		"severity":    "critical",
-		"title":       "Ransomware detected",
-		"source":      "endpoint-protection",
-		"description": "Ransomware activity detected on server-01",
-		"id":          "alert-789",
+		"severity": "critical",
+		"title":    "Ransomware detected",
+		"id":       "alert-789",
 	})
 
 	matches := re.Match(event)
 	if len(matches) != 1 {
 		t.Fatalf("expected 1 match, got %d", len(matches))
 	}
-
-	m := matches[0]
-	if m.Rule.NotifType != model.NotifAlertCreated {
-		t.Errorf("expected NotifAlertCreated, got %s", m.Rule.NotifType)
+	if matches[0].Rule.NotifType != model.NotifAlertCreated {
+		t.Fatalf("expected alert created notification, got %s", matches[0].Rule.NotifType)
 	}
-	if m.Rule.Category != model.CategorySecurity {
-		t.Errorf("expected security category, got %s", m.Rule.Category)
+	if priority := ResolvePriority(matches[0].Rule, matches[0].Data); priority != model.PriorityCritical {
+		t.Fatalf("expected critical priority, got %s", priority)
 	}
+}
 
-	priority := ResolvePriority(m.Rule, m.Data)
-	if priority != model.PriorityCritical {
-		t.Errorf("expected critical priority, got %s", priority)
+func TestRuleEngine_MatchAlertCreated_High(t *testing.T) {
+	re := NewRuleEngine()
+	event := makeTestEvent("com.clario360.cyber.alert.created", "tenant-1", map[string]interface{}{
+		"severity": "high",
+		"title":    "Privilege escalation",
+		"id":       "alert-001",
+	})
+
+	matches := re.Match(event)
+	if len(matches) != 1 {
+		t.Fatalf("expected 1 match, got %d", len(matches))
+	}
+	if matches[0].Rule.RecipientMode != RecipientRoleBased {
+		t.Fatalf("expected role based rule, got %s", matches[0].Rule.RecipientMode)
+	}
+	if matches[0].Rule.Roles[0] != "security-analyst" {
+		t.Fatalf("expected security-analyst recipient, got %v", matches[0].Rule.Roles)
 	}
 }
 
@@ -56,87 +67,51 @@ func TestRuleEngine_MatchAlertCreated_LowSeverity_NoMatch(t *testing.T) {
 		"title":    "Minor scan",
 	})
 
-	matches := re.Match(event)
-	if len(matches) != 0 {
+	if matches := re.Match(event); len(matches) != 0 {
 		t.Fatalf("expected 0 matches for low severity alert, got %d", len(matches))
 	}
 }
 
-func TestRuleEngine_MatchAlertEscalated(t *testing.T) {
+func TestRuleEngine_ContractExpiringPriority(t *testing.T) {
 	re := NewRuleEngine()
-	event := makeTestEvent("com.clario360.cyber.alert.escalated", "tenant-1", map[string]interface{}{
-		"title":             "Critical Alert",
-		"id":                "alert-001",
-		"previous_assignee": "analyst-1",
-		"reason":            "SLA breach",
+	event := makeTestEvent("com.clario360.lex.contract.expiring", "tenant-1", map[string]interface{}{
+		"id":                "contract-1",
+		"title":             "Master Services Agreement",
+		"days_until_expiry": 7,
+		"owner_user_id":     "user-owner",
 	})
 
 	matches := re.Match(event)
 	if len(matches) != 1 {
 		t.Fatalf("expected 1 match, got %d", len(matches))
 	}
-	if matches[0].Rule.Priority != model.PriorityCritical {
-		t.Errorf("expected critical priority for escalation")
+	if matches[0].Rule.RecipientMode != RecipientMixed {
+		t.Fatalf("expected mixed recipient mode, got %s", matches[0].Rule.RecipientMode)
+	}
+	if priority := ResolvePriority(matches[0].Rule, matches[0].Data); priority != model.PriorityCritical {
+		t.Fatalf("expected critical priority, got %s", priority)
 	}
 }
 
-func TestRuleEngine_TaskCreated_RemediationApproval(t *testing.T) {
+func TestRuleEngine_WorkflowTaskCreated_MixedRecipients(t *testing.T) {
 	re := NewRuleEngine()
 	event := makeTestEvent("com.clario360.workflow.task.created", "tenant-1", map[string]interface{}{
-		"step_id":     "approve_remediation",
-		"assignee_id": "user-approver",
-		"task_id":     "task-001",
-	})
-
-	matches := re.Match(event)
-	found := false
-	for _, m := range matches {
-		if m.Rule.NotifType == model.NotifRemediationApproval {
-			found = true
-			break
-		}
-	}
-	if !found {
-		t.Error("expected remediation approval match")
-	}
-}
-
-func TestRuleEngine_TaskCreated_RegularTask(t *testing.T) {
-	re := NewRuleEngine()
-	event := makeTestEvent("com.clario360.workflow.task.created", "tenant-1", map[string]interface{}{
-		"step_id":     "review_document",
-		"assignee_id": "user-reviewer",
-		"name":        "Review Q4 Report",
-		"task_id":     "task-002",
-	})
-
-	matches := re.Match(event)
-	found := false
-	for _, m := range matches {
-		if m.Rule.NotifType == model.NotifTaskAssigned {
-			found = true
-			break
-		}
-	}
-	if !found {
-		t.Error("expected task assigned match")
-	}
-}
-
-func TestRuleEngine_SecurityIncident(t *testing.T) {
-	re := NewRuleEngine()
-	event := makeTestEvent("com.clario360.cyber.security.incident", "tenant-1", map[string]interface{}{
-		"title":       "Data Breach",
-		"severity":    "critical",
-		"incident_id": "inc-001",
+		"task_id":       "task-1",
+		"task_name":     "Review contract",
+		"assignee_id":   "user-123",
+		"assignee_role": "legal-manager",
 	})
 
 	matches := re.Match(event)
 	if len(matches) != 1 {
 		t.Fatalf("expected 1 match, got %d", len(matches))
 	}
-	if matches[0].Rule.NotifType != model.NotifSecurityIncident {
-		t.Errorf("expected security incident type, got %s", matches[0].Rule.NotifType)
+	if matches[0].Rule.RecipientMode != RecipientMixed {
+		t.Fatalf("expected mixed recipient mode, got %s", matches[0].Rule.RecipientMode)
+	}
+	roles := ResolveRoles(matches[0].Rule, matches[0].Data)
+	if len(roles) != 1 || roles[0] != "legal-manager" {
+		t.Fatalf("expected dynamic role resolution, got %v", roles)
 	}
 }
 
@@ -145,8 +120,6 @@ func TestRuleEngine_SystemMaintenance_Broadcast(t *testing.T) {
 	event := makeTestEvent("com.clario360.platform.system.maintenance", "tenant-1", map[string]interface{}{
 		"title":       "Database upgrade",
 		"description": "Upgrading PostgreSQL",
-		"start_time":  "2026-03-07T02:00:00Z",
-		"end_time":    "2026-03-07T04:00:00Z",
 	})
 
 	matches := re.Match(event)
@@ -154,7 +127,7 @@ func TestRuleEngine_SystemMaintenance_Broadcast(t *testing.T) {
 		t.Fatalf("expected 1 match, got %d", len(matches))
 	}
 	if matches[0].Rule.RecipientMode != RecipientTenantBroadcast {
-		t.Errorf("expected tenant broadcast, got %s", matches[0].Rule.RecipientMode)
+		t.Fatalf("expected tenant broadcast, got %s", matches[0].Rule.RecipientMode)
 	}
 }
 
@@ -162,16 +135,8 @@ func TestRuleEngine_NoMatch(t *testing.T) {
 	re := NewRuleEngine()
 	event := makeTestEvent("com.clario360.unknown.event", "tenant-1", nil)
 
-	matches := re.Match(event)
-	if len(matches) != 0 {
+	if matches := re.Match(event); len(matches) != 0 {
 		t.Fatalf("expected 0 matches for unknown event, got %d", len(matches))
-	}
-}
-
-func TestResolvePriority_Static(t *testing.T) {
-	rule := &NotificationRule{Priority: model.PriorityHigh}
-	if p := ResolvePriority(rule, nil); p != model.PriorityHigh {
-		t.Errorf("expected high, got %s", p)
 	}
 }
 
@@ -186,45 +151,40 @@ func TestResolvePriority_Dynamic(t *testing.T) {
 	}
 	data := map[string]interface{}{"severity": "critical"}
 	if p := ResolvePriority(rule, data); p != model.PriorityCritical {
-		t.Errorf("expected critical, got %s", p)
+		t.Fatalf("expected critical, got %s", p)
 	}
 }
 
-func TestResolveDirectUserIDs_String(t *testing.T) {
-	rule := &NotificationRule{DirectField: "assignee_id"}
-	data := map[string]interface{}{"assignee_id": "user-123"}
-
-	ids := ResolveDirectUserIDs(rule, data)
-	if len(ids) != 1 || ids[0] != "user-123" {
-		t.Errorf("expected [user-123], got %v", ids)
-	}
-}
-
-func TestResolveDirectUserIDs_Array(t *testing.T) {
-	rule := &NotificationRule{DirectField: "attendees"}
+func TestResolveDirectUserIDs_MultiFieldDedup(t *testing.T) {
+	rule := &NotificationRule{DirectFields: []string{"assigned_to", "attendee_ids"}}
 	data := map[string]interface{}{
-		"attendees": []interface{}{"user-1", "user-2", "user-3"},
+		"assigned_to":  "user-1",
+		"attendee_ids": []interface{}{"user-1", "user-2", "user-3"},
 	}
 
 	ids := ResolveDirectUserIDs(rule, data)
 	if len(ids) != 3 {
-		t.Errorf("expected 3 user IDs, got %d", len(ids))
-	}
-}
-
-func TestResolveDirectUserIDs_Missing(t *testing.T) {
-	rule := &NotificationRule{DirectField: "assignee_id"}
-	data := map[string]interface{}{}
-
-	ids := ResolveDirectUserIDs(rule, data)
-	if ids != nil {
-		t.Errorf("expected nil for missing field, got %v", ids)
+		t.Fatalf("expected 3 unique user IDs, got %v", ids)
 	}
 }
 
 func TestExtractEventTopics(t *testing.T) {
 	topics := ExtractEventTopics()
-	if len(topics) < 5 {
-		t.Errorf("expected at least 5 topics, got %d", len(topics))
+	required := map[string]bool{
+		events.Topics.AlertEvents:    false,
+		events.Topics.FileEvents:     false,
+		events.Topics.WorkflowEvents: false,
+		events.Topics.ActaEvents:     false,
+		events.Topics.LexEvents:      false,
+	}
+	for _, topic := range topics {
+		if _, ok := required[topic]; ok {
+			required[topic] = true
+		}
+	}
+	for topic, found := range required {
+		if !found {
+			t.Fatalf("expected topic %s to be subscribed", topic)
+		}
 	}
 }

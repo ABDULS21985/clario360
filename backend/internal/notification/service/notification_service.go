@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/redis/go-redis/v9"
 	"github.com/rs/zerolog"
@@ -27,17 +28,18 @@ type CreateNotificationRequest struct {
 	ActionURL     string
 	SourceEventID string
 	Data          map[string]interface{}
+	Channels      []string
 }
 
 // NotificationService is the core orchestration service for creating and dispatching notifications.
 type NotificationService struct {
-	notifRepo   *repository.NotificationRepository
-	prefSvc     *PreferenceService
-	dispatcher  *DispatcherService
-	tmplSvc     *TemplateService
-	producer    *events.Producer
-	rdb         *redis.Client
-	logger      zerolog.Logger
+	notifRepo  *repository.NotificationRepository
+	prefSvc    *PreferenceService
+	dispatcher *DispatcherService
+	tmplSvc    *TemplateService
+	producer   *events.Producer
+	rdb        *redis.Client
+	logger     zerolog.Logger
 }
 
 // NewNotificationService creates a new NotificationService.
@@ -135,20 +137,21 @@ func (s *NotificationService) CreateNotification(ctx context.Context, req Create
 	}
 
 	// Build channel deliveries.
+	allowedChannels := normalizeRequestedChannels(req.Channels)
 	var deliveries []channel.ChannelDelivery
-	if chanPrefs.InApp {
+	if chanPrefs.InApp && channelRequested(allowedChannels, model.ChannelInApp) {
 		deliveries = append(deliveries, channel.ChannelDelivery{Channel: model.ChannelInApp})
 	}
-	if chanPrefs.WebSocket {
+	if chanPrefs.WebSocket && channelRequested(allowedChannels, model.ChannelWebSocket) {
 		deliveries = append(deliveries, channel.ChannelDelivery{Channel: model.ChannelWebSocket})
 	}
-	if chanPrefs.Email {
+	if chanPrefs.Email && channelRequested(allowedChannels, model.ChannelEmail) {
 		deliveries = append(deliveries, channel.ChannelDelivery{
 			Channel:  model.ChannelEmail,
 			Deferred: inQuietHours,
 		})
 	}
-	if chanPrefs.Webhook {
+	if chanPrefs.Webhook && channelRequested(allowedChannels, model.ChannelWebhook) {
 		deliveries = append(deliveries, channel.ChannelDelivery{Channel: model.ChannelWebhook})
 	}
 
@@ -203,4 +206,36 @@ func (s *NotificationService) Delete(ctx context.Context, tenantID, userID, id s
 // UnreadCount returns the unread notification count.
 func (s *NotificationService) UnreadCount(ctx context.Context, tenantID, userID string) (int64, error) {
 	return s.notifRepo.UnreadCount(ctx, tenantID, userID)
+}
+
+func normalizeRequestedChannels(channels []string) map[string]struct{} {
+	if len(channels) == 0 {
+		return nil
+	}
+
+	allowed := make(map[string]struct{}, len(channels))
+	for _, channelName := range channels {
+		switch strings.TrimSpace(strings.ToLower(channelName)) {
+		case "in_app":
+			allowed[model.ChannelInApp] = struct{}{}
+		case "email":
+			allowed[model.ChannelEmail] = struct{}{}
+		case "webhook":
+			allowed[model.ChannelWebhook] = struct{}{}
+		case "push", "websocket":
+			allowed[model.ChannelWebSocket] = struct{}{}
+		}
+	}
+	if len(allowed) == 0 {
+		return nil
+	}
+	return allowed
+}
+
+func channelRequested(allowed map[string]struct{}, channelName string) bool {
+	if len(allowed) == 0 {
+		return true
+	}
+	_, ok := allowed[channelName]
+	return ok
 }

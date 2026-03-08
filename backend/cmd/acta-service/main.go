@@ -113,6 +113,9 @@ func main() {
 	svc.Router.Use(sharedmw.SecurityHeaders())
 	actahealth.Register(svc.Router, svc.Health, bootstrapCfg.Name, bootstrapCfg.Version)
 	app.RegisterRoutes(svc.Router, jwtMgr, svc.Redis, actaCfg.RateLimitPerMinute)
+	dlqTracker := events.NewDLQTracker(svc.Redis)
+	crossSuiteMetrics := events.NewCrossSuiteMetrics(svc.Metrics.Registry())
+	svc.Router.Get("/api/v1/admin/dlq/count", events.DLQCountHandler("acta-service", dlqTracker, logger))
 
 	var kafkaConsumer *events.Consumer
 	if len(actaCfg.KafkaBrokers) > 0 {
@@ -125,6 +128,9 @@ func main() {
 			logger.Warn().Err(err).Msg("kafka consumer unavailable; cross-suite acta sync disabled")
 		} else {
 			defer kafkaConsumer.Close()
+			kafkaConsumer.SetDeadLetterProducer(producer)
+			kafkaConsumer.SetCrossSuiteMetrics(crossSuiteMetrics)
+			kafkaConsumer.SetDLQTracker(dlqTracker, "acta-service")
 			actaConsumer := actaconsumer.NewActaConsumer(app.Store, kafkaConsumer, logger)
 			go runBackground(ctx, logger, "acta-consumer", actaConsumer.Start)
 		}

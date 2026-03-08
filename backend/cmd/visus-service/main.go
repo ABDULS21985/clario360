@@ -108,6 +108,8 @@ func main() {
 	svc.Router.Use(sharedmw.SecurityHeaders())
 	visushealth.Register(svc.Router, svc.Health, bootstrapCfg.Name, bootstrapCfg.Version)
 	app.RegisterRoutes(svc.Router, jwtMgr, svc.Redis, visusCfg.RateLimitPerMinute)
+	dlqTracker := events.NewDLQTracker(svc.Redis)
+	svc.Router.Get("/api/v1/admin/dlq/count", events.DLQCountHandler("visus-service", dlqTracker, logger))
 
 	go runBackground(ctx, logger, "visus-kpi-scheduler", app.KPIScheduler.Run)
 	go runBackground(ctx, logger, "visus-report-scheduler", app.ReportScheduler.Run)
@@ -123,6 +125,8 @@ func main() {
 		} else {
 			defer kafkaConsumer.Close()
 			kafkaConsumer.SetDeadLetterProducer(producer)
+			kafkaConsumer.SetCrossSuiteMetrics(app.CrossSuiteMetrics)
+			kafkaConsumer.SetDLQTracker(dlqTracker, "visus-service")
 			app.Consumer.Register(kafkaConsumer)
 			go runBackground(ctx, logger, "visus-consumer", kafkaConsumer.Start)
 		}

@@ -109,6 +109,9 @@ func main() {
 	svc.Router.Use(sharedmw.SecurityHeaders())
 	lexhealth.Register(svc.Router, svc.Health, bootstrapCfg.Name, bootstrapCfg.Version)
 	app.RegisterRoutes(svc.Router, jwtMgr, svc.Redis, lexCfg.RateLimitPerMinute)
+	dlqTracker := events.NewDLQTracker(svc.Redis)
+	crossSuiteMetrics := events.NewCrossSuiteMetrics(svc.Metrics.Registry())
+	svc.Router.Get("/api/v1/admin/dlq/count", events.DLQCountHandler("lex-service", dlqTracker, logger))
 
 	expiryMonitor := lexmonitor.NewExpiryMonitor(
 		svc.DBPool,
@@ -151,6 +154,9 @@ func main() {
 			logger.Warn().Err(err).Msg("kafka consumer unavailable; lex cross-suite sync disabled")
 		} else {
 			defer kafkaConsumer.Close()
+			kafkaConsumer.SetDeadLetterProducer(producer)
+			kafkaConsumer.SetCrossSuiteMetrics(crossSuiteMetrics)
+			kafkaConsumer.SetDLQTracker(dlqTracker, "lex-service")
 			handler := lexconsumer.NewLexConsumer(app.ComplianceService, app.WorkflowService, kafkaConsumer, logger)
 			go runBackground(ctx, logger, "lex-consumer", handler.Start)
 		}

@@ -687,6 +687,7 @@ func (s *EngineService) completeInstance(ctx context.Context, inst *model.Workfl
 	s.publishEvent(ctx, "workflow.instance.completed", inst.TenantID, map[string]interface{}{
 		"instance_id":   inst.ID,
 		"definition_id": inst.DefinitionID,
+		"initiator_id":  inst.StartedBy,
 	})
 
 	return nil
@@ -711,8 +712,9 @@ func (s *EngineService) failInstance(ctx context.Context, inst *model.WorkflowIn
 		Msg("workflow instance failed")
 
 	s.publishEvent(ctx, "workflow.instance.failed", inst.TenantID, map[string]interface{}{
-		"instance_id": inst.ID,
-		"error":       errMsg,
+		"instance_id":  inst.ID,
+		"error":        errMsg,
+		"initiator_id": inst.StartedBy,
 	})
 
 	return nil

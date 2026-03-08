@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/redis/go-redis/v9"
 	"golang.org/x/sync/errgroup"
@@ -119,9 +120,11 @@ func main() {
 	prefSvc := service.NewPreferenceService(prefRepo, rdb, logger)
 
 	// Initialize channels.
+	websocketChannel := notifchannel.NewWebSocketChannel(hub, logger)
 	channels := map[string]notifchannel.Channel{
 		"in_app":    notifchannel.NewInAppChannel(hub, logger),
-		"websocket": notifchannel.NewWebSocketChannel(hub, logger),
+		"websocket": websocketChannel,
+		"push":      websocketChannel,
 		"email": notifchannel.NewEmailChannel(notifchannel.EmailConfig{
 			Provider:       notifCfg.EmailProvider,
 			SMTPHost:       notifCfg.SMTPHost,
@@ -145,6 +148,9 @@ func main() {
 	dispatcher := service.NewDispatcherService(channels, deliveryRepo, logger)
 	notifSvc := service.NewNotificationService(notifRepo, prefSvc, dispatcher, tmplSvc, producer, rdb, logger)
 	digestSvc := service.NewDigestService(notifRepo, prefRepo, tmplSvc, dispatcher, notifCfg.DigestDailyUTCHour, notifCfg.DigestWeeklyDay, logger)
+	guard := events.NewIdempotencyGuard(rdb, 24*time.Hour)
+	crossSuiteMetrics := events.NewCrossSuiteMetrics(prometheus.DefaultRegisterer)
+	dlqTracker := events.NewDLQTracker(rdb)
 
 	// 11. Initialize handlers.
 	notifHandler := handler.NewNotificationHandler(notifSvc, notifRepo, logger)
@@ -163,6 +169,7 @@ func main() {
 	srv.Router.Get("/healthz", health.LivenessHandler())
 	srv.Router.Get("/readyz", healthChecker.ReadinessHandler())
 	srv.Router.Handle("/metrics", promhttp.Handler())
+	srv.Router.Get("/api/v1/admin/dlq/count", events.DLQCountHandler("notification-service", dlqTracker, logger))
 
 	// 13. WebSocket endpoint (authenticated via query param, not middleware).
 	srv.Router.Get("/ws/v1/notifications", wsHandler.HandleWebSocket)
@@ -204,8 +211,11 @@ func main() {
 	if err != nil {
 		logger.Warn().Err(err).Msg("kafka consumer unavailable — notification event ingestion disabled")
 	} else {
+		kafkaConsumer.SetDeadLetterProducer(producer)
+		kafkaConsumer.SetCrossSuiteMetrics(crossSuiteMetrics)
+		kafkaConsumer.SetDLQTracker(dlqTracker, "notification-service")
 		recipientResolver := consumer.NewRecipientResolver(notifCfg.IAMServiceURL, logger)
-		notifConsumer = consumer.NewNotificationConsumer(kafkaConsumer, notifSvc, recipientResolver, logger)
+		notifConsumer = consumer.NewNotificationConsumer(kafkaConsumer, notifSvc, recipientResolver, guard, crossSuiteMetrics, logger)
 	}
 
 	// 16. Start all components via errgroup.

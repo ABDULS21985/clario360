@@ -35,17 +35,18 @@ type Dependencies struct {
 }
 
 type Application struct {
-	Store            *repository.Store
-	Metrics          *metrics.Metrics
-	DashboardService *service.DashboardService
-	WidgetService    *service.WidgetService
-	KPIService       *service.KPIService
-	AlertService     *service.AlertService
-	ReportService    *service.ReportService
-	ExecutiveService *service.ExecutiveService
-	KPIScheduler     *kpi.Scheduler
-	ReportScheduler  *report.Scheduler
-	Consumer         *consumer.VisusConsumer
+	Store             *repository.Store
+	Metrics           *metrics.Metrics
+	DashboardService  *service.DashboardService
+	WidgetService     *service.WidgetService
+	KPIService        *service.KPIService
+	AlertService      *service.AlertService
+	ReportService     *service.ReportService
+	ExecutiveService  *service.ExecutiveService
+	KPIScheduler      *kpi.Scheduler
+	ReportScheduler   *report.Scheduler
+	Consumer          *consumer.VisusConsumer
+	CrossSuiteMetrics *events.CrossSuiteMetrics
 
 	dashboardHandler *handler.DashboardHandler
 	widgetHandler    *handler.WidgetHandler
@@ -103,8 +104,9 @@ func NewApplication(deps Dependencies) (*Application, error) {
 		Consumer: consumer.NewVisusConsumer(deps.Logger).
 			WithDependencies(nil, store.KPIs, store.KPISnapshots, deps.Redis).
 			WithMetrics(crossSuiteMetrics),
-		cfg:    cfg,
-		logger: deps.Logger,
+		CrossSuiteMetrics: crossSuiteMetrics,
+		cfg:               cfg,
+		logger:            deps.Logger,
 	}
 
 	app.dashboardHandler = handler.NewDashboardHandler(app.DashboardService, deps.Logger)

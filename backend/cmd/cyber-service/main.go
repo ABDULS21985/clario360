@@ -306,6 +306,7 @@ func main() {
 	)
 	guard := events.NewIdempotencyGuard(rdb, 24*time.Hour)
 	crossSuiteMetrics := events.NewCrossSuiteMetrics(svc.Metrics.Registry())
+	dlqTracker := events.NewDLQTracker(rdb)
 
 	// ── 12. Route registration ─────────────────────────────────────────────────
 	svc.Router.Handle("/metrics", promhttp.HandlerFor(promGatherers, promhttp.HandlerOpts{}))
@@ -346,6 +347,7 @@ func main() {
 		jwtMgr,
 		rdb,
 	)
+	svc.Router.Get("/api/v1/admin/dlq/count", events.DLQCountHandler("cyber-service", dlqTracker, logger))
 
 	// ── 13. Kafka consumer ─────────────────────────────────────────────────────
 	var cyberConsumer *consumer.CyberConsumer
@@ -356,6 +358,7 @@ func main() {
 		} else {
 			kafkaConsumer.SetDeadLetterProducer(producer)
 			kafkaConsumer.SetCrossSuiteMetrics(crossSuiteMetrics)
+			kafkaConsumer.SetDLQTracker(dlqTracker, "cyber-service")
 			cyberConsumer = consumer.NewCyberConsumer(assetSvc, detectionSvc, cyberCfg.SecurityEventTopic, kafkaConsumer, logger)
 			_ = consumer.NewCTEMConsumer(ctemSvc, kafkaConsumer, logger)
 			_ = consumer.NewRiskConsumer(riskSvc, dashboardSvc, rdb, kafkaConsumer, logger)

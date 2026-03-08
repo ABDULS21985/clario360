@@ -228,3 +228,18 @@ func builtinRuleTemplates() []builtinRuleTemplate {
 func rawRule(value string) json.RawMessage {
 	return json.RawMessage(value)
 }
+
+// BuiltinTenantRuleSeeds returns the built-in detection rule catalog as
+// tenant-scoped defaults suitable for idempotent provisioning.
+func BuiltinTenantRuleSeeds() []*model.DetectionRule {
+	templates := builtinRuleTemplates()
+	out := make([]*model.DetectionRule, 0, len(templates))
+	for _, template := range templates {
+		rule := template.ToDetectionRule()
+		rule.IsTemplate = false
+		rule.TemplateID = nil
+		rule.TenantID = nil
+		out = append(out, rule)
+	}
+	return out
+}

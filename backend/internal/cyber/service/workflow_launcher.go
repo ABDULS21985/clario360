@@ -29,7 +29,7 @@ func NewWorkflowRemediationLauncher(
 	logger zerolog.Logger,
 ) *WorkflowRemediationLauncher {
 	execRegistry := workflowexecutor.NewExecutorRegistry()
-	execRegistry.Register("human_task", workflowexecutor.NewHumanTaskExecutor(taskRepo, logger))
+	execRegistry.Register("human_task", workflowexecutor.NewHumanTaskExecutor(taskRepo, nil, logger))
 	engine := workflowservice.NewEngineService(instRepo, defRepo, taskRepo, execRegistry, nil, logger)
 	return &WorkflowRemediationLauncher{
 		defRepo:     defRepo,

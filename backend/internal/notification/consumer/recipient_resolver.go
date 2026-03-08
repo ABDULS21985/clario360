@@ -36,11 +36,15 @@ func (r *RecipientResolver) ResolveByRoles(ctx context.Context, tenantID string,
 	}
 
 	var allUserIDs []string
+	var firstErr error
 	seen := make(map[string]bool)
 
 	for _, role := range roles {
 		userIDs, err := r.resolveRole(ctx, tenantID, role)
 		if err != nil {
+			if firstErr == nil {
+				firstErr = err
+			}
 			r.logger.Warn().Err(err).Str("role", role).Str("tenant_id", tenantID).Msg("failed to resolve role")
 			continue
 		}
@@ -52,6 +56,9 @@ func (r *RecipientResolver) ResolveByRoles(ctx context.Context, tenantID string,
 		}
 	}
 
+	if firstErr != nil {
+		return nil, firstErr
+	}
 	return allUserIDs, nil
 }
 

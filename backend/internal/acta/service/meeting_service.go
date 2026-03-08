@@ -123,7 +123,10 @@ func (s *MeetingService) ScheduleMeeting(ctx context.Context, tenantID, userID u
 		meeting.LocationType = model.LocationTypePhysical
 	}
 
-	var members []model.CommitteeMember
+	var (
+		members     []model.CommitteeMember
+		attendeeIDs []uuid.UUID
+	)
 	if err := database.RunInTx(ctx, s.store.DB(), func(tx pgx.Tx) error {
 		conflicts, err := s.store.CountMeetingConflicts(ctx, tx, tenantID, committee.ID, conflictStart, conflictEnd, nil)
 		if err != nil {
@@ -169,6 +172,10 @@ func (s *MeetingService) ScheduleMeeting(ctx context.Context, tenantID, userID u
 		if err := s.store.CreateAttendanceRecords(ctx, tx, attendance); err != nil {
 			return err
 		}
+		attendeeIDs = make([]uuid.UUID, 0, len(attendance))
+		for _, attendee := range attendance {
+			attendeeIDs = append(attendeeIDs, attendee.UserID)
+		}
 		meeting.AttendeeCount = len(attendance)
 		return s.store.UpdateMeetingAttendanceStats(ctx, tx, tenantID, meeting.ID, len(attendance), 0, nil)
 	}); err != nil {
@@ -197,9 +204,12 @@ func (s *MeetingService) ScheduleMeeting(ctx context.Context, tenantID, userID u
 	}
 	publishEvent(ctx, s.publisher, "acta-service", events.Topics.ActaEvents, "acta.meeting.scheduled", tenantID, &userID, map[string]any{
 		"id":             meeting.ID,
+		"title":          meeting.Title,
 		"committee_id":   meeting.CommitteeID,
 		"scheduled_at":   meeting.ScheduledAt,
 		"attendee_count": meeting.AttendeeCount,
+		"attendee_ids":   attendeeIDs,
+		"location":       meeting.Location,
 	}, s.logger)
 	return s.GetMeeting(ctx, tenantID, meeting.ID)
 }

@@ -46,6 +46,7 @@ type Consumer struct {
 	running     bool
 	mu          sync.Mutex
 	dlqProducer *Producer
+	dlqTracker  *DLQTracker
 }
 
 // ConsumerConfig holds consumer-specific configuration.
@@ -142,6 +143,18 @@ func (c *Consumer) SetCrossSuiteMetrics(metrics *CrossSuiteMetrics) {
 	c.handler.metrics = metrics
 }
 
+// SetDLQTracker configures Redis-backed DLQ counting for this consumer.
+func (c *Consumer) SetDLQTracker(tracker *DLQTracker, serviceName string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.dlqTracker = tracker
+
+	c.handler.mu.Lock()
+	defer c.handler.mu.Unlock()
+	c.handler.dlqTracker = tracker
+	c.handler.dlqServiceName = serviceName
+}
+
 // SetMaxHandlerErrors defines how many failed attempts are allowed before
 // an event is moved to the DLQ. The default is 3.
 func (c *Consumer) SetMaxHandlerErrors(max int) {
@@ -221,6 +234,8 @@ type consumerGroupHandler struct {
 	mu               sync.RWMutex
 	ready            chan struct{}
 	dlqProducer      *Producer
+	dlqTracker       *DLQTracker
+	dlqServiceName   string
 	maxHandlerErrors int
 	metrics          *CrossSuiteMetrics
 	consumerName     string
@@ -394,12 +409,35 @@ func (h *consumerGroupHandler) publishToDLQ(ctx context.Context, topic string, e
 		"dlq.original_event_id": event.ID,
 		"dlq.original_type":     event.Type,
 		"dlq.original_topic":    topic,
+		"dlq.service_name":      h.serviceName(),
 		"dlq.error":             handlerErr.Error(),
 		"dlq.retry_count":       fmt.Sprintf("%d", retryCount),
 		"dlq.failed_at":         time.Now().UTC().Format(time.RFC3339Nano),
 	}
 
-	return h.dlqProducer.Publish(ctx, topic+".dlq", dlqEvent)
+	if err := h.dlqProducer.Publish(ctx, topic+".dlq", dlqEvent); err != nil {
+		return err
+	}
+	if err := h.dlqProducer.Publish(ctx, Topics.DeadLetter, dlqEvent); err != nil {
+		return err
+	}
+	if h.dlqTracker != nil {
+		if err := h.dlqTracker.Increment(ctx, h.serviceName(), topic); err != nil {
+			h.logger.Warn().
+				Err(err).
+				Str("service", h.serviceName()).
+				Str("topic", topic).
+				Msg("failed to increment dlq tracker")
+		}
+	}
+	return nil
+}
+
+func (h *consumerGroupHandler) serviceName() string {
+	if h.dlqServiceName != "" {
+		return h.dlqServiceName
+	}
+	return h.consumerName
 }
 
 func sourceSuiteFromEventType(eventType string) string {

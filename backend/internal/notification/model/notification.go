@@ -24,11 +24,21 @@ const (
 	NotifContractExpiring     NotificationType = "contract.expiring"
 	NotifMeetingScheduled     NotificationType = "meeting.scheduled"
 	NotifMeetingReminder      NotificationType = "meeting.reminder"
+	NotifActionItemAssigned   NotificationType = "action_item.assigned"
+	NotifActionItemOverdue    NotificationType = "action_item.overdue"
+	NotifMinutesApproved      NotificationType = "minutes.approved"
 	NotifKPIThreshold         NotificationType = "kpi.threshold_breached"
 	NotifSystemMaintenance    NotificationType = "system.maintenance"
 	NotifSecurityIncident     NotificationType = "security.incident"
 	NotifPasswordExpiring     NotificationType = "password.expiring"
 	NotifLoginAnomaly         NotificationType = "login.anomaly"
+	NotifContractCreated      NotificationType = "contract.created"
+	NotifAnalysisReady        NotificationType = "analysis.ready"
+	NotifClauseRiskFlagged    NotificationType = "clause.risk_flagged"
+	NotifWorkflowFailed       NotificationType = "workflow.failed"
+	NotifWorkflowCompleted    NotificationType = "workflow.completed"
+	NotifWelcome              NotificationType = "welcome"
+	NotifMalwareDetected      NotificationType = "malware.detected"
 )
 
 // Category values for notifications.
@@ -67,19 +77,19 @@ const (
 
 // Notification represents a single user notification.
 type Notification struct {
-	ID            string                 `json:"id" db:"id"`
-	TenantID      string                 `json:"tenant_id" db:"tenant_id"`
-	UserID        string                 `json:"user_id" db:"user_id"`
-	Type          NotificationType       `json:"type" db:"type"`
-	Category      string                 `json:"category" db:"category"`
-	Priority      string                 `json:"priority" db:"priority"`
-	Title         string                 `json:"title" db:"title"`
-	Body          string                 `json:"body" db:"body"`
-	Data          json.RawMessage        `json:"data" db:"data"`
-	ActionURL     string                 `json:"action_url" db:"action_url"`
-	SourceEventID *string                `json:"source_event_id,omitempty" db:"source_event_id"`
-	ReadAt        *time.Time             `json:"read_at,omitempty" db:"read_at"`
-	CreatedAt     time.Time              `json:"created_at" db:"created_at"`
+	ID            string           `json:"id" db:"id"`
+	TenantID      string           `json:"tenant_id" db:"tenant_id"`
+	UserID        string           `json:"user_id" db:"user_id"`
+	Type          NotificationType `json:"type" db:"type"`
+	Category      string           `json:"category" db:"category"`
+	Priority      string           `json:"priority" db:"priority"`
+	Title         string           `json:"title" db:"title"`
+	Body          string           `json:"body" db:"body"`
+	Data          json.RawMessage  `json:"data" db:"data"`
+	ActionURL     string           `json:"action_url" db:"action_url"`
+	SourceEventID *string          `json:"source_event_id,omitempty" db:"source_event_id"`
+	ReadAt        *time.Time       `json:"read_at,omitempty" db:"read_at"`
+	CreatedAt     time.Time        `json:"created_at" db:"created_at"`
 }
 
 // DeliveryRecord tracks each channel delivery attempt.
@@ -111,9 +121,9 @@ type Webhook struct {
 
 // DeliveryStats aggregates delivery metrics.
 type DeliveryStats struct {
-	Channel   string `json:"channel"`
-	Status    string `json:"status"`
-	Count     int64  `json:"count"`
+	Channel string `json:"channel"`
+	Status  string `json:"status"`
+	Count   int64  `json:"count"`
 }
 
 // UnreadCount holds a user's unread notification count.

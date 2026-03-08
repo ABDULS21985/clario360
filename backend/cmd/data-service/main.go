@@ -209,6 +209,7 @@ func main() {
 	dashboardSvc := service.NewDashboardService(dashboardCalculator)
 	guard := events.NewIdempotencyGuard(svc.Redis, 24*time.Hour)
 	crossSuiteMetrics := events.NewCrossSuiteMetrics(svc.Metrics.Registry())
+	dlqTracker := events.NewDLQTracker(svc.Redis)
 
 	jwtMgr, err := auth.NewJWTManager(cfg.Auth)
 	if err != nil {
@@ -240,6 +241,7 @@ func main() {
 		jwtMgr,
 		svc.Redis,
 	)
+	svc.Router.Get("/api/v1/admin/dlq/count", events.DLQCountHandler("data-service", dlqTracker, logger))
 	pipelineScheduler.Start(ctx)
 	qualityScheduler.Start(ctx)
 
@@ -252,6 +254,7 @@ func main() {
 		} else {
 			kafkaConsumer.SetDeadLetterProducer(producer)
 			kafkaConsumer.SetCrossSuiteMetrics(crossSuiteMetrics)
+			kafkaConsumer.SetDLQTracker(dlqTracker, "data-service")
 			dataConsumer = dataconsumer.NewDataConsumer(sourceSvc, kafkaConsumer, logger)
 			lineageConsumer = dataconsumer.NewLineageConsumer(lineageSvc, pipelineRepo, runRepo, dashboardCache, kafkaConsumer, logger)
 			kafkaConsumer.Subscribe(events.Topics.PipelineEvents, dataconsumer.NewFailureTracker(svc.Redis, guard, producer, logger, crossSuiteMetrics))

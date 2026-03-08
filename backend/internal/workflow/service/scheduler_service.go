@@ -296,10 +296,14 @@ func (s *SchedulerService) publishSLAEvent(ctx context.Context, task *model.Huma
 	}
 
 	evt, err := events.NewEvent("workflow.task.sla_breached", "workflow-scheduler", task.TenantID, map[string]interface{}{
-		"task_id":     task.ID,
-		"instance_id": task.InstanceID,
-		"step_id":     task.StepID,
-		"task_name":   task.Name,
+		"task_id":         task.ID,
+		"instance_id":     task.InstanceID,
+		"step_id":         task.StepID,
+		"task_name":       task.Name,
+		"assignee_id":     task.AssigneeID,
+		"assignee_role":   task.AssigneeRole,
+		"claimed_by":      task.ClaimedBy,
+		"escalation_role": task.EscalationRole,
 	})
 	if err != nil {
 		s.logger.Error().Err(err).

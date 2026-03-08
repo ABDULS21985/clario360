@@ -56,7 +56,8 @@ func (s *ActionItemService) CreateActionItem(ctx context.Context, tenantID, user
 	if meeting.CommitteeID != req.CommitteeID {
 		return nil, validationError("committee_id does not match the meeting committee", map[string]string{"committee_id": "mismatch"})
 	}
-	if _, err := s.store.GetCommittee(ctx, tenantID, req.CommitteeID); err != nil {
+	committee, err := s.store.GetCommittee(ctx, tenantID, req.CommitteeID)
+	if err != nil {
 		return nil, notFoundError("committee not found")
 	}
 	now := time.Now().UTC()
@@ -96,10 +97,12 @@ func (s *ActionItemService) CreateActionItem(ctx context.Context, tenantID, user
 		return nil, internalError("failed to create action item", err)
 	}
 	publishEvent(ctx, s.publisher, "acta-service", events.Topics.ActaEvents, "acta.action_item.created", tenantID, &userID, map[string]any{
-		"id":          item.ID,
-		"meeting_id":  item.MeetingID,
-		"assigned_to": item.AssignedTo,
-		"due_date":    item.DueDate.Format("2006-01-02"),
+		"id":            item.ID,
+		"title":         item.Title,
+		"meeting_id":    item.MeetingID,
+		"assigned_to":   item.AssignedTo,
+		"due_date":      item.DueDate.Format("2006-01-02"),
+		"chair_user_id": committee.ChairUserID,
 	}, s.logger)
 	return s.store.GetActionItem(ctx, tenantID, item.ID)
 }
@@ -284,11 +287,20 @@ func (s *ActionItemService) MarkOverdueItems(ctx context.Context) error {
 			if err := s.store.MarkActionItemOverdue(ctx, s.store.DB(), tenantID, item.ID, now); err != nil {
 				return err
 			}
+			committee, err := s.store.GetCommittee(ctx, tenantID, item.CommitteeID)
+			if err != nil {
+				s.logger.Warn().Err(err).Str("committee_id", item.CommitteeID.String()).Msg("failed to load committee for overdue action item event")
+			}
+			var chairUserID uuid.UUID
+			if committee != nil {
+				chairUserID = committee.ChairUserID
+			}
 			publishEvent(ctx, s.publisher, "acta-service", events.Topics.ActaEvents, "acta.action_item.overdue", tenantID, nil, map[string]any{
-				"id":          item.ID,
-				"title":       item.Title,
-				"assigned_to": item.AssignedTo,
-				"due_date":    item.DueDate.Format("2006-01-02"),
+				"id":            item.ID,
+				"title":         item.Title,
+				"assigned_to":   item.AssignedTo,
+				"due_date":      item.DueDate.Format("2006-01-02"),
+				"chair_user_id": chairUserID,
 			}, s.logger)
 		}
 	}
