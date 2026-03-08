@@ -39,6 +39,9 @@ type ServiceConfig struct {
 // should appear before shorter ones — the router sorts by prefix length descending at startup.
 func DefaultRoutes() []RouteConfig {
 	return []RouteConfig{
+		// IAM - OIDC discovery
+		{Prefix: "/.well-known", Service: "iam-service", Public: true, EndpointGroup: EndpointGroupAuth},
+
 		// IAM — Auth (public)
 		{Prefix: "/api/v1/auth", Service: "iam-service", Public: true, EndpointGroup: EndpointGroupAuth},
 
@@ -47,6 +50,7 @@ func DefaultRoutes() []RouteConfig {
 		{Prefix: "/api/v1/roles", Service: "iam-service", Public: false, EndpointGroup: EndpointGroupAdmin},
 		{Prefix: "/api/v1/tenants", Service: "iam-service", Public: false, EndpointGroup: EndpointGroupAdmin},
 		{Prefix: "/api/v1/api-keys", Service: "iam-service", Public: false, EndpointGroup: EndpointGroupWrite},
+		{Prefix: "/api/v1/notebooks", Service: "iam-service", Public: false, EndpointGroup: EndpointGroupWrite},
 
 		// Audit
 		{Prefix: "/api/v1/audit", Service: "audit-service", Public: false, EndpointGroup: EndpointGroupRead},

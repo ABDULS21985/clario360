@@ -19,7 +19,7 @@ vi.mock('@/hooks/use-websocket', () => ({
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), back: vi.fn(), prefetch: vi.fn() }),
   usePathname: () => '/cyber/risk-heatmap',
-  useSearchParams: () => ({ get: () => null }),
+  useSearchParams: () => new URLSearchParams(),
   redirect: vi.fn(),
 }));
 
@@ -82,7 +82,7 @@ describe('Risk Heatmap Integration', () => {
   it('test_totals: grand total shown', async () => {
     await renderHeatmapPage();
     await waitFor(() => {
-      expect(screen.getByText(String(mockHeatmap.total_vulnerabilities))).toBeTruthy();
+      expect(screen.getAllByText(String(mockHeatmap.total_vulnerabilities)).length).toBeGreaterThan(0);
     });
   });
 

@@ -1,8 +1,29 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi, beforeAll } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { LineageDag } from '@/app/(dashboard)/data/lineage/_components/lineage-dag';
 import { lineageGraph } from '@/__tests__/data-suite-fixtures';
+
+// Mock SVG baseVal for d3-zoom compatibility in jsdom
+beforeAll(() => {
+  if (typeof SVGElement !== 'undefined' && !Object.getOwnPropertyDescriptor(SVGElement.prototype, 'viewBox')) {
+    Object.defineProperty(SVGElement.prototype, 'viewBox', {
+      get() {
+        return {
+          baseVal: { x: 0, y: 0, width: 800, height: 600 },
+        };
+      },
+    });
+  }
+  if (typeof SVGElement !== 'undefined' && !Object.getOwnPropertyDescriptor(SVGElement.prototype, 'width')) {
+    Object.defineProperty(SVGElement.prototype, 'width', {
+      get() { return { baseVal: { value: 800 } }; },
+    });
+    Object.defineProperty(SVGElement.prototype, 'height', {
+      get() { return { baseVal: { value: 600 } }; },
+    });
+  }
+});
 
 describe('LineageDag', () => {
   it('test_rendersAllNodes: renders node groups for each lineage node', () => {

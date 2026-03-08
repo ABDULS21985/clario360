@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeAll, afterEach, afterAll } from 'vitest';
-import { render, screen, waitFor, fireEvent } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { http, HttpResponse } from 'msw';
 import { setupServer } from 'msw/node';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -62,10 +63,11 @@ function renderExport(props: Partial<React.ComponentProps<typeof ExportMenu>> = 
 
 describe('Export Integration', () => {
   it('test_csvExport: click CSV → fetch called → download triggered', async () => {
+    const user = userEvent.setup();
     renderExport();
-    fireEvent.click(screen.getByText('Export'));
+    await user.click(screen.getByRole('button', { name: /export/i }));
     await waitFor(() => screen.getByText(/Export as CSV/i));
-    fireEvent.click(screen.getByText(/Export as CSV/i));
+    await user.click(screen.getByText(/Export as CSV/i));
     // Download should be triggered (createObjectURL called or fetch happened)
     await waitFor(() => {
       // Should not show error
@@ -74,22 +76,24 @@ describe('Export Integration', () => {
   });
 
   it('test_jsonExport: click JSON → download triggered', async () => {
+    const user = userEvent.setup();
     renderExport();
-    fireEvent.click(screen.getByText('Export'));
+    await user.click(screen.getByRole('button', { name: /export/i }));
     await waitFor(() => screen.getByText(/Export as JSON/i));
-    fireEvent.click(screen.getByText(/Export as JSON/i));
+    await user.click(screen.getByText(/Export as JSON/i));
     await waitFor(() => {
       expect(screen.queryByText(/Export failed/i)).toBeFalsy();
     });
   });
 
   it('test_largeExportWarning: totalCount=15000 → warning dialog → confirm → export proceeds', async () => {
+    const user = userEvent.setup();
     renderExport({ totalCount: 15000 });
-    fireEvent.click(screen.getByText('Export'));
+    await user.click(screen.getByRole('button', { name: /export/i }));
     await waitFor(() => screen.getByText(/Export as CSV/i));
-    fireEvent.click(screen.getByText(/Export as CSV/i));
+    await user.click(screen.getByText(/Export as CSV/i));
     await waitFor(() => screen.getByText(/Large Export/i));
-    fireEvent.click(screen.getByText('Export Anyway'));
+    await user.click(screen.getByText('Export Anyway'));
     await waitFor(() => {
       expect(screen.queryByText(/Large Export/i)).toBeFalsy();
     });
@@ -98,6 +102,6 @@ describe('Export Integration', () => {
   it('test_exportWithFilters: active filters shown in component', () => {
     renderExport({ currentFilters: { severity: 'critical', status: 'new' } });
     // Verify component renders with filters
-    expect(screen.getByText('Export')).toBeTruthy();
+    expect(screen.getByRole('button', { name: /export/i })).toBeTruthy();
   });
 });

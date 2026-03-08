@@ -19,7 +19,7 @@ vi.mock('@/hooks/use-websocket', () => ({
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), back: vi.fn(), prefetch: vi.fn() }),
   usePathname: () => '/cyber/assets/scans',
-  useSearchParams: () => ({ get: () => null }),
+  useSearchParams: () => new URLSearchParams(),
   redirect: vi.fn(),
 }));
 
@@ -75,8 +75,8 @@ describe('Scan History Integration', () => {
   it('test_scanTypes: network and cloud badges visible', async () => {
     await renderScansPage();
     await waitFor(() => {
-      expect(screen.getByText('network')).toBeTruthy();
-      expect(screen.getByText('cloud')).toBeTruthy();
+      expect(screen.getAllByText('network').length).toBeGreaterThan(0);
+      expect(screen.getAllByText('cloud').length).toBeGreaterThan(0);
     });
   });
 

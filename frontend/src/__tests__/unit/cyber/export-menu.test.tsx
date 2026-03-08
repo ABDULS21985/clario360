@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeAll, afterEach, afterAll } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { http, HttpResponse } from 'msw';
 import { setupServer } from 'msw/node';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -48,8 +49,9 @@ function renderExportMenu(totalCount = 100) {
 
 describe('ExportMenu', () => {
   it('test_rendersFormats: 3 menu items (CSV, JSON, PDF)', async () => {
+    const user = userEvent.setup();
     renderExportMenu();
-    fireEvent.click(screen.getByText('Export'));
+    await user.click(screen.getByRole('button', { name: /export/i }));
     await waitFor(() => {
       expect(screen.getByText(/Export as CSV/i)).toBeTruthy();
       expect(screen.getByText(/Export as JSON/i)).toBeTruthy();
@@ -58,10 +60,11 @@ describe('ExportMenu', () => {
   });
 
   it('test_largeExportWarning: totalCount=15000 → warning dialog shown before export', async () => {
+    const user = userEvent.setup();
     renderExportMenu(15000);
-    fireEvent.click(screen.getByText('Export'));
+    await user.click(screen.getByRole('button', { name: /export/i }));
     await waitFor(() => screen.getByText(/Export as CSV/i));
-    fireEvent.click(screen.getByText(/Export as CSV/i));
+    await user.click(screen.getByText(/Export as CSV/i));
     await waitFor(() => {
       expect(screen.getByText(/Large Export/i)).toBeTruthy();
       expect(screen.getByText(/15,000/)).toBeTruthy();
@@ -69,10 +72,11 @@ describe('ExportMenu', () => {
   });
 
   it('test_blocksOver50K: totalCount=60000 → export blocked with message', async () => {
+    const user = userEvent.setup();
     renderExportMenu(60000);
-    fireEvent.click(screen.getByText('Export'));
+    await user.click(screen.getByRole('button', { name: /export/i }));
     await waitFor(() => screen.getByText(/Export as CSV/i));
-    fireEvent.click(screen.getByText(/Export as CSV/i));
+    await user.click(screen.getByText(/Export as CSV/i));
     await waitFor(() => {
       expect(screen.getByText(/Export Limit Exceeded/i)).toBeTruthy();
       expect(screen.getByText(/50,000/)).toBeTruthy();
@@ -80,6 +84,7 @@ describe('ExportMenu', () => {
   });
 
   it('test_selectedExport: selectedCount=5 → "Export Selected (5 records)" visible', async () => {
+    const user = userEvent.setup();
     render(
       <QueryClientProvider client={new QueryClient()}>
         <ExportMenu
@@ -92,7 +97,7 @@ describe('ExportMenu', () => {
         />
       </QueryClientProvider>,
     );
-    fireEvent.click(screen.getByText('Export'));
+    await user.click(screen.getByRole('button', { name: /export/i }));
     await waitFor(() => {
       expect(screen.getByText(/Export Selected \(5 records\)/i)).toBeTruthy();
     });

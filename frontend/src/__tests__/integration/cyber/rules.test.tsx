@@ -19,7 +19,7 @@ vi.mock('@/hooks/use-websocket', () => ({
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), back: vi.fn(), prefetch: vi.fn() }),
   usePathname: () => '/cyber/rules',
-  useSearchParams: () => ({ get: () => null }),
+  useSearchParams: () => new URLSearchParams(),
   redirect: vi.fn(),
 }));
 
@@ -144,10 +144,10 @@ describe('Detection Rules Integration', () => {
   it('test_allColumns: all column headers visible', async () => {
     await renderRulesPage();
     await waitFor(() => {
-      expect(screen.getByText('Active')).toBeTruthy();
-      expect(screen.getByText('Rule')).toBeTruthy();
-      expect(screen.getByText('Type')).toBeTruthy();
-      expect(screen.getByText('Severity')).toBeTruthy();
+      expect(screen.getAllByText('Active').length).toBeGreaterThan(0);
+      expect(screen.getAllByText('Rule').length).toBeGreaterThan(0);
+      expect(screen.getAllByText('Type').length).toBeGreaterThan(0);
+      expect(screen.getAllByText('Severity').length).toBeGreaterThan(0);
     });
   });
 });

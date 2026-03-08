@@ -21,7 +21,7 @@ vi.mock('@/hooks/use-websocket', () => ({
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), back: vi.fn(), prefetch: vi.fn() }),
   usePathname: () => '/cyber/remediation',
-  useSearchParams: () => ({ get: () => null, forEach: () => {} }),
+  useSearchParams: () => new URLSearchParams(),
   redirect: vi.fn(),
 }));
 

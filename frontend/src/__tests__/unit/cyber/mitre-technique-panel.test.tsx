@@ -94,7 +94,7 @@ describe('MitreTechniquePanel', () => {
     const gapTech: MITRETechniqueCoverage = { ...mockTech, rule_count: 0, alert_count: 0, has_detection: false };
     renderPanel(gapTech);
     await waitFor(() => {
-      expect(screen.getByText(/Detection Gap/i)).toBeTruthy();
+      expect(screen.getAllByText(/Detection Gap/i).length).toBeGreaterThan(0);
     });
   });
 

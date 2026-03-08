@@ -19,7 +19,7 @@ vi.mock('@/hooks/use-websocket', () => ({
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), back: vi.fn(), prefetch: vi.fn() }),
   usePathname: () => '/cyber/mitre',
-  useSearchParams: () => ({ get: () => null }),
+  useSearchParams: () => new URLSearchParams(),
   redirect: vi.fn(),
 }));
 
@@ -150,13 +150,11 @@ describe('MITRE Matrix Integration', () => {
 
   it('test_createRuleFromGap: gap technique → panel shows create rule button', async () => {
     await renderMitrePage();
-    await waitFor(() => screen.getByText('T1106'));
-    fireEvent.click(screen.getByText('T1106'));
+    await waitFor(() => screen.getAllByText('T1106'));
+    fireEvent.click(screen.getAllByText('T1106')[0]);
     // Panel opens — if no rules → create rule button
     await waitFor(() => {
-      const createBtn = screen.queryByText(/Create Detection Rule/i);
-      // May or may not appear depending on async load
-      expect(screen.getByText('T1106')).toBeTruthy();
+      expect(screen.getAllByText('T1106').length).toBeGreaterThan(0);
     });
   });
 

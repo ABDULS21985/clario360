@@ -13,6 +13,7 @@ import (
 
 // SubscribedTopics lists all Kafka topics the audit consumer subscribes to.
 var SubscribedTopics = []string{
+	"platform.audit.events",
 	"platform.iam.events",
 	"platform.workflow.events",
 	"platform.notification.events",

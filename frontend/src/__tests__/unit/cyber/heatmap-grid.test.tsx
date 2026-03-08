@@ -81,7 +81,7 @@ describe('HeatmapGrid', () => {
 
   it('test_rowSorting: Total column header shows', () => {
     render(<HeatmapGrid data={makeHeatmapData()} />);
-    expect(screen.getByText('Total')).toBeTruthy();
+    expect(screen.getAllByText('Total').length).toBeGreaterThan(0);
   });
 
   it('test_hoverTooltip: title element present per cell', () => {

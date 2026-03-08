@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -28,6 +29,9 @@ import (
 	iamrepo "github.com/clario360/platform/internal/iam/repository"
 	iamservice "github.com/clario360/platform/internal/iam/service"
 	"github.com/clario360/platform/internal/middleware"
+	notebookconsumer "github.com/clario360/platform/internal/notebook/consumer"
+	notebookhandler "github.com/clario360/platform/internal/notebook/handler"
+	notebookservice "github.com/clario360/platform/internal/notebook/service"
 	notifchannel "github.com/clario360/platform/internal/notification/channel"
 	notifcfg "github.com/clario360/platform/internal/notification/config"
 	notifservice "github.com/clario360/platform/internal/notification/service"
@@ -37,6 +41,7 @@ import (
 	onboardingmiddleware "github.com/clario360/platform/internal/onboarding/middleware"
 	onboardingrepo "github.com/clario360/platform/internal/onboarding/repository"
 	onboardingsvc "github.com/clario360/platform/internal/onboarding/service"
+	"github.com/clario360/platform/internal/security"
 	"github.com/clario360/platform/pkg/storage"
 )
 
@@ -133,6 +138,37 @@ func main() {
 	roleSvc := iamservice.NewRoleService(roleRepo, userRepo, producer, svc.Logger)
 	tenantSvc := iamservice.NewTenantService(tenantRepo, roleRepo, producer, svc.Logger)
 	apiKeySvc := iamservice.NewAPIKeyService(apiKeyRepo, producer, svc.Logger)
+	oauthClients := []iamservice.OAuthClient{
+		{
+			ClientID: "jupyterhub",
+			RedirectURIs: splitCSV(
+				envOrDefault("JUPYTERHUB_OAUTH_CALLBACK_URL", "https://notebooks.clario360.sa/hub/oauth_callback"),
+			),
+			Scopes:      []string{"openid", "profile", "email", "roles"},
+			RequirePKCE: true,
+		},
+	}
+	oauthSvc := iamservice.NewOAuthService(
+		jwtMgr,
+		authSvc,
+		userRepo,
+		tenantRepo,
+		svc.Redis,
+		envOrDefault("CLARIO360_PUBLIC_URL", "http://localhost:8080"),
+		envOrDefault("NOTEBOOK_LOGIN_URL", envOrDefault("CLARIO360_APP_URL", "http://localhost:3000")+"/login"),
+		oauthClients,
+		svc.Logger,
+	)
+	notebookMetrics := security.NewNotebookMetrics(svc.Metrics.Registry())
+	notebookSvc := notebookservice.NewNotebookService(
+		envOrDefault("JUPYTERHUB_API_URL", "http://jupyterhub.jupyterhub.svc:8081/hub/api"),
+		envOrDefault("JUPYTERHUB_BASE_URL", "https://notebooks.clario360.sa"),
+		envOrDefault("JUPYTERHUB_ADMIN_TOKEN", ""),
+		nil,
+		producer,
+		notebookMetrics,
+		svc.Logger,
+	)
 
 	// Handlers.
 	authHandler := iamhandler.NewAuthHandler(authSvc, svc.Logger)
@@ -140,6 +176,8 @@ func main() {
 	roleHandler := iamhandler.NewRoleHandler(roleSvc, svc.Logger)
 	tenantHandler := iamhandler.NewTenantHandler(tenantSvc, svc.Logger)
 	apiKeyHandler := iamhandler.NewAPIKeyHandler(apiKeySvc, svc.Logger)
+	oauthHandler := iamhandler.NewOAuthHandler(oauthSvc, svc.Logger)
+	notebookHandler := notebookhandler.NewNotebookHandler(notebookSvc, svc.Logger)
 
 	// AI governance control plane.
 	aiMetrics := aigovservice.NewMetrics(svc.Metrics.Registry())
@@ -277,6 +315,8 @@ func main() {
 
 	// Security headers on all responses.
 	svc.Router.Use(middleware.SecurityHeaders())
+	svc.Router.Get("/.well-known/openid-configuration", oauthHandler.Discovery)
+	svc.Router.Get("/.well-known/jwks.json", oauthHandler.JWKS)
 
 	// Routes.
 	svc.Router.Route("/api/v1", func(r chi.Router) {
@@ -290,6 +330,7 @@ func main() {
 				KeyPrefix:         "ratelimit:auth",
 			}))
 			r.Mount("/auth", authHandler.Routes())
+			r.Mount("/auth/oauth", oauthHandler.Routes())
 		})
 
 		r.Route("/onboarding", func(r chi.Router) {
@@ -368,6 +409,7 @@ func main() {
 			r.Mount("/roles", roleHandler.Routes())
 			r.Mount("/tenants", tenantHandler.Routes())
 			r.Mount("/api-keys", apiKeyHandler.Routes())
+			r.Mount("/notebooks", notebookHandler.Routes())
 			aigovhandler.RegisterRoutes(r, aiServices, svc.Logger)
 
 			r.Route("/users/{id}/roles", func(r chi.Router) {
@@ -389,6 +431,23 @@ func main() {
 			r.Post("/tenants/{id}/reactivate", onboardingHandler.AdminReactivate)
 		})
 	})
+
+	if producer != nil {
+		notebookConsumerCfg := legacyCfg.Kafka
+		notebookConsumerCfg.GroupID = "iam-service-notebook-consumer"
+		kafkaConsumer, err := events.NewConsumer(notebookConsumerCfg, svc.Logger)
+		if err != nil {
+			svc.Logger.Warn().Err(err).Msg("notebook audit consumer unavailable")
+		} else {
+			kafkaConsumer.Subscribe(events.Topics.NotebookEvents, notebookconsumer.NewNotebookConsumer(producer, svc.Logger))
+			go func() {
+				if err := kafkaConsumer.Start(ctx); err != nil && err != context.Canceled {
+					svc.Logger.Error().Err(err).Msg("notebook audit consumer exited")
+				}
+			}()
+			defer kafkaConsumer.Close()
+		}
+	}
 
 	svc.Logger.Info().Int("port", cfg.Port).Msg("iam-service starting")
 	if err := svc.Run(ctx); err != nil {
@@ -414,6 +473,18 @@ func intToStr(n int) string {
 		n /= 10
 	}
 	return s
+}
+
+func splitCSV(value string) []string {
+	parts := strings.Split(value, ",")
+	out := make([]string, 0, len(parts))
+	for _, part := range parts {
+		trimmed := strings.TrimSpace(part)
+		if trimmed != "" {
+			out = append(out, trimmed)
+		}
+	}
+	return out
 }
 
 func buildOnboardingDBPools(ctx context.Context, cfg *config.Config, logger zerolog.Logger) (map[string]*pgxpool.Pool, map[string]string, error) {

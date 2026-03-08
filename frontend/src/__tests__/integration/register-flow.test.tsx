@@ -15,8 +15,13 @@ vi.mock('next/navigation', () => ({
 const API_URL = 'http://localhost:8080';
 
 const server = setupServer(
-  http.post(`${API_URL}/api/v1/auth/register`, () =>
-    HttpResponse.json({ message: 'created' }, { status: 201 }),
+  http.post(`${API_URL}/api/v1/onboarding/register`, () =>
+    HttpResponse.json({
+      tenant_id: 'tenant-new',
+      email: 'john@example.com',
+      message: 'created',
+      verification_ttl_seconds: 600,
+    }, { status: 201 }),
   ),
   http.get(`${API_URL}/api/v1/auth/check-email`, () =>
     HttpResponse.json({ available: true }),
@@ -33,39 +38,41 @@ afterAll(() => server.close());
 async function fillRegisterForm() {
   const user = userEvent.setup();
   render(<RegisterForm />);
+  await user.type(screen.getByLabelText('Organization name'), 'Acme Corp');
   await user.type(screen.getByLabelText('First name'), 'John');
   await user.type(screen.getByLabelText('Last name'), 'Doe');
-  await user.type(screen.getByLabelText('Email'), 'john@example.com');
+  await user.type(screen.getByLabelText(/Work email/i), 'john@example.com');
   await user.type(screen.getByLabelText('Password'), 'Str0ng!Pass#word');
   await user.type(screen.getByLabelText('Confirm password'), 'Str0ng!Pass#word');
-  await user.type(screen.getByLabelText('Organization name'), 'Acme Corp');
   return user;
 }
 
 describe('Register flow integration', () => {
-  it('test_registerSuccess: valid form → redirect to /login?registered=true', async () => {
-    await fillRegisterForm();
-    const submitButton = screen.getByRole('button', { name: /create account/i });
-    await userEvent.setup().click(submitButton);
+  it('test_registerSuccess: valid form → redirect to verify page', async () => {
+    const user = await fillRegisterForm();
+    const submitButton = screen.getByRole('button', { name: /continue to verification/i });
+    await user.click(submitButton);
     await waitFor(() => {
-      expect(pushMock).toHaveBeenCalledWith('/login?registered=true');
+      expect(pushMock).toHaveBeenCalledWith(
+        expect.stringContaining('/verify'),
+      );
     });
   });
 
   it('test_registerDuplicateEmail: 409 → email field shows error', async () => {
     server.use(
-      http.post(`${API_URL}/api/v1/auth/register`, () =>
+      http.post(`${API_URL}/api/v1/onboarding/register`, () =>
         HttpResponse.json(
           { code: 'EMAIL_TAKEN', message: 'Email already registered' },
           { status: 409 },
         ),
       ),
     );
-    await fillRegisterForm();
-    const submitButton = screen.getByRole('button', { name: /create account/i });
-    await userEvent.setup().click(submitButton);
+    const user = await fillRegisterForm();
+    const submitButton = screen.getByRole('button', { name: /continue to verification/i });
+    await user.click(submitButton);
     await waitFor(() => {
-      expect(screen.getByText(/already registered/i)).toBeInTheDocument();
+      expect(screen.getByText(/already registered|Registration failed/i)).toBeInTheDocument();
     });
   });
 

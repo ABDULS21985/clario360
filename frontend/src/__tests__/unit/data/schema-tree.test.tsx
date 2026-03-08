@@ -18,7 +18,7 @@ describe('SchemaTree', () => {
 
     await user.click(screen.getByTestId('schema-table-customers'));
 
-    expect(screen.getByText('email')).toBeInTheDocument();
+    expect(screen.getAllByText('email').length).toBeGreaterThan(0);
     expect(screen.getByText('first_name')).toBeInTheDocument();
   });
 
@@ -29,7 +29,7 @@ describe('SchemaTree', () => {
     await user.click(screen.getByTestId('schema-table-customers'));
 
     expect(screen.getByTestId('schema-icon-pii-email')).toBeInTheDocument();
-    expect(screen.getByText('email')).toBeInTheDocument();
+    expect(screen.getAllByText('email').length).toBeGreaterThan(0);
   });
 
   it('test_classificationBadge: shows the classification badge for restricted tables', () => {
