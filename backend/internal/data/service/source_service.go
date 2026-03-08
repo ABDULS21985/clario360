@@ -1,6 +1,7 @@
 package service
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -663,9 +664,150 @@ func normalizeConnectionConfig(sourceType model.DataSourceType, raw json.RawMess
 			value.AllowedFormats = []string{"csv", "tsv", "json", "jsonl", "ndjson"}
 		}
 		return json.Marshal(value)
+	case model.DataSourceTypeClickHouse:
+		var value model.ClickHouseConnectionConfig
+		if err := json.Unmarshal(raw, &value); err != nil {
+			return nil, fmt.Errorf("decode ClickHouse config: %w", err)
+		}
+		if value.Port == 0 {
+			value.Port = 9000
+		}
+		if value.Protocol == "" {
+			value.Protocol = "native"
+		}
+		if value.MaxOpenConns == 0 {
+			value.MaxOpenConns = cfg.ConnectorMaxPoolSize
+		}
+		if value.MaxIdleConns == 0 {
+			value.MaxIdleConns = max(1, cfg.ConnectorMaxPoolSize/2)
+		}
+		if value.DialTimeoutSeconds == 0 {
+			value.DialTimeoutSeconds = int(cfg.ConnectorConnectTimeout.Seconds())
+		}
+		if value.ReadTimeoutSeconds == 0 {
+			value.ReadTimeoutSeconds = int(cfg.ConnectorStatementTimeout.Seconds())
+		}
+		if !bytes.Contains(raw, []byte(`"compression"`)) {
+			value.Compression = true
+		}
+		return json.Marshal(value)
+	case model.DataSourceTypeImpala:
+		var value model.ImpalaConnectionConfig
+		if err := json.Unmarshal(raw, &value); err != nil {
+			return nil, fmt.Errorf("decode Impala config: %w", err)
+		}
+		if value.Port == 0 {
+			value.Port = 21050
+		}
+		if value.AuthType == "" {
+			value.AuthType = "noauth"
+		}
+		if value.QueryTimeoutSeconds == 0 {
+			value.QueryTimeoutSeconds = int(cfg.ConnectorStatementTimeout.Seconds())
+		}
+		if value.MaxOpenConns == 0 {
+			value.MaxOpenConns = minInt(cfg.ConnectorMaxPoolSize, 5)
+		}
+		if value.MaxIdleConns == 0 {
+			value.MaxIdleConns = max(1, value.MaxOpenConns/2)
+		}
+		return json.Marshal(value)
+	case model.DataSourceTypeHive:
+		var value model.HiveConnectionConfig
+		if err := json.Unmarshal(raw, &value); err != nil {
+			return nil, fmt.Errorf("decode Hive config: %w", err)
+		}
+		if value.Port == 0 {
+			value.Port = 10000
+		}
+		if value.AuthType == "" {
+			value.AuthType = "noauth"
+		}
+		if value.TransportMode == "" {
+			value.TransportMode = "binary"
+		}
+		if value.HTTPPath == "" {
+			value.HTTPPath = "cliservice"
+		}
+		if value.QueryTimeoutSeconds == 0 {
+			value.QueryTimeoutSeconds = int((2 * cfg.ConnectorStatementTimeout).Seconds())
+		}
+		if value.FetchSize == 0 {
+			value.FetchSize = cfg.ConnectorMaxSampleRows
+		}
+		return json.Marshal(value)
+	case model.DataSourceTypeHDFS:
+		var value model.HDFSConnectionConfig
+		if err := json.Unmarshal(raw, &value); err != nil {
+			return nil, fmt.Errorf("decode HDFS config: %w", err)
+		}
+		if len(value.BasePaths) == 0 {
+			value.BasePaths = []string{"/user/hive/warehouse"}
+		}
+		if value.MaxFileSizeMB == 0 {
+			value.MaxFileSizeMB = 100
+		}
+		return json.Marshal(value)
+	case model.DataSourceTypeSpark:
+		var value model.SparkConnectionConfig
+		if err := json.Unmarshal(raw, &value); err != nil {
+			return nil, fmt.Errorf("decode Spark config: %w", err)
+		}
+		if value.Thrift != nil {
+			if value.Thrift.Port == 0 {
+				value.Thrift.Port = 10001
+			}
+			if value.Thrift.AuthType == "" {
+				value.Thrift.AuthType = "noauth"
+			}
+		}
+		if value.QueryTimeoutSeconds == 0 {
+			value.QueryTimeoutSeconds = int((2 * cfg.ConnectorStatementTimeout).Seconds())
+		}
+		if value.MaxOpenConns == 0 {
+			value.MaxOpenConns = minInt(cfg.ConnectorMaxPoolSize, 5)
+		}
+		if value.MaxIdleConns == 0 {
+			value.MaxIdleConns = max(1, value.MaxOpenConns/2)
+		}
+		return json.Marshal(value)
+	case model.DataSourceTypeDagster:
+		var value model.DagsterConnectionConfig
+		if err := json.Unmarshal(raw, &value); err != nil {
+			return nil, fmt.Errorf("decode Dagster config: %w", err)
+		}
+		if value.TimeoutSeconds == 0 {
+			value.TimeoutSeconds = int(cfg.ConnectorStatementTimeout.Seconds())
+		}
+		return json.Marshal(value)
+	case model.DataSourceTypeDolt:
+		var value model.DoltConnectionConfig
+		if err := json.Unmarshal(raw, &value); err != nil {
+			return nil, fmt.Errorf("decode Dolt config: %w", err)
+		}
+		if value.Port == 0 {
+			value.Port = 3306
+		}
+		if value.Branch == "" {
+			value.Branch = "main"
+		}
+		if value.MaxOpenConns == 0 {
+			value.MaxOpenConns = cfg.ConnectorMaxPoolSize
+		}
+		if value.MaxIdleConns == 0 {
+			value.MaxIdleConns = max(1, cfg.ConnectorMaxPoolSize/2)
+		}
+		return json.Marshal(value)
 	default:
 		return nil, fmt.Errorf("unsupported source type %q", sourceType)
 	}
+}
+
+func minInt(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }
 
 func safeTags(tags []string) []string {

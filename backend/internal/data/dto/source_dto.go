@@ -12,7 +12,7 @@ import (
 type CreateSourceRequest struct {
 	Name             string          `json:"name" validate:"required,min=2,max=255"`
 	Description      string          `json:"description" validate:"max=2000"`
-	Type             string          `json:"type" validate:"required,oneof=postgresql mysql mssql api csv s3 stream"`
+	Type             string          `json:"type" validate:"required,oneof=postgresql mysql mssql api csv s3 clickhouse impala hive hdfs spark dagster dolt stream"`
 	ConnectionConfig json.RawMessage `json:"connection_config" validate:"required"`
 	SyncFrequency    *string         `json:"sync_frequency,omitempty"`
 	Tags             []string        `json:"tags,omitempty" validate:"max=20,dive,max=64"`
@@ -20,7 +20,7 @@ type CreateSourceRequest struct {
 }
 
 type TestSourceConfigRequest struct {
-	Type             string          `json:"type" validate:"required,oneof=postgresql mysql mssql api csv s3 stream"`
+	Type             string          `json:"type" validate:"required,oneof=postgresql mysql mssql api csv s3 clickhouse impala hive hdfs spark dagster dolt stream"`
 	ConnectionConfig json.RawMessage `json:"connection_config" validate:"required"`
 }
 

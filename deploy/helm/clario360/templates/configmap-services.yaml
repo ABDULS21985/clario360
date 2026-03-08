@@ -303,7 +303,7 @@ metadata:
   labels:
     {{- include "clario360.componentLabels" (dict "root" . "component" "frontend") | nindent 4 }}
 data:
-  NEXT_PUBLIC_API_URL: {{ .Values.frontend.publicApiUrl | default "https://clario360.example.com/api" | quote }}
+  NEXT_PUBLIC_API_URL: {{ .Values.frontend.publicApiUrl | default (printf "https://%s/api" (.Values.global.apiDomain | default "localhost")) | quote }}
   NODE_ENV: {{ .Values.frontend.nodeEnv | default "production" | quote }}
   NEXT_TELEMETRY_DISABLED: {{ .Values.frontend.telemetryDisabled | default "1" | quote }}
 {{- end }}

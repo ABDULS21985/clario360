@@ -19,7 +19,6 @@ import (
 	"github.com/clario360/platform/internal/database"
 	"github.com/clario360/platform/internal/events"
 	onboardingmodel "github.com/clario360/platform/internal/onboarding/model"
-	onboardingrepo "github.com/clario360/platform/internal/onboarding/repository"
 	"github.com/clario360/platform/internal/onboarding/service/seeder"
 	"github.com/clario360/platform/internal/workflow/repository"
 	"github.com/clario360/platform/pkg/storage"

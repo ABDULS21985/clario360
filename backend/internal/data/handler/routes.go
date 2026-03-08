@@ -28,6 +28,8 @@ func RegisterRoutes(
 		r.Use(middleware.Tenant)
 		r.Use(datamw.RateLimiter(rdb))
 
+		r.Get("/source-types", sourceHandler.ListSourceTypes)
+		r.Get("/source-types/{type}", sourceHandler.GetSourceType)
 		r.Get("/sources/stats", sourceHandler.GetAggregateStats)
 		r.Post("/sources/test-config", sourceHandler.TestConfig)
 		r.Post("/sources", sourceHandler.Create)

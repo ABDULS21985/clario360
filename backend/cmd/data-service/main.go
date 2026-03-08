@@ -234,7 +234,7 @@ func main() {
 		logger.Fatal().Err(err).Msg("failed to create JWT manager")
 	}
 
-	sourceHandler := handler.NewSourceHandler(sourceSvc, logger)
+	sourceHandler := handler.NewSourceHandler(sourceSvc, registry, logger)
 	modelHandler := handler.NewModelHandler(modelSvc, logger)
 	pipelineHandler := handler.NewPipelineHandler(pipelineSvc, logger)
 	qualityHandler := handler.NewQualityHandler(qualitySvc, logger)

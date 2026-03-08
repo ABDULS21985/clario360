@@ -4,8 +4,10 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/rs/zerolog"
 
+	"github.com/clario360/platform/internal/data/connector"
 	"github.com/clario360/platform/internal/data/dto"
 	"github.com/clario360/platform/internal/data/model"
 	"github.com/clario360/platform/internal/data/service"
@@ -15,13 +17,36 @@ import (
 type SourceHandler struct {
 	baseHandler
 	service *service.SourceService
+	registry *connector.ConnectorRegistry
 }
 
-func NewSourceHandler(service *service.SourceService, logger zerolog.Logger) *SourceHandler {
+func NewSourceHandler(service *service.SourceService, registry *connector.ConnectorRegistry, logger zerolog.Logger) *SourceHandler {
 	return &SourceHandler{
 		baseHandler: baseHandler{logger: logger},
 		service:     service,
+		registry:    registry,
 	}
+}
+
+func (h *SourceHandler) ListSourceTypes(w http.ResponseWriter, r *http.Request) {
+	types := h.registry.ListTypes()
+	metadata := make([]connector.ConnectorTypeMetadata, 0, len(types))
+	for _, sourceType := range types {
+		if value := h.registry.TypeMetadata(sourceType); value != nil {
+			metadata = append(metadata, *value)
+		}
+	}
+	suiteapi.WriteData(w, http.StatusOK, metadata)
+}
+
+func (h *SourceHandler) GetSourceType(w http.ResponseWriter, r *http.Request) {
+	sourceType := model.DataSourceType(chi.URLParam(r, "type"))
+	metadata := h.registry.TypeMetadata(sourceType)
+	if metadata == nil {
+		suiteapi.WriteError(w, r, http.StatusNotFound, "NOT_FOUND", "source type not registered", nil)
+		return
+	}
+	suiteapi.WriteData(w, http.StatusOK, metadata)
 }
 
 func (h *SourceHandler) Create(w http.ResponseWriter, r *http.Request) {

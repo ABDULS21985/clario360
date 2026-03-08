@@ -41,11 +41,11 @@ type invitationOnboardingRepository interface {
 
 type wizardOnboardingRepository interface {
 	GetOnboardingByTenantID(ctx context.Context, tenantID uuid.UUID) (*onboardingmodel.OnboardingStatus, error)
-	UpdateOrganization(ctx context.Context, tenantID uuid.UUID, orgName string, industry onboardingmodel.OrgIndustry, country string, city *string, size onboardingmodel.OrgSize) (*onboardingmodel.OnboardingStatus, error)
-	UpdateBranding(ctx context.Context, tenantID uuid.UUID, logoFileID *uuid.UUID, primaryColor, accentColor *string) (*onboardingmodel.OnboardingStatus, error)
-	MarkTeamStepCompleted(ctx context.Context, tenantID uuid.UUID) (*onboardingmodel.OnboardingStatus, error)
-	UpdateSuites(ctx context.Context, tenantID uuid.UUID, activeSuites []string) (*onboardingmodel.OnboardingStatus, error)
-	CompleteWizard(ctx context.Context, tenantID uuid.UUID) (*onboardingmodel.OnboardingStatus, error)
+	UpdateOrganization(ctx context.Context, tenantID uuid.UUID, orgName string, industry onboardingmodel.OrgIndustry, country string, city *string, size onboardingmodel.OrgSize) (*onboardingmodel.WizardProgress, error)
+	UpdateBranding(ctx context.Context, tenantID uuid.UUID, logoFileID *uuid.UUID, primaryColor, accentColor *string) (*onboardingmodel.WizardProgress, error)
+	MarkTeamStepCompleted(ctx context.Context, tenantID uuid.UUID) (*onboardingmodel.WizardProgress, error)
+	UpdateSuites(ctx context.Context, tenantID uuid.UUID, activeSuites []string) (*onboardingmodel.WizardProgress, error)
+	CompleteWizard(ctx context.Context, tenantID uuid.UUID) (*onboardingmodel.WizardProgress, error)
 }
 
 type provisioningOnboardingRepository interface {

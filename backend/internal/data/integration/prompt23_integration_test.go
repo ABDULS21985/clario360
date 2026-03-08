@@ -548,7 +548,7 @@ func newIntegrationHarness(t *testing.T) *integrationHarness {
 	dashboardSvc := datasvc.NewDashboardService(dashboardCalculator)
 	datahandler.RegisterRoutes(
 		router,
-		datahandler.NewSourceHandler(sourceSvc, logger),
+		datahandler.NewSourceHandler(sourceSvc, registry, logger),
 		datahandler.NewModelHandler(modelSvc, logger),
 		datahandler.NewPipelineHandler(pipelineSvc, logger),
 		datahandler.NewQualityHandler(qualitySvc, logger),

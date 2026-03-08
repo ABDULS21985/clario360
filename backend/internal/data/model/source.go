@@ -16,12 +16,32 @@ const (
 	DataSourceTypeAPI        DataSourceType = "api"
 	DataSourceTypeCSV        DataSourceType = "csv"
 	DataSourceTypeS3         DataSourceType = "s3"
+	DataSourceTypeClickHouse DataSourceType = "clickhouse"
+	DataSourceTypeImpala     DataSourceType = "impala"
+	DataSourceTypeHive       DataSourceType = "hive"
+	DataSourceTypeHDFS       DataSourceType = "hdfs"
+	DataSourceTypeSpark      DataSourceType = "spark"
+	DataSourceTypeDagster    DataSourceType = "dagster"
+	DataSourceTypeDolt       DataSourceType = "dolt"
 	DataSourceTypeStream     DataSourceType = "stream"
 )
 
 func (t DataSourceType) IsValid() bool {
 	switch t {
-	case DataSourceTypePostgreSQL, DataSourceTypeMySQL, DataSourceTypeMSSQL, DataSourceTypeAPI, DataSourceTypeCSV, DataSourceTypeS3, DataSourceTypeStream:
+	case DataSourceTypePostgreSQL,
+		DataSourceTypeMySQL,
+		DataSourceTypeMSSQL,
+		DataSourceTypeAPI,
+		DataSourceTypeCSV,
+		DataSourceTypeS3,
+		DataSourceTypeClickHouse,
+		DataSourceTypeImpala,
+		DataSourceTypeHive,
+		DataSourceTypeHDFS,
+		DataSourceTypeSpark,
+		DataSourceTypeDagster,
+		DataSourceTypeDolt,
+		DataSourceTypeStream:
 		return true
 	default:
 		return false
@@ -175,4 +195,112 @@ type S3ConnectionConfig struct {
 	AllowedFormats  []string `json:"allowed_formats,omitempty"`
 	MaxObjects      int      `json:"max_objects,omitempty"`
 	SchemaFromFirst bool     `json:"schema_from_first"`
+}
+
+type KerberosConfig struct {
+	Realm     string `json:"realm" validate:"required"`
+	KDC       string `json:"kdc" validate:"required"`
+	Principal string `json:"principal" validate:"required"`
+	Keytab    string `json:"keytab,omitempty"`
+}
+
+type ClickHouseConnectionConfig struct {
+	Host                string `json:"host" validate:"required,hostname|ip"`
+	Port                int    `json:"port" validate:"required,gte=1,lte=65535"`
+	Database            string `json:"database" validate:"required"`
+	Username            string `json:"username" validate:"required"`
+	Password            string `json:"password" validate:"required"`
+	Secure              bool   `json:"secure"`
+	Protocol            string `json:"protocol" validate:"required,oneof=native http"`
+	Cluster             string `json:"cluster,omitempty"`
+	MaxOpenConns        int    `json:"max_open_conns,omitempty"`
+	MaxIdleConns        int    `json:"max_idle_conns,omitempty"`
+	DialTimeoutSeconds  int    `json:"dial_timeout_seconds,omitempty"`
+	ReadTimeoutSeconds  int    `json:"read_timeout_seconds,omitempty"`
+	Compression         bool   `json:"compression"`
+	ConnMaxLifetimeMins int    `json:"conn_max_lifetime_mins,omitempty"`
+	ConnMaxIdleTimeMins int    `json:"conn_max_idle_time_mins,omitempty"`
+}
+
+type ImpalaConnectionConfig struct {
+	Host                string `json:"host" validate:"required,hostname|ip"`
+	Port                int    `json:"port" validate:"required,gte=1,lte=65535"`
+	Database            string `json:"database,omitempty"`
+	Username            string `json:"username,omitempty"`
+	Password            string `json:"password,omitempty"`
+	AuthType            string `json:"auth_type" validate:"required,oneof=noauth ldap kerberos"`
+	UseTLS              bool   `json:"use_tls"`
+	QueryTimeoutSeconds int    `json:"query_timeout_seconds,omitempty"`
+	MaxOpenConns        int    `json:"max_open_conns,omitempty"`
+	MaxIdleConns        int    `json:"max_idle_conns,omitempty"`
+	ConnMaxLifetimeMins int    `json:"conn_max_lifetime_mins,omitempty"`
+	AuditLogTable       string `json:"audit_log_table,omitempty"`
+	CACertPath          string `json:"ca_cert_path,omitempty"`
+}
+
+type HiveConnectionConfig struct {
+	Host                string          `json:"host" validate:"required,hostname|ip"`
+	Port                int             `json:"port" validate:"required,gte=1,lte=65535"`
+	Database            string          `json:"database,omitempty"`
+	Username            string          `json:"username,omitempty"`
+	Password            string          `json:"password,omitempty"`
+	AuthType            string          `json:"auth_type" validate:"required,oneof=noauth plain kerberos"`
+	TransportMode       string          `json:"transport_mode" validate:"required,oneof=binary http"`
+	HTTPPath            string          `json:"http_path,omitempty"`
+	KerberosConfig      *KerberosConfig `json:"kerberos,omitempty"`
+	UseTLS              bool            `json:"use_tls"`
+	QueryTimeoutSeconds int             `json:"query_timeout_seconds,omitempty"`
+	FetchSize           int             `json:"fetch_size,omitempty"`
+}
+
+type HDFSConnectionConfig struct {
+	NameNodes     []string        `json:"name_nodes" validate:"required,min=1,dive,required"`
+	User          string          `json:"user,omitempty"`
+	KerberosConfig *KerberosConfig `json:"kerberos,omitempty"`
+	BasePaths     []string        `json:"base_paths,omitempty"`
+	MaxFileSizeMB int64           `json:"max_file_size_mb,omitempty"`
+	AuditLogPath  string          `json:"audit_log_path,omitempty"`
+}
+
+type SparkThriftConfig struct {
+	Host     string `json:"host" validate:"required,hostname|ip"`
+	Port     int    `json:"port" validate:"required,gte=1,lte=65535"`
+	Database string `json:"database,omitempty"`
+	Username string `json:"username,omitempty"`
+	Password string `json:"password,omitempty"`
+	AuthType string `json:"auth_type" validate:"required,oneof=noauth plain kerberos"`
+}
+
+type SparkRESTConfig struct {
+	MasterURL  string `json:"master_url" validate:"required,url"`
+	HistoryURL string `json:"history_url,omitempty" validate:"omitempty,url"`
+}
+
+type SparkConnectionConfig struct {
+	Thrift              *SparkThriftConfig `json:"thrift,omitempty"`
+	REST                SparkRESTConfig    `json:"rest" validate:"required"`
+	QueryTimeoutSeconds int                `json:"query_timeout_seconds,omitempty"`
+	MaxOpenConns        int                `json:"max_open_conns,omitempty"`
+	MaxIdleConns        int                `json:"max_idle_conns,omitempty"`
+	ConnMaxLifetimeMins int                `json:"conn_max_lifetime_mins,omitempty"`
+}
+
+type DagsterConnectionConfig struct {
+	GraphQLURL     string `json:"graphql_url" validate:"required,url"`
+	APIToken       string `json:"api_token,omitempty"`
+	Workspace      string `json:"workspace,omitempty"`
+	TimeoutSeconds int    `json:"timeout_seconds,omitempty"`
+}
+
+type DoltConnectionConfig struct {
+	Host                string `json:"host" validate:"required,hostname|ip"`
+	Port                int    `json:"port" validate:"required,gte=1,lte=65535"`
+	Database            string `json:"database" validate:"required"`
+	Username            string `json:"username" validate:"required"`
+	Password            string `json:"password" validate:"required"`
+	Branch              string `json:"branch,omitempty"`
+	UseTLS              bool   `json:"use_tls"`
+	MaxOpenConns        int    `json:"max_open_conns,omitempty"`
+	MaxIdleConns        int    `json:"max_idle_conns,omitempty"`
+	ConnMaxLifetimeMins int    `json:"conn_max_lifetime_mins,omitempty"`
 }

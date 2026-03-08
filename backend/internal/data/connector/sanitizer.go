@@ -16,6 +16,8 @@ var secretKeys = map[string]struct{}{
 	"client_secret": {},
 	"access_key":    {},
 	"refresh_token": {},
+	"keytab":        {},
+	"ca_cert_path":  {},
 }
 
 func SanitizeConnectionConfig(_ model.DataSourceType, config json.RawMessage) json.RawMessage {
