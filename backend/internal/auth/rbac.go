@@ -54,7 +54,8 @@ var RolePermissions = map[string][]string{
 // HasPermission checks if any of the user's roles grant the required permission.
 func HasPermission(roles []string, required string) bool {
 	for _, role := range roles {
-		perms, ok := RolePermissions[role]
+		normalizedRole := strings.ReplaceAll(role, "-", "_")
+		perms, ok := RolePermissions[normalizedRole]
 		if !ok {
 			continue
 		}

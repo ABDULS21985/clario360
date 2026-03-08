@@ -1,16 +1,22 @@
 import {
   Activity,
   AlertTriangle,
+  BarChart3,
   CheckCircle2,
   Cloud,
   Database,
   FileQuestion,
   FileSpreadsheet,
+  Flame,
   GitBranch,
+  GitCommit,
   Globe,
+  HardDrive,
   type LucideIcon,
   ShieldAlert,
+  Warehouse,
   Waves,
+  Zap,
 } from 'lucide-react';
 import { formatBytes, formatCompactNumber, formatDate, formatDateTime, formatRelativeTime, formatDuration } from '@/lib/format';
 import { titleCase } from '@/lib/format';
@@ -41,6 +47,13 @@ export const sourceTypeVisuals: Record<DataSourceType, SourceTypeVisual> = {
   api: { label: 'REST API', icon: Globe, accentClass: 'text-fuchsia-600' },
   csv: { label: 'CSV / TSV', icon: FileSpreadsheet, accentClass: 'text-emerald-600' },
   s3: { label: 'S3 / MinIO', icon: Cloud, accentClass: 'text-amber-600' },
+  clickhouse: { label: 'ClickHouse', icon: BarChart3, accentClass: 'text-rose-600' },
+  impala: { label: 'Apache Impala', icon: Zap, accentClass: 'text-violet-600' },
+  hive: { label: 'Apache Hive', icon: Warehouse, accentClass: 'text-yellow-700' },
+  hdfs: { label: 'HDFS', icon: HardDrive, accentClass: 'text-slate-700' },
+  spark: { label: 'Apache Spark', icon: Flame, accentClass: 'text-orange-600' },
+  dagster: { label: 'Dagster', icon: GitBranch, accentClass: 'text-cyan-700' },
+  dolt: { label: 'Dolt', icon: GitCommit, accentClass: 'text-emerald-700' },
   stream: { label: 'Streaming', icon: Activity, accentClass: 'text-teal-600' },
 };
 
@@ -179,6 +192,15 @@ export function normalizeConnectionHost(config?: Record<string, JsonValue> | nul
     return host;
   }
 
+  const graphQlUrl = config.graphql_url;
+  if (typeof graphQlUrl === 'string' && graphQlUrl.trim() !== '') {
+    try {
+      return new URL(graphQlUrl).hostname;
+    } catch {
+      return graphQlUrl;
+    }
+  }
+
   const baseUrl = config.base_url;
   if (typeof baseUrl === 'string' && baseUrl.trim() !== '') {
     try {
@@ -193,6 +215,23 @@ export function normalizeConnectionHost(config?: Record<string, JsonValue> | nul
     return bucket;
   }
 
+  const nameNodes = config.name_nodes;
+  if (Array.isArray(nameNodes) && typeof nameNodes[0] === 'string' && nameNodes[0].trim() !== '') {
+    return nameNodes[0];
+  }
+
+  const restConfig = config.rest;
+  if (restConfig && typeof restConfig === 'object' && !Array.isArray(restConfig)) {
+    const masterUrl = (restConfig as Record<string, JsonValue>).master_url;
+    if (typeof masterUrl === 'string' && masterUrl.trim() !== '') {
+      try {
+        return new URL(masterUrl).hostname;
+      } catch {
+        return masterUrl;
+      }
+    }
+  }
+
   return 'unknown';
 }
 
@@ -201,6 +240,10 @@ export function deriveSourceName(type: DataSourceType, connectionConfig?: Record
   const db = slugify(
     typeof connectionConfig?.database === 'string'
       ? connectionConfig.database
+      : typeof connectionConfig?.graphql_url === 'string'
+        ? 'dagster'
+        : typeof connectionConfig?.branch === 'string'
+          ? connectionConfig.branch
       : typeof connectionConfig?.file_path === 'string'
         ? connectionConfig.file_path.split('/').pop() ?? 'data'
         : 'source',

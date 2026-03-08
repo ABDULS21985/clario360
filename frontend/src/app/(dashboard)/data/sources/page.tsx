@@ -33,6 +33,13 @@ const SOURCE_FILTERS: FilterConfig[] = [
     options: [
       { label: 'PostgreSQL', value: 'postgresql' },
       { label: 'MySQL', value: 'mysql' },
+      { label: 'ClickHouse', value: 'clickhouse' },
+      { label: 'Dolt', value: 'dolt' },
+      { label: 'Apache Impala', value: 'impala' },
+      { label: 'Apache Hive', value: 'hive' },
+      { label: 'HDFS', value: 'hdfs' },
+      { label: 'Apache Spark', value: 'spark' },
+      { label: 'Dagster', value: 'dagster' },
       { label: 'API', value: 'api' },
       { label: 'CSV', value: 'csv' },
       { label: 'S3', value: 's3' },

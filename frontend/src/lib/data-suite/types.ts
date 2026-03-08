@@ -22,6 +22,13 @@ export type DataSourceType =
   | 'api'
   | 'csv'
   | 's3'
+  | 'clickhouse'
+  | 'impala'
+  | 'hive'
+  | 'hdfs'
+  | 'spark'
+  | 'dagster'
+  | 'dolt'
   | 'stream';
 
 export type DataSourceStatus =
