@@ -163,10 +163,12 @@ func NewReverseProxy(serviceName string, target *url.URL, timeout time.Duration,
 
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(status)
-			_ = json.NewEncoder(w).Encode(gatewayError{
-				Code:      code,
-				Message:   message,
-				RequestID: reqID,
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"error": gatewayError{
+					Code:      code,
+					Message:   message,
+					RequestID: reqID,
+				},
 			})
 		},
 	}
@@ -187,10 +189,12 @@ func (rp *ReverseProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.Header().Set("Retry-After", "30")
 		w.WriteHeader(http.StatusServiceUnavailable)
-		_ = json.NewEncoder(w).Encode(gatewayError{
-			Code:      "SERVICE_UNAVAILABLE",
-			Message:   "service is temporarily unavailable, please retry later",
-			RequestID: reqID,
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"error": gatewayError{
+				Code:      "SERVICE_UNAVAILABLE",
+				Message:   "service is temporarily unavailable, please retry later",
+				RequestID: reqID,
+			},
 		})
 		return
 	}
@@ -258,10 +262,12 @@ func extractClientIP(r *http.Request) string {
 func WriteGatewayError(w http.ResponseWriter, status int, code, message, requestID string) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(gatewayError{
-		Code:      code,
-		Message:   message,
-		RequestID: requestID,
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"error": gatewayError{
+			Code:      code,
+			Message:   message,
+			RequestID: requestID,
+		},
 	})
 }
 

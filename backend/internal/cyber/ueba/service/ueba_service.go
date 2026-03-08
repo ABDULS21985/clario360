@@ -194,16 +194,12 @@ func (s *UEBAService) ListAlerts(ctx context.Context, tenantID uuid.UUID, params
 	if err != nil {
 		return nil, err
 	}
-	totalPages := (total + params.PerPage - 1) / params.PerPage
-	if totalPages < 1 {
-		totalPages = 1
+	if items == nil {
+		items = []*model.UEBAAlert{}
 	}
 	return &dto.AlertListResponse{
-		Data:       items,
-		Total:      total,
-		Page:       params.Page,
-		PerPage:    params.PerPage,
-		TotalPages: totalPages,
+		Data: items,
+		Meta: dto.NewPaginationMeta(params.Page, params.PerPage, total),
 	}, nil
 }
 

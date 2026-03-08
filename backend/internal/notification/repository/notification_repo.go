@@ -121,7 +121,7 @@ func (r *NotificationRepository) Query(ctx context.Context, params *dto.QueryPar
 	}
 	defer rows.Close()
 
-	var results []model.Notification
+	results := make([]model.Notification, 0)
 	for rows.Next() {
 		n, err := r.scanNotificationFromRow(rows)
 		if err != nil {
@@ -200,7 +200,7 @@ func (r *NotificationRepository) GetUnreadForDigest(ctx context.Context, tenantI
 	}
 	defer rows.Close()
 
-	var results []model.Notification
+	results := make([]model.Notification, 0)
 	for rows.Next() {
 		n, err := r.scanNotificationFromRow(rows)
 		if err != nil {

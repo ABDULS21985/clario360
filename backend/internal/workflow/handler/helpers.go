@@ -23,9 +23,10 @@ func writeJSON(w http.ResponseWriter, status int, v interface{}) {
 // writeError writes a structured JSON error response.
 func writeError(w http.ResponseWriter, status int, code, message string) {
 	writeJSON(w, status, map[string]interface{}{
-		"status":  status,
-		"code":    code,
-		"message": message,
+		"error": map[string]interface{}{
+			"code":    code,
+			"message": message,
+		},
 	})
 }
 

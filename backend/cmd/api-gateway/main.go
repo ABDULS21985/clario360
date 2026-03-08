@@ -257,9 +257,11 @@ func main() {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusNotFound)
 		_ = json.NewEncoder(w).Encode(map[string]any{
-			"code":       "NOT_FOUND",
-			"message":    "no route matches " + r.URL.Path,
-			"request_id": middleware.GetRequestID(r.Context()),
+			"error": map[string]any{
+				"code":       "NOT_FOUND",
+				"message":    "no route matches " + r.URL.Path,
+				"request_id": middleware.GetRequestID(r.Context()),
+			},
 		})
 	})
 

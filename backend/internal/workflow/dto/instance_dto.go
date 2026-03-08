@@ -51,10 +51,8 @@ type InstanceResponse struct {
 
 // ListInstancesResponse is the paginated response for listing instances.
 type ListInstancesResponse struct {
-	Instances []InstanceResponse `json:"instances"`
-	Total     int                `json:"total"`
-	Page      int                `json:"page"`
-	PageSize  int                `json:"page_size"`
+	Data []InstanceResponse `json:"data"`
+	Meta PaginationMeta     `json:"meta"`
 }
 
 // StepExecutionResponse wraps a StepExecution for API responses.

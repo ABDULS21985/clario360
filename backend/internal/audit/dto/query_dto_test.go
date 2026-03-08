@@ -164,8 +164,8 @@ func TestNewPagination(t *testing.T) {
 	if p.Total != 150 {
 		t.Errorf("expected total 150, got %d", p.Total)
 	}
-	if p.LastPage != 3 {
-		t.Errorf("expected last_page 3, got %d", p.LastPage)
+	if p.TotalPages != 3 {
+		t.Errorf("expected last_page 3, got %d", p.TotalPages)
 	}
 }
 

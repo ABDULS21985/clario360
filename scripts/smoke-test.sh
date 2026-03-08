@@ -14,7 +14,7 @@ ACTA_HEALTH_URL="${CLARIO360_ACTA_HEALTH_URL:-http://localhost:8087/healthz}"
 LEX_HEALTH_URL="${CLARIO360_LEX_HEALTH_URL:-http://localhost:8088/healthz}"
 VISUS_HEALTH_URL="${CLARIO360_VISUS_HEALTH_URL:-http://localhost:8089/healthz}"
 NOTIFICATION_HEALTH_URL="${CLARIO360_NOTIFICATION_HEALTH_URL:-http://localhost:8090/healthz}"
-FILE_HEALTH_URL="${CLARIO360_FILE_HEALTH_URL:-http://localhost:8091/healthz}"
+FILE_HEALTH_URL="${CLARIO360_FILE_HEALTH_URL:-http://localhost:9091/healthz}"
 
 TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "${TMP_DIR}"' EXIT
@@ -54,10 +54,10 @@ curl_status() {
 assert_error_shape() {
   local body_file="$1"
   jq -e '
-    (.code | type) == "string" and
-    (.message | type) == "string" and
-    ((.details == null) or ((.details | type) == "object")) and
-    ((.request_id == null) or ((.request_id | type) == "string"))
+    (.error.code | type) == "string" and
+    (.error.message | type) == "string" and
+    ((.error.details == null) or ((.error.details | type) == "object")) and
+    ((.error.request_id == null) or ((.error.request_id | type) == "string"))
   ' "${body_file}" >/dev/null
 }
 

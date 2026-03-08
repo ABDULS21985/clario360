@@ -52,20 +52,16 @@ func (s *AlertService) ListAlerts(ctx context.Context, tenantID uuid.UUID, param
 	if err != nil {
 		return nil, err
 	}
+	if alerts == nil {
+		alerts = []*model.Alert{}
+	}
 	_ = publishAuditEvent(ctx, s.producer, "cyber.alert.listed", tenantID, actor, map[string]interface{}{
 		"filters": params,
 		"count":   len(alerts),
 	})
-	totalPages := (total + params.PerPage - 1) / params.PerPage
-	if totalPages < 1 {
-		totalPages = 1
-	}
 	return &dto.AlertListResponse{
-		Data:       alerts,
-		Total:      total,
-		Page:       params.Page,
-		PerPage:    params.PerPage,
-		TotalPages: totalPages,
+		Data: alerts,
+		Meta: dto.NewPaginationMeta(params.Page, params.PerPage, total),
 	}, nil
 }
 
@@ -474,14 +470,14 @@ func (s *AlertService) CreateFromEvent(ctx context.Context, alert *model.Alert) 
 		Metadata:    mustJSON(map[string]interface{}{"event_count": alert.EventCount}),
 	})
 	_ = publishEvent(ctx, s.producer, events.Topics.AlertEvents, "cyber.alert.created", alert.TenantID, nil, map[string]interface{}{
-		"id":                    created.ID.String(),
-		"title":                 created.Title,
-		"severity":              created.Severity,
-		"confidence_score":      created.ConfidenceScore,
-		"affected_asset_count":  len(created.AssetIDs),
-		"source":                created.Source,
-		"mitre_technique_id":    created.MITRETechniqueID,
-		"mitre_tactic_id":       created.MITRETacticID,
+		"id":                   created.ID.String(),
+		"title":                created.Title,
+		"severity":             created.Severity,
+		"confidence_score":     created.ConfidenceScore,
+		"affected_asset_count": len(created.AssetIDs),
+		"source":               created.Source,
+		"mitre_technique_id":   created.MITRETechniqueID,
+		"mitre_tactic_id":      created.MITRETacticID,
 	})
 	return created, nil
 }

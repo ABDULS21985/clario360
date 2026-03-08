@@ -171,9 +171,11 @@ func writeErrorResponse(w http.ResponseWriter, status int, code, message string,
 	requestID := r.Header.Get("X-Request-ID")
 
 	_ = json.NewEncoder(w).Encode(map[string]interface{}{
-		"code":       code,
-		"message":    message,
-		"request_id": requestID,
+		"error": map[string]interface{}{
+			"code":       code,
+			"message":    message,
+			"request_id": requestID,
+		},
 	})
 }
 

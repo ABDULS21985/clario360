@@ -167,6 +167,9 @@ func main() {
 	scanConsumer := consumer.NewScanConsumer(scanSvc, logger)
 	kafkaConsumer.Subscribe("platform.file.events", scanConsumer)
 
+	// Root middleware must be registered before attaching routes.
+	svc.Router.Use(tracing.SpanEnricher())
+
 	// 9. Register HTTP handlers
 	fileHandler := fmHandler.NewFileHandler(fileSvc, logger)
 	presignedHandler := fmHandler.NewPresignedHandler(fileSvc, logger)
@@ -195,9 +198,6 @@ func main() {
 		r.Get("/stats", adminHandler.GetStats)
 		r.Post("/{id}/rescan", adminHandler.Rescan)
 	})
-
-	// Add tracing span enricher
-	svc.Router.Use(tracing.SpanEnricher())
 
 	// 10. Start services
 	g, gCtx := errgroup.WithContext(ctx)

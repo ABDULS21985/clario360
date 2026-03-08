@@ -142,11 +142,13 @@ func writeJSON(w http.ResponseWriter, status int, data interface{}) {
 
 func writeErrorResponse(w http.ResponseWriter, status int, code, message string, r *http.Request) {
 	resp := map[string]interface{}{
-		"code":    code,
-		"message": message,
+		"error": map[string]interface{}{
+			"code":    code,
+			"message": message,
+		},
 	}
 	if reqID := r.Context().Value("request_id"); reqID != nil {
-		resp["request_id"] = reqID
+		resp["error"].(map[string]interface{})["request_id"] = reqID
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)

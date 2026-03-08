@@ -6,8 +6,8 @@ require (
 	github.com/ClickHouse/clickhouse-go/v2 v2.43.0
 	github.com/IBM/sarama v1.43.0
 	github.com/alicebob/miniredis/v2 v2.35.0
+	github.com/apache/thrift v0.22.0
 	github.com/beltran/gohive v1.8.1
-	github.com/bippio/go-impala v2.1.0+incompatible
 	github.com/colinmarc/hdfs/v2 v2.4.0
 	github.com/go-chi/chi/v5 v5.0.12
 	github.com/go-playground/validator/v10 v10.22.0
@@ -43,7 +43,6 @@ require (
 	github.com/ClickHouse/ch-go v0.71.0 // indirect
 	github.com/Microsoft/go-winio v0.6.2 // indirect
 	github.com/andybalholm/brotli v1.2.0 // indirect
-	github.com/apache/thrift v0.22.0 // indirect
 	github.com/aymerick/douceur v0.2.0 // indirect
 	github.com/beltran/gosasl v1.0.0 // indirect
 	github.com/beltran/gssapi v0.0.0-20200324152954-d86554db4bab // indirect

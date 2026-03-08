@@ -156,10 +156,8 @@ func (h *InstanceHandler) List(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, dto.ListInstancesResponse{
-		Instances: items,
-		Total:     total,
-		Page:      page,
-		PageSize:  pageSize,
+		Data: items,
+		Meta: dto.NewPaginationMeta(page, pageSize, total),
 	})
 }
 

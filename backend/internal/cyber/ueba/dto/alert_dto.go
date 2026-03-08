@@ -37,11 +37,32 @@ func (p *AlertListParams) Validate() error {
 }
 
 type AlertListResponse struct {
-	Data       []*model.UEBAAlert `json:"data"`
-	Total      int                `json:"total"`
-	Page       int                `json:"page"`
-	PerPage    int                `json:"per_page"`
-	TotalPages int                `json:"total_pages"`
+	Data []*model.UEBAAlert `json:"data"`
+	Meta PaginationMeta     `json:"meta"`
+}
+
+type PaginationMeta struct {
+	Page       int `json:"page"`
+	PerPage    int `json:"per_page"`
+	Total      int `json:"total"`
+	TotalPages int `json:"total_pages"`
+}
+
+func NewPaginationMeta(page, perPage, total int) PaginationMeta {
+	totalPages := total / perPage
+	if total%perPage != 0 {
+		totalPages++
+	}
+	if totalPages < 1 {
+		totalPages = 1
+	}
+
+	return PaginationMeta{
+		Page:       page,
+		PerPage:    perPage,
+		Total:      total,
+		TotalPages: totalPages,
+	}
 }
 
 type AlertStatusUpdateRequest struct {

@@ -158,6 +158,7 @@ service_admin_port() {
 service_health_port() {
   case "$1" in
     iam-service) echo "${IAM_SERVICE_ADMIN_PORT}" ;;
+    file-service) echo "${FILE_SERVICE_ADMIN_PORT}" ;;
     *) service_http_port "$1" ;;
   esac
 }
@@ -484,6 +485,7 @@ run_migration "platform_core" "${MDIR}/000002_rls.up.sql"               "tenants
 run_migration "platform_core" "${MDIR}/000003_tenant_onboarding.up.sql" "tenant_onboarding"
 run_migration "platform_core" "${MDIR}/000004_ai_governance_schema.up.sql" "ai_models"
 run_migration "platform_core" "${MDIR}/000005_ai_governance_rls.up.sql" "ai_models"
+run_migration "platform_core" "${BACKEND_DIR}/migrations/000010_create_file_storage_tables.up.sql" "files"
 
 echo ""
 info "Running migrations for cyber_db..."

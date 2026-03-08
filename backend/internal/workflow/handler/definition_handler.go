@@ -124,10 +124,8 @@ func (h *DefinitionHandler) List(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, dto.ListDefinitionsResponse{
-		Definitions: items,
-		Total:       total,
-		Page:        page,
-		PageSize:    pageSize,
+		Data: items,
+		Meta: dto.NewPaginationMeta(page, pageSize, total),
 	})
 }
 

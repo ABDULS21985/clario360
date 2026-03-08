@@ -182,16 +182,32 @@ function buildApiError(error: AxiosError): ApiError {
 
   const body = error.response.data as Record<string, unknown> | null;
   const status = error.response.status;
+  const nestedError =
+    body?.['error'] && typeof body['error'] === 'object'
+      ? (body['error'] as Record<string, unknown>)
+      : null;
+  const fallbackMessage =
+    typeof body?.['error'] === 'string' ? (body['error'] as string) : undefined;
 
   return {
     status,
-    code: (body?.['code'] as string | undefined) ?? `HTTP_${status}`,
+    code:
+      (nestedError?.['code'] as string | undefined) ??
+      (body?.['code'] as string | undefined) ??
+      `HTTP_${status}`,
     message:
+      (nestedError?.['message'] as string | undefined) ??
       (body?.['message'] as string | undefined) ??
-      (body?.['error'] as string | undefined) ??
+      fallbackMessage ??
       `Request failed with status ${status}`,
-    details: (body?.['details'] as Record<string, string[]> | undefined) ?? undefined,
-    request_id: (body?.['request_id'] as string | undefined) ?? undefined,
+    details:
+      (nestedError?.['details'] as Record<string, string[]> | undefined) ??
+      (body?.['details'] as Record<string, string[]> | undefined) ??
+      undefined,
+    request_id:
+      (nestedError?.['request_id'] as string | undefined) ??
+      (body?.['request_id'] as string | undefined) ??
+      undefined,
   };
 }
 

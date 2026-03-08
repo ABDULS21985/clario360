@@ -98,8 +98,10 @@ func writeGWError(w http.ResponseWriter, status int, code, message, requestID st
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(map[string]any{
-		"code":       code,
-		"message":    message,
-		"request_id": requestID,
+		"error": map[string]any{
+			"code":       code,
+			"message":    message,
+			"request_id": requestID,
+		},
 	})
 }
