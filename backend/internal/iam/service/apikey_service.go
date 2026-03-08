@@ -166,7 +166,15 @@ func (s *APIKeyService) publishEvent(ctx context.Context, eventType, tenantID, u
 	if s.producer == nil {
 		return
 	}
-	evt, err := events.NewEvent(eventType, "iam-service", tenantID, nil)
+	payload := map[string]any{}
+	if tenantID != "" {
+		payload["tenant_id"] = tenantID
+	}
+	if userID != "" {
+		payload["user_id"] = userID
+	}
+
+	evt, err := events.NewEvent(normalizeIAMEventType(eventType), "iam-service", tenantID, payload)
 	if err != nil {
 		s.logger.Error().Err(err).Str("event_type", eventType).Msg("failed to create event")
 		return

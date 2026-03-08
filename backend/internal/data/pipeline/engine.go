@@ -15,20 +15,20 @@ import (
 )
 
 type Engine struct {
-	pipelineRepo    *repository.PipelineRepository
-	runRepo         *repository.PipelineRunRepository
-	logRepo         *repository.PipelineRunLogRepository
-	sourceRepo      *repository.SourceRepository
-	modelRepo       *repository.ModelRepository
-	extractor       *Extractor
-	transformer     *Transformer
-	loader          *Loader
-	qualityGates    *QualityGateEvaluator
-	producer        *events.Producer
-	logger          zerolog.Logger
-	maxConcurrent   int
-	mu              sync.Mutex
-	semaphores      map[string]chan struct{}
+	pipelineRepo  *repository.PipelineRepository
+	runRepo       *repository.PipelineRunRepository
+	logRepo       *repository.PipelineRunLogRepository
+	sourceRepo    *repository.SourceRepository
+	modelRepo     *repository.ModelRepository
+	extractor     *Extractor
+	transformer   *Transformer
+	loader        *Loader
+	qualityGates  *QualityGateEvaluator
+	producer      *events.Producer
+	logger        zerolog.Logger
+	maxConcurrent int
+	mu            sync.Mutex
+	semaphores    map[string]chan struct{}
 }
 
 func NewEngine(
@@ -86,14 +86,14 @@ func (e *Engine) ExecutePipeline(ctx context.Context, pipelineID uuid.UUID, trig
 	defer e.releaseSlot(pipelineItem.TenantID)
 
 	run := &model.PipelineRun{
-		ID:          uuid.New(),
-		TenantID:    pipelineItem.TenantID,
-		PipelineID:  pipelineItem.ID,
-		Status:      model.PipelineRunStatusRunning,
-		TriggeredBy: model.PipelineTrigger(triggeredBy),
+		ID:              uuid.New(),
+		TenantID:        pipelineItem.TenantID,
+		PipelineID:      pipelineItem.ID,
+		Status:          model.PipelineRunStatusRunning,
+		TriggeredBy:     model.PipelineTrigger(triggeredBy),
 		TriggeredByUser: userID,
-		StartedAt:   time.Now().UTC(),
-		CreatedAt:   time.Now().UTC(),
+		StartedAt:       time.Now().UTC(),
+		CreatedAt:       time.Now().UTC(),
 	}
 	if triggeredBy == "" {
 		run.TriggeredBy = model.PipelineTriggerManual
@@ -104,8 +104,8 @@ func (e *Engine) ExecutePipeline(ctx context.Context, pipelineID uuid.UUID, trig
 	logger := NewRunLogger(e.logRepo)
 	logger.Info(ctx, run.TenantID, run.ID, "run", "Pipeline run started.", map[string]any{"pipeline_id": pipelineItem.ID})
 	e.publish(ctx, "data.pipeline.run.started", pipelineItem.TenantID, map[string]any{
-		"id":          run.ID,
-		"pipeline_id": pipelineItem.ID,
+		"id":           run.ID,
+		"pipeline_id":  pipelineItem.ID,
 		"triggered_by": run.TriggeredBy,
 	})
 

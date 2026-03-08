@@ -20,8 +20,8 @@ const (
 // mid-handler failure. This guard therefore uses a short-lived processing lock plus
 // a durable processed marker.
 type IdempotencyGuard struct {
-	redis        *redis.Client
-	ttl          time.Duration
+	redis         *redis.Client
+	ttl           time.Duration
 	processingTTL time.Duration
 }
 

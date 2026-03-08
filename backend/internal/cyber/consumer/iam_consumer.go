@@ -19,10 +19,10 @@ import (
 )
 
 const (
-	iamConsumerName      = "cyber_iam_consumer"
-	bruteForceSource     = "iam_brute_force"
-	mfaDowngradeSource   = "iam_mfa_disabled"
-	bruteForceWindow     = 5 * time.Minute
+	iamConsumerName       = "cyber_iam_consumer"
+	bruteForceSource      = "iam_brute_force"
+	mfaDowngradeSource    = "iam_mfa_disabled"
+	bruteForceWindow      = 5 * time.Minute
 	bruteForceDedupWindow = 30 * time.Minute
 )
 

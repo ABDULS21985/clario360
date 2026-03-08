@@ -37,24 +37,24 @@ const (
 
 // commonPasswords is a set of commonly used passwords that must be rejected.
 var commonPasswords = map[string]struct{}{
-	"password":        {}, "123456":          {}, "123456789":       {}, "12345678":        {},
-	"12345":           {}, "1234567":         {}, "1234567890":      {}, "qwerty":          {},
-	"abc123":          {}, "password1":       {}, "password123":     {}, "admin":           {},
-	"letmein":         {}, "welcome":         {}, "monkey":          {}, "master":          {},
-	"dragon":          {}, "login":           {}, "princess":        {}, "qwerty123":       {},
-	"solo":            {}, "passw0rd":        {}, "starwars":        {}, "iloveyou":        {},
-	"trustno1":        {}, "sunshine":        {}, "football":        {}, "shadow":          {},
-	"michael":         {}, "superman":        {}, "access":          {}, "hello":           {},
-	"charlie":         {}, "donald":          {}, "batman":          {}, "qwerty12345":     {},
-	"password12345":   {}, "letmein123":      {}, "welcome1":        {}, "1q2w3e4r":        {},
-	"1q2w3e4r5t":      {}, "zaq1zaq1":        {}, "qazwsx":          {}, "1qaz2wsx":        {},
-	"changeme":        {}, "p@ssw0rd":        {}, "p@ssword":        {}, "passw0rd!":       {},
-	"clario360":       {}, "clario":          {}, "administrator":   {}, "root":            {},
-	"toor":            {}, "pa$$w0rd":        {}, "p@ssw0rd1":       {}, "test1234!":       {},
-	"qwerty123!":      {}, "welcome1!":       {}, "password1!":      {}, "winter2024!":     {},
-	"summer2024!":     {}, "spring2024!":     {}, "autumn2024!":     {}, "january2024!":    {},
-	"company123!":     {}, "security1!":      {}, "admin123!":       {}, "user12345!":      {},
-	"abcdefghijkl":    {}, "aaaaaaaaaaaa":    {}, "123456789012":    {}, "qwertyuiopas":    {},
+	"password": {}, "123456": {}, "123456789": {}, "12345678": {},
+	"12345": {}, "1234567": {}, "1234567890": {}, "qwerty": {},
+	"abc123": {}, "password1": {}, "password123": {}, "admin": {},
+	"letmein": {}, "welcome": {}, "monkey": {}, "master": {},
+	"dragon": {}, "login": {}, "princess": {}, "qwerty123": {},
+	"solo": {}, "passw0rd": {}, "starwars": {}, "iloveyou": {},
+	"trustno1": {}, "sunshine": {}, "football": {}, "shadow": {},
+	"michael": {}, "superman": {}, "access": {}, "hello": {},
+	"charlie": {}, "donald": {}, "batman": {}, "qwerty12345": {},
+	"password12345": {}, "letmein123": {}, "welcome1": {}, "1q2w3e4r": {},
+	"1q2w3e4r5t": {}, "zaq1zaq1": {}, "qazwsx": {}, "1qaz2wsx": {},
+	"changeme": {}, "p@ssw0rd": {}, "p@ssword": {}, "passw0rd!": {},
+	"clario360": {}, "clario": {}, "administrator": {}, "root": {},
+	"toor": {}, "pa$$w0rd": {}, "p@ssw0rd1": {}, "test1234!": {},
+	"qwerty123!": {}, "welcome1!": {}, "password1!": {}, "winter2024!": {},
+	"summer2024!": {}, "spring2024!": {}, "autumn2024!": {}, "january2024!": {},
+	"company123!": {}, "security1!": {}, "admin123!": {}, "user12345!": {},
+	"abcdefghijkl": {}, "aaaaaaaaaaaa": {}, "123456789012": {}, "qwertyuiopas": {},
 }
 
 type AuthService struct {
@@ -189,17 +189,41 @@ func (s *AuthService) Login(ctx context.Context, req *dto.LoginRequest, ip, user
 
 	user, err := s.userRepo.GetByEmail(ctx, req.TenantID, strings.ToLower(strings.TrimSpace(req.Email)))
 	if err != nil {
-		s.publishEvent(ctx, "user.login.failed", req.TenantID, "", map[string]string{"email_hash": sha256Hex(req.Email), "reason": "user_not_found"})
+		s.publishEvent(ctx, "user.login.failed", req.TenantID, "", map[string]any{
+			"email":         strings.ToLower(strings.TrimSpace(req.Email)),
+			"email_hash":    sha256Hex(req.Email),
+			"ip_address":    ip,
+			"attempt_count": attempts,
+			"user_agent":    userAgent,
+			"timestamp":     time.Now().UTC(),
+			"reason":        "user_not_found",
+		})
 		return nil, model.ErrUnauthorized
 	}
 
 	if user.Status != model.UserStatusActive {
-		s.publishEvent(ctx, "user.login.failed", user.TenantID, user.ID, map[string]string{"reason": "inactive_account"})
+		s.publishEvent(ctx, "user.login.failed", user.TenantID, user.ID, map[string]any{
+			"user_id":       user.ID,
+			"email":         user.Email,
+			"ip_address":    ip,
+			"attempt_count": attempts,
+			"user_agent":    userAgent,
+			"timestamp":     time.Now().UTC(),
+			"reason":        "inactive_account",
+		})
 		return nil, fmt.Errorf("account is %s: %w", user.Status, model.ErrForbidden)
 	}
 
 	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(req.Password)); err != nil {
-		s.publishEvent(ctx, "user.login.failed", user.TenantID, user.ID, map[string]string{"reason": "invalid_password"})
+		s.publishEvent(ctx, "user.login.failed", user.TenantID, user.ID, map[string]any{
+			"user_id":       user.ID,
+			"email":         user.Email,
+			"ip_address":    ip,
+			"attempt_count": attempts,
+			"user_agent":    userAgent,
+			"timestamp":     time.Now().UTC(),
+			"reason":        "invalid_password",
+		})
 		return nil, model.ErrUnauthorized
 	}
 
@@ -222,7 +246,13 @@ func (s *AuthService) Login(ctx context.Context, req *dto.LoginRequest, ip, user
 	}
 
 	_ = s.userRepo.UpdateLastLogin(ctx, user.ID)
-	s.publishEvent(ctx, "user.login.success", user.TenantID, user.ID, nil)
+	s.publishEvent(ctx, "user.login.success", user.TenantID, user.ID, map[string]any{
+		"user_id":    user.ID,
+		"email":      user.Email,
+		"ip_address": ip,
+		"user_agent": userAgent,
+		"timestamp":  time.Now().UTC(),
+	})
 
 	return s.generateTokens(ctx, user, ip, userAgent)
 }
@@ -278,7 +308,13 @@ func (s *AuthService) VerifyMFA(ctx context.Context, req *dto.VerifyMFARequest) 
 	s.redis.Del(ctx, mfaKey)
 
 	_ = s.userRepo.UpdateLastLogin(ctx, user.ID)
-	s.publishEvent(ctx, "user.login.success", user.TenantID, user.ID, nil)
+	s.publishEvent(ctx, "user.login.success", user.TenantID, user.ID, map[string]any{
+		"user_id":    user.ID,
+		"email":      user.Email,
+		"ip_address": ip,
+		"user_agent": userAgent,
+		"timestamp":  time.Now().UTC(),
+	})
 
 	return s.generateTokens(ctx, user, ip, userAgent)
 }
@@ -298,7 +334,7 @@ func (s *AuthService) RefreshToken(ctx context.Context, req *dto.RefreshRequest,
 		// Revoke ALL sessions for this user as a safety measure.
 		s.logger.Warn().Str("user_id", userID).Msg("refresh token reuse detected — revoking all sessions for user")
 		_ = s.sessionRepo.DeleteByUserID(ctx, userID)
-		s.publishEvent(ctx, "user.sessions.revoked", "", userID, map[string]string{"reason": "token_reuse"})
+		s.publishEvent(ctx, "user.sessions.revoked", "", userID, map[string]any{"reason": "token_reuse"})
 		return nil, fmt.Errorf("session not found: %w", model.ErrInvalidToken)
 	}
 
@@ -306,7 +342,7 @@ func (s *AuthService) RefreshToken(ctx context.Context, req *dto.RefreshRequest,
 		// Token/session mismatch — revoke all sessions
 		s.logger.Warn().Str("user_id", userID).Msg("refresh token user mismatch — revoking all sessions")
 		_ = s.sessionRepo.DeleteByUserID(ctx, userID)
-		s.publishEvent(ctx, "user.sessions.revoked", "", userID, map[string]string{"reason": "token_mismatch"})
+		s.publishEvent(ctx, "user.sessions.revoked", "", userID, map[string]any{"reason": "token_mismatch"})
 		return nil, model.ErrInvalidToken
 	}
 
@@ -475,11 +511,22 @@ func (s *AuthService) tryRecoveryCode(ctx context.Context, userID, code string) 
 	return false, nil
 }
 
-func (s *AuthService) publishEvent(ctx context.Context, eventType, tenantID, userID string, data map[string]string) {
+func (s *AuthService) publishEvent(ctx context.Context, eventType, tenantID, userID string, data map[string]any) {
 	if s.producer == nil {
 		return
 	}
-	evt, err := events.NewEvent(eventType, "iam-service", tenantID, data)
+	payload := map[string]any{}
+	for key, value := range data {
+		payload[key] = value
+	}
+	if tenantID != "" {
+		payload["tenant_id"] = tenantID
+	}
+	if userID != "" {
+		payload["user_id"] = userID
+	}
+
+	evt, err := events.NewEvent(normalizeIAMEventType(eventType), "iam-service", tenantID, payload)
 	if err != nil {
 		s.logger.Error().Err(err).Str("event_type", eventType).Msg("failed to create event")
 		return

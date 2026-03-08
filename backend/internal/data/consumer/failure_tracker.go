@@ -42,12 +42,12 @@ func (t *FailureTracker) EventTypes() []string {
 
 func (t *FailureTracker) Handle(ctx context.Context, event *events.Event) error {
 	var payload struct {
-		PipelineID    string `json:"pipeline_id"`
-		PipelineName  string `json:"pipeline_name"`
-		TenantID      string `json:"tenant_id"`
-		Status        string `json:"status"`
-		ErrorMessage  string `json:"error_message"`
-		Error         string `json:"error"`
+		PipelineID   string `json:"pipeline_id"`
+		PipelineName string `json:"pipeline_name"`
+		TenantID     string `json:"tenant_id"`
+		Status       string `json:"status"`
+		ErrorMessage string `json:"error_message"`
+		Error        string `json:"error"`
 	}
 	if err := event.Unmarshal(&payload); err != nil {
 		t.logger.Warn().Err(err).Str("event_id", event.ID).Msg("malformed event data")
@@ -103,11 +103,11 @@ func (t *FailureTracker) Handle(ctx context.Context, event *events.Event) error 
 
 		if count == 3 {
 			if err := t.publishEscalation(ctx, event.TenantID, "data.pipeline.consecutive_failures", map[string]any{
-				"pipeline_id":        payload.PipelineID,
-				"pipeline_name":      payload.PipelineName,
-				"tenant_id":          event.TenantID,
-				"consecutive_count":  3,
-				"last_error":         fallbackString(payload.ErrorMessage, payload.Error),
+				"pipeline_id":       payload.PipelineID,
+				"pipeline_name":     payload.PipelineName,
+				"tenant_id":         event.TenantID,
+				"consecutive_count": 3,
+				"last_error":        fallbackString(payload.ErrorMessage, payload.Error),
 			}); err != nil {
 				_ = t.guard.Release(ctx, event.ID)
 				return err
@@ -160,4 +160,13 @@ func (t *FailureTracker) publishEscalation(ctx context.Context, tenantID, eventT
 		return fmt.Errorf("create escalation event: %w", err)
 	}
 	return t.producer.Publish(ctx, events.Topics.PipelineEvents, event)
+}
+
+func fallbackString(values ...string) string {
+	for _, value := range values {
+		if strings.TrimSpace(value) != "" {
+			return value
+		}
+	}
+	return ""
 }

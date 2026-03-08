@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/pquerna/otp/totp"
 	"github.com/redis/go-redis/v9"
@@ -102,7 +103,7 @@ func (s *UserService) Update(ctx context.Context, userID string, req *dto.Update
 		return nil, err
 	}
 
-	s.publishEvent(ctx, "user.updated", user.TenantID, user.ID)
+	s.publishEvent(ctx, "user.updated", user.TenantID, user.ID, nil)
 
 	updated, err := s.userRepo.GetByID(ctx, userID)
 	if err != nil {
@@ -125,7 +126,7 @@ func (s *UserService) Delete(ctx context.Context, userID, deletedBy string) erro
 	// Invalidate all sessions
 	_ = s.sessionRepo.DeleteByUserID(ctx, userID)
 
-	s.publishEvent(ctx, "user.deleted", user.TenantID, user.ID)
+	s.publishEvent(ctx, "user.deleted", user.TenantID, user.ID, nil)
 	return nil
 }
 
@@ -145,7 +146,7 @@ func (s *UserService) UpdateStatus(ctx context.Context, userID string, req *dto.
 		_ = s.sessionRepo.DeleteByUserID(ctx, userID)
 	}
 
-	s.publishEvent(ctx, "user.updated", user.TenantID, user.ID)
+	s.publishEvent(ctx, "user.updated", user.TenantID, user.ID, nil)
 	return nil
 }
 
@@ -277,7 +278,11 @@ func (s *UserService) VerifyMFASetup(ctx context.Context, userID string, code st
 		return err
 	}
 
-	s.publishEvent(ctx, "user.mfa.enabled", user.TenantID, user.ID)
+	s.publishEvent(ctx, "user.mfa.enabled", user.TenantID, user.ID, map[string]any{
+		"user_id":   user.ID,
+		"email":     user.Email,
+		"timestamp": time.Now().UTC(),
+	})
 	return nil
 }
 
@@ -312,7 +317,13 @@ func (s *UserService) DisableMFA(ctx context.Context, userID string, req *dto.Di
 	// Remove recovery codes
 	s.redis.Del(ctx, recoveryPrefix+userID)
 
-	s.publishEvent(ctx, "user.mfa.disabled", user.TenantID, user.ID)
+	s.publishEvent(ctx, "user.mfa.disabled", user.TenantID, user.ID, map[string]any{
+		"user_id":     user.ID,
+		"email":       user.Email,
+		"disabled_by": user.ID,
+		"reason":      "user_requested",
+		"timestamp":   time.Now().UTC(),
+	})
 	return nil
 }
 
@@ -328,11 +339,22 @@ func (s *UserService) decryptMFASecret(stored string) (string, error) {
 	return stored, nil
 }
 
-func (s *UserService) publishEvent(ctx context.Context, eventType, tenantID, userID string) {
+func (s *UserService) publishEvent(ctx context.Context, eventType, tenantID, userID string, data map[string]any) {
 	if s.producer == nil {
 		return
 	}
-	evt, err := events.NewEvent(eventType, "iam-service", tenantID, nil)
+	payload := map[string]any{}
+	for key, value := range data {
+		payload[key] = value
+	}
+	if tenantID != "" {
+		payload["tenant_id"] = tenantID
+	}
+	if userID != "" {
+		payload["user_id"] = userID
+	}
+
+	evt, err := events.NewEvent(normalizeIAMEventType(eventType), "iam-service", tenantID, payload)
 	if err != nil {
 		s.logger.Error().Err(err).Str("event_type", eventType).Msg("failed to create event")
 		return
