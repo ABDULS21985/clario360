@@ -1,13 +1,21 @@
-{{- if and .Values.iamService.enabled .Values.iamService.pdb.enabled }}
+{{- if .Values.iamService.enabled }}
 apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:
-  name: {{ include "clario360.fullname" . }}-iam-service
+  name: {{ include "clario360.componentName" (dict "root" . "component" "iam-service") }}
   namespace: {{ include "clario360.namespace" . }}
   labels:
     {{- include "clario360.componentLabels" (dict "root" . "component" "iam-service") | nindent 4 }}
 spec:
-  minAvailable: {{ .Values.iamService.pdb.minAvailable | default 1 }}
+  {{- if .Values.iamService.pdb }}
+  {{- if .Values.iamService.pdb.minAvailable }}
+  minAvailable: {{ .Values.iamService.pdb.minAvailable }}
+  {{- else }}
+  maxUnavailable: {{ .Values.iamService.pdb.maxUnavailable | default 1 }}
+  {{- end }}
+  {{- else }}
+  maxUnavailable: 1
+  {{- end }}
   selector:
     matchLabels:
       {{- include "clario360.componentSelectorLabels" (dict "root" . "component" "iam-service") | nindent 6 }}

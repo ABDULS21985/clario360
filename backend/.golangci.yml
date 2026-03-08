@@ -1,0 +1,95 @@
+run:
+  timeout: 10m
+  tests: true
+
+linters:
+  enable:
+    # Default linters
+    - errcheck
+    - gosimple
+    - govet
+    - ineffassign
+    - staticcheck
+    - typecheck
+    - unused
+    # Formatting
+    - gofmt
+    - goimports
+    # Security
+    - gosec
+    # Style
+    - misspell
+    - nakedret
+    - prealloc
+    - revive
+    - bodyclose
+    - noctx
+    - exhaustive
+    # Error handling
+    - errorlint
+    - wrapcheck
+    # Performance
+    - gocritic
+    # SQL safety
+    - rowserrcheck
+    - sqlclosecheck
+
+linters-settings:
+  gosec:
+    excludes:
+      - G104  # Audit errors not checked (too noisy for defer close)
+    config:
+      G306: "0600"
+
+  revive:
+    rules:
+      - name: exported
+        disabled: false
+      - name: var-naming
+        disabled: false
+
+  gocritic:
+    enabled-tags:
+      - diagnostic
+      - performance
+      - style
+
+  nakedret:
+    max-func-lines: 30
+
+  errcheck:
+    exclude-functions:
+      - (io.Closer).Close
+      - (net/http.ResponseWriter).Write
+
+  goimports:
+    local-prefixes: github.com/clario360
+
+  exhaustive:
+    default-signifies-exhaustive: true
+
+issues:
+  exclude-rules:
+    # Exclude test files from certain checks
+    - path: _test\.go
+      linters:
+        - errcheck
+        - gocritic
+        - gosec
+        - wrapcheck
+        - noctx
+        - bodyclose
+
+    # Exclude generated files
+    - path: generated
+      linters:
+        - golint
+        - stylecheck
+
+    # Exclude main.go files from wrapcheck
+    - path: cmd/.*/main\.go
+      linters:
+        - wrapcheck
+
+  max-issues-per-linter: 0
+  max-same-issues: 0
