@@ -3,6 +3,7 @@ package connector
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"fmt"
 	"regexp"
 	"strconv"
 	"strings"
@@ -198,4 +199,24 @@ func parseInt64Loose(value string) int64 {
 	}
 	parsed, _ := strconv.ParseInt(value, 10, 64)
 	return parsed
+}
+
+func sqlLiteral(value any) string {
+	switch typed := value.(type) {
+	case nil:
+		return "NULL"
+	case string:
+		return "'" + strings.ReplaceAll(typed, "'", "''") + "'"
+	case []byte:
+		return "'" + strings.ReplaceAll(string(typed), "'", "''") + "'"
+	case time.Time:
+		return "'" + typed.UTC().Format("2006-01-02 15:04:05") + "'"
+	case bool:
+		if typed {
+			return "TRUE"
+		}
+		return "FALSE"
+	default:
+		return fmt.Sprint(typed)
+	}
 }

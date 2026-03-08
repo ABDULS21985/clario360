@@ -60,8 +60,10 @@ type Config struct {
 	AllowedMIMETypes    []string // e.g., "application/pdf", "image/png"
 	AllowedExtensions   []string // e.g., ".pdf", ".png"
 	QuarantinePath      string
-	VirusScanEnabled    bool
-	VirusScanEndpoint   string
+	VirusScanEnabled  bool
+	ClamAVAddr        string // clamd TCP address (default "localhost:3310")
+	ClamAVTimeout     time.Duration
+	ClamAVMaxScanSize int64
 
 	// Sanitizer
 	MaxStringLength   int
@@ -126,7 +128,11 @@ func DefaultConfig() *Config {
 		MaxUploadSize:    50 * 1024 * 1024, // 50MB
 		AllowedMIMETypes: []string{"application/pdf", "image/png", "image/jpeg", "image/gif", "text/csv", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"},
 		AllowedExtensions: []string{".pdf", ".png", ".jpg", ".jpeg", ".gif", ".csv", ".xlsx", ".docx"},
-		QuarantinePath:   "/tmp/clario360-quarantine",
+		QuarantinePath:    "/tmp/clario360-quarantine",
+		VirusScanEnabled:  true,
+		ClamAVAddr:        "localhost:3310",
+		ClamAVTimeout:     30 * time.Second,
+		ClamAVMaxScanSize: 25 * 1024 * 1024,
 
 		// Sanitizer
 		MaxStringLength:   10000,
@@ -190,6 +196,21 @@ func (c *Config) Validate() error {
 	}
 
 	return nil
+}
+
+// ClamAVConfigFromConfig extracts ClamAV settings from the central config.
+func (c *Config) ClamAVConfigFromConfig() *ClamAVConfig {
+	cfg := DefaultClamAVConfig()
+	if c.ClamAVAddr != "" {
+		cfg.Addr = c.ClamAVAddr
+	}
+	if c.ClamAVTimeout > 0 {
+		cfg.Timeout = c.ClamAVTimeout
+	}
+	if c.ClamAVMaxScanSize > 0 {
+		cfg.MaxSize = c.ClamAVMaxScanSize
+	}
+	return cfg
 }
 
 // IsProduction returns true if running in production environment.

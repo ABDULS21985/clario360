@@ -6,11 +6,18 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog"
 
 	"github.com/clario360/platform/internal/auth"
 )
+
+// DBQuerier is the minimal interface for database query operations.
+// Satisfied by *pgxpool.Pool and pgxmock.PgxPoolIface for testing.
+type DBQuerier interface {
+	QueryRow(ctx context.Context, sql string, args ...interface{}) pgx.Row
+}
 
 // allowedTables is a whitelist of tables that can be queried for ownership verification.
 var allowedTables = map[string]bool{
@@ -36,13 +43,23 @@ var forbiddenFields = map[string]bool{
 
 // APISecurityChecker provides BOLA, BFLA, and mass assignment prevention.
 type APISecurityChecker struct {
-	pool    *pgxpool.Pool
+	pool    DBQuerier
 	metrics *Metrics
 	logger  zerolog.Logger
 }
 
-// NewAPISecurityChecker creates a new API security checker.
+// NewAPISecurityChecker creates a new API security checker using a pgxpool.Pool.
 func NewAPISecurityChecker(pool *pgxpool.Pool, metrics *Metrics, logger zerolog.Logger) *APISecurityChecker {
+	return &APISecurityChecker{
+		pool:    pool,
+		metrics: metrics,
+		logger:  logger.With().Str("component", "api_security").Logger(),
+	}
+}
+
+// NewAPISecurityCheckerWithPool creates a new API security checker using the DBQuerier
+// interface. This allows pgxmock or other database mock implementations for testing.
+func NewAPISecurityCheckerWithPool(pool DBQuerier, metrics *Metrics, logger zerolog.Logger) *APISecurityChecker {
 	return &APISecurityChecker{
 		pool:    pool,
 		metrics: metrics,
@@ -71,6 +88,11 @@ func (c *APISecurityChecker) VerifyOwnership(ctx context.Context, tableName stri
 	parsedTenantID, err := uuid.Parse(tenantID)
 	if err != nil {
 		return ErrForbidden
+	}
+
+	if c.pool == nil {
+		c.logger.Error().Msg("database pool is nil — cannot verify ownership")
+		return ErrNotFound
 	}
 
 	// Use parameterized query with table name from whitelist only
