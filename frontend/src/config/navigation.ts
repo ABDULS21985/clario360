@@ -71,6 +71,12 @@ export const navigation: NavSection[] = [
         href: '/dashboard',
         icon: LayoutDashboard,
       },
+      {
+        id: 'notebooks',
+        label: 'Notebook Workspace',
+        href: '/notebooks',
+        icon: Bot,
+      },
     ],
   },
   {

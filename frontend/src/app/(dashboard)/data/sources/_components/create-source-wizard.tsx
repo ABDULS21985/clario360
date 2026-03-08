@@ -144,6 +144,7 @@ export function CreateSourceWizard({
       setState((current) => ({
         ...current,
         schema,
+        testError: null,
       }));
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Schema discovery failed';

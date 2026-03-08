@@ -12,9 +12,11 @@ const API_URL = 'http://localhost:8080';
 global.URL.createObjectURL = vi.fn(() => 'blob:test');
 global.URL.revokeObjectURL = vi.fn();
 
-// Track download calls
-const appendChildSpy = vi.spyOn(document.body, 'appendChild').mockImplementation(() => document.body);
-const removeChildSpy = vi.spyOn(document.body, 'removeChild').mockImplementation(() => document.body);
+// Track download calls — use passthrough so React rendering still works
+const _origAC = document.body.appendChild.bind(document.body);
+const appendChildSpy = vi.spyOn(document.body, 'appendChild').mockImplementation((node: Node) => _origAC(node));
+const _origRC = document.body.removeChild.bind(document.body);
+const removeChildSpy = vi.spyOn(document.body, 'removeChild').mockImplementation((node: Node) => _origRC(node));
 
 const server = setupServer(
   http.get(`${API_URL}/api/v1/cyber/alerts`, ({ request }) => {

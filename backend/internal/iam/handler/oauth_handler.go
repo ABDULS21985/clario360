@@ -63,14 +63,24 @@ func (h *OAuthHandler) Token(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	resp, err := h.oauthSvc.ExchangeToken(r.Context(), service.OAuthTokenRequest{
+	req := service.OAuthTokenRequest{
 		GrantType:    strings.TrimSpace(r.Form.Get("grant_type")),
 		Code:         strings.TrimSpace(r.Form.Get("code")),
 		RedirectURI:  strings.TrimSpace(r.Form.Get("redirect_uri")),
 		ClientID:     strings.TrimSpace(r.Form.Get("client_id")),
+		ClientSecret: strings.TrimSpace(r.Form.Get("client_secret")),
 		CodeVerifier: strings.TrimSpace(r.Form.Get("code_verifier")),
 		RefreshToken: strings.TrimSpace(r.Form.Get("refresh_token")),
-	}, getIPAddress(r), r.UserAgent())
+	}
+	if clientID, clientSecret, ok := r.BasicAuth(); ok {
+		if req.ClientID == "" {
+			req.ClientID = strings.TrimSpace(clientID)
+		}
+		if req.ClientSecret == "" {
+			req.ClientSecret = strings.TrimSpace(clientSecret)
+		}
+	}
+	resp, err := h.oauthSvc.ExchangeToken(r.Context(), req, getIPAddress(r), r.UserAgent())
 	if err != nil {
 		writeOAuthError(w, err)
 		return

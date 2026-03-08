@@ -186,6 +186,61 @@ func TestTokenExchange_InvalidRedirectURI(t *testing.T) {
 	assertOAuthErrorCode(t, err, "INVALID_GRANT")
 }
 
+func TestTokenExchange_ValidClientSecret(t *testing.T) {
+	svc, _, user, redisSrv := newOAuthServiceForTest(t)
+	defer redisSrv.Close()
+	svc.clients["jupyterhub"] = OAuthClient{
+		ClientID:     "jupyterhub",
+		ClientSecret: "super-secret",
+		RedirectURIs: []string{"https://notebooks.clario360.sa/hub/oauth_callback"},
+		Scopes:       []string{"openid", "profile", "email", "roles"},
+		RequirePKCE:  true,
+	}
+	pair, _ := svc.jwtMgr.GenerateTokenPair(user.ID, user.TenantID, user.Email, []string{"security-analyst"})
+	result, _ := svc.Authorize(context.Background(), validAuthorizeRequest(), pair.AccessToken)
+	code := mustRedirectCode(t, result.RedirectURL)
+
+	resp, err := svc.ExchangeToken(context.Background(), OAuthTokenRequest{
+		GrantType:    "authorization_code",
+		Code:         code,
+		RedirectURI:  "https://notebooks.clario360.sa/hub/oauth_callback",
+		ClientID:     "jupyterhub",
+		ClientSecret: "super-secret",
+		CodeVerifier: "verifier-123",
+	}, "", "")
+	if err != nil {
+		t.Fatalf("ExchangeToken failed: %v", err)
+	}
+	if resp.AccessToken == "" || resp.IDToken == "" {
+		t.Fatalf("expected access and id tokens")
+	}
+}
+
+func TestTokenExchange_InvalidClientSecret(t *testing.T) {
+	svc, _, user, redisSrv := newOAuthServiceForTest(t)
+	defer redisSrv.Close()
+	svc.clients["jupyterhub"] = OAuthClient{
+		ClientID:     "jupyterhub",
+		ClientSecret: "super-secret",
+		RedirectURIs: []string{"https://notebooks.clario360.sa/hub/oauth_callback"},
+		Scopes:       []string{"openid", "profile", "email", "roles"},
+		RequirePKCE:  true,
+	}
+	pair, _ := svc.jwtMgr.GenerateTokenPair(user.ID, user.TenantID, user.Email, []string{"security-analyst"})
+	result, _ := svc.Authorize(context.Background(), validAuthorizeRequest(), pair.AccessToken)
+	code := mustRedirectCode(t, result.RedirectURL)
+
+	_, err := svc.ExchangeToken(context.Background(), OAuthTokenRequest{
+		GrantType:    "authorization_code",
+		Code:         code,
+		RedirectURI:  "https://notebooks.clario360.sa/hub/oauth_callback",
+		ClientID:     "jupyterhub",
+		ClientSecret: "wrong-secret",
+		CodeVerifier: "verifier-123",
+	}, "", "")
+	assertOAuthErrorCode(t, err, "INVALID_CLIENT")
+}
+
 func TestUserInfo_ValidToken(t *testing.T) {
 	svc, _, user, redisSrv := newOAuthServiceForTest(t)
 	defer redisSrv.Close()
@@ -230,6 +285,10 @@ func TestDiscovery(t *testing.T) {
 	}
 	if doc["userinfo_endpoint"] == "" {
 		t.Fatalf("expected userinfo endpoint")
+	}
+	methods, ok := doc["token_endpoint_auth_methods_supported"].([]string)
+	if !ok || len(methods) == 0 {
+		t.Fatalf("expected token endpoint auth methods")
 	}
 }
 

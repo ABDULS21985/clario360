@@ -149,6 +149,22 @@ jupyterhub:
         value: /opt/conda/bin/python
       PYSPARK_DRIVER_PYTHON:
         value: /opt/conda/bin/python
+      POD_IP:
+        valueFrom:
+          fieldRef:
+            fieldPath: status.podIP
+      SPARK_DRIVER_HOST:
+        valueFrom:
+          fieldRef:
+            fieldPath: status.podIP
+      SPARK_DRIVER_BIND_ADDRESS:
+        value: 0.0.0.0
+      SPARK_DRIVER_PORT:
+        value: "29413"
+      SPARK_BLOCKMANAGER_PORT:
+        value: "29414"
+      CLICKHOUSE_JDBC_JAR:
+        value: /opt/clario360/jars/clickhouse-jdbc-0.9.7-all.jar
     extraVolumes:
       - name: shared-notebooks
         configMap:
@@ -220,6 +236,8 @@ jupyterhub:
 
 networkPolicy:
   allowInternet: false
+  clario360AllowedApps:
+    - api-gateway
   namespaceSelectors:
     clario360:
       name: clario360
@@ -233,6 +251,9 @@ networkPolicy:
       name: db
     dagster:
       name: dagster
+  sparkIngressPorts:
+    - 29413
+    - 29414
 
 externalSecrets:
   enabled: true

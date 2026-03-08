@@ -1,6 +1,5 @@
 import { describe, expect, it, vi, beforeAll } from 'vitest';
-import { render, screen } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
+import { render, screen, fireEvent } from '@testing-library/react';
 import { LineageDag } from '@/app/(dashboard)/data/lineage/_components/lineage-dag';
 import { lineageGraph } from '@/__tests__/data-suite-fixtures';
 
@@ -79,8 +78,7 @@ describe('LineageDag', () => {
     expect(screen.getByTestId('lineage-node-consumer-1').querySelector('[data-shape="hexagon"]')).toBeTruthy();
   });
 
-  it('test_clickHighlights: clicking a node calls selection handler', async () => {
-    const user = userEvent.setup();
+  it('test_clickHighlights: clicking a node calls selection handler', () => {
     const onSelectNode = vi.fn();
     render(
       <LineageDag
@@ -93,7 +91,8 @@ describe('LineageDag', () => {
       />,
     );
 
-    await user.click(screen.getByTestId('lineage-node-source-1'));
+    // Use fireEvent.click to avoid triggering d3-zoom mousedown handler (d3-drag fails in jsdom)
+    fireEvent.click(screen.getByTestId('lineage-node-source-1'));
     expect(onSelectNode).toHaveBeenCalledTimes(1);
     expect(onSelectNode.mock.calls[0]?.[0].id).toBe('source-1');
   });

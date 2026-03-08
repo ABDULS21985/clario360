@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/url"
 	"os"
@@ -140,7 +141,8 @@ func main() {
 	apiKeySvc := iamservice.NewAPIKeyService(apiKeyRepo, producer, svc.Logger)
 	oauthClients := []iamservice.OAuthClient{
 		{
-			ClientID: "jupyterhub",
+			ClientID:     "jupyterhub",
+			ClientSecret: envOrDefault("JUPYTERHUB_OAUTH_CLIENT_SECRET", ""),
 			RedirectURIs: splitCSV(
 				envOrDefault("JUPYTERHUB_OAUTH_CALLBACK_URL", "https://notebooks.clario360.sa/hub/oauth_callback"),
 			),
@@ -148,6 +150,7 @@ func main() {
 			RequirePKCE: true,
 		},
 	}
+	oauthClients = append(oauthClients, loadAdditionalOAuthClientsFromEnv(svc.Logger)...)
 	oauthSvc := iamservice.NewOAuthService(
 		jwtMgr,
 		authSvc,
@@ -485,6 +488,28 @@ func splitCSV(value string) []string {
 		}
 	}
 	return out
+}
+
+func loadAdditionalOAuthClientsFromEnv(logger zerolog.Logger) []iamservice.OAuthClient {
+	raw := strings.TrimSpace(os.Getenv("OAUTH_ADDITIONAL_CLIENTS_JSON"))
+	if raw == "" {
+		return nil
+	}
+
+	var clients []iamservice.OAuthClient
+	if err := json.Unmarshal([]byte(raw), &clients); err != nil {
+		logger.Fatal().Err(err).Msg("failed to parse OAUTH_ADDITIONAL_CLIENTS_JSON")
+	}
+	for i := range clients {
+		if clients[i].ClientID == "" || len(clients[i].RedirectURIs) == 0 {
+			logger.Fatal().Int("index", i).Msg("oauth additional clients must define client_id and redirect_uris")
+		}
+		if len(clients[i].Scopes) == 0 {
+			clients[i].Scopes = []string{"openid", "profile", "email", "roles"}
+		}
+		clients[i].RequirePKCE = true
+	}
+	return clients
 }
 
 func buildOnboardingDBPools(ctx context.Context, cfg *config.Config, logger zerolog.Logger) (map[string]*pgxpool.Pool, map[string]string, error) {

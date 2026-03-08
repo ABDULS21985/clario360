@@ -37,6 +37,27 @@ spec:
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
+  name: notebook-allow-spark-driver-ingress
+spec:
+  podSelector:
+    matchLabels:
+      component: singleuser-server
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              name: {{ .Values.networkPolicy.namespaceSelectors.spark.name | quote }}
+      ports:
+{{- range .Values.networkPolicy.sparkIngressPorts }}
+        - port: {{ . }}
+          protocol: TCP
+{{- end }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
   name: notebook-allow-clario360-and-data
 spec:
   podSelector:
@@ -45,16 +66,18 @@ spec:
   policyTypes:
     - Egress
   egress:
+{{- range .Values.networkPolicy.clario360AllowedApps }}
     - to:
         - namespaceSelector:
             matchLabels:
               name: {{ .Values.networkPolicy.namespaceSelectors.clario360.name | quote }}
           podSelector:
             matchLabels:
-              app: api-gateway
+              app: {{ . | quote }}
       ports:
         - port: 8080
           protocol: TCP
+{{- end }}
     - to:
         - namespaceSelector:
             matchLabels:

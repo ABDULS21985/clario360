@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/sha256"
+	"crypto/subtle"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -32,6 +33,7 @@ const (
 // OAuthClient represents a registered OIDC client.
 type OAuthClient struct {
 	ClientID     string
+	ClientSecret string
 	RedirectURIs []string
 	Scopes       []string
 	RequirePKCE  bool
@@ -52,6 +54,7 @@ type OAuthTokenRequest struct {
 	Code         string
 	RedirectURI  string
 	ClientID     string
+	ClientSecret string
 	CodeVerifier string
 	RefreshToken string
 }
@@ -274,7 +277,7 @@ func (s *OAuthService) DiscoveryDocument() map[string]any {
 		"subject_types_supported":               []string{"public"},
 		"id_token_signing_alg_values_supported": []string{"RS256"},
 		"code_challenge_methods_supported":      []string{"S256"},
-		"token_endpoint_auth_methods_supported": []string{"none"},
+		"token_endpoint_auth_methods_supported": s.tokenEndpointAuthMethods(),
 	}
 }
 
@@ -297,6 +300,9 @@ func (s *OAuthService) exchangeAuthorizationCode(ctx context.Context, req OAuthT
 	client, ok := s.clients[req.ClientID]
 	if !ok {
 		return nil, &OAuthError{Status: http.StatusBadRequest, Code: "INVALID_CLIENT", Message: "unregistered client_id"}
+	}
+	if err := validateClientAuthentication(client, req.ClientSecret); err != nil {
+		return nil, err
 	}
 
 	payload, err := s.loadAuthorizationCode(ctx, req.Code)
@@ -337,6 +343,9 @@ func (s *OAuthService) exchangeRefreshToken(ctx context.Context, req OAuthTokenR
 	client, ok := s.clients[req.ClientID]
 	if !ok {
 		return nil, &OAuthError{Status: http.StatusBadRequest, Code: "INVALID_CLIENT", Message: "unregistered client_id"}
+	}
+	if err := validateClientAuthentication(client, req.ClientSecret); err != nil {
+		return nil, err
 	}
 
 	authResp, err := s.authSvc.RefreshToken(ctx, &dto.RefreshRequest{RefreshToken: req.RefreshToken}, ip, userAgent)
@@ -455,6 +464,16 @@ func (s *OAuthService) validateAuthorizeRequest(req OAuthAuthorizeRequest) (OAut
 	return client, nil
 }
 
+func (s *OAuthService) tokenEndpointAuthMethods() []string {
+	methods := []string{"none"}
+	for _, client := range s.clients {
+		if client.ClientSecret != "" {
+			return []string{"none", "client_secret_basic", "client_secret_post"}
+		}
+	}
+	return methods
+}
+
 func (s *OAuthService) buildLoginRedirect(req OAuthAuthorizeRequest) string {
 	if s.loginURL == "" {
 		return ""
@@ -471,7 +490,7 @@ func (s *OAuthService) buildLoginRedirect(req OAuthAuthorizeRequest) string {
 	params.Set("code_challenge_method", req.CodeChallengeMethod)
 
 	loginURL, err := appendQuery(s.loginURL, map[string]string{
-		"return_to": authorizeURL + "?" + params.Encode(),
+		"redirect": authorizeURL + "?" + params.Encode(),
 	})
 	if err != nil {
 		return s.loginURL
@@ -572,6 +591,16 @@ func verifyPKCE(codeVerifier, codeChallenge string) error {
 	computed := base64.RawURLEncoding.EncodeToString(sum[:])
 	if computed != codeChallenge {
 		return fmt.Errorf("pkce mismatch")
+	}
+	return nil
+}
+
+func validateClientAuthentication(client OAuthClient, presentedSecret string) error {
+	if client.ClientSecret == "" {
+		return nil
+	}
+	if subtle.ConstantTimeCompare([]byte(client.ClientSecret), []byte(presentedSecret)) != 1 {
+		return &OAuthError{Status: http.StatusUnauthorized, Code: "INVALID_CLIENT", Message: "client authentication failed"}
 	}
 	return nil
 }

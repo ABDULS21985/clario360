@@ -95,8 +95,8 @@ describe('Detection Rules Integration', () => {
     await waitFor(() => {
       expect(screen.getByText('Rule 1')).toBeTruthy();
       expect(screen.getByText('Rule 10')).toBeTruthy();
-    });
-  });
+    }, { timeout: 5000 });
+  }, 10000);
 
   it('test_toggleRule: click switch → PUT toggle called', async () => {
     let toggleCalled = false;

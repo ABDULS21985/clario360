@@ -25,7 +25,7 @@ type MFAMode = 'totp' | 'recovery';
 export function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const redirectTo = searchParams?.get('redirect') ?? '/dashboard';
+  const redirectTo = searchParams?.get('redirect') ?? searchParams?.get('return_to') ?? '/dashboard';
   const registeredBanner = searchParams?.get('registered') === 'true';
 
   const { login, verifyMFA } = useAuth();
@@ -63,6 +63,14 @@ export function LoginForm() {
     setTimeout(() => setMfaShake(false), 600);
   };
 
+  const navigateAfterAuth = (target: string) => {
+    if (/^https?:\/\//i.test(target)) {
+      window.location.assign(target);
+      return;
+    }
+    router.push(target);
+  };
+
   const onSubmit = async (data: LoginFormData) => {
     setApiError(null);
     setIsSubmitting(true);
@@ -72,7 +80,7 @@ export function LoginForm() {
         setMfaToken(result.mfaToken);
         setStep('mfa');
       } else {
-        router.push(redirectTo);
+        navigateAfterAuth(redirectTo);
       }
     } catch (err) {
       if (isApiError(err)) {
@@ -112,7 +120,7 @@ export function LoginForm() {
     setIsSubmitting(true);
     try {
       await verifyMFA(mfaToken, code);
-      router.push(redirectTo);
+      navigateAfterAuth(redirectTo);
     } catch (err) {
       triggerMFAShake();
       if (isApiError(err)) {
