@@ -1,4 +1,4 @@
-{{- if and .Values.apiGateway.enabled .Values.apiGateway.autoscaling.enabled }}
+{{- if and .Values.apiGateway.enabled ((.Values.apiGateway).autoscaling).enabled }}
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
@@ -11,24 +11,24 @@ spec:
     apiVersion: apps/v1
     kind: Deployment
     name: {{ include "clario360.componentName" (dict "root" . "component" "api-gateway") }}
-  minReplicas: {{ .Values.apiGateway.autoscaling.minReplicas | default 2 }}
-  maxReplicas: {{ .Values.apiGateway.autoscaling.maxReplicas | default 10 }}
+  minReplicas: {{ ((.Values.apiGateway).autoscaling).minReplicas | default 2 }}
+  maxReplicas: {{ ((.Values.apiGateway).autoscaling).maxReplicas | default 10 }}
   metrics:
-    {{- if .Values.apiGateway.autoscaling.targetCPUUtilizationPercentage }}
+    {{- if ((.Values.apiGateway).autoscaling).targetCPUUtilizationPercentage }}
     - type: Resource
       resource:
         name: cpu
         target:
           type: Utilization
-          averageUtilization: {{ .Values.apiGateway.autoscaling.targetCPUUtilizationPercentage }}
+          averageUtilization: {{ ((.Values.apiGateway).autoscaling).targetCPUUtilizationPercentage }}
     {{- end }}
-    {{- if .Values.apiGateway.autoscaling.targetMemoryUtilizationPercentage }}
+    {{- if ((.Values.apiGateway).autoscaling).targetMemoryUtilizationPercentage }}
     - type: Resource
       resource:
         name: memory
         target:
           type: Utilization
-          averageUtilization: {{ .Values.apiGateway.autoscaling.targetMemoryUtilizationPercentage }}
+          averageUtilization: {{ ((.Values.apiGateway).autoscaling).targetMemoryUtilizationPercentage }}
     {{- end }}
   behavior:
     scaleDown:

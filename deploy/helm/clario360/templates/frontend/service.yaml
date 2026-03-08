@@ -6,12 +6,12 @@ metadata:
   namespace: {{ include "clario360.namespace" . }}
   labels:
     {{- include "clario360.componentLabels" (dict "root" . "component" "frontend") | nindent 4 }}
-  {{- with .Values.frontend.service.annotations }}
+  {{- with ((.Values.frontend).service).annotations }}
   annotations:
     {{- toYaml . | nindent 4 }}
   {{- end }}
 spec:
-  type: {{ .Values.frontend.service.type | default "ClusterIP" }}
+  type: {{ dig "service" "type" "ClusterIP" .Values.frontend }}
   ports:
     - name: http
       port: 3000

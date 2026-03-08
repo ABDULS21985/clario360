@@ -16,6 +16,7 @@ import (
 	"github.com/rs/zerolog"
 
 	"github.com/clario360/platform/internal/database"
+	"github.com/clario360/platform/internal/events"
 	onboardingmodel "github.com/clario360/platform/internal/onboarding/model"
 	onboardingrepo "github.com/clario360/platform/internal/onboarding/repository"
 	"github.com/clario360/platform/internal/onboarding/service/seeder"
@@ -39,6 +40,7 @@ type TenantProvisioner struct {
 	workflowTemplateSeeder *seeder.WorkflowTemplateSeeder
 	storage                *storage.MinIOStorage
 	emailSender            EmailSender
+	producer               *events.Producer
 	logger                 zerolog.Logger
 	metrics                *Metrics
 }
@@ -52,6 +54,7 @@ func NewTenantProvisioner(
 	provisioningRepo *onboardingrepo.ProvisioningRepository,
 	storageClient *storage.MinIOStorage,
 	emailSender EmailSender,
+	producer *events.Producer,
 	logger zerolog.Logger,
 	metrics *Metrics,
 ) *TenantProvisioner {
@@ -91,6 +94,7 @@ func NewTenantProvisioner(
 		workflowTemplateSeeder: seeder.NewWorkflowTemplateSeeder(repository.NewDefinitionRepository(platformPool), logger),
 		storage:                storageClient,
 		emailSender:            emailSender,
+		producer:               producer,
 		logger:                 logger.With().Str("service", "tenant_provisioner").Logger(),
 		metrics:                metrics,
 	}
@@ -120,6 +124,13 @@ func (p *TenantProvisioner) Provision(ctx context.Context, tenantID uuid.UUID) e
 	if p.metrics != nil && p.metrics.provisioningTotal != nil {
 		p.metrics.provisioningTotal.WithLabelValues("started").Inc()
 	}
+	publishOnboardingEvent(ctx, p.producer,
+		"com.clario360.onboarding.provisioning.started",
+		tenantID,
+		&onboardingRow.AdminUserID,
+		map[string]any{"tenant_id": tenantID.String()},
+		p.logger,
+	)
 
 	name, slug, _, _, err := p.onboardingRepo.GetTenantIdentity(ctx, tenantID)
 	if err != nil {
@@ -186,6 +197,18 @@ func (p *TenantProvisioner) Provision(ctx context.Context, tenantID uuid.UUID) e
 			message := err.Error()
 			_ = p.provisioningRepo.FailStep(ctx, tenantID, stepNumber, message, map[string]any{"step_name": stepName})
 			_ = p.provisioningRepo.MarkFailed(ctx, tenantID, message)
+			publishOnboardingEvent(ctx, p.producer,
+				"com.clario360.onboarding.provisioning.step_failed",
+				tenantID,
+				&onboardingRow.AdminUserID,
+				map[string]any{
+					"tenant_id":   tenantID.String(),
+					"step_number": stepNumber,
+					"step_name":   stepName,
+					"error":       message,
+				},
+				p.logger,
+			)
 			if p.metrics != nil {
 				if p.metrics.provisioningTotal != nil {
 					p.metrics.provisioningTotal.WithLabelValues("failed").Inc()
@@ -197,6 +220,17 @@ func (p *TenantProvisioner) Provision(ctx context.Context, tenantID uuid.UUID) e
 			return fmt.Errorf("step %d (%s) failed: %w", stepNumber, stepName, err)
 		}
 		_ = p.provisioningRepo.CompleteStep(ctx, tenantID, stepNumber, map[string]any{"step_name": stepName})
+		publishOnboardingEvent(ctx, p.producer,
+			"com.clario360.onboarding.provisioning.step_completed",
+			tenantID,
+			&onboardingRow.AdminUserID,
+			map[string]any{
+				"tenant_id":   tenantID.String(),
+				"step_number": stepNumber,
+				"step_name":   stepName,
+			},
+			p.logger,
+		)
 		if p.metrics != nil && p.metrics.provisioningStepDuration != nil {
 			p.metrics.provisioningStepDuration.WithLabelValues(stepName).Observe(time.Since(stepStarted).Seconds())
 		}
@@ -219,16 +253,30 @@ func (p *TenantProvisioner) Provision(ctx context.Context, tenantID uuid.UUID) e
 			p.metrics.timeToActive.WithLabelValues(tenantID.String()).Observe(time.Since(onboardingRow.CreatedAt).Seconds())
 		}
 	}
+	publishOnboardingEvent(ctx, p.producer,
+		"com.clario360.onboarding.provisioning.completed",
+		tenantID,
+		&onboardingRow.AdminUserID,
+		map[string]any{
+			"tenant_id":   tenantID.String(),
+			"duration_ms": time.Since(startedAt).Milliseconds(),
+			"steps_count": len(stepFns),
+		},
+		p.logger,
+	)
 	return nil
 }
 
 func (p *TenantProvisioner) verifyDatabaseConnectivity(ctx context.Context) error {
-	if err := p.platformPool.Ping(ctx); err != nil {
-		return fmt.Errorf("platform_core ping: %w", err)
-	}
-	for name, pool := range p.dbPools {
+	for name := range p.dbDSNs {
+		var pool *pgxpool.Pool
+		if name == "platform_core" {
+			pool = p.platformPool
+		} else {
+			pool = p.dbPools[name]
+		}
 		if pool == nil {
-			continue
+			return fmt.Errorf("%s connection pool is not configured", name)
 		}
 		if err := pool.Ping(ctx); err != nil {
 			return fmt.Errorf("%s ping: %w", name, err)
@@ -349,6 +397,13 @@ func (p *TenantProvisioner) initializeAuditTrail(ctx context.Context, onboarding
 		return err
 	}
 	_ = p.emailSender.SendWelcomeEmail(ctx, onboardingRow.AdminEmail, tenantName, "Administrator")
+	publishOnboardingEvent(ctx, p.producer,
+		"com.clario360.platform.tenant.provisioned",
+		onboardingRow.TenantID,
+		&onboardingRow.AdminUserID,
+		map[string]any{"tenant_id": onboardingRow.TenantID.String()},
+		p.logger,
+	)
 	return nil
 }
 

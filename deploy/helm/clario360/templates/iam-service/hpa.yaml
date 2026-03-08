@@ -1,4 +1,4 @@
-{{- if and .Values.iamService.enabled .Values.iamService.autoscaling.enabled }}
+{{- if and .Values.iamService.enabled ((.Values.iamService).autoscaling).enabled }}
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
@@ -11,24 +11,24 @@ spec:
     apiVersion: apps/v1
     kind: Deployment
     name: {{ include "clario360.componentName" (dict "root" . "component" "iam-service") }}
-  minReplicas: {{ .Values.iamService.autoscaling.minReplicas | default 2 }}
-  maxReplicas: {{ .Values.iamService.autoscaling.maxReplicas | default 8 }}
+  minReplicas: {{ ((.Values.iamService).autoscaling).minReplicas | default 2 }}
+  maxReplicas: {{ ((.Values.iamService).autoscaling).maxReplicas | default 8 }}
   metrics:
-    {{- if .Values.iamService.autoscaling.targetCPUUtilizationPercentage }}
+    {{- if ((.Values.iamService).autoscaling).targetCPUUtilizationPercentage }}
     - type: Resource
       resource:
         name: cpu
         target:
           type: Utilization
-          averageUtilization: {{ .Values.iamService.autoscaling.targetCPUUtilizationPercentage }}
+          averageUtilization: {{ ((.Values.iamService).autoscaling).targetCPUUtilizationPercentage }}
     {{- end }}
-    {{- if .Values.iamService.autoscaling.targetMemoryUtilizationPercentage }}
+    {{- if ((.Values.iamService).autoscaling).targetMemoryUtilizationPercentage }}
     - type: Resource
       resource:
         name: memory
         target:
           type: Utilization
-          averageUtilization: {{ .Values.iamService.autoscaling.targetMemoryUtilizationPercentage }}
+          averageUtilization: {{ ((.Values.iamService).autoscaling).targetMemoryUtilizationPercentage }}
     {{- end }}
   behavior:
     scaleDown:

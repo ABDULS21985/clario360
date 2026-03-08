@@ -6,12 +6,12 @@ metadata:
   namespace: {{ include "clario360.namespace" . }}
   labels:
     {{- include "clario360.componentLabels" (dict "root" . "component" "data-service") | nindent 4 }}
-  {{- with .Values.dataService.service.annotations }}
+  {{- with ((.Values.dataService).service).annotations }}
   annotations:
     {{- toYaml . | nindent 4 }}
   {{- end }}
 spec:
-  type: {{ .Values.dataService.service.type | default "ClusterIP" }}
+  type: {{ dig "service" "type" "ClusterIP" .Values.dataService }}
   ports:
     - name: http
       port: 8091

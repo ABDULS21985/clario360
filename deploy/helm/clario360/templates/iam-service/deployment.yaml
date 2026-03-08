@@ -7,7 +7,7 @@ metadata:
   labels:
     {{- include "clario360.componentLabels" (dict "root" . "component" "iam-service") | nindent 4 }}
 spec:
-  {{- if not .Values.iamService.autoscaling.enabled }}
+  {{- if not ((.Values.iamService).autoscaling).enabled }}
   replicas: {{ .Values.iamService.replicaCount | default 2 }}
   {{- end }}
   revisionHistoryLimit: {{ .Values.iamService.revisionHistoryLimit | default 5 }}

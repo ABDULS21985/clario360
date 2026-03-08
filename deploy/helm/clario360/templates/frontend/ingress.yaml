@@ -1,4 +1,4 @@
-{{- if and .Values.frontend.enabled .Values.frontend.ingress.enabled }}
+{{- if and .Values.frontend.enabled ((.Values.frontend).ingress).enabled }}
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
@@ -7,19 +7,19 @@ metadata:
   labels:
     {{- include "clario360.componentLabels" (dict "root" . "component" "frontend") | nindent 4 }}
   annotations:
-    {{- if .Values.frontend.ingress.className }}
-    kubernetes.io/ingress.class: {{ .Values.frontend.ingress.className }}
+    {{- if ((.Values.frontend).ingress).className }}
+    kubernetes.io/ingress.class: {{ ((.Values.frontend).ingress).className }}
     {{- end }}
-    {{- with .Values.frontend.ingress.annotations }}
+    {{- with ((.Values.frontend).ingress).annotations }}
     {{- toYaml . | nindent 4 }}
     {{- end }}
 spec:
-  {{- if .Values.frontend.ingress.className }}
-  ingressClassName: {{ .Values.frontend.ingress.className }}
+  {{- if ((.Values.frontend).ingress).className }}
+  ingressClassName: {{ ((.Values.frontend).ingress).className }}
   {{- end }}
-  {{- if .Values.frontend.ingress.tls }}
+  {{- if ((.Values.frontend).ingress).tls }}
   tls:
-    {{- range .Values.frontend.ingress.tls }}
+    {{- range ((.Values.frontend).ingress).tls }}
     - hosts:
         {{- range .hosts }}
         - {{ . | quote }}
@@ -28,7 +28,7 @@ spec:
     {{- end }}
   {{- end }}
   rules:
-    {{- range .Values.frontend.ingress.hosts }}
+    {{- range ((.Values.frontend).ingress).hosts }}
     - host: {{ .host | quote }}
       http:
         paths:

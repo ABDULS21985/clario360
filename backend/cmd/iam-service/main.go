@@ -2,21 +2,34 @@ package main
 
 import (
 	"context"
+	"fmt"
+	"net/url"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 
 	"github.com/clario360/platform/internal/auth"
 	"github.com/clario360/platform/internal/config"
 	"github.com/clario360/platform/internal/events"
-	"github.com/clario360/platform/internal/iam/handler"
-	"github.com/clario360/platform/internal/iam/repository"
-	"github.com/clario360/platform/internal/iam/service"
+	iamhandler "github.com/clario360/platform/internal/iam/handler"
+	iamrepo "github.com/clario360/platform/internal/iam/repository"
+	iamservice "github.com/clario360/platform/internal/iam/service"
 	"github.com/clario360/platform/internal/middleware"
+	notifchannel "github.com/clario360/platform/internal/notification/channel"
+	notifcfg "github.com/clario360/platform/internal/notification/config"
+	notifservice "github.com/clario360/platform/internal/notification/service"
 	"github.com/clario360/platform/internal/observability/bootstrap"
 	"github.com/clario360/platform/internal/observability/tracing"
+	onboardinghandler "github.com/clario360/platform/internal/onboarding/handler"
+	onboardingmiddleware "github.com/clario360/platform/internal/onboarding/middleware"
+	onboardingrepo "github.com/clario360/platform/internal/onboarding/repository"
+	onboardingsvc "github.com/clario360/platform/internal/onboarding/service"
+	"github.com/clario360/platform/pkg/storage"
 )
 
 func main() {
@@ -94,29 +107,116 @@ func main() {
 	}
 
 	// Repositories (using raw pool for backward compatibility with existing repos).
-	userRepo := repository.NewUserRepository(svc.DBPool)
-	roleRepo := repository.NewRoleRepository(svc.DBPool)
-	sessionRepo := repository.NewSessionRepository(svc.DBPool)
-	tenantRepo := repository.NewTenantRepository(svc.DBPool)
-	apiKeyRepo := repository.NewAPIKeyRepository(svc.DBPool)
+	userRepo := iamrepo.NewUserRepository(svc.DBPool)
+	roleRepo := iamrepo.NewRoleRepository(svc.DBPool)
+	sessionRepo := iamrepo.NewSessionRepository(svc.DBPool)
+	tenantRepo := iamrepo.NewTenantRepository(svc.DBPool)
+	apiKeyRepo := iamrepo.NewAPIKeyRepository(svc.DBPool)
 
 	// Services.
-	authSvc := service.NewAuthService(
+	authSvc := iamservice.NewAuthService(
 		userRepo, sessionRepo, roleRepo, tenantRepo,
 		jwtMgr, svc.Redis, producer, svc.Logger,
 		legacyCfg.Auth.BcryptCost, legacyCfg.Auth.RefreshTokenTTL,
 	)
-	userSvc := service.NewUserService(userRepo, roleRepo, sessionRepo, svc.Redis, producer, svc.Logger, legacyCfg.Auth.BcryptCost)
-	roleSvc := service.NewRoleService(roleRepo, userRepo, producer, svc.Logger)
-	tenantSvc := service.NewTenantService(tenantRepo, roleRepo, producer, svc.Logger)
-	apiKeySvc := service.NewAPIKeyService(apiKeyRepo, producer, svc.Logger)
+	userSvc := iamservice.NewUserService(userRepo, roleRepo, sessionRepo, svc.Redis, producer, svc.Logger, legacyCfg.Auth.BcryptCost)
+	roleSvc := iamservice.NewRoleService(roleRepo, userRepo, producer, svc.Logger)
+	tenantSvc := iamservice.NewTenantService(tenantRepo, roleRepo, producer, svc.Logger)
+	apiKeySvc := iamservice.NewAPIKeyService(apiKeyRepo, producer, svc.Logger)
 
 	// Handlers.
-	authHandler := handler.NewAuthHandler(authSvc, svc.Logger)
-	userHandler := handler.NewUserHandler(userSvc, svc.Logger)
-	roleHandler := handler.NewRoleHandler(roleSvc, svc.Logger)
-	tenantHandler := handler.NewTenantHandler(tenantSvc, svc.Logger)
-	apiKeyHandler := handler.NewAPIKeyHandler(apiKeySvc, svc.Logger)
+	authHandler := iamhandler.NewAuthHandler(authSvc, svc.Logger)
+	userHandler := iamhandler.NewUserHandler(userSvc, svc.Logger)
+	roleHandler := iamhandler.NewRoleHandler(roleSvc, svc.Logger)
+	tenantHandler := iamhandler.NewTenantHandler(tenantSvc, svc.Logger)
+	apiKeyHandler := iamhandler.NewAPIKeyHandler(apiKeySvc, svc.Logger)
+
+	// Onboarding dependencies.
+	onboardingMetrics := onboardingsvc.NewMetrics(svc.Metrics)
+	dbPools, dbDSNs, err := buildOnboardingDBPools(ctx, legacyCfg, svc.Logger)
+	if err != nil {
+		svc.Logger.Fatal().Err(err).Msg("failed to initialize onboarding database pools")
+	}
+	for _, pool := range dbPools {
+		defer pool.Close()
+	}
+
+	storageClient := buildOnboardingStorage(ctx, legacyCfg, svc.Logger)
+	emailSender := buildOnboardingEmailSender(svc.Logger)
+	migrationsBasePath := resolveMigrationsBasePath()
+
+	onboardingRepository := onboardingrepo.NewOnboardingRepository(svc.DBPool)
+	invitationRepository := onboardingrepo.NewInvitationRepository(svc.DBPool)
+	provisioningRepository := onboardingrepo.NewProvisioningRepository(svc.DBPool)
+
+	provisioner := onboardingsvc.NewTenantProvisioner(
+		svc.DBPool,
+		dbPools,
+		dbDSNs,
+		migrationsBasePath,
+		onboardingRepository,
+		provisioningRepository,
+		storageClient,
+		emailSender,
+		producer,
+		svc.Logger,
+		onboardingMetrics,
+	)
+	registrationService := onboardingsvc.NewRegistrationService(
+		onboardingRepository,
+		userRepo,
+		roleRepo,
+		sessionRepo,
+		jwtMgr,
+		svc.Redis,
+		producer,
+		emailSender,
+		provisioner,
+		svc.Logger,
+		onboardingMetrics,
+		legacyCfg.Auth.BcryptCost,
+		legacyCfg.Auth.RefreshTokenTTL,
+	)
+	invitationService := onboardingsvc.NewInvitationService(
+		invitationRepository,
+		onboardingRepository,
+		userRepo,
+		roleRepo,
+		sessionRepo,
+		jwtMgr,
+		producer,
+		emailSender,
+		svc.Logger,
+		onboardingMetrics,
+		legacyCfg.Auth.BcryptCost,
+		legacyCfg.Auth.RefreshTokenTTL,
+	)
+	wizardService := onboardingsvc.NewWizardService(
+		onboardingRepository,
+		invitationService,
+		producer,
+		svc.Logger,
+		onboardingMetrics,
+	)
+	deprovisioner := onboardingsvc.NewTenantDeprovisioner(
+		svc.DBPool,
+		dbPools,
+		onboardingRepository,
+		storageClient,
+		svc.Redis,
+		producer,
+		svc.Logger,
+		onboardingMetrics,
+	)
+	onboardingHandler := onboardinghandler.New(
+		registrationService,
+		wizardService,
+		invitationService,
+		provisioner,
+		deprovisioner,
+		provisioningRepository,
+		svc.Logger,
+	)
 
 	// Security headers on all responses.
 	svc.Router.Use(middleware.SecurityHeaders())
@@ -126,16 +226,78 @@ func main() {
 		r.Get("/internal/users/by-role", roleHandler.InternalUserIDsByRole)
 		r.Get("/internal/users/{id}/email", userHandler.InternalGetEmail)
 
-		// Public auth routes (no auth middleware).
-		r.Mount("/auth", authHandler.Routes())
-
-		// Login rate limiting.
 		r.Group(func(r chi.Router) {
 			r.Use(middleware.RateLimit(svc.Redis, middleware.RateLimitConfig{
 				RequestsPerWindow: 20,
 				Window:            1 * time.Minute,
 				KeyPrefix:         "ratelimit:auth",
 			}))
+			r.Mount("/auth", authHandler.Routes())
+		})
+
+		r.Route("/onboarding", func(r chi.Router) {
+			r.With(onboardingmiddleware.NewPublicRateLimiter(svc.Redis, onboardingmiddleware.PublicRateLimitConfig{
+				RequestsPerWindow: 5,
+				Window:            time.Hour,
+				KeyPrefix:         "ratelimit:onboarding:register",
+			})).Post("/register", onboardingHandler.Register)
+			r.With(onboardingmiddleware.NewPublicRateLimiter(svc.Redis, onboardingmiddleware.PublicRateLimitConfig{
+				RequestsPerWindow: 20,
+				Window:            10 * time.Minute,
+				KeyPrefix:         "ratelimit:onboarding:verify-email",
+			})).Post("/verify-email", onboardingHandler.VerifyEmail)
+			r.With(onboardingmiddleware.NewPublicRateLimiter(svc.Redis, onboardingmiddleware.PublicRateLimitConfig{
+				RequestsPerWindow: 1,
+				Window:            time.Minute,
+				KeyPrefix:         "ratelimit:onboarding:resend-otp",
+			})).Post("/resend-otp", onboardingHandler.ResendOTP)
+			r.With(
+				middleware.OptionalAuth(jwtMgr),
+				onboardingmiddleware.NewPublicRateLimiter(svc.Redis, onboardingmiddleware.PublicRateLimitConfig{
+					RequestsPerWindow: 120,
+					Window:            time.Minute,
+					KeyPrefix:         "ratelimit:onboarding:status",
+				}),
+			).Get("/status/{tenantId}", onboardingHandler.GetOnboardingStatus)
+
+			r.Group(func(r chi.Router) {
+				r.Use(middleware.Auth(jwtMgr))
+				r.Use(middleware.RateLimit(svc.Redis, middleware.DefaultRateLimitConfig()))
+				r.Use(middleware.Tenant)
+				r.Use(tracing.SpanEnricher())
+
+				r.Get("/wizard", onboardingHandler.GetWizardProgress)
+				r.Post("/wizard/organization", onboardingHandler.SaveOrganization)
+				r.Post("/wizard/branding", onboardingHandler.SaveBranding)
+				r.Post("/wizard/team", onboardingHandler.SaveTeam)
+				r.Post("/wizard/suites", onboardingHandler.SaveSuites)
+				r.Post("/wizard/complete", onboardingHandler.CompleteWizard)
+			})
+		})
+
+		r.Route("/invitations", func(r chi.Router) {
+			r.With(onboardingmiddleware.NewPublicRateLimiter(svc.Redis, onboardingmiddleware.PublicRateLimitConfig{
+				RequestsPerWindow: 60,
+				Window:            time.Minute,
+				KeyPrefix:         "ratelimit:onboarding:invite-validate",
+			})).Get("/validate", onboardingHandler.ValidateInviteToken)
+			r.With(onboardingmiddleware.NewPublicRateLimiter(svc.Redis, onboardingmiddleware.PublicRateLimitConfig{
+				RequestsPerWindow: 10,
+				Window:            15 * time.Minute,
+				KeyPrefix:         "ratelimit:onboarding:invite-accept",
+			})).Post("/accept", onboardingHandler.AcceptInvitation)
+
+			r.Group(func(r chi.Router) {
+				r.Use(middleware.Auth(jwtMgr))
+				r.Use(middleware.RateLimit(svc.Redis, middleware.DefaultRateLimitConfig()))
+				r.Use(middleware.Tenant)
+				r.Use(tracing.SpanEnricher())
+
+				r.Get("/", onboardingHandler.ListInvitations)
+				r.Post("/", onboardingHandler.CreateBatchInvitations)
+				r.Delete("/{id}", onboardingHandler.CancelInvitation)
+				r.Post("/resend/{id}", onboardingHandler.ResendInvitation)
+			})
 		})
 
 		// Protected routes.
@@ -155,6 +317,18 @@ func main() {
 				r.Post("/", roleHandler.AssignRole)
 				r.Delete("/{roleId}", roleHandler.RemoveRole)
 			})
+		})
+
+		r.Route("/admin", func(r chi.Router) {
+			r.Use(middleware.Auth(jwtMgr))
+			r.Use(middleware.RateLimit(svc.Redis, middleware.DefaultRateLimitConfig()))
+			r.Use(tracing.SpanEnricher())
+
+			r.Post("/tenants/provision", onboardingHandler.AdminProvision)
+			r.Get("/tenants/{id}/provision-status", onboardingHandler.AdminGetProvisionStatus)
+			r.Post("/tenants/{id}/deprovision", onboardingHandler.AdminDeprovision)
+			r.Post("/tenants/{id}/reprovision", onboardingHandler.AdminReprovision)
+			r.Post("/tenants/{id}/reactivate", onboardingHandler.AdminReactivate)
 		})
 	})
 

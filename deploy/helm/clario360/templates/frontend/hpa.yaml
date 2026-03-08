@@ -1,4 +1,4 @@
-{{- if and .Values.frontend.enabled .Values.frontend.autoscaling.enabled }}
+{{- if and .Values.frontend.enabled ((.Values.frontend).autoscaling).enabled }}
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
@@ -11,24 +11,24 @@ spec:
     apiVersion: apps/v1
     kind: Deployment
     name: {{ include "clario360.componentName" (dict "root" . "component" "frontend") }}
-  minReplicas: {{ .Values.frontend.autoscaling.minReplicas | default 2 }}
-  maxReplicas: {{ .Values.frontend.autoscaling.maxReplicas | default 10 }}
+  minReplicas: {{ ((.Values.frontend).autoscaling).minReplicas | default 2 }}
+  maxReplicas: {{ ((.Values.frontend).autoscaling).maxReplicas | default 10 }}
   metrics:
-    {{- if .Values.frontend.autoscaling.targetCPUUtilizationPercentage }}
+    {{- if ((.Values.frontend).autoscaling).targetCPUUtilizationPercentage }}
     - type: Resource
       resource:
         name: cpu
         target:
           type: Utilization
-          averageUtilization: {{ .Values.frontend.autoscaling.targetCPUUtilizationPercentage }}
+          averageUtilization: {{ ((.Values.frontend).autoscaling).targetCPUUtilizationPercentage }}
     {{- end }}
-    {{- if .Values.frontend.autoscaling.targetMemoryUtilizationPercentage }}
+    {{- if ((.Values.frontend).autoscaling).targetMemoryUtilizationPercentage }}
     - type: Resource
       resource:
         name: memory
         target:
           type: Utilization
-          averageUtilization: {{ .Values.frontend.autoscaling.targetMemoryUtilizationPercentage }}
+          averageUtilization: {{ ((.Values.frontend).autoscaling).targetMemoryUtilizationPercentage }}
     {{- end }}
   behavior:
     scaleDown:

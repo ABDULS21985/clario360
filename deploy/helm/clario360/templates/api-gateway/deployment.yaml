@@ -7,7 +7,7 @@ metadata:
   labels:
     {{- include "clario360.componentLabels" (dict "root" . "component" "api-gateway") | nindent 4 }}
 spec:
-  {{- if not .Values.apiGateway.autoscaling.enabled }}
+  {{- if not ((.Values.apiGateway).autoscaling).enabled }}
   replicas: {{ .Values.apiGateway.replicaCount | default 2 }}
   {{- end }}
   revisionHistoryLimit: {{ .Values.apiGateway.revisionHistoryLimit | default 5 }}

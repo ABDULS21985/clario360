@@ -6,12 +6,12 @@ metadata:
   namespace: {{ include "clario360.namespace" . }}
   labels:
     {{- include "clario360.componentLabels" (dict "root" . "component" "acta-service") | nindent 4 }}
-  {{- with .Values.actaService.service.annotations }}
+  {{- with ((.Values.actaService).service).annotations }}
   annotations:
     {{- toYaml . | nindent 4 }}
   {{- end }}
 spec:
-  type: {{ .Values.actaService.service.type | default "ClusterIP" }}
+  type: {{ dig "service" "type" "ClusterIP" .Values.actaService }}
   ports:
     - name: http
       port: 8086

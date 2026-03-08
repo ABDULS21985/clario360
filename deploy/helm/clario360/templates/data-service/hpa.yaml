@@ -1,4 +1,4 @@
-{{- if and .Values.dataService.enabled .Values.dataService.autoscaling.enabled }}
+{{- if and .Values.dataService.enabled ((.Values.dataService).autoscaling).enabled }}
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
@@ -11,24 +11,24 @@ spec:
     apiVersion: apps/v1
     kind: Deployment
     name: {{ include "clario360.componentName" (dict "root" . "component" "data-service") }}
-  minReplicas: {{ .Values.dataService.autoscaling.minReplicas | default 2 }}
-  maxReplicas: {{ .Values.dataService.autoscaling.maxReplicas | default 10 }}
+  minReplicas: {{ ((.Values.dataService).autoscaling).minReplicas | default 2 }}
+  maxReplicas: {{ ((.Values.dataService).autoscaling).maxReplicas | default 10 }}
   metrics:
-    {{- if .Values.dataService.autoscaling.targetCPUUtilizationPercentage }}
+    {{- if ((.Values.dataService).autoscaling).targetCPUUtilizationPercentage }}
     - type: Resource
       resource:
         name: cpu
         target:
           type: Utilization
-          averageUtilization: {{ .Values.dataService.autoscaling.targetCPUUtilizationPercentage }}
+          averageUtilization: {{ ((.Values.dataService).autoscaling).targetCPUUtilizationPercentage }}
     {{- end }}
-    {{- if .Values.dataService.autoscaling.targetMemoryUtilizationPercentage }}
+    {{- if ((.Values.dataService).autoscaling).targetMemoryUtilizationPercentage }}
     - type: Resource
       resource:
         name: memory
         target:
           type: Utilization
-          averageUtilization: {{ .Values.dataService.autoscaling.targetMemoryUtilizationPercentage }}
+          averageUtilization: {{ ((.Values.dataService).autoscaling).targetMemoryUtilizationPercentage }}
     {{- end }}
   behavior:
     scaleDown:
