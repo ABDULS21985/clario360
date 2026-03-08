@@ -21,6 +21,23 @@ export const API_ENDPOINTS = {
   BFF_SESSION: '/api/auth/session',
   BFF_REFRESH: '/api/auth/refresh',
 
+  // Onboarding
+  ONBOARDING_REGISTER: '/api/v1/onboarding/register',
+  ONBOARDING_VERIFY_EMAIL: '/api/v1/onboarding/verify-email',
+  ONBOARDING_RESEND_OTP: '/api/v1/onboarding/resend-otp',
+  ONBOARDING_PROGRESS: '/api/v1/onboarding/progress',
+  ONBOARDING_ORGANIZATION: '/api/v1/onboarding/organization',
+  ONBOARDING_BRANDING: '/api/v1/onboarding/branding',
+  ONBOARDING_TEAM: '/api/v1/onboarding/team',
+  ONBOARDING_SUITES: '/api/v1/onboarding/suites',
+  ONBOARDING_COMPLETE: '/api/v1/onboarding/complete',
+  ONBOARDING_STATUS: '/api/v1/onboarding/status',
+  ONBOARDING_INVITATIONS_VALIDATE: '/api/v1/onboarding/invitations/validate',
+  ONBOARDING_INVITATIONS_ACCEPT: '/api/v1/onboarding/invitations/accept',
+
+  // Invitations
+  INVITATIONS: '/api/v1/invitations',
+
   // Cyber — Dashboard
   CYBER_DASHBOARD: '/api/v1/cyber/dashboard',
   CYBER_DASHBOARD_KPIS: '/api/v1/cyber/dashboard/kpis',
