@@ -39,18 +39,18 @@ Bind the Role to every enabled service account.
 }}
 
 {{- $enabledMap := dict
-  "api-gateway"          .Values.services.apiGateway.enabled
-  "iam-service"          .Values.services.iamService.enabled
-  "audit-service"        .Values.services.auditService.enabled
-  "workflow-engine"      .Values.services.workflowEngine.enabled
-  "notification-service" .Values.services.notificationService.enabled
-  "file-service"         .Values.services.fileService.enabled
-  "cyber-service"        .Values.services.cyberService.enabled
-  "data-service"         .Values.services.dataService.enabled
-  "acta-service"         .Values.services.actaService.enabled
-  "lex-service"          .Values.services.lexService.enabled
-  "visus-service"        .Values.services.visusService.enabled
-  "onboarding-service"   .Values.services.onboardingService.enabled
+  "api-gateway"          .Values.apiGateway.enabled
+  "iam-service"          .Values.iamService.enabled
+  "audit-service"        .Values.auditService.enabled
+  "workflow-engine"      .Values.workflowEngine.enabled
+  "notification-service" .Values.notificationService.enabled
+  "file-service"         .Values.fileService.enabled
+  "cyber-service"        .Values.cyberService.enabled
+  "data-service"         .Values.dataService.enabled
+  "acta-service"         .Values.actaService.enabled
+  "lex-service"          .Values.lexService.enabled
+  "visus-service"        .Values.visusService.enabled
+  "onboarding-service"   .Values.onboardingService.enabled
   "frontend"             .Values.frontend.enabled
 }}
 

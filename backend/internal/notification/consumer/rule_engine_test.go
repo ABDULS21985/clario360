@@ -115,6 +115,42 @@ func TestRuleEngine_WorkflowTaskCreated_MixedRecipients(t *testing.T) {
 	}
 }
 
+func TestRuleEngine_PipelineFailed_UsesComputedRecipients(t *testing.T) {
+	re := NewRuleEngine()
+	event := makeTestEvent("com.clario360.data.pipeline.run.failed", "tenant-1", map[string]interface{}{
+		"pipeline_id": "pipe-1",
+	})
+
+	matches := re.Match(event)
+	if len(matches) != 1 {
+		t.Fatalf("expected 1 match, got %d", len(matches))
+	}
+	if matches[0].Rule.RecipientMode != RecipientComputed {
+		t.Fatalf("expected computed recipient mode, got %s", matches[0].Rule.RecipientMode)
+	}
+	if matches[0].Rule.ComputedRecipient != "pipeline_owner_from_event" {
+		t.Fatalf("expected pipeline owner computation, got %s", matches[0].Rule.ComputedRecipient)
+	}
+}
+
+func TestRuleEngine_MeetingScheduled_UsesCommitteeComputation(t *testing.T) {
+	re := NewRuleEngine()
+	event := makeTestEvent("com.clario360.acta.meeting.scheduled", "tenant-1", map[string]interface{}{
+		"committee_id": "committee-1",
+	})
+
+	matches := re.Match(event)
+	if len(matches) != 1 {
+		t.Fatalf("expected 1 match, got %d", len(matches))
+	}
+	if matches[0].Rule.RecipientMode != RecipientComputed {
+		t.Fatalf("expected computed recipient mode, got %s", matches[0].Rule.RecipientMode)
+	}
+	if matches[0].Rule.ComputedRecipient != "committee_members_from_event" {
+		t.Fatalf("expected committee members computation, got %s", matches[0].Rule.ComputedRecipient)
+	}
+}
+
 func TestRuleEngine_SystemMaintenance_Broadcast(t *testing.T) {
 	re := NewRuleEngine()
 	event := makeTestEvent("com.clario360.platform.system.maintenance", "tenant-1", map[string]interface{}{

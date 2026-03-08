@@ -45,9 +45,9 @@ import (
 	bootstrap "github.com/clario360/platform/internal/observability/bootstrap"
 	"github.com/clario360/platform/internal/observability/tracing"
 	"github.com/clario360/platform/internal/suiteapi"
+	workflowrepo "github.com/clario360/platform/internal/workflow/repository"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
-	workflowrepo "github.com/clario360/platform/internal/workflow/repository"
 )
 
 func main() {

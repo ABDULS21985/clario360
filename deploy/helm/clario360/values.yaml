@@ -369,477 +369,518 @@ migration:
   activeDeadlineSeconds: 600
 
 # =============================================================================
-# Service Configurations (nested under "services" for template helpers)
+# Secrets (used by secrets.yaml — override with existingSecret or provide values)
 # =============================================================================
-services:
-  # -------------------------------------------------------------------------
-  # API Gateway
-  # -------------------------------------------------------------------------
-  apiGateway:
-    enabled: true
-    replicas: 1
-    image:
-      repository: clario360/api-gateway
-      tag: "1.0.0"
-      pullPolicy: IfNotPresent
-    port: 8080
-    metricsPort: 9090
-    logLevel: debug
-    resources:
-      requests:
-        cpu: 100m
-        memory: 128Mi
-      limits:
-        cpu: 500m
-        memory: 512Mi
-    hpa:
-      enabled: false
-      minReplicas: 1
-      maxReplicas: 5
-      targetCPU: 70
-      targetMemory: 80
-    pdb:
-      enabled: false
-      minAvailable: 1
-    nodeSelector: {}
-    tolerations: []
-    env: []
-    corsAllowedOrigins: "http://localhost:3000"
-    maxRequestBodyMb: "10"
-    proxyTimeoutSec: "30"
-    readTimeoutSec: "30"
-    writeTimeoutSec: "60"
-    rateLimit:
-      enabled: "true"
-      defaultRpm: "600"
-      burstSize: "200"
-    circuitBreaker:
-      maxRequests: "5"
-      intervalSec: "60"
-      timeoutSec: "30"
-      failureRatio: "0.6"
+secrets:
+  database:
+    existingSecret: ""
+    user: clario360
+    password: ""   # REQUIRED — set via --set or external secret
+    iamDb: iam_db
+    platformDb: platform_db
+    cyberDb: cyber_db
+    dataDb: data_db
+    actaDb: acta_db
+    lexDb: lex_db
+    visusDb: visus_db
+  redis:
+    existingSecret: ""
+    password: ""   # REQUIRED
+  kafka:
+    existingSecret: ""
+    saslUsername: ""
+    saslPassword: ""
+  jwt:
+    existingSecret: ""
+    rsaPrivateKeyPem: ""   # REQUIRED
+    rsaPublicKeyPem: ""    # REQUIRED
+  encryption:
+    existingSecret: ""
+    key: ""   # REQUIRED — 32-byte base64 AES-256 key
+  minio:
+    existingSecret: ""
+    accessKey: ""   # REQUIRED
+    secretKey: ""   # REQUIRED
+  smtp:
+    existingSecret: ""
+    username: ""
+    password: ""
+  notification:
+    existingSecret: ""
+    webhookHmacSecret: ""
+    sendgridApiKey: ""
 
-  # -------------------------------------------------------------------------
-  # IAM Service
-  # -------------------------------------------------------------------------
-  iamService:
-    enabled: true
-    replicas: 1
-    image:
-      repository: clario360/iam-service
-      tag: "1.0.0"
-      pullPolicy: IfNotPresent
-    port: 8081
-    metricsPort: 9091
-    logLevel: debug
-    resources:
-      requests:
-        cpu: 100m
-        memory: 128Mi
-      limits:
-        cpu: 500m
-        memory: 512Mi
-    hpa:
-      enabled: false
-      minReplicas: 1
-      maxReplicas: 5
-      targetCPU: 70
-      targetMemory: 80
-    pdb:
-      enabled: false
-      minAvailable: 1
-    nodeSelector: {}
-    tolerations: []
-    env: []
-    bcryptCost: "12"
-    jwtAccessTokenTtl: "15m"
-    jwtRefreshTokenTtl: "168h"
-    jwtIssuer: "clario360"
+# =============================================================================
+# Service Configurations
+# =============================================================================
+# -------------------------------------------------------------------------
+# API Gateway
+# -------------------------------------------------------------------------
+apiGateway:
+  enabled: true
+  replicas: 1
+  image:
+    repository: clario360/api-gateway
+    tag: "1.0.0"
+    pullPolicy: IfNotPresent
+  port: 8080
+  metricsPort: 9090
+  logLevel: debug
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  hpa:
+    enabled: false
+    minReplicas: 1
+    maxReplicas: 5
+    targetCPU: 70
+    targetMemory: 80
+  pdb:
+    enabled: false
+    minAvailable: 1
+  nodeSelector: {}
+  tolerations: []
+  env: []
+  corsAllowedOrigins: "http://localhost:3000"
+  maxRequestBodyMb: "10"
+  proxyTimeoutSec: "30"
+  readTimeoutSec: "30"
+  writeTimeoutSec: "60"
+  rateLimit:
+    enabled: "true"
+    defaultRpm: "600"
+    burstSize: "200"
+  circuitBreaker:
+    maxRequests: "5"
+    intervalSec: "60"
+    timeoutSec: "30"
+    failureRatio: "0.6"
 
-  # -------------------------------------------------------------------------
-  # Audit Service
-  # -------------------------------------------------------------------------
-  auditService:
-    enabled: true
-    replicas: 1
-    image:
-      repository: clario360/audit-service
-      tag: "1.0.0"
-      pullPolicy: IfNotPresent
-    port: 8084
-    metricsPort: 9090
-    logLevel: debug
-    resources:
-      requests:
-        cpu: 100m
-        memory: 128Mi
-      limits:
-        cpu: 500m
-        memory: 512Mi
-    hpa:
-      enabled: false
-      minReplicas: 1
-      maxReplicas: 5
-      targetCPU: 70
-      targetMemory: 80
-    pdb:
-      enabled: false
-      minAvailable: 1
-    nodeSelector: {}
-    tolerations: []
-    env: []
-    batchSize: "500"
-    batchWindowMs: "500"
-    exportAsyncThreshold: "100000"
-    minioBucket: "audit-exports"
-    rateLimitPerMinute: "100"
+# -------------------------------------------------------------------------
+# IAM Service
+# -------------------------------------------------------------------------
+iamService:
+  enabled: true
+  replicas: 1
+  image:
+    repository: clario360/iam-service
+    tag: "1.0.0"
+    pullPolicy: IfNotPresent
+  port: 8081
+  metricsPort: 9091
+  logLevel: debug
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  hpa:
+    enabled: false
+    minReplicas: 1
+    maxReplicas: 5
+    targetCPU: 70
+    targetMemory: 80
+  pdb:
+    enabled: false
+    minAvailable: 1
+  nodeSelector: {}
+  tolerations: []
+  env: []
+  bcryptCost: "12"
+  jwtAccessTokenTtl: "15m"
+  jwtRefreshTokenTtl: "168h"
+  jwtIssuer: "clario360"
 
-  # -------------------------------------------------------------------------
-  # Workflow Engine
-  # -------------------------------------------------------------------------
-  workflowEngine:
-    enabled: true
-    replicas: 1
-    image:
-      repository: clario360/workflow-engine
-      tag: "1.0.0"
-      pullPolicy: IfNotPresent
-    port: 8085
-    metricsPort: 9090
-    logLevel: debug
-    resources:
-      requests:
-        cpu: 100m
-        memory: 128Mi
-      limits:
-        cpu: 500m
-        memory: 512Mi
-    hpa:
-      enabled: false
-      minReplicas: 1
-      maxReplicas: 3
-      targetCPU: 70
-      targetMemory: 80
-    pdb:
-      enabled: false
-      minAvailable: 1
-    nodeSelector: {}
-    tolerations: []
-    env: []
-    serviceTaskTimeoutSec: "60"
-    serviceTaskMaxRetries: "3"
-    timerPollIntervalSec: "5"
-    slaCheckIntervalSec: "60"
+# -------------------------------------------------------------------------
+# Audit Service
+# -------------------------------------------------------------------------
+auditService:
+  enabled: true
+  replicas: 1
+  image:
+    repository: clario360/audit-service
+    tag: "1.0.0"
+    pullPolicy: IfNotPresent
+  port: 8084
+  metricsPort: 9090
+  logLevel: debug
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  hpa:
+    enabled: false
+    minReplicas: 1
+    maxReplicas: 5
+    targetCPU: 70
+    targetMemory: 80
+  pdb:
+    enabled: false
+    minAvailable: 1
+  nodeSelector: {}
+  tolerations: []
+  env: []
+  batchSize: "500"
+  batchWindowMs: "500"
+  exportAsyncThreshold: "100000"
+  minioBucket: "audit-exports"
+  rateLimitPerMinute: "100"
 
-  # -------------------------------------------------------------------------
-  # Notification Service
-  # -------------------------------------------------------------------------
-  notificationService:
-    enabled: true
-    replicas: 1
-    image:
-      repository: clario360/notification-service
-      tag: "1.0.0"
-      pullPolicy: IfNotPresent
-    port: 8089
-    metricsPort: 9090
-    logLevel: debug
-    resources:
-      requests:
-        cpu: 100m
-        memory: 128Mi
-      limits:
-        cpu: 500m
-        memory: 512Mi
-    hpa:
-      enabled: false
-      minReplicas: 1
-      maxReplicas: 5
-      targetCPU: 70
-      targetMemory: 80
-    pdb:
-      enabled: false
-      minAvailable: 1
-    nodeSelector: {}
-    tolerations: []
-    env: []
-    wsMaxConnectionsPerUser: "5"
-    wsPingIntervalSec: "30"
-    digestEnabled: "true"
-    digestDailyUtcHour: "8"
-    rateLimitPerMinute: "120"
-    emailProvider: "smtp"
+# -------------------------------------------------------------------------
+# Workflow Engine
+# -------------------------------------------------------------------------
+workflowEngine:
+  enabled: true
+  replicas: 1
+  image:
+    repository: clario360/workflow-engine
+    tag: "1.0.0"
+    pullPolicy: IfNotPresent
+  port: 8085
+  metricsPort: 9090
+  logLevel: debug
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  hpa:
+    enabled: false
+    minReplicas: 1
+    maxReplicas: 3
+    targetCPU: 70
+    targetMemory: 80
+  pdb:
+    enabled: false
+    minAvailable: 1
+  nodeSelector: {}
+  tolerations: []
+  env: []
+  serviceTaskTimeoutSec: "60"
+  serviceTaskMaxRetries: "3"
+  timerPollIntervalSec: "5"
+  slaCheckIntervalSec: "60"
 
-  # -------------------------------------------------------------------------
-  # File Service
-  # -------------------------------------------------------------------------
-  fileService:
-    enabled: true
-    replicas: 1
-    image:
-      repository: clario360/file-service
-      tag: "1.0.0"
-      pullPolicy: IfNotPresent
-    port: 8092
-    metricsPort: 9092
-    logLevel: debug
-    resources:
-      requests:
-        cpu: 100m
-        memory: 128Mi
-      limits:
-        cpu: 500m
-        memory: 512Mi
-    hpa:
-      enabled: false
-      minReplicas: 1
-      maxReplicas: 3
-      targetCPU: 70
-      targetMemory: 80
-    pdb:
-      enabled: false
-      minAvailable: 1
-    nodeSelector: {}
-    tolerations: []
-    env: []
-    minioRegion: "us-east-1"
-    minioBucketPrefix: "clario360"
-    clamavAddress: "clamd:3310"
-    clamavTimeoutSec: "30"
-    maxUploadSizeMb: "100"
-    quarantineBucket: "clario360-quarantine"
-    encryptionKeyId: "kek-v1"
-    presignedUrlExpiryMin: "15"
-    tempExpiryDays: "7"
+# -------------------------------------------------------------------------
+# Notification Service
+# -------------------------------------------------------------------------
+notificationService:
+  enabled: true
+  replicas: 1
+  image:
+    repository: clario360/notification-service
+    tag: "1.0.0"
+    pullPolicy: IfNotPresent
+  port: 8089
+  metricsPort: 9090
+  logLevel: debug
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  hpa:
+    enabled: false
+    minReplicas: 1
+    maxReplicas: 5
+    targetCPU: 70
+    targetMemory: 80
+  pdb:
+    enabled: false
+    minAvailable: 1
+  nodeSelector: {}
+  tolerations: []
+  env: []
+  wsMaxConnectionsPerUser: "5"
+  wsPingIntervalSec: "30"
+  digestEnabled: "true"
+  digestDailyUtcHour: "8"
+  rateLimitPerMinute: "120"
+  emailProvider: "smtp"
 
-  # -------------------------------------------------------------------------
-  # Cyber Service
-  # -------------------------------------------------------------------------
-  cyberService:
-    enabled: true
-    replicas: 1
-    image:
-      repository: clario360/cyber-service
-      tag: "1.0.0"
-      pullPolicy: IfNotPresent
-    port: 8090
-    metricsPort: 9090
-    logLevel: debug
-    resources:
-      requests:
-        cpu: 200m
-        memory: 256Mi
-      limits:
-        cpu: "1"
-        memory: 1Gi
-    hpa:
-      enabled: false
-      minReplicas: 1
-      maxReplicas: 5
-      targetCPU: 70
-      targetMemory: 80
-    pdb:
-      enabled: false
-      minAvailable: 1
-    nodeSelector: {}
-    tolerations: []
-    env: []
-    dbMinConns: "5"
-    dbMaxConns: "20"
-    scanNetworkWorkers: "100"
-    scanNetworkTimeoutSec: "2"
-    scanNetworkMaxIps: "65536"
-    enrichmentCveEnabled: "true"
-    detectionRuleRefreshSec: "60"
+# -------------------------------------------------------------------------
+# File Service
+# -------------------------------------------------------------------------
+fileService:
+  enabled: true
+  replicas: 1
+  image:
+    repository: clario360/file-service
+    tag: "1.0.0"
+    pullPolicy: IfNotPresent
+  port: 8092
+  metricsPort: 9092
+  logLevel: debug
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  hpa:
+    enabled: false
+    minReplicas: 1
+    maxReplicas: 3
+    targetCPU: 70
+    targetMemory: 80
+  pdb:
+    enabled: false
+    minAvailable: 1
+  nodeSelector: {}
+  tolerations: []
+  env: []
+  minioRegion: "us-east-1"
+  minioBucketPrefix: "clario360"
+  clamavAddress: "clamd:3310"
+  clamavTimeoutSec: "30"
+  maxUploadSizeMb: "100"
+  quarantineBucket: "clario360-quarantine"
+  encryptionKeyId: "kek-v1"
+  presignedUrlExpiryMin: "15"
+  tempExpiryDays: "7"
 
-  # -------------------------------------------------------------------------
-  # Data Service
-  # -------------------------------------------------------------------------
-  dataService:
-    enabled: true
-    replicas: 1
-    image:
-      repository: clario360/data-service
-      tag: "1.0.0"
-      pullPolicy: IfNotPresent
-    port: 8091
-    metricsPort: 9090
-    logLevel: debug
-    resources:
-      requests:
-        cpu: 200m
-        memory: 256Mi
-      limits:
-        cpu: "1"
-        memory: 1Gi
-    hpa:
-      enabled: false
-      minReplicas: 1
-      maxReplicas: 5
-      targetCPU: 70
-      targetMemory: 80
-    pdb:
-      enabled: false
-      minAvailable: 1
-    nodeSelector: {}
-    tolerations: []
-    env: []
-    dbMinConns: "5"
-    dbMaxConns: "20"
-    connectorMaxPoolSize: "3"
-    discoveryPiiEnabled: "true"
-    pipelineMaxConcurrent: "5"
+# -------------------------------------------------------------------------
+# Cyber Service
+# -------------------------------------------------------------------------
+cyberService:
+  enabled: true
+  replicas: 1
+  image:
+    repository: clario360/cyber-service
+    tag: "1.0.0"
+    pullPolicy: IfNotPresent
+  port: 8090
+  metricsPort: 9090
+  logLevel: debug
+  resources:
+    requests:
+      cpu: 200m
+      memory: 256Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+  hpa:
+    enabled: false
+    minReplicas: 1
+    maxReplicas: 5
+    targetCPU: 70
+    targetMemory: 80
+  pdb:
+    enabled: false
+    minAvailable: 1
+  nodeSelector: {}
+  tolerations: []
+  env: []
+  dbMinConns: "5"
+  dbMaxConns: "20"
+  scanNetworkWorkers: "100"
+  scanNetworkTimeoutSec: "2"
+  scanNetworkMaxIps: "65536"
+  enrichmentCveEnabled: "true"
+  detectionRuleRefreshSec: "60"
 
-  # -------------------------------------------------------------------------
-  # Acta Service (Board Governance)
-  # -------------------------------------------------------------------------
-  actaService:
-    enabled: true
-    replicas: 1
-    image:
-      repository: clario360/acta-service
-      tag: "1.0.0"
-      pullPolicy: IfNotPresent
-    port: 8086
-    metricsPort: 9086
-    logLevel: debug
-    resources:
-      requests:
-        cpu: 100m
-        memory: 128Mi
-      limits:
-        cpu: 500m
-        memory: 512Mi
-    hpa:
-      enabled: false
-      minReplicas: 1
-      maxReplicas: 3
-      targetCPU: 70
-      targetMemory: 80
-    pdb:
-      enabled: false
-      minAvailable: 1
-    nodeSelector: {}
-    tolerations: []
-    env: []
-    kafkaGroupId: "acta-service"
-    kafkaTopic: "enterprise.acta.events"
-    rateLimitPerMinute: "300"
-    dashboardCacheTtl: "60s"
-    overdueCheckInterval: "1h"
-    complianceCheckInterval: "24h"
-    complianceCheckHourUtc: "6"
+# -------------------------------------------------------------------------
+# Data Service
+# -------------------------------------------------------------------------
+dataService:
+  enabled: true
+  replicas: 1
+  image:
+    repository: clario360/data-service
+    tag: "1.0.0"
+    pullPolicy: IfNotPresent
+  port: 8091
+  metricsPort: 9090
+  logLevel: debug
+  resources:
+    requests:
+      cpu: 200m
+      memory: 256Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+  hpa:
+    enabled: false
+    minReplicas: 1
+    maxReplicas: 5
+    targetCPU: 70
+    targetMemory: 80
+  pdb:
+    enabled: false
+    minAvailable: 1
+  nodeSelector: {}
+  tolerations: []
+  env: []
+  dbMinConns: "5"
+  dbMaxConns: "20"
+  connectorMaxPoolSize: "3"
+  discoveryPiiEnabled: "true"
+  pipelineMaxConcurrent: "5"
 
-  # -------------------------------------------------------------------------
-  # Lex Service (Legal Operations)
-  # -------------------------------------------------------------------------
-  lexService:
-    enabled: true
-    replicas: 1
-    image:
-      repository: clario360/lex-service
-      tag: "1.0.0"
-      pullPolicy: IfNotPresent
-    port: 8087
-    metricsPort: 9087
-    logLevel: debug
-    resources:
-      requests:
-        cpu: 100m
-        memory: 128Mi
-      limits:
-        cpu: 500m
-        memory: 512Mi
-    hpa:
-      enabled: false
-      minReplicas: 1
-      maxReplicas: 3
-      targetCPU: 70
-      targetMemory: 80
-    pdb:
-      enabled: false
-      minAvailable: 1
-    nodeSelector: {}
-    tolerations: []
-    env: []
-    kafkaGroupId: "lex-service"
-    kafkaTopic: "enterprise.lex.events"
-    rateLimitPerMinute: "300"
-    expiryMonitorInterval: "1h"
-    complianceMonitorInterval: "6h"
-    orgJurisdiction: "Saudi Arabia"
+# -------------------------------------------------------------------------
+# Acta Service (Board Governance)
+# -------------------------------------------------------------------------
+actaService:
+  enabled: true
+  replicas: 1
+  image:
+    repository: clario360/acta-service
+    tag: "1.0.0"
+    pullPolicy: IfNotPresent
+  port: 8086
+  metricsPort: 9086
+  logLevel: debug
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  hpa:
+    enabled: false
+    minReplicas: 1
+    maxReplicas: 3
+    targetCPU: 70
+    targetMemory: 80
+  pdb:
+    enabled: false
+    minAvailable: 1
+  nodeSelector: {}
+  tolerations: []
+  env: []
+  kafkaGroupId: "acta-service"
+  kafkaTopic: "enterprise.acta.events"
+  rateLimitPerMinute: "300"
+  dashboardCacheTtl: "60s"
+  overdueCheckInterval: "1h"
+  complianceCheckInterval: "24h"
+  complianceCheckHourUtc: "6"
 
-  # -------------------------------------------------------------------------
-  # Visus Service (Executive Intelligence)
-  # -------------------------------------------------------------------------
-  visusService:
-    enabled: true
-    replicas: 1
-    image:
-      repository: clario360/visus-service
-      tag: "1.0.0"
-      pullPolicy: IfNotPresent
-    port: 8088
-    metricsPort: 9088
-    logLevel: debug
-    resources:
-      requests:
-        cpu: 100m
-        memory: 128Mi
-      limits:
-        cpu: 500m
-        memory: 512Mi
-    hpa:
-      enabled: false
-      minReplicas: 1
-      maxReplicas: 3
-      targetCPU: 70
-      targetMemory: 80
-    pdb:
-      enabled: false
-      minAvailable: 1
-    nodeSelector: {}
-    tolerations: []
-    env: []
-    kafkaGroupId: "visus-service"
-    kafkaTopic: "enterprise.visus.events"
-    rateLimitPerMinute: "300"
-    serviceTokenTtl: "10m"
-    circuitThreshold: "5"
-    schedulerInterval: "60s"
+# -------------------------------------------------------------------------
+# Lex Service (Legal Operations)
+# -------------------------------------------------------------------------
+lexService:
+  enabled: true
+  replicas: 1
+  image:
+    repository: clario360/lex-service
+    tag: "1.0.0"
+    pullPolicy: IfNotPresent
+  port: 8087
+  metricsPort: 9087
+  logLevel: debug
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  hpa:
+    enabled: false
+    minReplicas: 1
+    maxReplicas: 3
+    targetCPU: 70
+    targetMemory: 80
+  pdb:
+    enabled: false
+    minAvailable: 1
+  nodeSelector: {}
+  tolerations: []
+  env: []
+  kafkaGroupId: "lex-service"
+  kafkaTopic: "enterprise.lex.events"
+  rateLimitPerMinute: "300"
+  expiryMonitorInterval: "1h"
+  complianceMonitorInterval: "6h"
+  orgJurisdiction: "Saudi Arabia"
 
-  # -------------------------------------------------------------------------
-  # Onboarding Service
-  # -------------------------------------------------------------------------
-  onboardingService:
-    enabled: true
-    replicas: 1
-    image:
-      repository: clario360/onboarding-service
-      tag: "1.0.0"
-      pullPolicy: IfNotPresent
-    port: 8093
-    metricsPort: 9093
-    logLevel: debug
-    resources:
-      requests:
-        cpu: 100m
-        memory: 128Mi
-      limits:
-        cpu: 500m
-        memory: 512Mi
-    hpa:
-      enabled: false
-      minReplicas: 1
-      maxReplicas: 3
-      targetCPU: 70
-      targetMemory: 80
-    pdb:
-      enabled: false
-      minAvailable: 1
-    nodeSelector: {}
-    tolerations: []
-    env: []
+# -------------------------------------------------------------------------
+# Visus Service (Executive Intelligence)
+# -------------------------------------------------------------------------
+visusService:
+  enabled: true
+  replicas: 1
+  image:
+    repository: clario360/visus-service
+    tag: "1.0.0"
+    pullPolicy: IfNotPresent
+  port: 8088
+  metricsPort: 9088
+  logLevel: debug
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  hpa:
+    enabled: false
+    minReplicas: 1
+    maxReplicas: 3
+    targetCPU: 70
+    targetMemory: 80
+  pdb:
+    enabled: false
+    minAvailable: 1
+  nodeSelector: {}
+  tolerations: []
+  env: []
+  kafkaGroupId: "visus-service"
+  kafkaTopic: "enterprise.visus.events"
+  rateLimitPerMinute: "300"
+  serviceTokenTtl: "10m"
+  circuitThreshold: "5"
+  schedulerInterval: "60s"
+
+# -------------------------------------------------------------------------
+# Onboarding Service
+# -------------------------------------------------------------------------
+onboardingService:
+  enabled: true
+  replicas: 1
+  image:
+    repository: clario360/onboarding-service
+    tag: "1.0.0"
+    pullPolicy: IfNotPresent
+  port: 8093
+  metricsPort: 9093
+  logLevel: debug
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  hpa:
+    enabled: false
+    minReplicas: 1
+    maxReplicas: 3
+    targetCPU: 70
+    targetMemory: 80
+  pdb:
+    enabled: false
+    minAvailable: 1
+  nodeSelector: {}
+  tolerations: []
+  env: []
 
 # ---------------------------------------------------------------------------
 # Frontend (Next.js)

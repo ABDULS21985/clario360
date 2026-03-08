@@ -37,7 +37,7 @@ COPY --from=builder /app/service /service
 # Copy migrations for the migrator service
 COPY --from=builder /build/migrations /migrations
 
-USER nonroot:nonroot
+USER 65534:65534
 
 EXPOSE 8080
 

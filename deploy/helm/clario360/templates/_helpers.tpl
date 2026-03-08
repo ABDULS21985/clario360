@@ -101,7 +101,7 @@ Image helpers
 
 {{/*
 Return the image tag for a component. Falls back to Chart.AppVersion.
-Usage: {{ include "clario360.imageTag" (dict "imageConfig" .Values.services.apiGateway.image "root" .) }}
+Usage: {{ include "clario360.imageTag" (dict "imageConfig" .Values.apiGateway.image "root" .) }}
 */}}
 {{- define "clario360.imageTag" -}}
 {{- if .imageConfig }}
@@ -113,7 +113,7 @@ Usage: {{ include "clario360.imageTag" (dict "imageConfig" .Values.services.apiG
 
 {{/*
 Build a fully-qualified image reference: registry/repository:tag
-Usage: {{ include "clario360.image" (dict "imageConfig" .Values.services.apiGateway.image "root" . "defaultRepo" "clario360/api-gateway") }}
+Usage: {{ include "clario360.image" (dict "imageConfig" .Values.apiGateway.image "root" . "defaultRepo" "clario360/api-gateway") }}
 */}}
 {{- define "clario360.image" -}}
 {{- $registry := "" }}
@@ -157,7 +157,7 @@ Return the service account name for a component.
 If the component has serviceAccount.name set, use that.
 If serviceAccount.create is false and no name, use "default".
 Otherwise use the component name.
-Usage: {{ include "clario360.serviceAccountName" (dict "root" . "component" "api-gateway" "svcConfig" .Values.services.apiGateway) }}
+Usage: {{ include "clario360.serviceAccountName" (dict "root" . "component" "api-gateway" "svcConfig" .Values.apiGateway) }}
 */}}
 {{- define "clario360.serviceAccountName" -}}
 {{- if .svcConfig }}

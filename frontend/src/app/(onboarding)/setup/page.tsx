@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -129,13 +129,6 @@ const STEPS = [
 ] as const;
 
 type ProvisioningStatus = 'pending' | 'provisioning' | 'completed' | 'failed';
-
-interface ProvisioningStatusResponse {
-  status: ProvisioningStatus;
-  progress_pct: number;
-  current_step?: { step_name: string };
-  error?: string;
-}
 
 // ──────────────────────────────────────────────────────────────
 // Step 1: Organization
@@ -602,6 +595,12 @@ function StepSuites({
 // Step 5: Ready (Provisioning progress)
 // ──────────────────────────────────────────────────────────────
 
+// WizardProgress response from ONBOARDING_PROGRESS endpoint
+interface WizardProgressResponse {
+  provisioning_status: ProvisioningStatus;
+  provisioning_error?: string;
+}
+
 function StepReady({ onBack }: { onBack: () => void }) {
   const router = useRouter();
   const [status, setStatus] = useState<ProvisioningStatus>('pending');
@@ -609,16 +608,6 @@ function StepReady({ onBack }: { onBack: () => void }) {
   const [currentStep, setCurrentStep] = useState<string>('Initializing…');
   const [error, setError] = useState<string | null>(null);
   const [isCompleting, setIsCompleting] = useState(false);
-
-  const pollStatus = useCallback(async () => {
-    try {
-      const data = await apiGet<ProvisioningStatusResponse>(API_ENDPOINTS.ONBOARDING_PROGRESS);
-      setStatus(data.provisioning_status as ProvisioningStatus ?? 'pending');
-      // ProvisioningStatus is nested in the progress; adapt based on actual API shape
-    } catch {
-      // ignore poll errors
-    }
-  }, []);
 
   useEffect(() => {
     // Complete wizard first
@@ -640,26 +629,23 @@ function StepReady({ onBack }: { onBack: () => void }) {
 
     const interval = setInterval(async () => {
       try {
-        const data = await apiGet<{
-          provisioning_status: ProvisioningStatus;
-          progress_pct: number;
-          current_step?: { step_name: string };
-          provisioning_error?: string;
-        }>(API_ENDPOINTS.ONBOARDING_PROGRESS);
-        const pStatus = data.provisioning_status;
+        const data = await apiGet<WizardProgressResponse>(API_ENDPOINTS.ONBOARDING_PROGRESS);
+        const pStatus = data.provisioning_status ?? 'pending';
         setStatus(pStatus);
-        setProgressPct(data.progress_pct ?? 0);
-        if (data.current_step?.step_name) {
-          setCurrentStep(data.current_step.step_name);
-        }
         if (data.provisioning_error) {
           setError(data.provisioning_error);
         }
-        if (pStatus === 'completed' || pStatus === 'failed') {
+        if (pStatus === 'completed') {
+          setProgressPct(100);
           clearInterval(interval);
+        } else if (pStatus === 'failed') {
+          clearInterval(interval);
+        } else if (pStatus === 'provisioning') {
+          setProgressPct((prev) => Math.min(prev + 10, 90));
+          setCurrentStep('Provisioning services…');
         }
       } catch {
-        // ignore
+        // ignore transient poll errors
       }
     }, 2500);
 

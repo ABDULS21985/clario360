@@ -19,13 +19,13 @@ const defaultRollbackWindowHours = 72
 
 // RemediationExecutor orchestrates the dry-run → execute → verify → rollback lifecycle.
 type RemediationExecutor struct {
-	strategies  map[model.RemediationType]strategy.RemediationStrategy
-	auditTrail  *AuditTrail
-	remRepo     *repository.RemediationRepository
-	alertRepo   *repository.AlertRepository
-	vulnRepo    *repository.VulnerabilityRepository
-	producer    *events.Producer
-	logger      zerolog.Logger
+	strategies map[model.RemediationType]strategy.RemediationStrategy
+	auditTrail *AuditTrail
+	remRepo    *repository.RemediationRepository
+	alertRepo  *repository.AlertRepository
+	vulnRepo   *repository.VulnerabilityRepository
+	producer   *events.Producer
+	logger     zerolog.Logger
 }
 
 // NewRemediationExecutor creates a RemediationExecutor with all registered strategies.
@@ -376,8 +376,8 @@ func (e *RemediationExecutor) Rollback(ctx context.Context, action *model.Remedi
 	rollbackJSON, _ := json.Marshal(rollbackResult)
 	now := time.Now().UTC()
 	_ = e.remRepo.UpdateStatus(ctx, action.TenantID, action.ID, model.StatusRolledBack, map[string]interface{}{
-		"rollback_result":  rollbackJSON,
-		"rolled_back_at":   now,
+		"rollback_result": rollbackJSON,
+		"rolled_back_at":  now,
 	})
 	e.auditTrail.RecordTransition(ctx, action.TenantID, action.ID, "rollback_done", nil, "system",
 		model.StatusRollingBack, model.StatusRolledBack, map[string]interface{}{"duration_ms": durationMs})
@@ -492,13 +492,13 @@ func (e *RemediationExecutor) createRollbackFailureAlert(ctx context.Context, ac
 	}
 	now := time.Now().UTC()
 	alert := &model.Alert{
-		TenantID:        action.TenantID,
-		Title:           fmt.Sprintf("Remediation rollback failed: %s", action.Title),
-		Description:     "A governed remediation rollback failed and requires immediate manual intervention.",
-		Severity:        model.SeverityCritical,
-		Status:          model.AlertStatusNew,
-		Source:          "remediation",
-		AssetIDs:        append([]uuid.UUID(nil), action.AffectedAssetIDs...),
+		TenantID:    action.TenantID,
+		Title:       fmt.Sprintf("Remediation rollback failed: %s", action.Title),
+		Description: "A governed remediation rollback failed and requires immediate manual intervention.",
+		Severity:    model.SeverityCritical,
+		Status:      model.AlertStatusNew,
+		Source:      "remediation",
+		AssetIDs:    append([]uuid.UUID(nil), action.AffectedAssetIDs...),
 		Explanation: model.AlertExplanation{
 			Summary:            "Rollback failed",
 			Reason:             rollbackErr.Error(),

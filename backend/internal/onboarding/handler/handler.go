@@ -495,8 +495,36 @@ func (h *Handler) ResendInvitation(w http.ResponseWriter, r *http.Request) {
 // Admin: Provisioning
 // -------------------------------------------------------------------------
 
-// AdminProvision handles POST /api/v1/admin/tenants/{id}/provision
+// AdminProvision handles POST /api/v1/admin/tenants/provision
 func (h *Handler) AdminProvision(w http.ResponseWriter, r *http.Request) {
+	currentUser := iamauth.MustUserFromContext(r.Context())
+	if !iamauth.HasPermission(currentUser.Roles, iamauth.PermAdminAll) {
+		writeError(w, http.StatusForbidden, "super admin access required")
+		return
+	}
+
+	var req onboardingdto.ManualProvisionRequest
+	if err := parseBody(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	tenantID, err := uuid.Parse(req.TenantID)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid tenant ID")
+		return
+	}
+
+	h.startProvisioningAsync(tenantID, "manual admin provision")
+
+	writeJSON(w, http.StatusAccepted, map[string]string{
+		"message":   "Provisioning started.",
+		"tenant_id": tenantID.String(),
+	})
+}
+
+// AdminReprovision handles POST /api/v1/admin/tenants/{id}/reprovision
+func (h *Handler) AdminReprovision(w http.ResponseWriter, r *http.Request) {
 	currentUser := iamauth.MustUserFromContext(r.Context())
 	if !iamauth.HasPermission(currentUser.Roles, iamauth.PermAdminAll) {
 		writeError(w, http.StatusForbidden, "super admin access required")
@@ -510,14 +538,10 @@ func (h *Handler) AdminProvision(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	go func() {
-		if provErr := h.provisioner.Provision(r.Context(), tenantID); provErr != nil {
-			h.logger.Error().Err(provErr).Str("tenant_id", tenantID.String()).Msg("manual admin provision failed")
-		}
-	}()
+	h.startProvisioningAsync(tenantID, "admin reprovision")
 
 	writeJSON(w, http.StatusAccepted, map[string]string{
-		"message":   "Provisioning started.",
+		"message":   "Reprovisioning started.",
 		"tenant_id": tenantID.String(),
 	})
 }
@@ -672,4 +696,27 @@ func handleServiceError(w http.ResponseWriter, err error) {
 	default:
 		writeError(w, http.StatusInternalServerError, "internal server error")
 	}
+}
+
+func (h *Handler) startProvisioningAsync(tenantID uuid.UUID, reason string) {
+	if h.provisioner == nil {
+		h.logger.Error().
+			Str("tenant_id", tenantID.String()).
+			Str("reason", reason).
+			Msg("provisioner not configured")
+		return
+	}
+
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+		defer cancel()
+
+		if err := h.provisioner.Provision(ctx, tenantID); err != nil {
+			h.logger.Error().
+				Err(err).
+				Str("tenant_id", tenantID.String()).
+				Str("reason", reason).
+				Msg("async provisioning failed")
+		}
+	}()
 }

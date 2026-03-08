@@ -21,22 +21,22 @@ const (
 
 // NotificationRule defines the mapping from a domain event to a notification.
 type NotificationRule struct {
-	Topic         string
-	EventType     string
-	Condition     func(data map[string]interface{}) bool
-	NotifType     model.NotificationType
-	Category      string
-	Priority      string
-	PriorityFunc  func(data map[string]interface{}) string
-	Channels      []string
-	RecipientMode RecipientMode
-	Roles         []string
-	RoleField     string
-	DirectFields  []string
+	Topic             string
+	EventType         string
+	Condition         func(data map[string]interface{}) bool
+	NotifType         model.NotificationType
+	Category          string
+	Priority          string
+	PriorityFunc      func(data map[string]interface{}) string
+	Channels          []string
+	RecipientMode     RecipientMode
+	Roles             []string
+	RoleField         string
+	DirectFields      []string
 	ComputedRecipient string
-	TitleTemplate string
-	BodyTemplate  string
-	ActionURLTmpl string
+	TitleTemplate     string
+	BodyTemplate      string
+	ActionURLTmpl     string
 }
 
 // MatchedRule is a rule that matched an event.
@@ -101,31 +101,31 @@ func NewRuleEngine() *RuleEngine {
 		ActionURLTmpl: "/cyber/remediation/{{.id}}",
 	})
 	re.addRule(&NotificationRule{
-		Topic:         events.Topics.RemediationEvents,
-		EventType:     "com.clario360.cyber.remediation.executed",
-		NotifType:     model.NotifRemediationCompleted,
-		Category:      model.CategorySecurity,
-		Priority:      model.PriorityMedium,
-		Channels:      []string{"in_app"},
-		RecipientMode: RecipientComputed,
+		Topic:             events.Topics.RemediationEvents,
+		EventType:         "com.clario360.cyber.remediation.executed",
+		NotifType:         model.NotifRemediationCompleted,
+		Category:          model.CategorySecurity,
+		Priority:          model.PriorityMedium,
+		Channels:          []string{"in_app"},
+		RecipientMode:     RecipientComputed,
 		ComputedRecipient: "asset_owners_from_event",
-		TitleTemplate: "Remediation Completed",
-		BodyTemplate:  "Remediation {{.id}} completed successfully.",
-		ActionURLTmpl: "/cyber/remediation/{{.id}}",
+		TitleTemplate:     "Remediation Completed",
+		BodyTemplate:      "Remediation {{.id}} completed successfully.",
+		ActionURLTmpl:     "/cyber/remediation/{{.id}}",
 	})
 
 	re.addRule(&NotificationRule{
-		Topic:         events.Topics.PipelineEvents,
-		EventType:     "com.clario360.data.pipeline.run.failed",
-		NotifType:     model.NotifPipelineFailed,
-		Category:      model.CategoryData,
-		Priority:      model.PriorityHigh,
-		Channels:      []string{"email", "in_app"},
-		RecipientMode: RecipientComputed,
+		Topic:             events.Topics.PipelineEvents,
+		EventType:         "com.clario360.data.pipeline.run.failed",
+		NotifType:         model.NotifPipelineFailed,
+		Category:          model.CategoryData,
+		Priority:          model.PriorityHigh,
+		Channels:          []string{"email", "in_app"},
+		RecipientMode:     RecipientComputed,
 		ComputedRecipient: "pipeline_owner_from_event",
-		TitleTemplate: "Pipeline Failed: {{.pipeline_name}}",
-		BodyTemplate:  "Pipeline {{.pipeline_name}} failed. {{.error_message}}",
-		ActionURLTmpl: "/data/pipelines/{{.pipeline_id}}",
+		TitleTemplate:     "Pipeline Failed: {{.pipeline_name}}",
+		BodyTemplate:      "Pipeline {{.pipeline_name}} failed. {{.error_message}}",
+		ActionURLTmpl:     "/data/pipelines/{{.pipeline_id}}",
 	})
 	re.addRule(&NotificationRule{
 		Topic:         events.Topics.QualityEvents,
@@ -163,25 +163,25 @@ func NewRuleEngine() *RuleEngine {
 	})
 
 	re.addRule(&NotificationRule{
-		Topic:         events.Topics.ActaEvents,
-		EventType:     "com.clario360.acta.meeting.scheduled",
-		NotifType:     model.NotifMeetingScheduled,
-		Category:      model.CategoryGovernance,
-		Priority:      model.PriorityMedium,
-		Channels:      []string{"email", "in_app"},
-		RecipientMode: RecipientComputed,
+		Topic:             events.Topics.ActaEvents,
+		EventType:         "com.clario360.acta.meeting.scheduled",
+		NotifType:         model.NotifMeetingScheduled,
+		Category:          model.CategoryGovernance,
+		Priority:          model.PriorityMedium,
+		Channels:          []string{"email", "in_app"},
+		RecipientMode:     RecipientComputed,
 		ComputedRecipient: "committee_members_from_event",
-		TitleTemplate: "Meeting Scheduled: {{.title}}",
-		BodyTemplate:  "Meeting {{.title}} is scheduled for {{formatDate .scheduled_at}}.",
-		ActionURLTmpl: "/acta/meetings/{{.id}}",
+		TitleTemplate:     "Meeting Scheduled: {{.title}}",
+		BodyTemplate:      "Meeting {{.title}} is scheduled for {{formatDate .scheduled_at}}.",
+		ActionURLTmpl:     "/acta/meetings/{{.id}}",
 	})
 	re.addRule(&NotificationRule{
-		Topic:         events.Topics.ActaEvents,
-		EventType:     "com.clario360.acta.meeting.reminder",
-		NotifType:     model.NotifMeetingReminder,
-		Category:      model.CategoryGovernance,
-		Channels:      []string{"email", "in_app"},
-		RecipientMode: RecipientComputed,
+		Topic:             events.Topics.ActaEvents,
+		EventType:         "com.clario360.acta.meeting.reminder",
+		NotifType:         model.NotifMeetingReminder,
+		Category:          model.CategoryGovernance,
+		Channels:          []string{"email", "in_app"},
+		RecipientMode:     RecipientComputed,
 		ComputedRecipient: "meeting_attendees_from_event",
 		PriorityFunc: func(data map[string]interface{}) string {
 			if floatValue(data["hours_until"]) <= 1 {
@@ -220,17 +220,17 @@ func NewRuleEngine() *RuleEngine {
 		ActionURLTmpl: "/acta/action-items/{{.id}}",
 	})
 	re.addRule(&NotificationRule{
-		Topic:         events.Topics.ActaEvents,
-		EventType:     "com.clario360.acta.minutes.approved",
-		NotifType:     model.NotifMinutesApproved,
-		Category:      model.CategoryGovernance,
-		Priority:      model.PriorityMedium,
-		Channels:      []string{"email", "in_app"},
-		RecipientMode: RecipientComputed,
+		Topic:             events.Topics.ActaEvents,
+		EventType:         "com.clario360.acta.minutes.approved",
+		NotifType:         model.NotifMinutesApproved,
+		Category:          model.CategoryGovernance,
+		Priority:          model.PriorityMedium,
+		Channels:          []string{"email", "in_app"},
+		RecipientMode:     RecipientComputed,
 		ComputedRecipient: "committee_members_from_event",
-		TitleTemplate: "Minutes Approved",
-		BodyTemplate:  "Meeting minutes have been approved.",
-		ActionURLTmpl: "/acta/meetings/{{.meeting_id}}",
+		TitleTemplate:     "Minutes Approved",
+		BodyTemplate:      "Meeting minutes have been approved.",
+		ActionURLTmpl:     "/acta/meetings/{{.meeting_id}}",
 	})
 
 	re.addRule(&NotificationRule{

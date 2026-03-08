@@ -45,9 +45,9 @@ type Config struct {
 	DigestWeeklyDay    int // 1=Monday
 
 	// IAM service URL for role-based recipient resolution
-	IAMServiceURL string
-	DataServiceURL string
-	ActaServiceURL string
+	IAMServiceURL   string
+	DataServiceURL  string
+	ActaServiceURL  string
 	CyberServiceURL string
 
 	// Rate limiting
