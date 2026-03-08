@@ -28,7 +28,7 @@ backend/vendor/
 *.swo
 .tar.gz
 *~
-
+.cache/
 # OS
 .DS_Store
 Thumbs.db

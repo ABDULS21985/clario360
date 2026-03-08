@@ -34,6 +34,13 @@ PID_DIR="${REPO_ROOT}/.dev-pids"
 
 mkdir -p "${SECRETS_DIR}" "${BIN_DIR}" "${LOG_DIR}" "${PID_DIR}"
 
+write_base64_secret() {
+  local file="$1"
+  if [ ! -f "${file}" ]; then
+    openssl rand 32 | base64 | tr -d '\n' > "${file}"
+  fi
+}
+
 # ── Flags ─────────────────────────────────────────────────────────────────────
 OPT_NO_BUILD=false
 OPT_INFRA_ONLY=false
@@ -90,35 +97,91 @@ KAFKA_BROKERS=localhost:9094
 JWT_PRIVATE_KEY="${SECRETS_DIR}/jwt-private.pem"
 JWT_PUBLIC_KEY="${SECRETS_DIR}/jwt-public.pem"
 
-# Service port assignments (Makefile canonical values)
-declare -A SVC_HTTP_PORT=(
-  [api-gateway]=8080
-  [iam-service]=8081
-  [workflow-engine]=8083
-  [audit-service]=8084
-  [cyber-service]=8085
-  [data-service]=8086
-  [acta-service]=8087
-  [lex-service]=8088
-  [visus-service]=8089
-  [notification-service]=8090
-  [file-service]=8091
-)
+API_GATEWAY_HTTP_PORT=8080
+IAM_SERVICE_HTTP_PORT=8081
+WORKFLOW_ENGINE_HTTP_PORT=8083
+AUDIT_SERVICE_HTTP_PORT=8084
+CYBER_SERVICE_HTTP_PORT=8085
+DATA_SERVICE_HTTP_PORT=8086
+ACTA_SERVICE_HTTP_PORT=8087
+LEX_SERVICE_HTTP_PORT=8088
+VISUS_SERVICE_HTTP_PORT=8089
+NOTIFICATION_SERVICE_HTTP_PORT=8090
+FILE_SERVICE_HTTP_PORT=8091
 
-# Admin/metrics ports (HTTP port + 1000)
-declare -A SVC_ADMIN_PORT=(
-  [api-gateway]=9080
-  [iam-service]=9081
-  [workflow-engine]=9083
-  [audit-service]=9084
-  [cyber-service]=9085
-  [data-service]=9086
-  [acta-service]=9087
-  [lex-service]=9088
-  [visus-service]=9089
-  [notification-service]=9090
-  [file-service]=9091
-)
+API_GATEWAY_ADMIN_PORT=9080
+IAM_SERVICE_ADMIN_PORT=9081
+WORKFLOW_ENGINE_ADMIN_PORT=9083
+AUDIT_SERVICE_ADMIN_PORT=9084
+CYBER_SERVICE_ADMIN_PORT=9085
+DATA_SERVICE_ADMIN_PORT=9086
+ACTA_SERVICE_ADMIN_PORT=9087
+LEX_SERVICE_ADMIN_PORT=9088
+VISUS_SERVICE_ADMIN_PORT=9089
+NOTIFICATION_SERVICE_ADMIN_PORT=9090
+FILE_SERVICE_ADMIN_PORT=9091
+
+service_http_port() {
+  case "$1" in
+    api-gateway)          echo "${API_GATEWAY_HTTP_PORT}" ;;
+    iam-service)          echo "${IAM_SERVICE_HTTP_PORT}" ;;
+    workflow-engine)      echo "${WORKFLOW_ENGINE_HTTP_PORT}" ;;
+    audit-service)        echo "${AUDIT_SERVICE_HTTP_PORT}" ;;
+    cyber-service)        echo "${CYBER_SERVICE_HTTP_PORT}" ;;
+    data-service)         echo "${DATA_SERVICE_HTTP_PORT}" ;;
+    acta-service)         echo "${ACTA_SERVICE_HTTP_PORT}" ;;
+    lex-service)          echo "${LEX_SERVICE_HTTP_PORT}" ;;
+    visus-service)        echo "${VISUS_SERVICE_HTTP_PORT}" ;;
+    notification-service) echo "${NOTIFICATION_SERVICE_HTTP_PORT}" ;;
+    file-service)         echo "${FILE_SERVICE_HTTP_PORT}" ;;
+    *) return 1 ;;
+  esac
+}
+
+service_admin_port() {
+  case "$1" in
+    api-gateway)          echo "${API_GATEWAY_ADMIN_PORT}" ;;
+    iam-service)          echo "${IAM_SERVICE_ADMIN_PORT}" ;;
+    workflow-engine)      echo "${WORKFLOW_ENGINE_ADMIN_PORT}" ;;
+    audit-service)        echo "${AUDIT_SERVICE_ADMIN_PORT}" ;;
+    cyber-service)        echo "${CYBER_SERVICE_ADMIN_PORT}" ;;
+    data-service)         echo "${DATA_SERVICE_ADMIN_PORT}" ;;
+    acta-service)         echo "${ACTA_SERVICE_ADMIN_PORT}" ;;
+    lex-service)          echo "${LEX_SERVICE_ADMIN_PORT}" ;;
+    visus-service)        echo "${VISUS_SERVICE_ADMIN_PORT}" ;;
+    notification-service) echo "${NOTIFICATION_SERVICE_ADMIN_PORT}" ;;
+    file-service)         echo "${FILE_SERVICE_ADMIN_PORT}" ;;
+    *) return 1 ;;
+  esac
+}
+
+service_health_port() {
+  case "$1" in
+    iam-service) echo "${IAM_SERVICE_ADMIN_PORT}" ;;
+    *) service_http_port "$1" ;;
+  esac
+}
+
+service_health_path() {
+  echo "/healthz"
+}
+
+service_status_var() {
+  local name="$1"
+  printf 'svc_health_%s' "${name//-/_}"
+}
+
+set_service_health() {
+  local var_name
+  var_name="$(service_status_var "$1")"
+  printf -v "${var_name}" '%s' "$2"
+}
+
+get_service_health() {
+  local var_name
+  var_name="$(service_status_var "$1")"
+  printf '%s' "${!var_name:-unknown}"
+}
 
 # Service startup order (dependencies first)
 SERVICES=(
@@ -177,6 +240,7 @@ wait_port() {
 
 # ── Database helpers (via docker exec) ───────────────────────────────────────
 PG_CONTAINER=clario360-postgres
+PG_MAINTENANCE_DB=postgres
 
 pg_exec() {
   # Run SQL against a specific database
@@ -185,14 +249,14 @@ pg_exec() {
 }
 
 db_exists() {
-  docker exec "${PG_CONTAINER}" psql -U "${DB_USER}" -tAc \
+  docker exec "${PG_CONTAINER}" psql -U "${DB_USER}" -d "${PG_MAINTENANCE_DB}" -tAc \
     "SELECT 1 FROM pg_database WHERE datname='$1'" 2>/dev/null | grep -q 1
 }
 
 create_db() {
   local dbname="$1"
   if ! db_exists "$dbname"; then
-    docker exec "${PG_CONTAINER}" psql -U "${DB_USER}" -c \
+    docker exec "${PG_CONTAINER}" psql -U "${DB_USER}" -d "${PG_MAINTENANCE_DB}" -c \
       "CREATE DATABASE ${dbname};" 2>/dev/null
     docker exec "${PG_CONTAINER}" psql -U "${DB_USER}" -d "$dbname" -c \
       "CREATE EXTENSION IF NOT EXISTS pgcrypto; CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\";" 2>/dev/null
@@ -221,6 +285,34 @@ run_migration() {
     warn "Migration had warnings: $(basename "$file")"
   fi
   ok "Migrated: $(basename "$file") → ${db}"
+}
+
+latest_migration_version() {
+  local dir="$1"
+  find "${dir}" -maxdepth 1 -type f -name '*.up.sql' | \
+    sed -E 's#.*/([0-9]+)_.*#\1#' | \
+    sort -n | \
+    tail -1
+}
+
+sync_migration_version() {
+  local db="$1" dir="$2"
+  local version
+  version="$(latest_migration_version "${dir}")"
+  if [ -z "${version}" ]; then
+    return 0
+  fi
+
+  docker exec -i "${PG_CONTAINER}" psql -U "${DB_USER}" -d "${db}" -v ON_ERROR_STOP=1 -q <<EOF
+CREATE TABLE IF NOT EXISTS schema_migrations (
+  version BIGINT NOT NULL PRIMARY KEY,
+  dirty BOOLEAN NOT NULL
+);
+TRUNCATE TABLE schema_migrations;
+INSERT INTO schema_migrations (version, dirty) VALUES (${version}, false);
+EOF
+
+  ok "Synced schema_migrations → ${db} @ ${version}"
 }
 
 # =============================================================================
@@ -279,24 +371,24 @@ fi
 # Generate dev encryption keys (deterministic for dev, stored in secrets dir)
 ENC_KEY_FILE="${SECRETS_DIR}/encryption.key"
 if [ ! -f "${ENC_KEY_FILE}" ]; then
-  openssl rand -base64 32 > "${ENC_KEY_FILE}"
+  write_base64_secret "${ENC_KEY_FILE}"
   ok "Generated encryption key"
 fi
-ENCRYPTION_KEY=$(cat "${ENC_KEY_FILE}")
+ENCRYPTION_KEY=$(tr -d '\n' < "${ENC_KEY_FILE}")
 
 DATA_ENC_KEY_FILE="${SECRETS_DIR}/data-encryption.key"
 if [ ! -f "${DATA_ENC_KEY_FILE}" ]; then
-  openssl rand -base64 32 > "${DATA_ENC_KEY_FILE}"
+  write_base64_secret "${DATA_ENC_KEY_FILE}"
   ok "Generated data service encryption key"
 fi
-DATA_ENCRYPTION_KEY=$(cat "${DATA_ENC_KEY_FILE}")
+DATA_ENCRYPTION_KEY=$(tr -d '\n' < "${DATA_ENC_KEY_FILE}")
 
 FILE_ENC_KEY_FILE="${SECRETS_DIR}/file-encryption.key"
 if [ ! -f "${FILE_ENC_KEY_FILE}" ]; then
-  openssl rand -base64 32 > "${FILE_ENC_KEY_FILE}"
+  write_base64_secret "${FILE_ENC_KEY_FILE}"
   ok "Generated file service encryption key"
 fi
-FILE_ENCRYPTION_KEY=$(cat "${FILE_ENC_KEY_FILE}")
+FILE_ENCRYPTION_KEY=$(tr -d '\n' < "${FILE_ENC_KEY_FILE}")
 
 WEBHOOK_SECRET_FILE="${SECRETS_DIR}/webhook-hmac.key"
 if [ ! -f "${WEBHOOK_SECRET_FILE}" ]; then
@@ -315,10 +407,20 @@ phase "PHASE 2 — Docker Infrastructure"
 cd "${REPO_ROOT}"
 
 # Start only the essential services (skip grafana/prometheus/clamav/keycloak for speed)
-INFRA_SERVICES="postgres redis kafka minio jaeger"
+INFRA_SERVICES=(postgres redis jaeger)
+if port_open 9094; then
+  info "Kafka port 9094 is already reachable; reusing the existing broker"
+else
+  INFRA_SERVICES+=(kafka)
+fi
+if port_open 9000; then
+  info "MinIO port 9000 is already reachable; reusing the existing object store"
+else
+  INFRA_SERVICES+=(minio)
+fi
 
-info "Starting infrastructure services: ${INFRA_SERVICES}"
-docker compose up -d ${INFRA_SERVICES} 2>&1 | grep -v "^#" || true
+info "Starting infrastructure services: ${INFRA_SERVICES[*]}"
+docker compose up -d "${INFRA_SERVICES[@]}" 2>&1 | grep -v "^#" || true
 
 # Wait for critical services to become healthy
 echo ""
@@ -397,6 +499,9 @@ run_migration "cyber_db" "${MDIR}/000008_remediation_prompt20_compat.up.sql"
 run_migration "cyber_db" "${MDIR}/000009_dspm_score_precision_compat.up.sql"
 run_migration "cyber_db" "${MDIR}/000010_dspm_legacy_schema_compat.up.sql"
 run_migration "cyber_db" "${MDIR}/000011_rls.up.sql"
+run_migration "cyber_db" "${MDIR}/000012_ueba_engine.up.sql"
+run_migration "cyber_db" "${MDIR}/000013_vciso_chat.up.sql"
+sync_migration_version "cyber_db" "${MDIR}"
 
 echo ""
 info "Running migrations for data_db..."
@@ -407,18 +512,21 @@ run_migration "data_db" "${MDIR}/000003_prompt24_pipeline_quality_contradictions
 run_migration "data_db" "${MDIR}/000004_prompt25_lineage_darkdata_analytics_dashboard.up.sql"
 run_migration "data_db" "${MDIR}/000005_rls.up.sql"
 run_migration "data_db" "${MDIR}/000006_prompt51_connector_types.up.sql"
+sync_migration_version "data_db" "${MDIR}"
 
 echo ""
 info "Running migrations for acta_db..."
 MDIR="${BACKEND_DIR}/migrations/acta_db"
 run_migration "acta_db" "${MDIR}/000001_init_schema.up.sql"
 run_migration "acta_db" "${MDIR}/000002_rls.up.sql"
+sync_migration_version "acta_db" "${MDIR}"
 
 echo ""
 info "Running migrations for lex_db..."
 MDIR="${BACKEND_DIR}/migrations/lex_db"
 run_migration "lex_db" "${MDIR}/000001_init_schema.up.sql"
 run_migration "lex_db" "${MDIR}/000002_rls.up.sql"
+sync_migration_version "lex_db" "${MDIR}"
 
 echo ""
 info "Running migrations for visus_db..."
@@ -426,6 +534,7 @@ MDIR="${BACKEND_DIR}/migrations/visus_db"
 run_migration "visus_db" "${MDIR}/000001_init_schema.up.sql"
 run_migration "visus_db" "${MDIR}/000002_modular_schema_compat.up.sql"
 run_migration "visus_db" "${MDIR}/000003_rls.up.sql"
+sync_migration_version "visus_db" "${MDIR}"
 
 echo ""
 info "Running migrations for ${DB_NAME} (audit/notification)..."
@@ -557,8 +666,8 @@ export DATABASE_USER="${DB_USER}"
 export DATABASE_PASSWORD="${DB_PASS}"
 export DATABASE_NAME="${DB_NAME}"
 export DATABASE_SSL_MODE="disable"
-export DATABASE_MAX_OPEN_CONNS="25"
-export DATABASE_MAX_IDLE_CONNS="10"
+export DATABASE_MAX_OPEN_CONNS="8"
+export DATABASE_MAX_IDLE_CONNS="2"
 export DATABASE_CONN_MAX_LIFETIME="5m"
 
 export REDIS_HOST="${REDIS_HOST}"
@@ -620,8 +729,8 @@ start_service() {
 }
 
 # ── api-gateway ───────────────────────────────────────────────────────────────
-GW_HTTP_PORT=${SVC_HTTP_PORT[api-gateway]}
-GW_ADMIN_PORT=${SVC_ADMIN_PORT[api-gateway]}
+GW_HTTP_PORT=${API_GATEWAY_HTTP_PORT}
+GW_ADMIN_PORT=${API_GATEWAY_ADMIN_PORT}
 export GW_HTTP_PORT GW_ADMIN_PORT
 export GW_ENVIRONMENT="development"
 export GW_CORS_ALLOWED_ORIGINS="http://localhost:3000,http://localhost:3001"
@@ -629,98 +738,120 @@ export GW_READ_TIMEOUT_SEC="15"
 export GW_WRITE_TIMEOUT_SEC="60"
 export GW_PROXY_TIMEOUT_SEC="30"
 # Route gateway to correct service ports
-export GW_SVC_URL_IAM="http://localhost:${SVC_HTTP_PORT[iam-service]}"
-export GW_SVC_URL_AUDIT="http://localhost:${SVC_HTTP_PORT[audit-service]}"
-export GW_SVC_URL_WORKFLOW="http://localhost:${SVC_HTTP_PORT[workflow-engine]}"
-export GW_SVC_URL_NOTIFICATION="http://localhost:${SVC_HTTP_PORT[notification-service]}"
-export GW_SVC_URL_FILE="http://localhost:${SVC_HTTP_PORT[file-service]}"
-export GW_SVC_URL_CYBER="http://localhost:${SVC_HTTP_PORT[cyber-service]}"
-export GW_SVC_URL_DATA="http://localhost:${SVC_HTTP_PORT[data-service]}"
-export GW_SVC_URL_ACTA="http://localhost:${SVC_HTTP_PORT[acta-service]}"
-export GW_SVC_URL_LEX="http://localhost:${SVC_HTTP_PORT[lex-service]}"
-export GW_SVC_URL_VISUS="http://localhost:${SVC_HTTP_PORT[visus-service]}"
+export GW_SVC_URL_IAM="http://localhost:${IAM_SERVICE_HTTP_PORT}"
+export GW_SVC_URL_AUDIT="http://localhost:${AUDIT_SERVICE_HTTP_PORT}"
+export GW_SVC_URL_WORKFLOW="http://localhost:${WORKFLOW_ENGINE_HTTP_PORT}"
+export GW_SVC_URL_NOTIFICATION="http://localhost:${NOTIFICATION_SERVICE_HTTP_PORT}"
+export GW_SVC_URL_FILE="http://localhost:${FILE_SERVICE_HTTP_PORT}"
+export GW_SVC_URL_CYBER="http://localhost:${CYBER_SERVICE_HTTP_PORT}"
+export GW_SVC_URL_DATA="http://localhost:${DATA_SERVICE_HTTP_PORT}"
+export GW_SVC_URL_ACTA="http://localhost:${ACTA_SERVICE_HTTP_PORT}"
+export GW_SVC_URL_LEX="http://localhost:${LEX_SERVICE_HTTP_PORT}"
+export GW_SVC_URL_VISUS="http://localhost:${VISUS_SERVICE_HTTP_PORT}"
 
 # ── iam-service (ports hardcoded in main.go; env vars for config only) ────────
 # (No HTTP port env var — port 8081 is hardcoded; admin port fixed at 9081)
 
 # ── workflow-engine ───────────────────────────────────────────────────────────
-export WF_HTTP_PORT=${SVC_HTTP_PORT[workflow-engine]}
-export WF_SERVICE_URLS="notification=http://localhost:${SVC_HTTP_PORT[notification-service]},cyber=http://localhost:${SVC_HTTP_PORT[cyber-service]}"
+export WF_HTTP_PORT=${WORKFLOW_ENGINE_HTTP_PORT}
+export WF_SERVICE_URLS="notification=http://localhost:${NOTIFICATION_SERVICE_HTTP_PORT},cyber=http://localhost:${CYBER_SERVICE_HTTP_PORT}"
 
 # ── audit-service ─────────────────────────────────────────────────────────────
-export AUDIT_HTTP_PORT=${SVC_HTTP_PORT[audit-service]}
+export AUDIT_HTTP_PORT=${AUDIT_SERVICE_HTTP_PORT}
+export AUDIT_DB_MIN_CONNS="1"
+export AUDIT_DB_MAX_CONNS="4"
 export AUDIT_MINIO_ENDPOINT="localhost:9000"
 export AUDIT_MINIO_ACCESS_KEY="clario_minio"
 export AUDIT_MINIO_SECRET_KEY="clario_minio_secret"
 export AUDIT_MINIO_BUCKET="audit-exports"
 
 # ── cyber-service ─────────────────────────────────────────────────────────────
-export CYBER_HTTP_PORT=${SVC_HTTP_PORT[cyber-service]}
+export CYBER_HTTP_PORT=${CYBER_SERVICE_HTTP_PORT}
 export CYBER_DB_URL="postgres://${DB_USER}:${DB_PASS}@${DB_HOST}:${DB_PORT}/cyber_db?sslmode=disable"
 export CYBER_REDIS_URL="redis://${REDIS_HOST}:${REDIS_PORT}/1"
 export CYBER_KAFKA_BROKERS="${KAFKA_BROKERS}"
 export CYBER_KAFKA_GROUP_ID="cyber-service"
 export CYBER_JWT_PUBLIC_KEY_PATH="${JWT_PUBLIC_KEY}"
+export CYBER_DB_MIN_CONNS="1"
+export CYBER_DB_MAX_CONNS="4"
 
 # ── data-service ──────────────────────────────────────────────────────────────
-export DATA_HTTP_PORT=${SVC_HTTP_PORT[data-service]}
+export DATA_HTTP_PORT=${DATA_SERVICE_HTTP_PORT}
+export DATA_ADMIN_PORT=${DATA_SERVICE_ADMIN_PORT}
 export DATA_DB_URL="postgres://${DB_USER}:${DB_PASS}@${DB_HOST}:${DB_PORT}/data_db?sslmode=disable"
 export DATA_REDIS_URL="redis://${REDIS_HOST}:${REDIS_PORT}/2"
 export DATA_KAFKA_BROKERS="${KAFKA_BROKERS}"
 export DATA_KAFKA_GROUP_ID="data-service"
 export DATA_JWT_PUBLIC_KEY_PATH="${JWT_PUBLIC_KEY}"
 export DATA_ENCRYPTION_KEY="${DATA_ENCRYPTION_KEY}"
+export DATA_DB_MIN_CONNS="1"
+export DATA_DB_MAX_CONNS="4"
 export DATA_MINIO_ENDPOINT="localhost:9000"
 export DATA_MINIO_ACCESS_KEY="clario_minio"
 export DATA_MINIO_SECRET_KEY="clario_minio_secret"
 
 # ── acta-service ──────────────────────────────────────────────────────────────
-export ACTA_HTTP_PORT=${SVC_HTTP_PORT[acta-service]}
-export ACTA_ADMIN_PORT=${SVC_ADMIN_PORT[acta-service]}
+export ACTA_HTTP_PORT=${ACTA_SERVICE_HTTP_PORT}
+export ACTA_ADMIN_PORT=${ACTA_SERVICE_ADMIN_PORT}
 export ACTA_DB_URL="postgres://${DB_USER}:${DB_PASS}@${DB_HOST}:${DB_PORT}/acta_db?sslmode=disable"
+export ACTA_DB_MIN_CONNS="1"
+export ACTA_DB_MAX_CONNS="4"
 export ACTA_REDIS_ADDR="${REDIS_HOST}:${REDIS_PORT}"
 export ACTA_KAFKA_BROKERS="${KAFKA_BROKERS}"
+export ACTA_JWT_PUBLIC_KEY_PATH="${JWT_PUBLIC_KEY}"
 export ACTA_SEED_DEMO_DATA="false"
 
 # ── lex-service ───────────────────────────────────────────────────────────────
-export LEX_HTTP_PORT=${SVC_HTTP_PORT[lex-service]}
-export LEX_ADMIN_PORT=${SVC_ADMIN_PORT[lex-service]}
+export LEX_HTTP_PORT=${LEX_SERVICE_HTTP_PORT}
+export LEX_ADMIN_PORT=${LEX_SERVICE_ADMIN_PORT}
 export LEX_DB_URL="postgres://${DB_USER}:${DB_PASS}@${DB_HOST}:${DB_PORT}/lex_db?sslmode=disable"
+export LEX_DB_MIN_CONNS="1"
+export LEX_DB_MAX_CONNS="4"
 export LEX_REDIS_ADDR="${REDIS_HOST}:${REDIS_PORT}"
 export LEX_KAFKA_BROKERS="${KAFKA_BROKERS}"
+export LEX_JWT_PUBLIC_KEY_PATH="${JWT_PUBLIC_KEY}"
 export LEX_SEED_DEMO_DATA="false"
 
 # ── visus-service ─────────────────────────────────────────────────────────────
-export VISUS_HTTP_PORT=${SVC_HTTP_PORT[visus-service]}
-export VISUS_ADMIN_PORT=${SVC_ADMIN_PORT[visus-service]}
+export VISUS_HTTP_PORT=${VISUS_SERVICE_HTTP_PORT}
+export VISUS_ADMIN_PORT=${VISUS_SERVICE_ADMIN_PORT}
 export VISUS_DB_URL="postgres://${DB_USER}:${DB_PASS}@${DB_HOST}:${DB_PORT}/visus_db?sslmode=disable"
+export VISUS_DB_MIN_CONNS="1"
+export VISUS_DB_MAX_CONNS="4"
 export VISUS_REDIS_ADDR="${REDIS_HOST}:${REDIS_PORT}"
 export VISUS_KAFKA_BROKERS="${KAFKA_BROKERS}"
+export VISUS_JWT_PUBLIC_KEY_PATH="${JWT_PUBLIC_KEY}"
+export VISUS_JWT_PRIVATE_KEY_PATH="${JWT_PRIVATE_KEY}"
 export VISUS_SEED_DEMO_DATA="false"
 # Internal suite URLs for VISUS cross-suite data fetching
-export VISUS_SUITE_CYBER_URL="http://localhost:${SVC_HTTP_PORT[cyber-service]}"
-export VISUS_SUITE_DATA_URL="http://localhost:${SVC_HTTP_PORT[data-service]}"
-export VISUS_SUITE_ACTA_URL="http://localhost:${SVC_HTTP_PORT[acta-service]}"
-export VISUS_SUITE_LEX_URL="http://localhost:${SVC_HTTP_PORT[lex-service]}"
+export VISUS_SUITE_CYBER_URL="http://localhost:${CYBER_SERVICE_HTTP_PORT}"
+export VISUS_SUITE_DATA_URL="http://localhost:${DATA_SERVICE_HTTP_PORT}"
+export VISUS_SUITE_ACTA_URL="http://localhost:${ACTA_SERVICE_HTTP_PORT}"
+export VISUS_SUITE_LEX_URL="http://localhost:${LEX_SERVICE_HTTP_PORT}"
 
 # ── notification-service ──────────────────────────────────────────────────────
-export NOTIF_HTTP_PORT=${SVC_HTTP_PORT[notification-service]}
+export NOTIF_HTTP_PORT=${NOTIFICATION_SERVICE_HTTP_PORT}
+export NOTIF_DB_MIN_CONNS="1"
+export NOTIF_DB_MAX_CONNS="4"
 export NOTIF_EMAIL_PROVIDER="smtp"
 export NOTIF_SMTP_HOST="localhost"
 export NOTIF_SMTP_PORT="1025"
 export NOTIF_SMTP_TLS_ENABLED="false"
 export NOTIF_WEBHOOK_HMAC_SECRET="${WEBHOOK_HMAC_SECRET}"
 export NOTIF_WS_ALLOWED_ORIGINS="http://localhost:3000"
-export NOTIF_IAM_SERVICE_URL="http://localhost:${SVC_HTTP_PORT[iam-service]}"
-export NOTIF_DATA_SERVICE_URL="http://localhost:${SVC_HTTP_PORT[data-service]}"
-export NOTIF_ACTA_SERVICE_URL="http://localhost:${SVC_HTTP_PORT[acta-service]}"
-export NOTIF_CYBER_SERVICE_URL="http://localhost:${SVC_HTTP_PORT[cyber-service]}"
+export NOTIF_IAM_SERVICE_URL="http://localhost:${IAM_SERVICE_HTTP_PORT}"
+export NOTIF_DATA_SERVICE_URL="http://localhost:${DATA_SERVICE_HTTP_PORT}"
+export NOTIF_ACTA_SERVICE_URL="http://localhost:${ACTA_SERVICE_HTTP_PORT}"
+export NOTIF_CYBER_SERVICE_URL="http://localhost:${CYBER_SERVICE_HTTP_PORT}"
 export NOTIF_ENVIRONMENT="development"
 
 # ── file-service ──────────────────────────────────────────────────────────────
 # File service uses its own required env vars
+export FILE_HTTP_PORT=${FILE_SERVICE_HTTP_PORT}
 export FILE_DB_URL="postgres://${DB_USER}:${DB_PASS}@${DB_HOST}:${DB_PORT}/platform_core?sslmode=disable"
-export FILE_REDIS_URL="redis://${REDIS_HOST}:${REDIS_PORT}/3"
+export FILE_DB_MIN_CONNS="1"
+export FILE_DB_MAX_CONNS="4"
+export FILE_REDIS_URL="${REDIS_HOST}:${REDIS_PORT}"
 export FILE_KAFKA_BROKERS="${KAFKA_BROKERS}"
 export FILE_KAFKA_GROUP_ID="file-service"
 export FILE_JWT_PUBLIC_KEY_PATH="${JWT_PUBLIC_KEY}"
@@ -749,7 +880,7 @@ if [ "${OPT_SKIP_FRONTEND}" = false ]; then
   ENVLOCAL="${FRONTEND_DIR}/.env.local"
   if [ ! -f "${ENVLOCAL}" ]; then
     cat > "${ENVLOCAL}" << EOF
-NEXT_PUBLIC_API_URL=http://localhost:${SVC_HTTP_PORT[api-gateway]}
+NEXT_PUBLIC_API_URL=http://localhost:${API_GATEWAY_HTTP_PORT}
 NEXT_PUBLIC_APP_NAME=Clario 360
 NEXT_PUBLIC_APP_URL=http://localhost:3000
 NEXT_PUBLIC_APP_VERSION=0.1.0
@@ -762,11 +893,14 @@ AUTH_REFRESH_TOKEN_MAX_AGE=604800
 EOF
     ok "Created ${ENVLOCAL}"
   else
-    # Update API URL to point at gateway if it's pointing elsewhere
-    if grep -q "NEXT_PUBLIC_API_URL=http://localhost:8081" "${ENVLOCAL}"; then
-      sed -i '' \
-        "s|NEXT_PUBLIC_API_URL=http://localhost:8081|NEXT_PUBLIC_API_URL=http://localhost:${SVC_HTTP_PORT[api-gateway]}|" \
-        "${ENVLOCAL}" 2>/dev/null || true
+    desired_api_url="NEXT_PUBLIC_API_URL=http://localhost:${API_GATEWAY_HTTP_PORT}"
+    current_api_url="$(grep '^NEXT_PUBLIC_API_URL=' "${ENVLOCAL}" 2>/dev/null || true)"
+    if [ "${current_api_url}" != "${desired_api_url}" ]; then
+      if grep -q '^NEXT_PUBLIC_API_URL=' "${ENVLOCAL}"; then
+        sed -i '' "s|^NEXT_PUBLIC_API_URL=.*$|${desired_api_url}|" "${ENVLOCAL}" 2>/dev/null || true
+      else
+        printf '\n%s\n' "${desired_api_url}" >> "${ENVLOCAL}"
+      fi
       ok "Updated .env.local to point to API gateway"
     fi
   fi
@@ -806,18 +940,16 @@ phase "PHASE 8 — Waiting for Services to Become Ready"
 # Wait slightly for services to finish initializing
 sleep 3
 
-declare -A SVC_HEALTH_STATUS=()
-
 check_service_health() {
   local name="$1" port="$2" path="${3:-/healthz}"
   local url="http://localhost:${port}${path}"
   local http_code
   http_code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 3 "${url}" 2>/dev/null || echo "000")
   if [ "${http_code}" = "200" ] || [ "${http_code}" = "204" ]; then
-    SVC_HEALTH_STATUS["${name}"]="healthy"
+    set_service_health "${name}" "healthy"
     return 0
   else
-    SVC_HEALTH_STATUS["${name}"]="degraded (HTTP ${http_code})"
+    set_service_health "${name}" "degraded (HTTP ${http_code})"
     return 1
   fi
 }
@@ -825,23 +957,9 @@ check_service_health() {
 MAX_WAIT=45
 info "Polling service health endpoints (up to ${MAX_WAIT}s per service)..."
 
-declare -A HEALTH_ENDPOINTS=(
-  [api-gateway]="/healthz"
-  [iam-service]="/healthz"
-  [workflow-engine]="/healthz"
-  [audit-service]="/healthz"
-  [cyber-service]="/healthz"
-  [data-service]="/healthz"
-  [acta-service]="/healthz"
-  [lex-service]="/healthz"
-  [visus-service]="/healthz"
-  [notification-service]="/healthz"
-  [file-service]="/healthz"
-)
-
 for svc in "${SERVICES[@]}"; do
-  port="${SVC_HTTP_PORT[$svc]}"
-  path="${HEALTH_ENDPOINTS[$svc]:-/healthz}"
+  port="$(service_health_port "${svc}")"
+  path="$(service_health_path "${svc}")"
   elapsed=0
   ready=false
   while [ "$elapsed" -lt "$MAX_WAIT" ]; do
@@ -856,7 +974,10 @@ for svc in "${SERVICES[@]}"; do
     ok "${svc} → http://localhost:${port}"
   else
     # Service may still be starting (some take longer); mark as degraded but continue
-    SVC_HEALTH_STATUS["${svc}"]="${SVC_HEALTH_STATUS[$svc]:-starting}"
+    current_status="$(get_service_health "${svc}")"
+    if [ "${current_status}" = "unknown" ]; then
+      set_service_health "${svc}" "starting"
+    fi
     warn "${svc} not yet healthy (port ${port}) — may still be starting"
   fi
 done
@@ -886,8 +1007,8 @@ echo -e "${C_BOLD}  │  Service              Port   Status                    �
 echo -e "${C_BOLD}  ├────────────────────────────────────────────────────────┤${C_RESET}"
 
 for svc in "${SERVICES[@]}"; do
-  port="${SVC_HTTP_PORT[$svc]}"
-  status="${SVC_HEALTH_STATUS[$svc]:-unknown}"
+  port="$(service_http_port "${svc}")"
+  status="$(get_service_health "${svc}")"
   if [ "$status" = "healthy" ]; then
     icon="${C_GREEN}●${C_RESET}"
     label="${C_GREEN}healthy${C_RESET}"

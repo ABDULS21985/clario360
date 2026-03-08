@@ -383,7 +383,7 @@ func buildBootstrapConfig(cfg *config.Config, dataCfg *dataconfig.Config) (*boot
 		Version:         cfg.Observability.ServiceName,
 		Environment:     envOr("ENVIRONMENT", "development"),
 		Port:            mustParsePort(dataCfg.HTTPPort, 8091),
-		AdminPort:       cfg.Observability.MetricsPort,
+		AdminPort:       mustParsePort(envOr("DATA_ADMIN_PORT", strconv.Itoa(cfg.Observability.MetricsPort)), cfg.Observability.MetricsPort),
 		LogLevel:        cfg.Observability.LogLevel,
 		DebugSampleRate: 100,
 		ShutdownTimeout: cfg.Server.ShutdownTimeout,
