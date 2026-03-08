@@ -64,6 +64,13 @@ func (c *IntegrationConsumer) Start(ctx context.Context) error {
 	return c.consumer.Start(ctx)
 }
 
+func (c *IntegrationConsumer) Stop() error {
+	if c == nil || c.consumer == nil {
+		return nil
+	}
+	return c.consumer.Stop()
+}
+
 func (c *IntegrationConsumer) handleEvent(ctx context.Context, event *events.Event) error {
 	if event == nil || event.TenantID == "" {
 		return nil
@@ -109,4 +116,3 @@ func (c *IntegrationConsumer) loadActiveIntegrations(ctx context.Context, tenant
 	}
 	return items, nil
 }
-

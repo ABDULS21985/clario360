@@ -63,6 +63,7 @@ func DefaultRoutes() []RouteConfig {
 
 		// Notifications (REST)
 		{Prefix: "/api/v1/notifications", Service: "notification-service", Public: false, EndpointGroup: EndpointGroupWrite},
+		{Prefix: "/api/v1/integrations", Service: "notification-service", Public: true, EndpointGroup: EndpointGroupWrite},
 
 		// Files — upload route MUST come before the generic files route (longer prefix wins).
 		{Prefix: "/api/v1/files/upload", Service: "file-service", Public: false, EndpointGroup: EndpointGroupUpload, MaxBodyMB: 100, TimeoutSec: 120},

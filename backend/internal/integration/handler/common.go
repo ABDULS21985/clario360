@@ -4,12 +4,15 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/clario360/platform/internal/auth"
 	"github.com/clario360/platform/internal/events"
+	iamdto "github.com/clario360/platform/internal/iam/dto"
 	intsvc "github.com/clario360/platform/internal/integration/service"
 )
 
@@ -91,4 +94,62 @@ func publishAuditEvent(ctx context.Context, producer *events.Producer, tenantID,
 
 func pointerTime(t time.Time) *time.Time {
 	return &t
+}
+
+func mappedUserID(user any) string {
+	if typed, ok := user.(*iamdto.UserResponse); ok && typed != nil {
+		return typed.ID
+	}
+	return ""
+}
+
+func auditActorFromMappedUser(user any) *intsvc.AuditActor {
+	if typed, ok := user.(*iamdto.UserResponse); ok && typed != nil {
+		return &intsvc.AuditActor{
+			UserID:    typed.ID,
+			UserEmail: typed.Email,
+		}
+	}
+	return nil
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, value := range values {
+		if strings.TrimSpace(value) != "" {
+			return value
+		}
+	}
+	return ""
+}
+
+func stringValue(value any) string {
+	if value == nil {
+		return ""
+	}
+	if str, ok := value.(string); ok {
+		return str
+	}
+	return strings.TrimSpace(fmt.Sprintf("%v", value))
+}
+
+func nestedString(payload map[string]any, path ...string) string {
+	current := payload
+	for idx, key := range path {
+		value, ok := current[key]
+		if !ok {
+			return ""
+		}
+		if idx == len(path)-1 {
+			if str, ok := value.(string); ok {
+				return str
+			}
+			return ""
+		}
+		next, ok := value.(map[string]any)
+		if !ok {
+			return ""
+		}
+		current = next
+	}
+	return ""
 }

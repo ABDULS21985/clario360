@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"crypto/hmac"
 	"encoding/json"
 	"net/http"
@@ -120,4 +121,3 @@ func (h *ServiceNowHandler) findWebhookIntegration(ctx context.Context, token st
 	}
 	return integration, cfg, nil
 }
-

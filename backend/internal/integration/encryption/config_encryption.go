@@ -4,6 +4,8 @@ import (
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/rand"
+	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -15,14 +17,30 @@ type ConfigEncryptor struct {
 }
 
 func NewConfigEncryptor(rawKey string, keyID string) (*ConfigEncryptor, error) {
-	key := []byte(rawKey)
-	if len(key) != 32 {
-		return nil, fmt.Errorf("integration encryption key must be 32 bytes, got %d", len(key))
+	key, err := normalizeKey(rawKey)
+	if err != nil {
+		return nil, err
 	}
 	if keyID == "" {
 		keyID = "local-aes256gcm"
 	}
 	return &ConfigEncryptor{key: key, keyID: keyID}, nil
+}
+
+func normalizeKey(rawKey string) ([]byte, error) {
+	if len(rawKey) == 32 {
+		return []byte(rawKey), nil
+	}
+	if decoded, err := base64.StdEncoding.DecodeString(rawKey); err == nil && len(decoded) == 32 {
+		return decoded, nil
+	}
+	if decoded, err := base64.RawStdEncoding.DecodeString(rawKey); err == nil && len(decoded) == 32 {
+		return decoded, nil
+	}
+	if decoded, err := hex.DecodeString(rawKey); err == nil && len(decoded) == 32 {
+		return decoded, nil
+	}
+	return nil, fmt.Errorf("integration encryption key must decode to 32 bytes")
 }
 
 func (e *ConfigEncryptor) KeyID() string {

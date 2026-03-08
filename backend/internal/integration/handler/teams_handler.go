@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"strings"
@@ -8,6 +9,7 @@ import (
 	"github.com/rs/zerolog"
 
 	"github.com/clario360/platform/internal/events"
+	iamdto "github.com/clario360/platform/internal/iam/dto"
 	"github.com/clario360/platform/internal/integration/bot"
 	botformatters "github.com/clario360/platform/internal/integration/bot/formatters"
 	bottypes "github.com/clario360/platform/internal/integration/bot/types"
@@ -122,7 +124,7 @@ func (h *TeamsHandler) findIntegration(ctx context.Context, recipientID, service
 	return integration, cfg, nil
 }
 
-func (h *TeamsHandler) mapTeamsUserAndToken(ctx context.Context, tenantID string, activity map[string]any) (any, string) {
+func (h *TeamsHandler) mapTeamsUserAndToken(ctx context.Context, tenantID string, activity map[string]any) (*iamdto.UserResponse, string) {
 	user, err := teamssvc.MapTeamsUser(ctx, tenantID, activity, h.api.LookupUserByEmail)
 	if err != nil {
 		h.logger.Debug().Err(err).Str("tenant_id", tenantID).Msg("teams user is not linked")
@@ -146,4 +148,3 @@ func (h *TeamsHandler) publishAudit(ctx context.Context, tenantID, command, exte
 		"success":          success,
 	})
 }
-

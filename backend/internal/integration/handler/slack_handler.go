@@ -3,7 +3,6 @@ package handler
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"regexp"
 	"strings"
@@ -13,6 +12,7 @@ import (
 	"github.com/rs/zerolog"
 
 	"github.com/clario360/platform/internal/events"
+	iamdto "github.com/clario360/platform/internal/iam/dto"
 	"github.com/clario360/platform/internal/integration/bot"
 	botformatters "github.com/clario360/platform/internal/integration/bot/formatters"
 	bottypes "github.com/clario360/platform/internal/integration/bot/types"
@@ -411,7 +411,7 @@ func (h *SlackHandler) executeSlashCommand(ctx context.Context, command slackCom
 	return resp, nil
 }
 
-func (h *SlackHandler) mappedSlackUserAndToken(ctx context.Context, integration *intmodel.Integration, cfg intmodel.SlackConfig, slackUserID string) (user any, token string) {
+func (h *SlackHandler) mappedSlackUserAndToken(ctx context.Context, integration *intmodel.Integration, cfg intmodel.SlackConfig, slackUserID string) (user *iamdto.UserResponse, token string) {
 	if slackUserID == "" {
 		return nil, ""
 	}
@@ -442,32 +442,13 @@ func (h *SlackHandler) resolveSlackTarget(ctx context.Context, integration *intm
 }
 
 func (h *SlackHandler) publishCommandAudit(ctx context.Context, tenantID, command, externalUserID string, mappedUser any, success bool) {
-	actor := &intsvc.AuditActor{}
-	if user, ok := mappedUser.(interface{ GetID() string }); ok {
-		actor.UserID = user.GetID()
-	}
-	if user, ok := mappedUser.(interface{ GetEmail() string }); ok {
-		actor.UserEmail = user.GetEmail()
-	}
-	if typed, ok := mappedUser.(*struct{}); ok && typed != nil {
-		_ = typed
-	}
-	if typed, ok := mappedUser.(interface{ ID() string }); ok {
-		actor.UserID = typed.ID()
-	}
+	actor := auditActorFromMappedUser(mappedUser)
 	data := map[string]any{
 		"platform":         "slack",
 		"command":          command,
 		"external_user_id": externalUserID,
+		"mapped_user_id":   mappedUserID(mappedUser),
 		"success":          success,
-	}
-	if typed, ok := mappedUser.(*struct{}); ok && typed != nil {
-		_ = typed
-	}
-	if user, ok := mappedUser.(map[string]any); ok {
-		if userID := stringValue(user["id"]); userID != "" {
-			data["mapped_user_id"] = userID
-		}
 	}
 	publishAuditEvent(ctx, h.producer, tenantID, "integration.slack.command.executed", actor, data)
 }
@@ -497,4 +478,3 @@ func slackErrorPayload(message string) map[string]any {
 		"text":          "⚠️ " + strings.TrimSpace(message),
 	}
 }
-

@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -18,6 +19,17 @@ import (
 	"github.com/clario360/platform/internal/config"
 	"github.com/clario360/platform/internal/database"
 	"github.com/clario360/platform/internal/events"
+	intbot "github.com/clario360/platform/internal/integration/bot"
+	intconsumer "github.com/clario360/platform/internal/integration/consumer"
+	intencrypt "github.com/clario360/platform/internal/integration/encryption"
+	inthandler "github.com/clario360/platform/internal/integration/handler"
+	intrepo "github.com/clario360/platform/internal/integration/repository"
+	intservice "github.com/clario360/platform/internal/integration/service"
+	jirasvc "github.com/clario360/platform/internal/integration/service/jira"
+	servicenowsvc "github.com/clario360/platform/internal/integration/service/servicenow"
+	slacksvc "github.com/clario360/platform/internal/integration/service/slack"
+	teamssvc "github.com/clario360/platform/internal/integration/service/teams"
+	webhooksvc "github.com/clario360/platform/internal/integration/service/webhook"
 	"github.com/clario360/platform/internal/middleware"
 	notifchannel "github.com/clario360/platform/internal/notification/channel"
 	notifcfg "github.com/clario360/platform/internal/notification/config"
@@ -26,8 +38,8 @@ import (
 	"github.com/clario360/platform/internal/notification/health"
 	_ "github.com/clario360/platform/internal/notification/metrics" // registers Prometheus metrics on import
 	notifmw "github.com/clario360/platform/internal/notification/middleware"
-	"github.com/clario360/platform/internal/notification/repository"
-	"github.com/clario360/platform/internal/notification/service"
+	notifrepo "github.com/clario360/platform/internal/notification/repository"
+	notifservice "github.com/clario360/platform/internal/notification/service"
 	"github.com/clario360/platform/internal/notification/websocket"
 	"github.com/clario360/platform/internal/observability"
 	"github.com/clario360/platform/internal/server"
@@ -73,7 +85,7 @@ func main() {
 	defer db.Close()
 
 	// 5. Run schema migration.
-	if err := repository.RunMigration(ctx, db); err != nil {
+	if err := notifrepo.RunMigration(ctx, db); err != nil {
 		logger.Fatal().Err(err).Msg("failed to run notification schema migration")
 	}
 	logger.Info().Msg("notification schema migration completed")
@@ -110,14 +122,17 @@ func main() {
 	hub := websocket.NewHub(notifCfg.WSMaxConnectionsPerUser, logger)
 
 	// 9. Initialize repositories.
-	notifRepo := repository.NewNotificationRepository(db, logger)
-	prefRepo := repository.NewPreferenceRepository(db, logger)
-	deliveryRepo := repository.NewDeliveryRepository(db, logger)
-	webhookRepo := repository.NewWebhookRepository(db, logger)
+	notifRepo := notifrepo.NewNotificationRepository(db, logger)
+	prefRepo := notifrepo.NewPreferenceRepository(db, logger)
+	deliveryRepo := notifrepo.NewDeliveryRepository(db, logger)
+	webhookRepo := notifrepo.NewWebhookRepository(db, logger)
+	integrationRepo := intrepo.NewIntegrationRepository(db, logger)
+	integrationDeliveryRepo := intrepo.NewDeliveryRepository(db, logger)
+	ticketLinkRepo := intrepo.NewTicketLinkRepository(db, logger)
 
 	// 10. Initialize services.
-	tmplSvc := service.NewTemplateService(logger)
-	prefSvc := service.NewPreferenceService(prefRepo, rdb, logger)
+	tmplSvc := notifservice.NewTemplateService(logger)
+	prefSvc := notifservice.NewPreferenceService(prefRepo, rdb, logger)
 
 	// Initialize channels.
 	websocketChannel := notifchannel.NewWebSocketChannel(hub, logger)
@@ -145,18 +160,97 @@ func main() {
 		),
 	}
 
-	dispatcher := service.NewDispatcherService(channels, deliveryRepo, logger)
-	notifSvc := service.NewNotificationService(notifRepo, prefSvc, dispatcher, tmplSvc, producer, rdb, logger)
-	digestSvc := service.NewDigestService(notifRepo, prefRepo, tmplSvc, dispatcher, notifCfg.DigestDailyUTCHour, notifCfg.DigestWeeklyDay, logger)
+	dispatcher := notifservice.NewDispatcherService(channels, deliveryRepo, logger)
+	notifSvc := notifservice.NewNotificationService(notifRepo, prefSvc, dispatcher, tmplSvc, producer, rdb, logger)
+	digestSvc := notifservice.NewDigestService(notifRepo, prefRepo, tmplSvc, dispatcher, notifCfg.DigestDailyUTCHour, notifCfg.DigestWeeklyDay, logger)
 	guard := events.NewIdempotencyGuard(rdb, 24*time.Hour)
 	crossSuiteMetrics := events.NewCrossSuiteMetrics(prometheus.DefaultRegisterer)
 	dlqTracker := events.NewDLQTracker(rdb)
+
+	encryptor, err := intencrypt.NewConfigEncryptor(cfg.Encryption.Key, "notification-service")
+	if err != nil {
+		logger.Fatal().Err(err).Msg("failed to initialize integration config encryptor")
+	}
+	clarioAPI := intservice.NewClarioAPIClient(notifCfg.GatewayURL, notifCfg.IAMServiceURL, srv.JWTManager, logger)
+	slackClient := slacksvc.NewClient(15*time.Second, notifCfg.PublicAppURL)
+	teamsClient := teamssvc.NewClient(15*time.Second, notifCfg.PublicAppURL)
+	jiraClient := jirasvc.NewClient(20 * time.Second)
+	snClient := servicenowsvc.NewClient(25 * time.Second)
+	webhookClient := webhooksvc.NewClient(15 * time.Second)
+	slackMapper := slacksvc.NewUserMapper(slackClient, rdb, logger)
+	jiraTicketSvc := jirasvc.NewTicketService(jiraClient, clarioAPI, ticketLinkRepo, notifCfg.PublicAppURL)
+	snIncidentSvc := servicenowsvc.NewIncidentService(snClient, clarioAPI, ticketLinkRepo, notifCfg.PublicAppURL)
+	integrationSvc := intservice.NewIntegrationService(
+		integrationRepo,
+		integrationDeliveryRepo,
+		ticketLinkRepo,
+		encryptor,
+		producer,
+		slackClient,
+		teamsClient,
+		jiraTicketSvc,
+		snIncidentSvc,
+		webhookClient,
+		logger,
+	)
+	integrationDeliverySvc := intservice.NewDeliveryService(
+		integrationDeliveryRepo,
+		integrationRepo,
+		encryptor,
+		rdb,
+		slackClient,
+		teamsClient,
+		jiraTicketSvc,
+		snIncidentSvc,
+		webhookClient,
+		logger,
+	)
+	integrationWorker := intservice.NewDeliveryWorker(integrationDeliverySvc, integrationDeliveryRepo, logger)
+	botRouter := intbot.NewRouter(clarioAPI, logger)
 
 	// 11. Initialize handlers.
 	notifHandler := handler.NewNotificationHandler(notifSvc, notifRepo, logger)
 	prefHandler := handler.NewPreferenceHandler(prefSvc, webhookRepo, logger)
 	wsHandler := handler.NewWebSocketHandler(hub, srv.JWTManager, notifRepo, notifCfg, logger)
 	adminHandler := handler.NewAdminHandler(notifSvc, deliveryRepo, dispatcher, logger)
+	integrationHandler := inthandler.NewIntegrationHandler(integrationSvc, logger)
+	slackHandler := inthandler.NewSlackHandler(
+		integrationSvc,
+		clarioAPI,
+		slackClient,
+		slackMapper,
+		botRouter,
+		producer,
+		rdb,
+		slacksvc.OAuthConfig{
+			ClientID:     notifCfg.SlackClientID,
+			ClientSecret: notifCfg.SlackClientSecret,
+			RedirectURI:  strings.TrimRight(notifCfg.GatewayURL, "/") + "/api/v1/integrations/slack/oauth/callback",
+			Scopes:       notifCfg.SlackScopes,
+		},
+		notifCfg.SlackSigningSecret,
+		notifCfg.PublicAppURL,
+		time.Duration(notifCfg.IntegrationStateTTLMin)*time.Minute,
+		logger,
+	)
+	teamsHandler := inthandler.NewTeamsHandler(integrationSvc, clarioAPI, teamsClient, botRouter, producer, logger)
+	jiraHandler := inthandler.NewJiraHandler(
+		integrationSvc,
+		jiraTicketSvc,
+		producer,
+		rdb,
+		jirasvc.OAuthConfig{
+			ClientID:     notifCfg.AtlassianClientID,
+			ClientSecret: notifCfg.AtlassianClientSecret,
+			RedirectURI:  strings.TrimRight(notifCfg.GatewayURL, "/") + "/api/v1/integrations/jira/oauth/callback",
+			Scopes:       notifCfg.AtlassianScopes,
+		},
+		notifCfg.PublicAppURL,
+		time.Duration(notifCfg.IntegrationStateTTLMin)*time.Minute,
+		logger,
+	)
+	serviceNowHandler := inthandler.NewServiceNowHandler(integrationSvc, snIncidentSvc, producer, logger)
+	webhookHandler := inthandler.NewWebhookHandler(logger)
 
 	// 12. Initialize health checker.
 	smtpAddr := ""
@@ -204,6 +298,18 @@ func main() {
 		r.Get("/delivery-stats", adminHandler.GetDeliveryStats)
 		r.Post("/retry-failed", adminHandler.RetryFailed)
 	})
+	inthandler.RegisterRoutes(srv.Router, inthandler.RouteDependencies{
+		JWTManager:         srv.JWTManager,
+		Redis:              rdb,
+		RateLimitPerMinute: notifCfg.RateLimitPerMinute,
+		Integration:        integrationHandler,
+		Slack:              slackHandler,
+		Teams:              teamsHandler,
+		Jira:               jiraHandler,
+		ServiceNow:         serviceNowHandler,
+		Webhook:            webhookHandler,
+		Logger:             logger,
+	})
 
 	// 15. Initialize Kafka consumer.
 	var notifConsumer *consumer.NotificationConsumer
@@ -222,6 +328,21 @@ func main() {
 			logger,
 		)
 		notifConsumer = consumer.NewNotificationConsumer(kafkaConsumer, notifSvc, recipientResolver, guard, crossSuiteMetrics, logger)
+	}
+	var integrationConsumer *intconsumer.IntegrationConsumer
+	integrationKafkaConsumer, err := events.NewConsumerWithConfig(events.ConsumerConfig{
+		Brokers:             cfg.Kafka.Brokers,
+		GroupID:             "integration-delivery-consumer",
+		AutoOffsetReset:     cfg.Kafka.AutoOffsetReset,
+		WorkersPerPartition: 1,
+	}, logger)
+	if err != nil {
+		logger.Warn().Err(err).Msg("integration kafka consumer unavailable — external delivery ingestion disabled")
+	} else {
+		integrationKafkaConsumer.SetDeadLetterProducer(producer)
+		integrationKafkaConsumer.SetCrossSuiteMetrics(crossSuiteMetrics)
+		integrationKafkaConsumer.SetDLQTracker(dlqTracker, "notification-service")
+		integrationConsumer = intconsumer.NewIntegrationConsumer(integrationKafkaConsumer, integrationRepo, integrationDeliverySvc, rdb, time.Minute, logger)
 	}
 
 	// 16. Start all components via errgroup.
@@ -247,6 +368,11 @@ func main() {
 			return notifConsumer.Start(gCtx)
 		})
 	}
+	if integrationConsumer != nil {
+		g.Go(func() error {
+			return integrationConsumer.Start(gCtx)
+		})
+	}
 
 	// Digest scheduler.
 	if notifCfg.DigestEnabled {
@@ -254,6 +380,9 @@ func main() {
 			return digestSvc.RunScheduler(gCtx)
 		})
 	}
+	g.Go(func() error {
+		return integrationWorker.Run(gCtx)
+	})
 
 	// 17. Wait for shutdown signal.
 	quit := make(chan os.Signal, 1)
@@ -280,6 +409,11 @@ func main() {
 	if notifConsumer != nil {
 		if err := notifConsumer.Stop(); err != nil {
 			logger.Error().Err(err).Msg("kafka consumer shutdown error")
+		}
+	}
+	if integrationConsumer != nil {
+		if err := integrationConsumer.Stop(); err != nil {
+			logger.Error().Err(err).Msg("integration kafka consumer shutdown error")
 		}
 	}
 

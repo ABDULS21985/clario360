@@ -33,6 +33,7 @@ import {
   File,
   Building2,
   Gavel,
+  Plug,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
@@ -198,6 +199,13 @@ export const navigation: NavSection[] = [
         label: 'Settings',
         href: '/admin/settings',
         icon: Settings,
+        permission: 'tenant:write',
+      },
+      {
+        id: 'admin-integrations',
+        label: 'Integrations',
+        href: '/admin/integrations',
+        icon: Plug,
         permission: 'tenant:write',
       },
       {

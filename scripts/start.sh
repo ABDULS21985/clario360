@@ -846,6 +846,12 @@ export NOTIF_IAM_SERVICE_URL="http://localhost:${IAM_SERVICE_HTTP_PORT}"
 export NOTIF_DATA_SERVICE_URL="http://localhost:${DATA_SERVICE_HTTP_PORT}"
 export NOTIF_ACTA_SERVICE_URL="http://localhost:${ACTA_SERVICE_HTTP_PORT}"
 export NOTIF_CYBER_SERVICE_URL="http://localhost:${CYBER_SERVICE_HTTP_PORT}"
+export NOTIF_LEX_SERVICE_URL="http://localhost:${LEX_SERVICE_HTTP_PORT}"
+export NOTIF_VISUS_SERVICE_URL="http://localhost:${VISUS_SERVICE_HTTP_PORT}"
+export NOTIF_GATEWAY_URL="http://localhost:${API_GATEWAY_HTTP_PORT}"
+export CLARIO360_PUBLIC_URL="http://localhost:3000"
+export NOTIF_INTEGRATION_STATE_TTL_MIN="15"
+export NOTIF_SLACK_SIGNING_SECRET="${WEBHOOK_HMAC_SECRET}"
 export NOTIF_ENVIRONMENT="development"
 
 # ── file-service ──────────────────────────────────────────────────────────────

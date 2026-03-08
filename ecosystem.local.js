@@ -62,6 +62,11 @@ if (!fs.existsSync(webhookHmacSecretPath)) {
   fs.writeFileSync(webhookHmacSecretPath, crypto.randomBytes(32).toString("hex"));
 }
 const webhookHmacSecret = readTrimmed(webhookHmacSecretPath);
+const slackSigningSecretPath = path.join(secretsDir, "slack-signing-secret.key");
+if (!fs.existsSync(slackSigningSecretPath)) {
+  fs.writeFileSync(slackSigningSecretPath, crypto.randomBytes(32).toString("hex"));
+}
+const slackSigningSecret = readTrimmed(slackSigningSecretPath);
 
 const sharedEnv = {
   ENVIRONMENT: "development",
@@ -134,6 +139,12 @@ module.exports = {
       NOTIF_DATA_SERVICE_URL: "http://localhost:8086",
       NOTIF_ACTA_SERVICE_URL: "http://localhost:8087",
       NOTIF_CYBER_SERVICE_URL: "http://localhost:8085",
+      NOTIF_LEX_SERVICE_URL: "http://localhost:8088",
+      NOTIF_VISUS_SERVICE_URL: "http://localhost:8089",
+      NOTIF_GATEWAY_URL: "http://localhost:8080",
+      CLARIO360_PUBLIC_URL: "http://localhost:3000",
+      NOTIF_INTEGRATION_STATE_TTL_MIN: "15",
+      NOTIF_SLACK_SIGNING_SECRET: slackSigningSecret,
       NOTIF_ENVIRONMENT: "development",
     }),
     serviceApp("workflow-engine", {
