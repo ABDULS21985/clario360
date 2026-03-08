@@ -19,6 +19,9 @@ type Metrics struct {
 	DriftAlertsTotal          *prometheus.CounterVec
 	LifecyclePromotionsTotal  *prometheus.CounterVec
 	LifecycleRollbacksTotal   *prometheus.CounterVec
+
+	// Monitoring alert metrics (used by clario360-alerts.yaml)
+	ModelDriftScore prometheus.Gauge // clario360_ai_model_drift_score
 }
 
 func NewMetrics(reg prometheus.Registerer) *Metrics {
@@ -92,6 +95,10 @@ func NewMetrics(reg prometheus.Registerer) *Metrics {
 			Name: "ai_lifecycle_rollbacks_total",
 			Help: "Lifecycle rollbacks by model.",
 		}, []string{"model_slug"}),
+		ModelDriftScore: prometheus.NewGauge(prometheus.GaugeOpts{
+			Name: "clario360_ai_model_drift_score",
+			Help: "Maximum model drift score across all active models (used by Prometheus alerting rules).",
+		}),
 	}
 	reg.MustRegister(
 		m.ModelsTotal,
@@ -110,6 +117,7 @@ func NewMetrics(reg prometheus.Registerer) *Metrics {
 		m.DriftAlertsTotal,
 		m.LifecyclePromotionsTotal,
 		m.LifecycleRollbacksTotal,
+		m.ModelDriftScore,
 	)
 	return m
 }

@@ -3,11 +3,14 @@ package contradiction
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
 
+	"github.com/clario360/platform/internal/aigovernance"
+	aigovmiddleware "github.com/clario360/platform/internal/aigovernance/middleware"
 	"github.com/clario360/platform/internal/data/connector"
 	cruntime "github.com/clario360/platform/internal/data/contradiction/runtime"
 	"github.com/clario360/platform/internal/data/contradiction/strategies"
@@ -27,15 +30,16 @@ type DetectionStrategy interface {
 }
 
 type Detector struct {
-	strategies   []DetectionStrategy
-	entityLinker *EntityLinker
-	connRegistry *connector.ConnectorRegistry
-	sourceRepo   *repository.SourceRepository
-	modelRepo    *repository.ModelRepository
-	contraRepo   *repository.ContradictionRepository
-	decryptor    configDecryptor
-	producer     *events.Producer
-	logger       zerolog.Logger
+	strategies       []DetectionStrategy
+	entityLinker     *EntityLinker
+	connRegistry     *connector.ConnectorRegistry
+	sourceRepo       *repository.SourceRepository
+	modelRepo        *repository.ModelRepository
+	contraRepo       *repository.ContradictionRepository
+	decryptor        configDecryptor
+	producer         *events.Producer
+	logger           zerolog.Logger
+	predictionLogger *aigovmiddleware.PredictionLogger
 }
 
 func NewDetector(
@@ -65,17 +69,21 @@ func NewDetector(
 	}
 }
 
+func (d *Detector) SetPredictionLogger(predictionLogger *aigovmiddleware.PredictionLogger) {
+	d.predictionLogger = predictionLogger
+}
+
 func (d *Detector) RunScan(ctx context.Context, tenantID, triggeredBy uuid.UUID) (*model.ContradictionScan, error) {
 	startedAt := time.Now().UTC()
 	scan := &model.ContradictionScan{
-		ID:         uuid.New(),
-		TenantID:   tenantID,
-		Status:     "running",
-		ByType:     json.RawMessage(`{}`),
-		BySeverity: json.RawMessage(`{}`),
-		StartedAt:  startedAt,
+		ID:          uuid.New(),
+		TenantID:    tenantID,
+		Status:      "running",
+		ByType:      json.RawMessage(`{}`),
+		BySeverity:  json.RawMessage(`{}`),
+		StartedAt:   startedAt,
 		TriggeredBy: triggeredBy,
-		CreatedAt:  startedAt,
+		CreatedAt:   startedAt,
 	}
 	if err := d.contraRepo.CreateScan(ctx, scan); err != nil {
 		return nil, err
@@ -166,7 +174,65 @@ func (d *Detector) RunScan(ctx context.Context, tenantID, triggeredBy uuid.UUID)
 		"by_type":              byType,
 		"by_severity":          bySeverity,
 	})
+	d.recordPrediction(ctx, scan, models, pairs, byType, bySeverity, created, durationMs)
 	return scan, nil
+}
+
+func (d *Detector) recordPrediction(ctx context.Context, scan *model.ContradictionScan, models []*model.DataModel, pairs []cruntime.ModelPair, byType, bySeverity map[string]int, contradictionCount int, durationMS int64) {
+	if d.predictionLogger == nil || scan == nil {
+		return
+	}
+
+	matchedConditions := make([]string, 0, len(byType))
+	ruleWeights := make(map[string]any, len(byType))
+	for contradictionType, count := range byType {
+		matchedConditions = append(matchedConditions, fmt.Sprintf("%s:%d", contradictionType, count))
+		ruleWeights[contradictionType] = float64(count) / float64(maxInt(1, contradictionCount))
+	}
+	if len(matchedConditions) == 0 {
+		matchedConditions = append(matchedConditions, "no_contradictions_detected")
+	}
+
+	input := map[string]any{
+		"scan_id":        scan.ID.String(),
+		"models_scanned": len(models),
+		"model_pairs":    len(pairs),
+		"contradictions": contradictionCount,
+	}
+	confidence := 0.88
+	if contradictionCount == 0 {
+		confidence = 0.93
+	}
+
+	_, _ = d.predictionLogger.Predict(ctx, aigovernance.PredictParams{
+		TenantID:     scan.TenantID,
+		ModelSlug:    "data-contradiction-detector",
+		UseCase:      "contradiction_detection",
+		EntityType:   "contradiction_scan",
+		EntityID:     &scan.ID,
+		Input:        input,
+		InputSummary: input,
+		ModelFunc: func(context.Context, any) (*aigovernance.ModelOutput, error) {
+			return &aigovernance.ModelOutput{
+				Output: map[string]any{
+					"scan_id":              scan.ID,
+					"contradictions_found": contradictionCount,
+					"by_type":              byType,
+					"by_severity":          bySeverity,
+					"duration_ms":          durationMS,
+				},
+				Confidence: confidence,
+				Metadata: map[string]any{
+					"matched_rules":      []string{"logical", "semantic", "temporal", "analytical"},
+					"matched_conditions": matchedConditions,
+					"rule_weights":       ruleWeights,
+					"models_scanned":     len(models),
+					"model_pairs":        len(pairs),
+					"duration_ms":        durationMS,
+				},
+			}, nil
+		},
+	})
 }
 
 func (d *Detector) scanPair(ctx context.Context, pair cruntime.ModelPair) ([]cruntime.RawContradiction, error) {
@@ -231,4 +297,11 @@ func (d *Detector) publish(ctx context.Context, eventType string, tenantID uuid.
 func marshal(value any) json.RawMessage {
 	payload, _ := json.Marshal(value)
 	return payload
+}
+
+func maxInt(left, right int) int {
+	if left > right {
+		return left
+	}
+	return right
 }

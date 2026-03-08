@@ -24,8 +24,9 @@ func (e *RuleExplainer) Explain(_ context.Context, version *aigovmodel.ModelVers
 	matchedConditions := stringSlice(meta["matched_conditions"])
 	unmatchedConditions := stringSlice(meta["unmatched_conditions"])
 	weights := numericMap(meta["rule_weights"])
+	matched, hasMatchedFlag := boolValue(meta["matched"])
 
-	if len(matchedRules) == 0 && len(matchedConditions) == 0 {
+	if len(matchedRules) == 0 && len(matchedConditions) == 0 && (!hasMatchedFlag || matched) {
 		if ruleName, ok := meta["rule_name"].(string); ok && strings.TrimSpace(ruleName) != "" {
 			matchedRules = []string{ruleName}
 		}
@@ -59,10 +60,15 @@ func (e *RuleExplainer) Explain(_ context.Context, version *aigovmodel.ModelVers
 	})
 
 	structured := map[string]any{
-		"matched_rules":         matchedRules,
-		"matched_conditions":    matchedConditions,
-		"unmatched_conditions":  unmatchedConditions,
-		"rule_count":            len(matchedRules),
+		"matched_rules":        matchedRules,
+		"matched_conditions":   matchedConditions,
+		"unmatched_conditions": unmatchedConditions,
+		"rule_count":           len(matchedRules),
+	}
+	if hasMatchedFlag {
+		structured["matched"] = matched
+	} else {
+		structured["matched"] = len(matchedRules) > 0 || len(matchedConditions) > 0
 	}
 	for key, value := range meta {
 		if _, exists := structured[key]; !exists {
@@ -70,15 +76,23 @@ func (e *RuleExplainer) Explain(_ context.Context, version *aigovmodel.ModelVers
 		}
 	}
 
-	human, err := renderTemplate(version, map[string]any{
-		"matched_rules":        matchedRules,
-		"matched_conditions":   matchedConditions,
-		"unmatched_conditions": unmatchedConditions,
-		"metadata":             meta,
-		"confidence":           output.Confidence,
-	})
-	if err != nil {
-		return nil, err
+	human := ""
+	if hasMatchedFlag && !matched && len(matchedRules) == 0 && len(matchedConditions) == 0 {
+		human = "No configured rules matched."
+	}
+	if human == "" {
+		rendered, err := renderTemplate(version, map[string]any{
+			"matched":              structured["matched"],
+			"matched_rules":        matchedRules,
+			"matched_conditions":   matchedConditions,
+			"unmatched_conditions": unmatchedConditions,
+			"metadata":             meta,
+			"confidence":           output.Confidence,
+		})
+		if err != nil {
+			return nil, err
+		}
+		human = rendered
 	}
 	if human == "" {
 		names := matchedRules
@@ -101,6 +115,15 @@ func (e *RuleExplainer) Explain(_ context.Context, version *aigovmodel.ModelVers
 		ModelSlug:     version.ModelSlug,
 		ModelVersion:  version.VersionNumber,
 	}, nil
+}
+
+func boolValue(value any) (bool, bool) {
+	switch typed := value.(type) {
+	case bool:
+		return typed, true
+	default:
+		return false, false
+	}
 }
 
 func renderTemplate(version *aigovmodel.ModelVersion, data map[string]any) (string, error) {

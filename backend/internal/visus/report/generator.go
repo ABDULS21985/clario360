@@ -3,11 +3,14 @@ package report
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
 
+	"github.com/clario360/platform/internal/aigovernance"
+	aigovmiddleware "github.com/clario360/platform/internal/aigovernance/middleware"
 	"github.com/clario360/platform/internal/events"
 	"github.com/clario360/platform/internal/visus/aggregator"
 	reportsections "github.com/clario360/platform/internal/visus/report/sections"
@@ -27,9 +30,10 @@ type Generator struct {
 	suiteClient     *aggregator.SuiteClient
 	publisher       Publisher
 	logger          zerolog.Logger
+	predictionLogger *aigovmiddleware.PredictionLogger
 }
 
-func NewGenerator(reports *repository.ReportRepository, snapshots *repository.ReportSnapshotRepository, kpis *repository.KPIRepository, kpiSnapshots *repository.KPISnapshotRepository, suiteClient *aggregator.SuiteClient, publisher Publisher, logger zerolog.Logger) *Generator {
+func NewGenerator(reports *repository.ReportRepository, snapshots *repository.ReportSnapshotRepository, kpis *repository.KPIRepository, kpiSnapshots *repository.KPISnapshotRepository, suiteClient *aggregator.SuiteClient, publisher Publisher, logger zerolog.Logger, predictionLogger *aigovmiddleware.PredictionLogger) *Generator {
 	return &Generator{
 		reports:      reports,
 		snapshots:    snapshots,
@@ -38,6 +42,7 @@ func NewGenerator(reports *repository.ReportRepository, snapshots *repository.Re
 		suiteClient:  suiteClient,
 		publisher:    publisher,
 		logger:       logger.With().Str("component", "visus_report_generator").Logger(),
+		predictionLogger: predictionLogger,
 	}
 }
 
@@ -92,6 +97,7 @@ func (g *Generator) Generate(ctx context.Context, reportID uuid.UUID, triggeredB
 		}
 	}
 	sectionData["recommendations"] = reportsections.BuildRecommendations(sectionData)
+	g.recordRecommendationPrediction(ctx, reportDef, sectionData["recommendations"])
 	narrative := GenerateNarrative(sectionData, [2]time.Time{start, end})
 	durationMS := time.Since(buildStart).Milliseconds()
 	snapshot := &model.ReportSnapshot{
@@ -133,6 +139,78 @@ func (g *Generator) Generate(ctx context.Context, reportID uuid.UUID, triggeredB
 		}
 	}
 	return created, nil
+}
+
+func (g *Generator) recordRecommendationPrediction(ctx context.Context, reportDef *model.ReportDefinition, recommendationData any) {
+	if g.predictionLogger == nil || reportDef == nil {
+		return
+	}
+	entityID := reportDef.ID
+	items := recommendationItems(recommendationData)
+	_, _ = g.predictionLogger.Predict(ctx, aigovernance.PredictParams{
+		TenantID:     reportDef.TenantID,
+		ModelSlug:    "visus-recommendation-engine",
+		UseCase:      "executive_recommendations",
+		EntityType:   "report",
+		EntityID:     &entityID,
+		Input: map[string]any{
+			"report_id": reportDef.ID.String(),
+			"sections":  reportDef.Sections,
+		},
+		InputSummary: map[string]any{
+			"report_id": reportDef.ID.String(),
+			"section_count": len(reportDef.Sections),
+		},
+		ModelFunc: func(context.Context, any) (*aigovernance.ModelOutput, error) {
+			return &aigovernance.ModelOutput{
+				Output:     recommendationData,
+				Confidence: 0.90,
+				Metadata: map[string]any{
+					"matched_rules": recommendationRules(items),
+					"recommendation_count": len(items),
+				},
+			}, nil
+		},
+	})
+}
+
+func recommendationItems(value any) []string {
+	typed, ok := value.(map[string]any)
+	if !ok {
+		return nil
+	}
+	rawItems, ok := typed["items"].([]string)
+	if ok {
+		return rawItems
+	}
+	rawSlice, ok := typed["items"].([]any)
+	if !ok {
+		return nil
+	}
+	out := make([]string, 0, len(rawSlice))
+	for _, item := range rawSlice {
+		if text, ok := item.(string); ok {
+			out = append(out, text)
+		}
+	}
+	return out
+}
+
+func recommendationRules(items []string) []string {
+	rules := make([]string, 0, len(items))
+	for _, item := range items {
+		switch {
+		case strings.Contains(item, "KPI"), strings.Contains(item, "threshold"):
+			rules = append(rules, "critical_kpi")
+		case strings.Contains(item, "overdue"):
+			rules = append(rules, "overdue_action")
+		case strings.Contains(item, "contract"):
+			rules = append(rules, "expiring_contract")
+		default:
+			rules = append(rules, "report_signal")
+		}
+	}
+	return rules
 }
 
 func ResolvePeriod(report *model.ReportDefinition, now time.Time) (time.Time, time.Time, error) {

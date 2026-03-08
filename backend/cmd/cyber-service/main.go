@@ -18,6 +18,8 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"golang.org/x/sync/errgroup"
 
+	aigovconsumer "github.com/clario360/platform/internal/aigovernance/consumer"
+	aigovintegration "github.com/clario360/platform/internal/aigovernance/integration"
 	"github.com/clario360/platform/internal/auth"
 	"github.com/clario360/platform/internal/config"
 	"github.com/clario360/platform/internal/cyber/classifier"
@@ -120,6 +122,12 @@ func main() {
 		if err != nil {
 			logger.Warn().Err(err).Msg("Kafka producer unavailable — events will not be published")
 		}
+	}
+	aiRuntime, aiErr := aigovintegration.NewCyberRuntime(ctx, cfg, svc.Metrics.Registry(), producer, logger)
+	if aiErr != nil {
+		logger.Warn().Err(aiErr).Msg("ai governance runtime unavailable for cyber-service")
+	} else {
+		defer aiRuntime.Close()
 	}
 
 	// ── 6. Repositories ────────────────────────────────────────────────────────
@@ -253,6 +261,12 @@ func main() {
 		attackSurfaceRisk,
 		complianceGapRisk,
 	)
+	if aiRuntime != nil {
+		assetSvc.SetPredictionLogger(aiRuntime.PredictionLogger)
+		detectionEngine.SetPredictionLogger(aiRuntime.PredictionLogger)
+		ctemEngine.SetPredictionLogger(aiRuntime.PredictionLogger)
+		riskScorer.SetPredictionLogger(aiRuntime.PredictionLogger)
+	}
 	riskSnapshotSvc := cyberrisk.NewSnapshotService(db, riskScorer, riskHistoryRepo, producer, m, logger)
 	riskSvc := service.NewRiskService(riskScorer, riskSnapshotSvc, riskHistoryRepo, vulnRepo, producer, logger)
 	vulnerabilitySvc := service.NewVulnerabilityService(vulnRepo, producer, m, logger)
@@ -429,6 +443,9 @@ func main() {
 			kafkaConsumer.Subscribe(events.Topics.DataSourceEvents, dataEventConsumer)
 			kafkaConsumer.Subscribe(events.Topics.DarkDataEvents, dataEventConsumer)
 			kafkaConsumer.Subscribe(events.Topics.FileEvents, consumer.NewFileEventConsumer(alertSvc, guard, producer, logger, crossSuiteMetrics))
+			if aiRuntime != nil && aiRuntime.PredictionLogger != nil {
+				kafkaConsumer.Subscribe(events.Topics.AIEvents, aigovconsumer.NewCacheInvalidationConsumer(aiRuntime.PredictionLogger, logger))
+			}
 		}
 	}
 

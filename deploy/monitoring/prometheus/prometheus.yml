@@ -1,0 +1,180 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    cluster: clario360-production
+    environment: production
+
+rule_files:
+  - "rules/clario360-alerts.yaml"
+  - "rules/slo-recording-rules.yaml"
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: ["alertmanager:9093"]
+
+scrape_configs:
+  - job_name: "prometheus"
+    static_configs:
+      - targets: ["localhost:9090"]
+
+  # --- Core Platform Services ---
+
+  - job_name: "clario360-api-gateway"
+    metrics_path: /metrics
+    scheme: http
+    static_configs:
+      - targets: ["api-gateway:9090"]
+        labels:
+          service: "api-gateway"
+    metric_relabel_configs:
+      - source_labels: [__name__]
+        regex: 'gw_(.*)'
+        target_label: __name__
+        replacement: 'clario360_gateway_${1}'
+
+  - job_name: "clario360-iam-service"
+    metrics_path: /metrics
+    scheme: http
+    static_configs:
+      - targets: ["iam-service:9091"]
+        labels:
+          service: "iam-service"
+    metric_relabel_configs:
+      - source_labels: [__name__]
+        regex: 'iam_(.*)'
+        target_label: __name__
+        replacement: 'clario360_iam_${1}'
+
+  - job_name: "clario360-audit-service"
+    metrics_path: /metrics
+    scheme: http
+    static_configs:
+      - targets: ["audit-service:9092"]
+        labels:
+          service: "audit-service"
+    metric_relabel_configs:
+      - source_labels: [__name__]
+        regex: 'audit_(.*)'
+        target_label: __name__
+        replacement: 'clario360_audit_${1}'
+
+  - job_name: "clario360-workflow-engine"
+    metrics_path: /metrics
+    scheme: http
+    static_configs:
+      - targets: ["workflow-engine:9093"]
+        labels:
+          service: "workflow-engine"
+    metric_relabel_configs:
+      - source_labels: [__name__]
+        regex: 'workflow_(.*)'
+        target_label: __name__
+        replacement: 'clario360_workflow_${1}'
+
+  - job_name: "clario360-notification-service"
+    metrics_path: /metrics
+    scheme: http
+    static_configs:
+      - targets: ["notification-service:9094"]
+        labels:
+          service: "notification-service"
+    metric_relabel_configs:
+      - source_labels: [__name__]
+        regex: 'notification_(.*)'
+        target_label: __name__
+        replacement: 'clario360_notification_${1}'
+
+  - job_name: "clario360-file-service"
+    metrics_path: /metrics
+    scheme: http
+    static_configs:
+      - targets: ["file-service:9095"]
+        labels:
+          service: "file-service"
+    metric_relabel_configs:
+      - source_labels: [__name__]
+        regex: 'file_(.*)'
+        target_label: __name__
+        replacement: 'clario360_file_${1}'
+
+  # --- Domain Services ---
+
+  - job_name: "clario360-cyber-service"
+    metrics_path: /metrics
+    scheme: http
+    static_configs:
+      - targets: ["cyber-service:9096"]
+        labels:
+          service: "cyber-service"
+    metric_relabel_configs:
+      - source_labels: [__name__]
+        regex: 'cyber_(.*)'
+        target_label: __name__
+        replacement: 'clario360_cyber_${1}'
+
+  - job_name: "clario360-data-service"
+    metrics_path: /metrics
+    scheme: http
+    static_configs:
+      - targets: ["data-service:9097"]
+        labels:
+          service: "data-service"
+
+  - job_name: "clario360-lex-service"
+    metrics_path: /metrics
+    scheme: http
+    static_configs:
+      - targets: ["lex-service:9098"]
+        labels:
+          service: "lex-service"
+
+  - job_name: "clario360-acta-service"
+    metrics_path: /metrics
+    scheme: http
+    static_configs:
+      - targets: ["acta-service:9099"]
+        labels:
+          service: "acta-service"
+
+  - job_name: "clario360-visus-service"
+    metrics_path: /metrics
+    scheme: http
+    static_configs:
+      - targets: ["visus-service:9100"]
+        labels:
+          service: "visus-service"
+
+  # --- Shared Metrics (DB, Kafka via observability) ---
+  # These are scraped from each service above and relabeled globally
+
+  # --- Infrastructure ---
+
+  - job_name: "clario360-node-exporter"
+    static_configs:
+      - targets: ["node-exporter:9100"]
+
+  - job_name: "clario360-kube-state-metrics"
+    static_configs:
+      - targets: ["kube-state-metrics:8080"]
+
+  - job_name: "clario360-cadvisor"
+    static_configs:
+      - targets: ["cadvisor:8080"]
+
+  # Global relabeling for observability-layer metrics (db, kafka, http)
+  # These are emitted by the shared observability package and need the clario360_ prefix
+  metric_relabel_configs:
+    - source_labels: [__name__]
+      regex: 'db_(.*)'
+      target_label: __name__
+      replacement: 'clario360_db_${1}'
+    - source_labels: [__name__]
+      regex: 'kafka_(.*)'
+      target_label: __name__
+      replacement: 'clario360_kafka_${1}'
+    - source_labels: [__name__]
+      regex: 'http_(.*)'
+      target_label: __name__
+      replacement: 'clario360_http_${1}'

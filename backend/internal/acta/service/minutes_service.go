@@ -9,6 +9,8 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/rs/zerolog"
 
+	"github.com/clario360/platform/internal/aigovernance"
+	aigovmiddleware "github.com/clario360/platform/internal/aigovernance/middleware"
 	"github.com/clario360/platform/internal/acta/ai"
 	"github.com/clario360/platform/internal/acta/dto"
 	"github.com/clario360/platform/internal/acta/metrics"
@@ -19,20 +21,22 @@ import (
 )
 
 type MinutesService struct {
-	store     *repository.Store
-	generator *ai.MinutesGenerator
-	publisher Publisher
-	metrics   *metrics.Metrics
-	logger    zerolog.Logger
+	store            *repository.Store
+	generator        *ai.MinutesGenerator
+	publisher        Publisher
+	metrics          *metrics.Metrics
+	logger           zerolog.Logger
+	predictionLogger *aigovmiddleware.PredictionLogger
 }
 
-func NewMinutesService(store *repository.Store, generator *ai.MinutesGenerator, publisher Publisher, metrics *metrics.Metrics, logger zerolog.Logger) *MinutesService {
+func NewMinutesService(store *repository.Store, generator *ai.MinutesGenerator, publisher Publisher, metrics *metrics.Metrics, logger zerolog.Logger, predictionLogger *aigovmiddleware.PredictionLogger) *MinutesService {
 	return &MinutesService{
-		store:     store,
-		generator: generator,
-		publisher: publisherOrNoop(publisher),
-		metrics:   metrics,
-		logger:    logger.With().Str("component", "acta_minutes_service").Logger(),
+		store:            store,
+		generator:        generator,
+		publisher:        publisherOrNoop(publisher),
+		metrics:          metrics,
+		logger:           logger.With().Str("component", "acta_minutes_service").Logger(),
+		predictionLogger: predictionLogger,
 	}
 }
 
@@ -118,6 +122,7 @@ func (s *MinutesService) GenerateMinutes(ctx context.Context, tenantID, userID, 
 	if err != nil {
 		return nil, internalError("failed to generate deterministic minutes", err)
 	}
+	s.recordAIPredictions(ctx, tenantID, meetingID, meeting, agenda, attendance, generated)
 
 	latest, err := s.store.GetLatestMinutes(ctx, tenantID, meetingID)
 	switch {
@@ -194,6 +199,73 @@ func (s *MinutesService) GenerateMinutes(ctx context.Context, tenantID, userID, 
 		"ai_generated": true,
 	}, s.logger)
 	return s.store.GetLatestMinutes(ctx, tenantID, meetingID)
+}
+
+func (s *MinutesService) recordAIPredictions(ctx context.Context, tenantID, meetingID uuid.UUID, meeting *model.Meeting, agenda []model.AgendaItem, attendance []model.Attendee, generated *model.GeneratedMinutes) {
+	if s.predictionLogger == nil || meeting == nil || generated == nil {
+		return
+	}
+	input := map[string]any{
+		"meeting_id":        meetingID.String(),
+		"committee_name":    meeting.CommitteeName,
+		"agenda_count":      len(agenda),
+		"attendance_count":  len(attendance),
+		"action_item_count": len(generated.AIActionItems),
+	}
+	_, _ = s.predictionLogger.Predict(ctx, aigovernance.PredictParams{
+		TenantID:     tenantID,
+		ModelSlug:    "acta-action-extractor",
+		UseCase:      "action_extraction",
+		EntityType:   "meeting",
+		EntityID:     &meetingID,
+		Input:        input,
+		InputSummary: input,
+		ModelFunc: func(context.Context, any) (*aigovernance.ModelOutput, error) {
+			return &aigovernance.ModelOutput{
+				Output:     generated.AIActionItems,
+				Confidence: actionExtractionConfidence(generated.AIActionItems),
+				Metadata: map[string]any{
+					"matched_rules": []string{"ACTION marker", "will pattern", "agreed pattern"},
+					"action_count":  len(generated.AIActionItems),
+					"agenda_count":  len(agenda),
+				},
+			}, nil
+		},
+	})
+	_, _ = s.predictionLogger.Predict(ctx, aigovernance.PredictParams{
+		TenantID:     tenantID,
+		ModelSlug:    "acta-minutes-generator",
+		UseCase:      "minutes_generation",
+		EntityType:   "meeting",
+		EntityID:     &meetingID,
+		Input:        input,
+		InputSummary: input,
+		ModelFunc: func(context.Context, any) (*aigovernance.ModelOutput, error) {
+			return &aigovernance.ModelOutput{
+				Output: map[string]any{
+					"content":        generated.Content,
+					"summary":        generated.AISummary,
+					"action_items":   generated.AIActionItems,
+				},
+				Confidence: 0.95,
+				Metadata: map[string]any{
+					"agenda_count":     len(agenda),
+					"attendance_count": len(attendance),
+					"action_count":     len(generated.AIActionItems),
+				},
+			}, nil
+		},
+	})
+}
+
+func actionExtractionConfidence(items []model.ExtractedAction) float64 {
+	if len(items) == 0 {
+		return 0.70
+	}
+	if len(items) >= 3 {
+		return 0.92
+	}
+	return 0.85
 }
 
 func (s *MinutesService) UpdateMinutes(ctx context.Context, tenantID, userID, meetingID uuid.UUID, req dto.UpdateMinutesRequest) (*model.MeetingMinutes, error) {

@@ -6,8 +6,8 @@ import (
 
 func TestAllTopics(t *testing.T) {
 	topics := AllTopics()
-	if len(topics) != 26 {
-		t.Errorf("expected 26 topics, got %d", len(topics))
+	if len(topics) != 27 {
+		t.Errorf("expected 27 topics, got %d", len(topics))
 	}
 
 	// Verify no duplicates
@@ -38,6 +38,9 @@ func TestTopicConstants(t *testing.T) {
 	}
 	if Topics.DeadLetter != "platform.dead-letter" {
 		t.Errorf("unexpected DeadLetter: %s", Topics.DeadLetter)
+	}
+	if Topics.AIEvents != "platform.ai.events" {
+		t.Errorf("unexpected AIEvents: %s", Topics.AIEvents)
 	}
 	if Topics.AlertEvents != "cyber.alert.events" {
 		t.Errorf("unexpected AlertEvents: %s", Topics.AlertEvents)
@@ -74,8 +77,8 @@ func TestLegacyTopicConstants(t *testing.T) {
 
 func TestDefaultTopicConfigs(t *testing.T) {
 	configs := DefaultTopicConfigs()
-	if len(configs) != 26 {
-		t.Errorf("expected 26 topic configs, got %d", len(configs))
+	if len(configs) != 27 {
+		t.Errorf("expected 27 topic configs, got %d", len(configs))
 	}
 
 	// Verify DLQ has 30-day retention

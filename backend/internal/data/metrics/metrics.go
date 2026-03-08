@@ -40,6 +40,11 @@ type Metrics struct {
 	DataDashboardRequestDuration     prometheus.Histogram
 	DataDashboardCacheHitTotal       prometheus.Counter
 	DataDashboardCacheMissTotal      prometheus.Counter
+
+	// Monitoring alert metrics (used by clario360-alerts.yaml)
+	PipelineRunsTotal    *prometheus.CounterVec // clario360_data_pipeline_runs_total{status}
+	QualityScore         prometheus.Gauge       // clario360_data_quality_score
+	ContradictionsTotal  prometheus.Counter      // clario360_data_contradictions_total
 }
 
 func New(registerer prometheus.Registerer) *Metrics {
@@ -205,6 +210,20 @@ func New(registerer prometheus.Registerer) *Metrics {
 			Name: "dashboard_cache_miss_total",
 			Help: "Data Suite dashboard cache misses.",
 		}),
+
+		// Monitoring alert metrics
+		PipelineRunsTotal: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name: "clario360_data_pipeline_runs_total",
+			Help: "Total data pipeline runs by status (used by Prometheus alerting rules).",
+		}, []string{"status"}),
+		QualityScore: prometheus.NewGauge(prometheus.GaugeOpts{
+			Name: "clario360_data_quality_score",
+			Help: "Overall data quality score (0-100, used by Prometheus alerting rules).",
+		}),
+		ContradictionsTotal: prometheus.NewCounter(prometheus.CounterOpts{
+			Name: "clario360_data_contradictions_total",
+			Help: "Total data contradictions detected.",
+		}),
 	}
 
 	registerer.MustRegister(
@@ -245,6 +264,9 @@ func New(registerer prometheus.Registerer) *Metrics {
 		m.DataDashboardRequestDuration,
 		m.DataDashboardCacheHitTotal,
 		m.DataDashboardCacheMissTotal,
+		m.PipelineRunsTotal,
+		m.QualityScore,
+		m.ContradictionsTotal,
 	)
 
 	return m

@@ -14,6 +14,11 @@ import (
 	"github.com/rs/zerolog/log"
 
 	"github.com/clario360/platform/internal/auth"
+	aigovhandler "github.com/clario360/platform/internal/aigovernance/handler"
+	aigovrepo "github.com/clario360/platform/internal/aigovernance/repository"
+	aigovservice "github.com/clario360/platform/internal/aigovernance/service"
+	aigovshadow "github.com/clario360/platform/internal/aigovernance/shadow"
+	aigovdrift "github.com/clario360/platform/internal/aigovernance/drift"
 	"github.com/clario360/platform/internal/config"
 	"github.com/clario360/platform/internal/events"
 	iamhandler "github.com/clario360/platform/internal/iam/handler"
@@ -89,6 +94,8 @@ func main() {
 	// Register IAM-specific metrics.
 	svc.Metrics.Counter("iam_logins_total", "Total login attempts", []string{"status", "method"})
 	svc.Metrics.Counter("iam_tokens_issued_total", "Total tokens issued", []string{"grant_type"})
+	// Monitoring alert metric (used by clario360-alerts.yaml for brute-force detection).
+	svc.Metrics.Counter("clario360_auth_login_failures_total", "Failed login attempts by source IP", []string{"ip"})
 
 	// Initialize Kafka producer (optional — graceful degradation if unavailable).
 	var producer *events.Producer
@@ -130,6 +137,36 @@ func main() {
 	roleHandler := iamhandler.NewRoleHandler(roleSvc, svc.Logger)
 	tenantHandler := iamhandler.NewTenantHandler(tenantSvc, svc.Logger)
 	apiKeyHandler := iamhandler.NewAPIKeyHandler(apiKeySvc, svc.Logger)
+
+	// AI governance control plane.
+	aiMetrics := aigovservice.NewMetrics(svc.Metrics.Registry())
+	aiRegistryRepo := aigovrepo.NewModelRegistryRepository(svc.DBPool, svc.Logger)
+	aiPredictionRepo := aigovrepo.NewPredictionLogRepository(svc.DBPool, svc.Logger)
+	aiShadowRepo := aigovrepo.NewShadowComparisonRepository(svc.DBPool, svc.Logger)
+	aiDriftRepo := aigovrepo.NewDriftReportRepository(svc.DBPool, svc.Logger)
+	aiExplanationSvc := aigovservice.NewExplanationService(svc.Logger)
+	aiRegistrySvc := aigovservice.NewRegistryService(aiRegistryRepo, producer, aiMetrics, svc.Logger)
+	aiPredictionSvc := aigovservice.NewPredictionService(aiPredictionRepo, aiRegistryRepo, producer, aiMetrics, svc.Logger)
+	aiComparisonSvc := aigovservice.NewComparisonService(aiRegistryRepo, aiPredictionRepo, aiShadowRepo, producer, aiMetrics, svc.Logger)
+	aiShadowSvc := aigovservice.NewShadowService(aiRegistryRepo, aiShadowRepo, aiPredictionRepo, producer, aiMetrics, svc.Logger)
+	aiLifecycleSvc := aigovservice.NewLifecycleService(aiRegistryRepo, aiShadowRepo, producer, aiMetrics, svc.Logger)
+	aiDriftSvc := aigovservice.NewDriftService(aiRegistryRepo, aiPredictionRepo, aiDriftRepo, producer, aiMetrics, svc.Logger)
+	aiDashboardSvc := aigovservice.NewDashboardService(aiRegistryRepo, aiPredictionRepo, aiDriftRepo, svc.Logger)
+	aiServices := aigovhandler.Services{
+		Registry:     aiRegistrySvc,
+		Predictions:  aiPredictionSvc,
+		Explanations: aiExplanationSvc,
+		Shadow:       aiShadowSvc,
+		Lifecycle:    aiLifecycleSvc,
+		Drift:        aiDriftSvc,
+		Dashboard:    aiDashboardSvc,
+	}
+	go func() {
+		_ = aigovshadow.NewScheduler(aiComparisonSvc, time.Hour, svc.Logger).Run(ctx)
+	}()
+	go func() {
+		_ = aigovdrift.NewScheduler(aiDriftSvc, 24*time.Hour, svc.Logger).Run(ctx)
+	}()
 
 	// Onboarding dependencies.
 	onboardingMetrics := onboardingsvc.NewMetrics(svc.Metrics)
@@ -311,6 +348,7 @@ func main() {
 			r.Mount("/roles", roleHandler.Routes())
 			r.Mount("/tenants", tenantHandler.Routes())
 			r.Mount("/api-keys", apiKeyHandler.Routes())
+			aigovhandler.RegisterRoutes(r, aiServices, svc.Logger)
 
 			r.Route("/users/{id}/roles", func(r chi.Router) {
 				r.Get("/", roleHandler.GetUserRoles)

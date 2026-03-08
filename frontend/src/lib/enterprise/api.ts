@@ -3,6 +3,19 @@ import { fetchSuiteData, fetchSuitePaginated } from '@/lib/suite-api';
 import type { PaginatedResponse } from '@/types/api';
 import type { FetchParams } from '@/types/table';
 import type {
+  AIDashboardData,
+  AIDriftReport,
+  AIExplanation,
+  AILifecycleHistoryEntry,
+  AIModelVersion,
+  AIModelWithVersions,
+  AIPerformancePoint,
+  AIPredictionLog,
+  AIPredictionStats,
+  AIShadowComparison,
+  AIShadowDivergence,
+} from '@/types/ai-governance';
+import type {
   ActaActionItem,
   ActaActionItemStats,
   ActaCalendarDay,
@@ -245,6 +258,42 @@ export const enterpriseApi = {
     getAlertCount: (): Promise<{ count: number }> => fetchSuiteData('/api/v1/visus/alerts/count'),
     getAlertStats: (): Promise<JsonObject> => fetchSuiteData('/api/v1/visus/alerts/stats'),
     getExecutiveView: (): Promise<VisusExecutiveSummary> => fetchSuiteData('/api/v1/visus/executive'),
+  },
+  ai: {
+    getDashboard: (): Promise<AIDashboardData> => fetchSuiteData('/api/v1/ai/dashboard'),
+    listModels: (params: FetchParams) => fetchSuitePaginated<AIModelWithVersions>('/api/v1/ai/models', params),
+    getModel: (id: string): Promise<AIModelWithVersions> => fetchSuiteData(`/api/v1/ai/models/${id}`),
+    listVersions: (id: string): Promise<AIModelVersion[]> => fetchSuiteData(`/api/v1/ai/models/${id}/versions`),
+    getVersion: (id: string, versionId: string): Promise<AIModelVersion> => fetchSuiteData(`/api/v1/ai/models/${id}/versions/${versionId}`),
+    promote: (id: string, versionId: string, payload?: { approved_by?: string; override?: boolean }) =>
+      apiPost<{ data: AIModelVersion }>(`/api/v1/ai/models/${id}/versions/${versionId}/promote`, payload ?? {}).then((res) => res.data),
+    retire: (id: string, versionId: string, payload: { reason: string }) =>
+      apiPost<{ data: AIModelVersion }>(`/api/v1/ai/models/${id}/versions/${versionId}/retire`, payload).then((res) => res.data),
+    rollback: (id: string, payload: { reason: string }) =>
+      apiPost<{ data: AIModelVersion }>(`/api/v1/ai/models/${id}/rollback`, payload).then((res) => res.data),
+    lifecycleHistory: (id: string): Promise<AILifecycleHistoryEntry[]> => fetchSuiteData(`/api/v1/ai/models/${id}/lifecycle-history`),
+    startShadow: (id: string, payload: { version_id: string }) =>
+      apiPost<{ data: AIModelVersion }>(`/api/v1/ai/models/${id}/shadow/start`, payload).then((res) => res.data),
+    stopShadow: (id: string, payload: { version_id: string; reason: string }) =>
+      apiPost<{ data: AIModelVersion }>(`/api/v1/ai/models/${id}/shadow/stop`, payload).then((res) => res.data),
+    latestComparison: (id: string): Promise<AIShadowComparison> => fetchSuiteData(`/api/v1/ai/models/${id}/shadow/comparison`),
+    comparisonHistory: (id: string, limit = 24): Promise<AIShadowComparison[]> =>
+      fetchSuiteData(`/api/v1/ai/models/${id}/shadow/comparison/history`, { limit }),
+    divergences: (id: string, params: FetchParams) =>
+      fetchSuitePaginated<AIShadowDivergence>(`/api/v1/ai/models/${id}/shadow/divergences`, params),
+    listPredictions: (params: FetchParams) => fetchSuitePaginated<AIPredictionLog>('/api/v1/ai/predictions', params),
+    getPrediction: (id: string): Promise<AIPredictionLog> => fetchSuiteData(`/api/v1/ai/predictions/${id}`),
+    submitFeedback: (id: string, payload: { correct: boolean; notes: string; corrected_output?: unknown }) =>
+      apiPost<{ data: { message: string } }>(`/api/v1/ai/predictions/${id}/feedback`, payload).then((res) => res.data),
+    predictionStats: (): Promise<AIPredictionStats[]> => fetchSuiteData('/api/v1/ai/predictions/stats'),
+    getExplanation: (predictionId: string): Promise<AIExplanation> => fetchSuiteData(`/api/v1/ai/explanations/${predictionId}`),
+    searchExplanations: (query: string, limit = 20): Promise<AIPredictionLog[]> =>
+      fetchSuiteData('/api/v1/ai/explanations/search', { q: query, limit }),
+    latestDrift: (id: string): Promise<AIDriftReport> => fetchSuiteData(`/api/v1/ai/models/${id}/drift`),
+    driftHistory: (id: string, limit = 24): Promise<AIDriftReport[]> =>
+      fetchSuiteData(`/api/v1/ai/models/${id}/drift/history`, { limit }),
+    performance: (id: string, period = '30d'): Promise<AIPerformancePoint[]> =>
+      fetchSuiteData(`/api/v1/ai/models/${id}/performance`, { period }),
   },
 };
 

@@ -100,4 +100,11 @@ var (
 		Name:      "consumer_lag",
 		Help:      "Kafka consumer lag per topic and partition.",
 	}, []string{"topic", "partition"})
+
+	// ChainValid tracks whether the audit hash chain is intact.
+	// 1 = valid, 0 = broken. Used by Prometheus alerting rules.
+	ChainValid = promauto.NewGauge(prometheus.GaugeOpts{
+		Name: "clario360_audit_chain_valid",
+		Help: "Audit trail hash chain integrity (1=valid, 0=broken). Set by periodic verification.",
+	})
 )

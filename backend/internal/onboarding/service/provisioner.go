@@ -15,6 +15,7 @@ import (
 	"github.com/minio/minio-go/v7/pkg/lifecycle"
 	"github.com/rs/zerolog"
 
+	aigovseeder "github.com/clario360/platform/internal/aigovernance/seeder"
 	"github.com/clario360/platform/internal/database"
 	"github.com/clario360/platform/internal/events"
 	onboardingmodel "github.com/clario360/platform/internal/onboarding/model"
@@ -38,6 +39,7 @@ type TenantProvisioner struct {
 	dashboardSeeder        *seeder.DashboardSeeder
 	complianceRuleSeeder   *seeder.ComplianceRuleSeeder
 	workflowTemplateSeeder *seeder.WorkflowTemplateSeeder
+	modelSeeder            *aigovseeder.ModelSeeder
 	storage                *storage.MinIOStorage
 	emailSender            EmailSender
 	producer               *events.Producer
@@ -92,6 +94,7 @@ func NewTenantProvisioner(
 			return seeder.NewComplianceRuleSeeder(dbPools["lex_db"])
 		}(),
 		workflowTemplateSeeder: seeder.NewWorkflowTemplateSeeder(repository.NewDefinitionRepository(platformPool), logger),
+		modelSeeder:            aigovseeder.NewModelSeeder(platformPool, logger),
 		storage:                storageClient,
 		emailSender:            emailSender,
 		producer:               producer,
@@ -114,6 +117,7 @@ func (p *TenantProvisioner) Provision(ctx context.Context, tenantID uuid.UUID) e
 		"Seed Default KPIs",
 		"Seed Default Dashboard",
 		"Seed Compliance Rules",
+		"Seed AI Governance Models",
 		"Create Storage Buckets",
 		"Initialize Audit Trail",
 	}
@@ -167,6 +171,12 @@ func (p *TenantProvisioner) Provision(ctx context.Context, tenantID uuid.UUID) e
 				return nil
 			}
 			return p.complianceRuleSeeder.Seed(stepCtx, tenantID, onboardingRow.AdminUserID)
+		},
+		func(stepCtx context.Context) error {
+			if p.modelSeeder == nil {
+				return nil
+			}
+			return p.modelSeeder.Seed(stepCtx, tenantID, onboardingRow.AdminUserID)
 		},
 		func(stepCtx context.Context) error { return p.createStorageBuckets(stepCtx, slug) },
 		func(stepCtx context.Context) error {

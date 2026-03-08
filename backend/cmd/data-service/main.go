@@ -16,6 +16,8 @@ import (
 
 	"golang.org/x/sync/errgroup"
 
+	aigovconsumer "github.com/clario360/platform/internal/aigovernance/consumer"
+	aigovintegration "github.com/clario360/platform/internal/aigovernance/integration"
 	"github.com/clario360/platform/internal/auth"
 	"github.com/clario360/platform/internal/config"
 	dataanalytics "github.com/clario360/platform/internal/data/analytics"
@@ -97,6 +99,12 @@ func main() {
 		if err != nil {
 			logger.Warn().Err(err).Msg("Kafka producer unavailable — events will not be published")
 		}
+	}
+	aiRuntime, aiErr := aigovintegration.NewDataRuntime(ctx, cfg, svc.Metrics.Registry(), producer, logger)
+	if aiErr != nil {
+		logger.Warn().Err(aiErr).Msg("ai governance runtime unavailable for data-service")
+	} else {
+		defer aiRuntime.Close()
 	}
 
 	sourceRepo := repository.NewSourceRepository(svc.DBPool, logger)
@@ -190,6 +198,12 @@ func main() {
 		producer,
 		logger,
 	)
+	if aiRuntime != nil {
+		sourceSvcPredictionLogger := aiRuntime.PredictionLogger
+		sourceSvc.SetPredictionLogger(sourceSvcPredictionLogger)
+		qualityScorer.SetPredictionLogger(sourceSvcPredictionLogger)
+		contradictionDetector.SetPredictionLogger(sourceSvcPredictionLogger)
+	}
 	pipelineSvc := service.NewPipelineService(pipelineRepo, runRepo, logRepo, sourceRepo, modelRepo, pipelineEngine, producer, logger)
 	qualitySvc := service.NewQualityService(qualityRuleRepo, qualityResultRepo, modelRepo, qualityExecutor, qualityScorer, producer)
 	contradictionSvc := service.NewContradictionService(contradictionRepo, contradictionDetector, producer)
@@ -292,6 +306,9 @@ func main() {
 			dataConsumer = dataconsumer.NewDataConsumer(sourceSvc, kafkaConsumer, logger)
 			lineageConsumer = dataconsumer.NewLineageConsumer(lineageSvc, pipelineRepo, runRepo, dashboardCache, kafkaConsumer, logger)
 			kafkaConsumer.Subscribe(events.Topics.PipelineEvents, dataconsumer.NewFailureTracker(svc.Redis, guard, producer, logger, crossSuiteMetrics))
+			if aiRuntime != nil && aiRuntime.PredictionLogger != nil {
+				kafkaConsumer.Subscribe(events.Topics.AIEvents, aigovconsumer.NewCacheInvalidationConsumer(aiRuntime.PredictionLogger, logger))
+			}
 		}
 	}
 

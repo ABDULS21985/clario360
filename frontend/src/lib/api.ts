@@ -4,6 +4,7 @@ import axios, {
   AxiosResponse,
 } from 'axios';
 import { getAccessToken, setAccessToken, clearAccessToken } from '@/lib/auth';
+import { getCSRFToken, requiresCSRF, CSRF_HEADER } from '@/lib/csrf';
 import type { ApiError } from '@/types/api';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8080';
@@ -40,6 +41,14 @@ api.interceptors.request.use(
       config.headers
     ) {
       config.headers['Content-Type'] = 'application/json';
+    }
+
+    // Attach CSRF token for state-changing methods (POST, PUT, PATCH, DELETE)
+    if (config.method && requiresCSRF(config.method) && config.headers) {
+      const csrfToken = getCSRFToken();
+      if (csrfToken) {
+        config.headers[CSRF_HEADER] = csrfToken;
+      }
     }
 
     return config;

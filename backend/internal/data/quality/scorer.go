@@ -2,24 +2,32 @@ package quality
 
 import (
 	"context"
+	"fmt"
 	"sort"
 	"time"
 
 	"github.com/google/uuid"
 
+	"github.com/clario360/platform/internal/aigovernance"
+	aigovmiddleware "github.com/clario360/platform/internal/aigovernance/middleware"
 	"github.com/clario360/platform/internal/data/dto"
 	"github.com/clario360/platform/internal/data/model"
 	"github.com/clario360/platform/internal/data/repository"
 )
 
 type Scorer struct {
-	ruleRepo   *repository.QualityRuleRepository
-	resultRepo *repository.QualityResultRepository
-	modelRepo  *repository.ModelRepository
+	ruleRepo         *repository.QualityRuleRepository
+	resultRepo       *repository.QualityResultRepository
+	modelRepo        *repository.ModelRepository
+	predictionLogger *aigovmiddleware.PredictionLogger
 }
 
 func NewScorer(ruleRepo *repository.QualityRuleRepository, resultRepo *repository.QualityResultRepository, modelRepo *repository.ModelRepository) *Scorer {
 	return &Scorer{ruleRepo: ruleRepo, resultRepo: resultRepo, modelRepo: modelRepo}
+}
+
+func (s *Scorer) SetPredictionLogger(predictionLogger *aigovmiddleware.PredictionLogger) {
+	s.predictionLogger = predictionLogger
 }
 
 func (s *Scorer) CalculateScore(ctx context.Context, tenantID uuid.UUID) (*model.QualityScore, error) {
@@ -113,7 +121,77 @@ func (s *Scorer) CalculateScore(ctx context.Context, tenantID uuid.UUID) (*model
 	if len(score.TopFailures) > 5 {
 		score.TopFailures = score.TopFailures[:5]
 	}
+	s.recordPrediction(ctx, tenantID, score)
 	return score, nil
+}
+
+func (s *Scorer) recordPrediction(ctx context.Context, tenantID uuid.UUID, score *model.QualityScore) {
+	if s.predictionLogger == nil || score == nil {
+		return
+	}
+
+	componentScores := make(map[string]any, len(score.ModelScores))
+	componentWeights := make(map[string]any, len(score.ModelScores))
+	for _, modelScore := range score.ModelScores {
+		key := modelScore.ModelName
+		if key == "" {
+			key = modelScore.ModelID.String()
+		}
+		componentScores[key] = modelScore.Score
+		componentWeights[key] = modelScore.ClassificationWeight
+	}
+
+	input := map[string]any{
+		"total_rules":   score.TotalRules,
+		"passed_rules":  score.PassedRules,
+		"warning_rules": score.WarningRules,
+		"failed_rules":  score.FailedRules,
+	}
+	confidence := clampQualityConfidence(score.PassRate / 100)
+	tenantEntityID := tenantID
+	_, _ = s.predictionLogger.Predict(ctx, aigovernance.PredictParams{
+		TenantID:     tenantID,
+		ModelSlug:    "data-quality-scorer",
+		UseCase:      "quality_scoring",
+		EntityType:   "tenant",
+		EntityID:     &tenantEntityID,
+		Input:        input,
+		InputSummary: input,
+		ModelFunc: func(context.Context, any) (*aigovernance.ModelOutput, error) {
+			return &aigovernance.ModelOutput{
+				Output:     score,
+				Confidence: confidence,
+				Metadata: map[string]any{
+					"overall_score":     score.OverallScore,
+					"grade":             score.Grade,
+					"component_scores":  componentScores,
+					"component_weights": componentWeights,
+					"total_rules":       score.TotalRules,
+					"failed_rules":      score.FailedRules,
+					"top_failures":      formatTopFailures(score.TopFailures),
+				},
+			}, nil
+		},
+	})
+}
+
+func clampQualityConfidence(value float64) float64 {
+	switch {
+	case value < 0.55:
+		return 0.55
+	case value > 0.98:
+		return 0.98
+	default:
+		return value
+	}
+}
+
+func formatTopFailures(items []model.TopFailure) []string {
+	out := make([]string, 0, len(items))
+	for _, item := range items {
+		out = append(out, fmt.Sprintf("%s:%s:%d", item.ModelName, item.RuleName, item.RecordsFailed))
+	}
+	return out
 }
 
 func repositoryRuleParams() dto.ListQualityRulesParams {

@@ -20,6 +20,7 @@ func (e *StatisticalExplainer) Explain(_ context.Context, version *aigovmodel.Mo
 	stddev := numeric(output.Metadata["baseline_stddev"])
 	zScore := numeric(output.Metadata["z_score"])
 	threshold := numeric(output.Metadata["threshold"])
+	anomalyDetected, hasAnomalyFlag := boolValue(output.Metadata["anomaly_detected"])
 
 	factors := []aigovmodel.Factor{
 		{
@@ -45,23 +46,34 @@ func (e *StatisticalExplainer) Explain(_ context.Context, version *aigovmodel.Mo
 		},
 	}
 	structured := map[string]any{
-		"current_value":    current,
-		"baseline_mean":    baseline,
-		"baseline_stddev":  stddev,
-		"z_score":          zScore,
-		"threshold":        threshold,
-	}
-
-	human, err := renderTemplate(version, map[string]any{
 		"current_value":   current,
 		"baseline_mean":   baseline,
 		"baseline_stddev": stddev,
 		"z_score":         zScore,
 		"threshold":       threshold,
-		"confidence":      output.Confidence,
-	})
-	if err != nil {
-		return nil, err
+	}
+	if hasAnomalyFlag {
+		structured["anomaly_detected"] = anomalyDetected
+	}
+
+	human := ""
+	if hasAnomalyFlag && !anomalyDetected {
+		human = fmt.Sprintf("No statistically significant deviation was detected for this evaluation window (threshold %.2fσ).", threshold)
+	}
+	if human == "" {
+		rendered, err := renderTemplate(version, map[string]any{
+			"current_value":    current,
+			"baseline_mean":    baseline,
+			"baseline_stddev":  stddev,
+			"z_score":          zScore,
+			"threshold":        threshold,
+			"anomaly_detected": structured["anomaly_detected"],
+			"confidence":       output.Confidence,
+		})
+		if err != nil {
+			return nil, err
+		}
+		human = rendered
 	}
 	if human == "" {
 		human = fmt.Sprintf("Observed value %.2f deviates %.2f standard deviations from the baseline of %.2f.", current, zScore, baseline)

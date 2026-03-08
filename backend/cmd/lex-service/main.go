@@ -11,6 +11,9 @@ import (
 
 	"github.com/rs/zerolog"
 
+	aigovconsumer "github.com/clario360/platform/internal/aigovernance/consumer"
+	aigovintegration "github.com/clario360/platform/internal/aigovernance/integration"
+	aigovmiddleware "github.com/clario360/platform/internal/aigovernance/middleware"
 	"github.com/clario360/platform/internal/auth"
 	appconfig "github.com/clario360/platform/internal/config"
 	"github.com/clario360/platform/internal/database"
@@ -82,6 +85,12 @@ func main() {
 			defer producer.Close()
 		}
 	}
+	aiRuntime, aiErr := aigovintegration.NewLexRuntime(ctx, baseCfg, svc.Metrics.Registry(), producer, logger)
+	if aiErr != nil {
+		logger.Warn().Err(aiErr).Msg("ai governance runtime unavailable for lex-service")
+	} else {
+		defer aiRuntime.Close()
+	}
 
 	app, err := lexapp.NewApplication(lexapp.Dependencies{
 		DB:                svc.DBPool,
@@ -96,6 +105,12 @@ func main() {
 		DashboardCacheTTL: lexCfg.DashboardCacheTTL,
 		OrgJurisdiction:   lexCfg.OrgJurisdiction,
 		KafkaTopic:        lexCfg.KafkaTopic,
+		PredictionLogger: func() *aigovmiddleware.PredictionLogger {
+			if aiRuntime == nil {
+				return nil
+			}
+			return aiRuntime.PredictionLogger
+		}(),
 	})
 	if err != nil {
 		logger.Fatal().Err(err).Msg("failed to initialize lex application")
@@ -158,6 +173,9 @@ func main() {
 			kafkaConsumer.SetCrossSuiteMetrics(crossSuiteMetrics)
 			kafkaConsumer.SetDLQTracker(dlqTracker, "lex-service")
 			handler := lexconsumer.NewLexConsumer(app.ComplianceService, app.WorkflowService, kafkaConsumer, logger)
+			if aiRuntime != nil && aiRuntime.PredictionLogger != nil {
+				kafkaConsumer.Subscribe(events.Topics.AIEvents, aigovconsumer.NewCacheInvalidationConsumer(aiRuntime.PredictionLogger, logger))
+			}
 			go runBackground(ctx, logger, "lex-consumer", handler.Start)
 		}
 	}

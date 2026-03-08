@@ -11,6 +11,7 @@ import (
 	"github.com/redis/go-redis/v9"
 	"github.com/rs/zerolog"
 
+	aigovmiddleware "github.com/clario360/platform/internal/aigovernance/middleware"
 	"github.com/clario360/platform/internal/auth"
 	"github.com/clario360/platform/internal/events"
 	"github.com/clario360/platform/internal/lex/analyzer"
@@ -35,6 +36,7 @@ type Dependencies struct {
 	DashboardCacheTTL  time.Duration
 	OrgJurisdiction    string
 	KafkaTopic         string
+	PredictionLogger   *aigovmiddleware.PredictionLogger
 }
 
 type Application struct {
@@ -106,6 +108,7 @@ func NewApplication(deps Dependencies) (*Application, error) {
 		appMetrics,
 		deps.KafkaTopic,
 		deps.Logger,
+		deps.PredictionLogger,
 	)
 	clauseService := service.NewClauseService(store.Contracts, store.Clauses, publisher, appMetrics, deps.KafkaTopic, deps.Logger)
 	documentService := service.NewDocumentService(deps.DB, store.Contracts, store.Documents, publisher, appMetrics, deps.KafkaTopic, deps.Logger)

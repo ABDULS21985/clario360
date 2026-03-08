@@ -121,6 +121,7 @@ func (e *CTEMEngine) runPrioritization(ctx context.Context, assessment *model.CT
 	progress := assessment.Phases["prioritizing"]
 	progress.Result = marshalMap(groupCounts)
 	assessment.Phases["prioritizing"] = progress
+	e.recordPrioritizationPrediction(ctx, assessment, findings)
 	return e.assessmentRepo.SaveState(ctx, assessment)
 }
 

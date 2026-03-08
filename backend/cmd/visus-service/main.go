@@ -11,6 +11,9 @@ import (
 
 	"github.com/rs/zerolog"
 
+	aigovconsumer "github.com/clario360/platform/internal/aigovernance/consumer"
+	aigovintegration "github.com/clario360/platform/internal/aigovernance/integration"
+	aigovmiddleware "github.com/clario360/platform/internal/aigovernance/middleware"
 	"github.com/clario360/platform/internal/auth"
 	appconfig "github.com/clario360/platform/internal/config"
 	"github.com/clario360/platform/internal/database"
@@ -83,6 +86,12 @@ func main() {
 			defer producer.Close()
 		}
 	}
+	aiRuntime, aiErr := aigovintegration.NewVisusRuntime(ctx, baseCfg, svc.Metrics.Registry(), producer, logger)
+	if aiErr != nil {
+		logger.Warn().Err(aiErr).Msg("ai governance runtime unavailable for visus-service")
+	} else {
+		defer aiRuntime.Close()
+	}
 
 	app, err := visusapp.NewApplication(visusapp.Dependencies{
 		DB:         svc.DBPool,
@@ -92,6 +101,12 @@ func main() {
 		Registerer: svc.Metrics.Registry(),
 		Config:     visusCfg,
 		JWTManager: jwtMgr,
+		PredictionLogger: func() *aigovmiddleware.PredictionLogger {
+			if aiRuntime == nil {
+				return nil
+			}
+			return aiRuntime.PredictionLogger
+		}(),
 	})
 	if err != nil {
 		logger.Fatal().Err(err).Msg("failed to initialize visus application")
@@ -127,6 +142,9 @@ func main() {
 			kafkaConsumer.SetDeadLetterProducer(producer)
 			kafkaConsumer.SetCrossSuiteMetrics(app.CrossSuiteMetrics)
 			kafkaConsumer.SetDLQTracker(dlqTracker, "visus-service")
+			if aiRuntime != nil && aiRuntime.PredictionLogger != nil {
+				kafkaConsumer.Subscribe(events.Topics.AIEvents, aigovconsumer.NewCacheInvalidationConsumer(aiRuntime.PredictionLogger, logger))
+			}
 			app.Consumer.Register(kafkaConsumer)
 			go runBackground(ctx, logger, "visus-consumer", kafkaConsumer.Start)
 		}

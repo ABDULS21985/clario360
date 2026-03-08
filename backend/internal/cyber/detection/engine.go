@@ -13,6 +13,7 @@ import (
 	"github.com/redis/go-redis/v9"
 	"github.com/rs/zerolog"
 
+	aigovmiddleware "github.com/clario360/platform/internal/aigovernance/middleware"
 	"github.com/clario360/platform/internal/cyber/explanation"
 	"github.com/clario360/platform/internal/cyber/indicator"
 	"github.com/clario360/platform/internal/cyber/mitre"
@@ -49,15 +50,16 @@ type DetectionEngine struct {
 
 	evaluators map[model.DetectionRuleType]RuleEvaluator
 
-	ruleRepo   *repository.RuleRepository
-	assetRepo  *repository.AssetRepository
-	threatRepo *repository.ThreatRepository
-	alerts     AlertWriter
-	indicators *indicator.Matcher
-	redis      *redis.Client
-	producer   *events.Producer
-	logger     zerolog.Logger
-	reloadCh   chan uuid.UUID
+	ruleRepo         *repository.RuleRepository
+	assetRepo        *repository.AssetRepository
+	threatRepo       *repository.ThreatRepository
+	alerts           AlertWriter
+	indicators       *indicator.Matcher
+	redis            *redis.Client
+	producer         *events.Producer
+	logger           zerolog.Logger
+	reloadCh         chan uuid.UUID
+	predictionLogger *aigovmiddleware.PredictionLogger
 }
 
 // NewDetectionEngine creates a new detection engine.
@@ -192,6 +194,7 @@ func (e *DetectionEngine) ProcessEvents(ctx context.Context, tenantID uuid.UUID,
 
 	for _, loadedRule := range tenantRules {
 		matches := loadedRule.Evaluator.Evaluate(loadedRule.Compiled, normalizedEvents)
+		e.recordGovernedRuleEvaluation(ctx, tenantID, loadedRule, normalizedEvents, matches)
 		for _, match := range matches {
 			match.RuleID = loadedRule.Rule.ID
 			for _, event := range match.Events {
@@ -518,4 +521,8 @@ func (e *DetectionEngine) snapshotKnownTenants() []uuid.UUID {
 		out = append(out, tenantID)
 	}
 	return out
+}
+
+func (e *DetectionEngine) SetPredictionLogger(predictionLogger *aigovmiddleware.PredictionLogger) {
+	e.predictionLogger = predictionLogger
 }

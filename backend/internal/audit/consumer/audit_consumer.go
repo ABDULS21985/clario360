@@ -16,6 +16,7 @@ var SubscribedTopics = []string{
 	"platform.iam.events",
 	"platform.workflow.events",
 	"platform.notification.events",
+	"platform.ai.events",
 	"cyber.asset.events",
 	"cyber.threat.events",
 	"cyber.alert.events",

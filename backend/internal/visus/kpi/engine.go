@@ -7,6 +7,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
 
+	"github.com/clario360/platform/internal/aigovernance"
+	aigovmiddleware "github.com/clario360/platform/internal/aigovernance/middleware"
 	visusmetrics "github.com/clario360/platform/internal/visus/metrics"
 	"github.com/clario360/platform/internal/visus/model"
 	"github.com/clario360/platform/internal/visus/repository"
@@ -25,9 +27,10 @@ type KPIEngine struct {
 	alertGen     KPIAlertGenerator
 	metrics      *visusmetrics.Metrics
 	logger       zerolog.Logger
+	predictionLogger *aigovmiddleware.PredictionLogger
 }
 
-func NewEngine(fetcher *KPIFetcher, calculator *KPICalculator, threshold *ThresholdEvaluator, snapshotRepo *repository.KPISnapshotRepository, kpiRepo *repository.KPIRepository, alertGen KPIAlertGenerator, metrics *visusmetrics.Metrics, logger zerolog.Logger) *KPIEngine {
+func NewEngine(fetcher *KPIFetcher, calculator *KPICalculator, threshold *ThresholdEvaluator, snapshotRepo *repository.KPISnapshotRepository, kpiRepo *repository.KPIRepository, alertGen KPIAlertGenerator, metrics *visusmetrics.Metrics, logger zerolog.Logger, predictionLogger *aigovmiddleware.PredictionLogger) *KPIEngine {
 	return &KPIEngine{
 		fetcher:      fetcher,
 		calculator:   calculator,
@@ -37,6 +40,7 @@ func NewEngine(fetcher *KPIFetcher, calculator *KPICalculator, threshold *Thresh
 		alertGen:     alertGen,
 		metrics:      metrics,
 		logger:       logger.With().Str("component", "visus_kpi_engine").Logger(),
+		predictionLogger: predictionLogger,
 	}
 }
 
@@ -67,6 +71,7 @@ func (e *KPIEngine) TakeSnapshots(ctx context.Context, tenantID uuid.UUID) error
 		if fetchSuccess {
 			value = e.calculator.Calculate(kpi, rawValue, history)
 			status = e.threshold.Evaluate(kpi, value)
+			e.recordPrediction(ctx, tenantID, kpi, value, status, previous)
 		} else if previous != nil {
 			value = previous.Value
 		}
@@ -122,6 +127,57 @@ func (e *KPIEngine) TakeSnapshots(ctx context.Context, tenantID uuid.UUID) error
 	}
 	e.logger.Info().Str("tenant_id", tenantID.String()).Int("evaluated", evaluated).Int("breaches", breaches).Msg("kpi snapshot complete")
 	return nil
+}
+
+func (e *KPIEngine) recordPrediction(ctx context.Context, tenantID uuid.UUID, kpi *model.KPIDefinition, value float64, status model.KPIStatus, previous *model.KPISnapshot) {
+	if e.predictionLogger == nil || kpi == nil {
+		return
+	}
+	entityID := kpi.ID
+	baseline := value
+	zScore := 0.0
+	if previous != nil {
+		baseline = previous.Value
+		if baseline != 0 {
+			zScore = (value - baseline) / baseline
+		}
+	}
+	threshold := 0.0
+	if kpi.CriticalThreshold != nil {
+		threshold = *kpi.CriticalThreshold
+	} else if kpi.WarningThreshold != nil {
+		threshold = *kpi.WarningThreshold
+	}
+	_, _ = e.predictionLogger.Predict(ctx, aigovernance.PredictParams{
+		TenantID:     tenantID,
+		ModelSlug:    "visus-kpi-monitor",
+		UseCase:      "kpi_threshold_monitoring",
+		EntityType:   "kpi",
+		EntityID:     &entityID,
+		Input: map[string]any{
+			"kpi_id":     kpi.ID.String(),
+			"name":       kpi.Name,
+			"raw_value":  value,
+		},
+		InputSummary: map[string]any{
+			"kpi_name":  kpi.Name,
+			"suite":     kpi.Suite,
+			"value":     value,
+		},
+		ModelFunc: func(context.Context, any) (*aigovernance.ModelOutput, error) {
+			return &aigovernance.ModelOutput{
+				Output:     map[string]any{"status": status, "value": value},
+				Confidence: 0.95,
+				Metadata: map[string]any{
+					"current_value":   value,
+					"baseline_mean":   baseline,
+					"baseline_stddev": 1.0,
+					"z_score":         zScore,
+					"threshold":       threshold,
+				},
+			}, nil
+		},
+	})
 }
 
 func snapshotDue(last *time.Time, frequency model.KPISnapshotFrequency, now time.Time) bool {

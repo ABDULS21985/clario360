@@ -15,6 +15,9 @@ type Metrics struct {
 	DocumentsTotal           *prometheus.GaugeVec
 	ContractValueTotal       *prometheus.GaugeVec
 	WorkflowActive           prometheus.Gauge
+
+	// Monitoring alert metrics (used by clario360-alerts.yaml)
+	ContractsExpiring7d prometheus.Gauge // clario360_lex_contracts_expiring_7d
 }
 
 func New(reg prometheus.Registerer) *Metrics {
@@ -68,6 +71,10 @@ func New(reg prometheus.Registerer) *Metrics {
 			Name: "lex_workflow_active",
 			Help: "Current number of active legal workflow instances.",
 		}),
+		ContractsExpiring7d: prometheus.NewGauge(prometheus.GaugeOpts{
+			Name: "clario360_lex_contracts_expiring_7d",
+			Help: "Number of contracts expiring within 7 days without renewal action (used by Prometheus alerting rules).",
+		}),
 	}
 
 	reg.MustRegister(
@@ -83,6 +90,7 @@ func New(reg prometheus.Registerer) *Metrics {
 		m.DocumentsTotal,
 		m.ContractValueTotal,
 		m.WorkflowActive,
+		m.ContractsExpiring7d,
 	)
 	return m
 }

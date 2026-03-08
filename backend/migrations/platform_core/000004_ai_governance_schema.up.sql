@@ -131,7 +131,7 @@ BEGIN
             'CREATE TABLE IF NOT EXISTS %I PARTITION OF ai_prediction_logs FOR VALUES FROM (%L) TO (%L)',
             partition_name,
             partition_date,
-            partition_date + interval ''1 month''
+            partition_date + interval '1 month'
         );
     END LOOP;
 END $$;

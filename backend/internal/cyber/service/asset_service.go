@@ -15,6 +15,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog"
 
+	aigovmiddleware "github.com/clario360/platform/internal/aigovernance/middleware"
 	"github.com/clario360/platform/internal/cyber/classifier"
 	cyberconfig "github.com/clario360/platform/internal/cyber/config"
 	"github.com/clario360/platform/internal/cyber/dto"
@@ -28,20 +29,21 @@ import (
 
 // AssetService contains the business logic for asset management.
 type AssetService struct {
-	assetRepo    *repository.AssetRepository
-	vulnRepo     *repository.VulnerabilityRepository
-	relRepo      *repository.RelationshipRepository
-	scanRepo     *repository.ScanRepository
-	scanRegistry *scanner.Registry
-	classifier   *classifier.AssetClassifier
-	enrichSvc    *EnrichmentService
-	producer     *events.Producer
-	metrics      *metrics.Metrics
-	cfg          *cyberconfig.Config
-	db           *pgxpool.Pool
-	logger       zerolog.Logger
-	runningScans map[uuid.UUID]context.CancelFunc
-	scanMu       sync.Mutex
+	assetRepo        *repository.AssetRepository
+	vulnRepo         *repository.VulnerabilityRepository
+	relRepo          *repository.RelationshipRepository
+	scanRepo         *repository.ScanRepository
+	scanRegistry     *scanner.Registry
+	classifier       *classifier.AssetClassifier
+	enrichSvc        *EnrichmentService
+	producer         *events.Producer
+	metrics          *metrics.Metrics
+	cfg              *cyberconfig.Config
+	db               *pgxpool.Pool
+	logger           zerolog.Logger
+	runningScans     map[uuid.UUID]context.CancelFunc
+	scanMu           sync.Mutex
+	predictionLogger *aigovmiddleware.PredictionLogger
 }
 
 // NewAssetService creates a new AssetService.
@@ -87,6 +89,7 @@ func (s *AssetService) CreateAsset(ctx context.Context, tenantID, userID uuid.UU
 
 	if s.cfg.ClassifyOnCreate {
 		crit, ruleName, _ := s.classifier.Classify(asset)
+		s.recordAssetClassificationPrediction(ctx, tenantID, asset, crit, ruleName)
 		s.metrics.ClassificationsTotal.WithLabelValues(tenantID.String(), ruleName).Inc()
 		if crit != asset.Criticality {
 			s.metrics.ClassificationChanged.WithLabelValues(tenantID.String(), string(asset.Criticality), string(crit)).Inc()
@@ -273,8 +276,15 @@ func (s *AssetService) BulkCreate(ctx context.Context, tenantID, userID uuid.UUI
 		}
 		if s.cfg.ClassifyOnCreate {
 			results := s.classifier.ClassifyBatch(fetchedAssets)
+			assetsByID := make(map[uuid.UUID]*model.Asset, len(fetchedAssets))
+			for _, asset := range fetchedAssets {
+				assetsByID[asset.ID] = asset
+			}
 			updates := make(map[uuid.UUID]model.Criticality)
 			for _, r := range results {
+				if asset := assetsByID[r.AssetID]; asset != nil {
+					s.recordAssetClassificationPrediction(bgCtx, tenantID, asset, r.Criticality, r.RuleName)
+				}
 				if r.Changed {
 					updates[r.AssetID] = r.Criticality
 				}
@@ -549,6 +559,10 @@ func (s *AssetService) GetStats(ctx context.Context, tenantID uuid.UUID) (*dto.A
 	}
 
 	return result, nil
+}
+
+func (s *AssetService) SetPredictionLogger(predictionLogger *aigovmiddleware.PredictionLogger) {
+	s.predictionLogger = predictionLogger
 }
 
 // BulkValidationError is a typed error for bulk validation failures.

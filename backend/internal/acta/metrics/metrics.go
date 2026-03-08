@@ -18,6 +18,9 @@ type Metrics struct {
 	ActionItemsCompletionDays        prometheus.Histogram
 	ComplianceScore                  *prometheus.GaugeVec
 	ComplianceChecksTotal            *prometheus.CounterVec
+
+	// Monitoring alert metrics (used by clario360-alerts.yaml)
+	OverdueActionItems prometheus.Gauge // clario360_acta_overdue_action_items
 }
 
 func New(reg prometheus.Registerer) *Metrics {
@@ -85,6 +88,10 @@ func New(reg prometheus.Registerer) *Metrics {
 			Name: "acta_compliance_checks_total",
 			Help: "Compliance checks recorded by type and status.",
 		}, []string{"check_type", "status"}),
+		OverdueActionItems: prometheus.NewGauge(prometheus.GaugeOpts{
+			Name: "clario360_acta_overdue_action_items",
+			Help: "Total overdue board action items across all tenants (used by Prometheus alerting rules).",
+		}),
 	}
 
 	reg.MustRegister(
@@ -103,6 +110,7 @@ func New(reg prometheus.Registerer) *Metrics {
 		m.ActionItemsCompletionDays,
 		m.ComplianceScore,
 		m.ComplianceChecksTotal,
+		m.OverdueActionItems,
 	)
 
 	return m

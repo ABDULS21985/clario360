@@ -17,6 +17,9 @@ import (
 	actahealth "github.com/clario360/platform/internal/acta/health"
 	actascheduler "github.com/clario360/platform/internal/acta/scheduler"
 	actasvc "github.com/clario360/platform/internal/acta/service"
+	aigovconsumer "github.com/clario360/platform/internal/aigovernance/consumer"
+	aigovintegration "github.com/clario360/platform/internal/aigovernance/integration"
+	aigovmiddleware "github.com/clario360/platform/internal/aigovernance/middleware"
 	"github.com/clario360/platform/internal/auth"
 	appconfig "github.com/clario360/platform/internal/config"
 	"github.com/clario360/platform/internal/database"
@@ -90,6 +93,14 @@ func main() {
 		}
 	}
 
+	var predictionLoggerDeps *aigovintegration.Runtime
+	predictionLoggerDeps, err = aigovintegration.NewActaRuntime(ctx, baseCfg, svc.Metrics.Registry(), producer, logger)
+	if err != nil {
+		logger.Warn().Err(err).Msg("ai governance runtime unavailable for acta-service")
+	} else {
+		defer predictionLoggerDeps.Close()
+	}
+
 	app, err := actaapp.NewApplication(actaapp.Dependencies{
 		DB:                svc.DBPool,
 		Redis:             svc.Redis,
@@ -100,6 +111,12 @@ func main() {
 		KafkaTopic:        actaCfg.KafkaTopic,
 		WorkflowDefRepo:   workflowrepo.NewDefinitionRepository(svc.DBPool),
 		WorkflowInstRepo:  workflowrepo.NewInstanceRepository(svc.DBPool),
+		PredictionLogger: func() *aigovmiddleware.PredictionLogger {
+			if predictionLoggerDeps == nil {
+				return nil
+			}
+			return predictionLoggerDeps.PredictionLogger
+		}(),
 	})
 	if err != nil {
 		logger.Fatal().Err(err).Msg("failed to initialize acta application")
@@ -208,6 +225,9 @@ func main() {
 			kafkaConsumer.SetCrossSuiteMetrics(crossSuiteMetrics)
 			kafkaConsumer.SetDLQTracker(dlqTracker, "acta-service")
 			actaConsumer := actaconsumer.NewActaConsumer(app.Store, kafkaConsumer, logger)
+			if predictionLoggerDeps != nil && predictionLoggerDeps.PredictionLogger != nil {
+				kafkaConsumer.Subscribe(events.Topics.AIEvents, aigovconsumer.NewCacheInvalidationConsumer(predictionLoggerDeps.PredictionLogger, logger))
+			}
 			go runBackground(ctx, logger, "acta-consumer", actaConsumer.Start)
 		}
 	}

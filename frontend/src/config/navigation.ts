@@ -179,6 +179,13 @@ export const navigation: NavSection[] = [
         permission: '*:read',
       },
       {
+        id: 'admin-ai-governance',
+        label: 'AI Governance',
+        href: '/admin/ai-governance',
+        icon: Bot,
+        permission: 'users:read',
+      },
+      {
         id: 'admin-settings',
         label: 'Settings',
         href: '/admin/settings',

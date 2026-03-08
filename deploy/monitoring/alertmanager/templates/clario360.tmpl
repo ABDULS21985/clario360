@@ -1,0 +1,30 @@
+{{ define "slack.clario360.title" -}}
+{{ if eq .Status "firing" }}:rotating_light:{{ else }}:white_check_mark:{{ end }} {{ .CommonLabels.alertname }} [{{ .Status | toUpper }}]
+{{- end }}
+
+{{ define "slack.clario360.text" -}}
+{{ range .Alerts -}}
+*Severity:* `{{ .Labels.severity }}`
+*Service:* {{ if .Labels.service }}{{ .Labels.service }}{{ else }}N/A{{ end }}
+*Summary:* {{ .Annotations.summary }}
+{{ if .Annotations.description }}*Description:* {{ .Annotations.description }}{{ end }}
+{{ if .Annotations.runbook }}*Runbook:* <{{ .Annotations.runbook }}|View Runbook>{{ end }}
+*Started:* {{ .StartsAt.Format "2006-01-02 15:04:05 MST" }}
+{{ if eq .Status "resolved" }}*Resolved:* {{ .EndsAt.Format "2006-01-02 15:04:05 MST" }}{{ end }}
+---
+{{ end }}
+{{- end }}
+
+{{ define "slack.clario360.color" -}}
+{{ if eq .Status "firing" -}}
+  {{ if eq .CommonLabels.severity "critical" -}}
+    danger
+  {{- else if eq .CommonLabels.severity "warning" -}}
+    warning
+  {{- else -}}
+    #439FE0
+  {{- end -}}
+{{- else -}}
+  good
+{{- end }}
+{{- end }}

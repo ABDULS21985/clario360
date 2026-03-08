@@ -10,6 +10,7 @@ import (
 	"github.com/redis/go-redis/v9"
 	"github.com/rs/zerolog"
 
+	aigovmiddleware "github.com/clario360/platform/internal/aigovernance/middleware"
 	"github.com/clario360/platform/internal/acta/ai"
 	"github.com/clario360/platform/internal/acta/handler"
 	actametrics "github.com/clario360/platform/internal/acta/metrics"
@@ -29,6 +30,7 @@ type Dependencies struct {
 	KafkaTopic        string
 	WorkflowDefRepo   *workflowrepo.DefinitionRepository
 	WorkflowInstRepo  *workflowrepo.InstanceRepository
+	PredictionLogger  *aigovmiddleware.PredictionLogger
 }
 
 type Application struct {
@@ -74,7 +76,7 @@ func NewApplication(deps Dependencies) (*Application, error) {
 	app.CommitteeService = service.NewCommitteeService(store, deps.Publisher, metrics, deps.Logger)
 	app.MeetingService = service.NewMeetingService(store, deps.Publisher, metrics, deps.KafkaTopic, deps.WorkflowDefRepo, deps.WorkflowInstRepo, deps.Logger)
 	app.AgendaService = service.NewAgendaService(store, deps.Publisher, metrics, deps.Logger)
-	app.MinutesService = service.NewMinutesService(store, generator, deps.Publisher, metrics, deps.Logger)
+	app.MinutesService = service.NewMinutesService(store, generator, deps.Publisher, metrics, deps.Logger, deps.PredictionLogger)
 	app.ActionItemService = service.NewActionItemService(store, deps.Publisher, metrics, deps.Logger)
 	app.ComplianceService = service.NewComplianceService(store, deps.Publisher, metrics, deps.Logger)
 	app.DashboardService = service.NewDashboardService(store, deps.Redis, deps.DashboardCacheTTL, deps.Logger)

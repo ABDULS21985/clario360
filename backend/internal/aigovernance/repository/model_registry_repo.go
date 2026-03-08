@@ -329,6 +329,14 @@ func (r *ModelRegistryRepository) GetVersionByID(ctx context.Context, tenantID, 
 }
 
 func (r *ModelRegistryRepository) ListProductionVersions(ctx context.Context) ([]aigovmodel.ModelVersion, error) {
+	return r.listVersionsByStatus(ctx, aigovmodel.VersionStatusProduction)
+}
+
+func (r *ModelRegistryRepository) ListShadowVersions(ctx context.Context) ([]aigovmodel.ModelVersion, error) {
+	return r.listVersionsByStatus(ctx, aigovmodel.VersionStatusShadow)
+}
+
+func (r *ModelRegistryRepository) listVersionsByStatus(ctx context.Context, status aigovmodel.VersionStatus) ([]aigovmodel.ModelVersion, error) {
 	rows, err := r.db.Query(ctx, `
 		SELECT v.id, v.tenant_id, v.model_id, m.slug, m.name, m.model_type, m.suite, m.risk_tier,
 		       v.version_number, v.status, v.description, v.artifact_type, v.artifact_config,
@@ -341,10 +349,11 @@ func (r *ModelRegistryRepository) ListProductionVersions(ctx context.Context) ([
 		       v.replaced_version_id, v.created_by, v.created_at, v.updated_at
 		FROM ai_model_versions v
 		JOIN ai_models m ON m.id = v.model_id
-		WHERE v.status = 'production' AND m.deleted_at IS NULL`,
+		WHERE v.status = $1 AND m.deleted_at IS NULL`,
+		status,
 	)
 	if err != nil {
-		return nil, fmt.Errorf("list production ai model versions: %w", err)
+		return nil, fmt.Errorf("list ai model versions by status: %w", err)
 	}
 	defer rows.Close()
 	items := make([]aigovmodel.ModelVersion, 0)

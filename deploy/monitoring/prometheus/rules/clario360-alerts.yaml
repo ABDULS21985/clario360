@@ -55,6 +55,25 @@ groups:
           summary: "{{ $labels.service }} p95 latency above 5 seconds — CRITICAL"
           runbook: "docs/runbooks/troubleshooting/TS-001-slow-api-responses.md"
 
+      - alert: ServicePodCrashLooping
+        expr: increase(kube_pod_container_status_restarts_total{namespace="clario360"}[1h]) > 5
+        for: 5m
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: "Pod {{ $labels.pod }} is crash looping ({{ $value }} restarts in 1h)"
+          runbook: "docs/runbooks/incident-response/IR-002-pod-crash-loop.md"
+
+      - alert: ServicePodNotReady
+        expr: kube_pod_status_ready{namespace="clario360",condition="true"} == 0
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "Pod {{ $labels.pod }} is not ready"
+
   - name: clario360-database
     rules:
       - alert: DatabaseConnectionPoolExhaustion
@@ -80,6 +99,16 @@ groups:
           summary: "Slow database queries on table {{ $labels.table }}"
           runbook: "docs/runbooks/troubleshooting/TS-001-slow-api-responses.md"
 
+      - alert: DatabaseConnectionPoolCritical
+        expr: clario360_db_connections_active / clario360_db_connections_max > 0.95
+        for: 2m
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: "Database connection pool CRITICAL at {{ $value | humanizePercentage }}"
+          runbook: "docs/runbooks/troubleshooting/TS-008-connection-pool-exhaustion.md"
+
       - alert: DatabaseReplicationLag
         expr: pg_replication_lag_seconds > 30
         for: 5m
@@ -88,6 +117,16 @@ groups:
           team: platform
         annotations:
           summary: "PostgreSQL replication lag is {{ $value }}s"
+          runbook: "docs/runbooks/troubleshooting/TS-010-replication-lag.md"
+
+      - alert: DatabaseDeadlocks
+        expr: increase(pg_stat_database_deadlocks{datname="clario360"}[5m]) > 0
+        for: 0m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "Database deadlock detected ({{ $value }} in last 5m)"
 
   - name: clario360-kafka
     rules:
@@ -118,6 +157,16 @@ groups:
           team: platform
         annotations:
           summary: "Dead letter queue received {{ $value }} messages in the last hour"
+          runbook: "docs/runbooks/troubleshooting/TS-003-missing-events.md"
+
+      - alert: KafkaBrokerDown
+        expr: count(kafka_broker_info) < 3
+        for: 2m
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: "Kafka cluster has fewer than 3 brokers ({{ $value }})"
 
   - name: clario360-security
     rules:
@@ -157,6 +206,24 @@ groups:
         annotations:
           summary: "Audit trail hash chain integrity failure detected"
           runbook: "docs/runbooks/troubleshooting/TS-009-audit-chain-broken.md"
+
+      - alert: HighRiskScoreIncrease
+        expr: delta(clario360_cyber_risk_score_current[1h]) > 20
+        for: 0m
+        labels:
+          severity: high
+          team: security
+        annotations:
+          summary: "Risk score increased by {{ $value }} points in the last hour"
+
+      - alert: VulnerabilityRemediationSLABreach
+        expr: clario360_cyber_vuln_sla_compliance_rate < 0.8
+        for: 24h
+        labels:
+          severity: warning
+          team: security
+        annotations:
+          summary: "Vulnerability SLA compliance dropped to {{ $value | humanizePercentage }}"
 
   - name: clario360-business
     rules:
@@ -201,6 +268,24 @@ groups:
         annotations:
           summary: "{{ $value }} overdue board action items"
 
+      - alert: DataContradictionsDetected
+        expr: increase(clario360_data_contradictions_total[1h]) > 5
+        for: 0m
+        labels:
+          severity: warning
+          team: data
+        annotations:
+          summary: "{{ $value }} data contradictions detected in the last hour"
+
+      - alert: AIModelDriftDetected
+        expr: clario360_ai_model_drift_score > 0.3
+        for: 30m
+        labels:
+          severity: warning
+          team: data
+        annotations:
+          summary: "AI model drift score {{ $value }} exceeds threshold"
+
   - name: clario360-slo
     rules:
       - alert: SLOBudgetBurnRateHigh_1h
@@ -228,6 +313,33 @@ groups:
           slo: availability
         annotations:
           summary: "SLO burn rate elevated — may exhaust monthly error budget"
+          runbook: "docs/runbooks/incident-response/IR-005-slo-budget-exhaustion.md"
+
+      - alert: SLOBudgetBurnRateHigh_24h
+        expr: |
+          (
+            1 - (sum(rate(clario360_gateway_requests_total{status_code!~"5.."}[24h])) / sum(rate(clario360_gateway_requests_total[24h])))
+          ) > (3 * (1 - 0.999))
+        for: 30m
+        labels:
+          severity: warning
+          team: platform
+          slo: availability
+        annotations:
+          summary: "SLO burn rate sustained — error budget consumption above sustainable rate"
+
+      - alert: LatencySLOBreach
+        expr: |
+          histogram_quantile(0.99,
+            sum(rate(clario360_gateway_request_duration_seconds_bucket[1h])) by (le)
+          ) > 2.0
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+          slo: latency
+        annotations:
+          summary: "Latency SLO breach — p99 above 2 seconds for 1h window"
 
   - name: clario360-infrastructure
     rules:
@@ -292,6 +404,44 @@ groups:
           summary: "Certificate {{ $labels.name }} expires in less than 7 days"
           runbook: "docs/runbooks/operations/OP-005-certificate-renewal.md"
 
+      - alert: PodCPUCritical
+        expr: |
+          sum(rate(container_cpu_usage_seconds_total{namespace="clario360"}[5m])) by (pod)
+          /
+          sum(kube_pod_container_resource_limits{namespace="clario360",resource="cpu"}) by (pod)
+          > 0.95
+        for: 5m
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: "Pod {{ $labels.pod }} CPU usage above 95% — CRITICAL"
+          runbook: "docs/runbooks/scaling/SC-001-horizontal-scaling.md"
+
+      - alert: PVCCriticallyFull
+        expr: |
+          kubelet_volume_stats_used_bytes{namespace="clario360"}
+          /
+          kubelet_volume_stats_capacity_bytes{namespace="clario360"}
+          > 0.95
+        for: 10m
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: "PVC {{ $labels.persistentvolumeclaim }} is {{ $value | humanizePercentage }} full — CRITICAL"
+          runbook: "docs/runbooks/incident-response/IR-006-disk-full.md"
+
+      - alert: CertificateExpiryCritical
+        expr: certmanager_certificate_expiration_timestamp_seconds - time() < 86400
+        for: 0m
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: "Certificate {{ $labels.name }} expires in less than 24 hours"
+          runbook: "docs/runbooks/operations/OP-005-certificate-renewal.md"
+
       - alert: BackupJobFailed
         expr: kube_job_status_failed{namespace="clario360",job_name=~"database-backup.*"} > 0
         for: 0m
@@ -301,3 +451,25 @@ groups:
         annotations:
           summary: "Database backup job failed"
           runbook: "docs/runbooks/operations/OP-004-backup-verification.md"
+
+      - alert: NodeNotReady
+        expr: kube_node_status_condition{condition="Ready",status="true"} == 0
+        for: 5m
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: "Node {{ $labels.node }} is not ready"
+
+      - alert: HPAMaxedOut
+        expr: |
+          kube_horizontalpodautoscaler_status_current_replicas{namespace="clario360"}
+          ==
+          kube_horizontalpodautoscaler_spec_max_replicas{namespace="clario360"}
+        for: 30m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "HPA {{ $labels.horizontalpodautoscaler }} is at max replicas"
+          runbook: "docs/runbooks/scaling/SC-001-horizontal-scaling.md"

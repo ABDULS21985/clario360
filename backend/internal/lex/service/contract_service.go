@@ -11,6 +11,8 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog"
 
+	"github.com/clario360/platform/internal/aigovernance"
+	aigovmiddleware "github.com/clario360/platform/internal/aigovernance/middleware"
 	"github.com/clario360/platform/internal/lex/dto"
 	"github.com/clario360/platform/internal/lex/metrics"
 	"github.com/clario360/platform/internal/lex/model"
@@ -88,6 +90,7 @@ type ContractService struct {
 	topic     string
 	logger    zerolog.Logger
 	now       func() time.Time
+	predictionLogger *aigovmiddleware.PredictionLogger
 }
 
 func NewContractService(
@@ -105,6 +108,7 @@ func NewContractService(
 	appMetrics *metrics.Metrics,
 	topic string,
 	logger zerolog.Logger,
+	predictionLogger *aigovmiddleware.PredictionLogger,
 ) *ContractService {
 	return &ContractService{
 		db:         db,
@@ -120,6 +124,7 @@ func NewContractService(
 		topic:      topic,
 		logger:     logger.With().Str("service", "lex-contracts").Logger(),
 		now:        time.Now,
+		predictionLogger: predictionLogger,
 	}
 }
 
@@ -383,6 +388,7 @@ func (s *ContractService) AnalyzeContract(ctx context.Context, tenantID, id uuid
 		_ = s.contracts.SetAnalysisStatus(ctx, tenantID, id, model.AnalysisStatusFailed)
 		return nil, internalError("analyze contract", err)
 	}
+	s.recordGovernedPredictions(ctx, contract, result)
 
 	tx, err := s.db.Begin(ctx)
 	if err != nil {
@@ -426,6 +432,138 @@ func (s *ContractService) AnalyzeContract(ctx context.Context, tenantID, id uuid
 		}, s.logger)
 	}
 	return result, nil
+}
+
+func (s *ContractService) recordGovernedPredictions(ctx context.Context, contract *model.Contract, result *model.AnalysisResult) {
+	if s.predictionLogger == nil || contract == nil || result == nil || result.Analysis == nil {
+		return
+	}
+	contractID := contract.ID
+	input := map[string]any{
+		"contract_id":      contract.ID.String(),
+		"contract_type":    contract.Type,
+		"document_length":  len(contract.DocumentText),
+		"current_version":  contract.CurrentVersion,
+	}
+	_, _ = s.predictionLogger.Predict(ctx, aigovernance.PredictParams{
+		TenantID:     contract.TenantID,
+		ModelSlug:    "lex-clause-extractor",
+		UseCase:      "clause_extraction",
+		EntityType:   "contract",
+		EntityID:     &contractID,
+		Input:        input,
+		InputSummary: input,
+		ModelFunc: func(context.Context, any) (*aigovernance.ModelOutput, error) {
+			return &aigovernance.ModelOutput{
+				Output:     result.Clauses,
+				Confidence: clauseExtractionConfidence(result.Clauses),
+				Metadata: map[string]any{
+					"matched_rules": clauseTypes(result.Clauses),
+					"clause_count":  len(result.Clauses),
+					"high_risk":     result.Analysis.HighRiskClauseCount,
+				},
+			}, nil
+		},
+	})
+	componentScores, componentWeights := lexRiskComponents(contract, result.Analysis)
+	_, _ = s.predictionLogger.Predict(ctx, aigovernance.PredictParams{
+		TenantID:     contract.TenantID,
+		ModelSlug:    "lex-risk-analyzer",
+		UseCase:      "contract_risk_analysis",
+		EntityType:   "contract",
+		EntityID:     &contractID,
+		Input:        input,
+		InputSummary: input,
+		ModelFunc: func(context.Context, any) (*aigovernance.ModelOutput, error) {
+			return &aigovernance.ModelOutput{
+				Output:     result.Analysis,
+				Confidence: riskAnalysisConfidence(result.Analysis),
+				Metadata: map[string]any{
+					"component_scores":  componentScores,
+					"component_weights": componentWeights,
+					"overall_score":     result.Analysis.RiskScore,
+				},
+			}, nil
+		},
+	})
+}
+
+func clauseExtractionConfidence(clauses []model.ExtractedClause) float64 {
+	if len(clauses) == 0 {
+		return 0.65
+	}
+	total := 0.0
+	for _, item := range clauses {
+		total += item.ExtractionConfidence
+	}
+	return total / float64(len(clauses))
+}
+
+func clauseTypes(clauses []model.ExtractedClause) []string {
+	out := make([]string, 0, len(clauses))
+	seen := make(map[string]struct{}, len(clauses))
+	for _, item := range clauses {
+		key := string(item.ClauseType)
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		seen[key] = struct{}{}
+		out = append(out, key)
+	}
+	return out
+}
+
+func lexRiskComponents(contract *model.Contract, analysis *model.ContractRiskAnalysis) (map[string]any, map[string]any) {
+	componentScores := map[string]any{
+		"clause_risk":    float64(analysis.HighRiskClauseCount) * 10,
+		"missing_clause": float64(len(analysis.MissingClauses) * 8),
+		"compliance":     float64(len(analysis.ComplianceFlags) * 5),
+	}
+	valueFactor := 0.0
+	if contract.TotalValue != nil {
+		switch {
+		case *contract.TotalValue > 10_000_000:
+			valueFactor = 15
+		case *contract.TotalValue > 1_000_000:
+			valueFactor = 10
+		}
+	}
+	componentScores["value"] = valueFactor
+	expiryFactor := 0.0
+	if contract.ExpiryDate != nil {
+		days := int(contract.ExpiryDate.UTC().Sub(time.Now().UTC()).Hours() / 24)
+		switch {
+		case days <= 7:
+			expiryFactor = 20
+		case days <= 30:
+			expiryFactor = 10
+		}
+	}
+	componentScores["expiry"] = expiryFactor
+	componentWeights := map[string]any{
+		"clause_risk":    1.0,
+		"missing_clause": 1.0,
+		"value":          1.0,
+		"expiry":         1.0,
+		"compliance":     1.0,
+	}
+	return componentScores, componentWeights
+}
+
+func riskAnalysisConfidence(analysis *model.ContractRiskAnalysis) float64 {
+	if analysis == nil {
+		return 0.5
+	}
+	switch analysis.OverallRisk {
+	case model.RiskLevelCritical:
+		return 0.95
+	case model.RiskLevelHigh:
+		return 0.90
+	case model.RiskLevelMedium:
+		return 0.82
+	default:
+		return 0.75
+	}
 }
 
 func (s *ContractService) GetAnalysis(ctx context.Context, tenantID, id uuid.UUID) (*model.ContractRiskAnalysis, error) {

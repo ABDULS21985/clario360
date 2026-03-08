@@ -12,8 +12,10 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/rs/zerolog"
 
-	"github.com/clario360/platform/internal/data/connector"
+	"github.com/clario360/platform/internal/aigovernance"
+	aigovmiddleware "github.com/clario360/platform/internal/aigovernance/middleware"
 	dataconfig "github.com/clario360/platform/internal/data/config"
+	"github.com/clario360/platform/internal/data/connector"
 	"github.com/clario360/platform/internal/data/dto"
 	datametrics "github.com/clario360/platform/internal/data/metrics"
 	"github.com/clario360/platform/internal/data/model"
@@ -26,16 +28,17 @@ const (
 )
 
 type SourceService struct {
-	config          *dataconfig.Config
-	sourceRepo      *repository.SourceRepository
-	syncRepo        *repository.SyncRepository
-	tester          *ConnectionTester
-	discovery       *SchemaDiscoveryService
-	ingestion       *IngestionService
-	encryptor       *ConfigEncryptor
-	producer        *events.Producer
-	metrics         *datametrics.Metrics
-	logger          zerolog.Logger
+	config           *dataconfig.Config
+	sourceRepo       *repository.SourceRepository
+	syncRepo         *repository.SyncRepository
+	tester           *ConnectionTester
+	discovery        *SchemaDiscoveryService
+	ingestion        *IngestionService
+	encryptor        *ConfigEncryptor
+	producer         *events.Producer
+	metrics          *datametrics.Metrics
+	logger           zerolog.Logger
+	predictionLogger *aigovmiddleware.PredictionLogger
 }
 
 func NewSourceService(
@@ -354,6 +357,7 @@ func (s *SourceService) DiscoverSchema(ctx context.Context, tenantID, id uuid.UU
 		"column_count": schema.ColumnCount,
 		"pii_detected": schema.ContainsPII,
 	})
+	s.recordPIIPrediction(ctx, tenantID, id, record.Source, schema)
 	return schema, nil
 }
 
@@ -391,10 +395,10 @@ func (s *SourceService) TriggerSync(ctx context.Context, tenantID, id uuid.UUID,
 	}
 	if history.Status == model.SyncStatusSuccess || history.Status == model.SyncStatusPartial {
 		_ = s.publishSourceEvent(ctx, "data.source.sync_completed", tenantID, map[string]any{
-			"id":          id,
-			"rows_read":   history.RowsRead,
+			"id":           id,
+			"rows_read":    history.RowsRead,
 			"rows_written": history.RowsWritten,
-			"duration_ms": history.DurationMs,
+			"duration_ms":  history.DurationMs,
 		})
 	}
 	return history, nil
@@ -421,6 +425,89 @@ func (s *SourceService) GetStats(ctx context.Context, tenantID, id uuid.UUID) (*
 
 func (s *SourceService) AggregateStats(ctx context.Context, tenantID uuid.UUID) (*dto.AggregateSourceStatsResponse, error) {
 	return s.sourceRepo.AggregateStats(ctx, tenantID)
+}
+
+func (s *SourceService) SetPredictionLogger(predictionLogger *aigovmiddleware.PredictionLogger) {
+	s.predictionLogger = predictionLogger
+}
+
+func (s *SourceService) recordPIIPrediction(ctx context.Context, tenantID, sourceID uuid.UUID, source *model.DataSource, schema *model.DiscoveredSchema) {
+	if s.predictionLogger == nil || source == nil || schema == nil {
+		return
+	}
+
+	piiColumns := make([]string, 0, 12)
+	piiTypes := make(map[string]int)
+	matchedConditions := make([]string, 0, 12)
+	for _, table := range schema.Tables {
+		for _, column := range table.Columns {
+			if !column.InferredPII || strings.TrimSpace(column.InferredPIIType) == "" {
+				continue
+			}
+			piiTypes[column.InferredPIIType]++
+			if len(piiColumns) < 12 {
+				piiColumns = append(piiColumns, fmt.Sprintf("%s.%s", table.Name, column.Name))
+			}
+		}
+	}
+	for piiType, count := range piiTypes {
+		matchedConditions = append(matchedConditions, fmt.Sprintf("%s:%d", piiType, count))
+	}
+	if len(matchedConditions) == 0 {
+		matchedConditions = append(matchedConditions, "no_pii_columns_detected")
+	}
+
+	matchedRules := []string{"column_name_heuristics"}
+	if len(piiColumns) > 0 {
+		matchedRules = append(matchedRules, "sample_value_patterns")
+	}
+
+	confidence := 0.9
+	if !schema.ContainsPII {
+		confidence = 0.82
+	}
+
+	input := map[string]any{
+		"source_id":    sourceID.String(),
+		"source_name":  source.Name,
+		"source_type":  source.Type,
+		"table_count":  schema.TableCount,
+		"column_count": schema.ColumnCount,
+		"contains_pii": schema.ContainsPII,
+	}
+	_, _ = s.predictionLogger.Predict(ctx, aigovernance.PredictParams{
+		TenantID:     tenantID,
+		ModelSlug:    "data-pii-classifier",
+		UseCase:      "pii_classification",
+		EntityType:   "data_source",
+		EntityID:     &sourceID,
+		Input:        input,
+		InputSummary: input,
+		ModelFunc: func(context.Context, any) (*aigovernance.ModelOutput, error) {
+			return &aigovernance.ModelOutput{
+				Output: map[string]any{
+					"contains_pii": schema.ContainsPII,
+					"pii_columns":  piiColumns,
+					"pii_types":    piiTypes,
+					"table_count":  schema.TableCount,
+					"column_count": schema.ColumnCount,
+				},
+				Confidence: confidence,
+				Metadata: map[string]any{
+					"matched_rules":      matchedRules,
+					"matched_conditions": matchedConditions,
+					"rule_weights": map[string]any{
+						"column_name_heuristics": 0.45,
+						"sample_value_patterns":  0.55,
+					},
+					"pii_columns":  piiColumns,
+					"pii_types":    piiTypes,
+					"table_count":  schema.TableCount,
+					"column_count": schema.ColumnCount,
+				},
+			}, nil
+		},
+	})
 }
 
 func (s *SourceService) loadDecryptedConfig(ctx context.Context, record *repository.SourceRecord) (json.RawMessage, error) {

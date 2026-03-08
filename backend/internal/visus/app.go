@@ -10,6 +10,7 @@ import (
 	"github.com/redis/go-redis/v9"
 	"github.com/rs/zerolog"
 
+	aigovmiddleware "github.com/clario360/platform/internal/aigovernance/middleware"
 	"github.com/clario360/platform/internal/auth"
 	"github.com/clario360/platform/internal/events"
 	"github.com/clario360/platform/internal/visus/aggregator"
@@ -32,6 +33,7 @@ type Dependencies struct {
 	Registerer prometheus.Registerer
 	Config     *visusconfig.Config
 	JWTManager *auth.JWTManager
+	PredictionLogger *aigovmiddleware.PredictionLogger
 }
 
 type Application struct {
@@ -87,8 +89,8 @@ func NewApplication(deps Dependencies) (*Application, error) {
 	alertGenerator := visusalert.NewGenerator(store.Alerts, deduplicator, deps.Publisher, deps.Logger)
 	correlator := visusalert.NewCorrelator(store.KPIs, store.KPISnapshots, store.Alerts, suiteClient)
 	escalator := visusalert.NewEscalator(store.Alerts)
-	kpiEngine := kpi.NewEngine(kpi.NewFetcher(suiteClient), kpi.NewCalculator(), kpi.NewThresholdEvaluator(), store.KPISnapshots, store.KPIs, alertGenerator, appMetrics, deps.Logger)
-	reportGenerator := report.NewGenerator(store.Reports, store.ReportSnapshots, store.KPIs, store.KPISnapshots, suiteClient, deps.Publisher, deps.Logger)
+	kpiEngine := kpi.NewEngine(kpi.NewFetcher(suiteClient), kpi.NewCalculator(), kpi.NewThresholdEvaluator(), store.KPISnapshots, store.KPIs, alertGenerator, appMetrics, deps.Logger, deps.PredictionLogger)
+	reportGenerator := report.NewGenerator(store.Reports, store.ReportSnapshots, store.KPIs, store.KPISnapshots, suiteClient, deps.Publisher, deps.Logger, deps.PredictionLogger)
 
 	app := &Application{
 		Store:            store,

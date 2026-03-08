@@ -19,6 +19,12 @@ type PredictionLogRepository struct {
 	logger zerolog.Logger
 }
 
+type RecentModelStat struct {
+	ModelID        uuid.UUID
+	Predictions24h int64
+	AvgConfidence  *float64
+}
+
 func NewPredictionLogRepository(db *pgxpool.Pool, logger zerolog.Logger) *PredictionLogRepository {
 	return &PredictionLogRepository{db: db, logger: loggerWithRepo(logger, "ai_prediction_log")}
 }
@@ -150,15 +156,15 @@ func (r *PredictionLogRepository) SubmitFeedback(ctx context.Context, tenantID, 
 	now := time.Now().UTC()
 	cmd, err := r.db.Exec(ctx, `
 		UPDATE ai_prediction_logs
-		SET feedback_correct = $4,
-		    feedback_by = $5,
-		    feedback_at = $6,
-		    feedback_notes = $7,
-		    feedback_corrected_output = $8
+		SET feedback_correct = $3,
+		    feedback_by = $4,
+		    feedback_at = $5,
+		    feedback_notes = $6,
+		    feedback_corrected_output = $7
 		WHERE tenant_id = $1 AND id = $2 AND created_at = (
 			SELECT created_at FROM ai_prediction_logs WHERE tenant_id = $1 AND id = $2 ORDER BY created_at DESC LIMIT 1
 		)`,
-		tenantID, predictionID, predictionID, req.Correct, userID, now, nullString(req.Notes), req.CorrectedOutput,
+		tenantID, predictionID, req.Correct, userID, now, nullString(req.Notes), req.CorrectedOutput,
 	)
 	if err != nil {
 		return fmt.Errorf("update ai prediction feedback: %w", err)
@@ -357,6 +363,29 @@ func (r *PredictionLogRepository) ListDivergences(ctx context.Context, tenantID,
 	return items, total, rows.Err()
 }
 
+func (r *PredictionLogRepository) RecentModelStats(ctx context.Context, tenantID uuid.UUID, since time.Time) (map[uuid.UUID]RecentModelStat, error) {
+	rows, err := r.db.Query(ctx, `
+		SELECT model_id, COUNT(*)::bigint AS total, AVG(confidence)::float8 AS avg_confidence
+		FROM ai_prediction_logs
+		WHERE tenant_id = $1 AND created_at >= $2
+		GROUP BY model_id`,
+		tenantID, since,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("load ai recent model stats: %w", err)
+	}
+	defer rows.Close()
+	out := make(map[uuid.UUID]RecentModelStat)
+	for rows.Next() {
+		var item RecentModelStat
+		if err := rows.Scan(&item.ModelID, &item.Predictions24h, &item.AvgConfidence); err != nil {
+			return nil, fmt.Errorf("scan ai recent model stats: %w", err)
+		}
+		out[item.ModelID] = item
+	}
+	return out, rows.Err()
+}
+
 type predictionScannable interface {
 	Scan(dest ...any) error
 }
@@ -364,12 +393,12 @@ type predictionScannable interface {
 func scanPrediction(row predictionScannable) (*aigovmodel.PredictionLog, error) {
 	item := &aigovmodel.PredictionLog{}
 	var (
-		inputSummary []byte
-		prediction []byte
+		inputSummary          []byte
+		prediction            []byte
 		explanationStructured []byte
-		explanationFactors []byte
-		shadowDivergence []byte
-		correctedOutput []byte
+		explanationFactors    []byte
+		shadowDivergence      []byte
+		correctedOutput       []byte
 	)
 	if err := row.Scan(
 		&item.ID, &item.TenantID, &item.ModelID, &item.ModelVersionID, &item.ModelSlug, &item.ModelVersionNumber, &item.InputHash,
