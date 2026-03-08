@@ -207,7 +207,12 @@ func (e *RemediationExecutor) Execute(ctx context.Context, action *model.Remedia
 		e.auditTrail.RecordTransition(ctx, action.TenantID, action.ID, "execution_failed", nil, "system",
 			model.StatusExecuting, model.StatusExecutionFailed, map[string]interface{}{"error": errMsg})
 		e.publishEvent(ctx, action.TenantID, "com.clario360.cyber.remediation.execution_failed",
-			map[string]interface{}{"id": action.ID, "error": errMsg})
+			map[string]interface{}{
+				"id":                 action.ID,
+				"error":              errMsg,
+				"created_by":         action.CreatedBy,
+				"affected_asset_ids": action.AffectedAssetIDs,
+			})
 
 		// Auto-rollback executed changes for reversible plans, but keep the lifecycle in execution_failed.
 		if action.Plan.Reversible {
@@ -245,7 +250,13 @@ func (e *RemediationExecutor) Execute(ctx context.Context, action *model.Remedia
 			"duration_ms":    durationMs,
 		})
 	e.publishEvent(ctx, action.TenantID, "com.clario360.cyber.remediation.executed",
-		map[string]interface{}{"id": action.ID, "steps_executed": result.StepsExecuted, "duration_ms": durationMs})
+		map[string]interface{}{
+			"id":                 action.ID,
+			"steps_executed":     result.StepsExecuted,
+			"duration_ms":        durationMs,
+			"created_by":         action.CreatedBy,
+			"affected_asset_ids": action.AffectedAssetIDs,
+		})
 
 	return result, nil
 }

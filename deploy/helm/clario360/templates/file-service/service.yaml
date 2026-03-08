@@ -2,20 +2,24 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ include "clario360.fullname" . }}-file-service
+  name: {{ include "clario360.componentName" (dict "root" . "component" "file-service") }}
   namespace: {{ include "clario360.namespace" . }}
   labels:
     {{- include "clario360.componentLabels" (dict "root" . "component" "file-service") | nindent 4 }}
+  {{- with .Values.fileService.service.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
 spec:
-  type: ClusterIP
+  type: {{ .Values.fileService.service.type | default "ClusterIP" }}
   ports:
     - name: http
-      port: 8091
+      port: 8092
       targetPort: http
       protocol: TCP
     - name: metrics
-      port: 9091
-      targetPort: metrics
+      port: 9092
+      targetPort: admin
       protocol: TCP
   selector:
     {{- include "clario360.componentSelectorLabels" (dict "root" . "component" "file-service") | nindent 4 }}

@@ -19,6 +19,7 @@ type notificationCreator interface {
 type recipientLookup interface {
 	ResolveByRoles(ctx context.Context, tenantID string, roles []string) ([]string, error)
 	GetUserEmail(ctx context.Context, userID string) (string, error)
+	ResolveComputedRecipients(ctx context.Context, tenantID, computation string, data map[string]interface{}) ([]string, error)
 }
 
 // NotificationConsumer consumes domain events from Kafka and creates notifications.
@@ -217,7 +218,19 @@ func (c *NotificationConsumer) resolveRecipients(ctx context.Context, event *eve
 			}
 			recipients = append(recipients, roleRecipients...)
 		}
+		if rule.ComputedRecipient != "" {
+			computedRecipients, err := c.recipientResolver.ResolveComputedRecipients(ctx, event.TenantID, rule.ComputedRecipient, data)
+			if err != nil {
+				return nil, err
+			}
+			recipients = append(recipients, computedRecipients...)
+		}
 		return uniqueStrings(recipients), nil
+	case RecipientComputed:
+		if rule.ComputedRecipient == "" {
+			return nil, nil
+		}
+		return c.recipientResolver.ResolveComputedRecipients(ctx, event.TenantID, rule.ComputedRecipient, data)
 	case RecipientTenantBroadcast:
 		if event.UserID == "" {
 			return nil, nil

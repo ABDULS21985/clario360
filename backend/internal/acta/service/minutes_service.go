@@ -336,6 +336,7 @@ func (s *MinutesService) Approve(ctx context.Context, tenantID, userID, meetingI
 	publishEvent(ctx, s.publisher, "acta-service", events.Topics.ActaEvents, "acta.minutes.approved", tenantID, &userID, map[string]any{
 		"id":           minutes.ID,
 		"meeting_id":   meetingID,
+		"committee_id": meeting.CommitteeID,
 		"approved_by":  userID,
 		"attendee_ids": attendeeIDs,
 	}, s.logger)

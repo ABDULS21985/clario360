@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"net/url"
 	"os"
 	"os/signal"
@@ -43,6 +44,9 @@ import (
 	"github.com/clario360/platform/internal/events"
 	bootstrap "github.com/clario360/platform/internal/observability/bootstrap"
 	"github.com/clario360/platform/internal/observability/tracing"
+	"github.com/clario360/platform/internal/suiteapi"
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	workflowrepo "github.com/clario360/platform/internal/workflow/repository"
 )
 
@@ -347,6 +351,63 @@ func main() {
 		jwtMgr,
 		rdb,
 	)
+	svc.Router.Get("/api/v1/internal/assets/owners", func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("X-Internal-Service") == "" {
+			suiteapi.WriteError(w, r, http.StatusUnauthorized, "UNAUTHORIZED", "internal access required", nil)
+			return
+		}
+
+		tenantID, err := uuid.Parse(strings.TrimSpace(r.URL.Query().Get("tenant_id")))
+		if err != nil {
+			suiteapi.WriteError(w, r, http.StatusBadRequest, "VALIDATION_ERROR", "invalid tenant_id", nil)
+			return
+		}
+		rawAssetIDs := r.URL.Query()["asset_id"]
+		if len(rawAssetIDs) == 0 {
+			suiteapi.WriteError(w, r, http.StatusBadRequest, "VALIDATION_ERROR", "at least one asset_id is required", nil)
+			return
+		}
+
+		userIDs := make([]string, 0, len(rawAssetIDs))
+		seen := make(map[string]struct{}, len(rawAssetIDs))
+		for _, rawAssetID := range rawAssetIDs {
+			assetID, err := uuid.Parse(strings.TrimSpace(rawAssetID))
+			if err != nil {
+				suiteapi.WriteError(w, r, http.StatusBadRequest, "VALIDATION_ERROR", "invalid asset_id", nil)
+				return
+			}
+
+			asset, err := assetRepo.GetByID(r.Context(), tenantID, assetID)
+			if err != nil {
+				if errors.Is(err, pgx.ErrNoRows) {
+					continue
+				}
+				logger.Error().Err(err).Str("tenant_id", tenantID.String()).Str("asset_id", assetID.String()).Msg("failed to resolve asset owner")
+				suiteapi.WriteError(w, r, http.StatusInternalServerError, "INTERNAL_ERROR", "failed to resolve asset owners", nil)
+				return
+			}
+
+			ownerUserID := ""
+			if asset.Owner != nil {
+				if parsed, parseErr := uuid.Parse(strings.TrimSpace(*asset.Owner)); parseErr == nil {
+					ownerUserID = parsed.String()
+				}
+			}
+			if ownerUserID == "" && asset.CreatedBy != nil {
+				ownerUserID = asset.CreatedBy.String()
+			}
+			if ownerUserID == "" {
+				continue
+			}
+			if _, ok := seen[ownerUserID]; ok {
+				continue
+			}
+			seen[ownerUserID] = struct{}{}
+			userIDs = append(userIDs, ownerUserID)
+		}
+
+		suiteapi.WriteJSON(w, http.StatusOK, map[string][]string{"user_ids": userIDs})
+	})
 	svc.Router.Get("/api/v1/admin/dlq/count", events.DLQCountHandler("cyber-service", dlqTracker, logger))
 
 	// ── 13. Kafka consumer ─────────────────────────────────────────────────────
@@ -363,7 +424,10 @@ func main() {
 			_ = consumer.NewCTEMConsumer(ctemSvc, kafkaConsumer, logger)
 			_ = consumer.NewRiskConsumer(riskSvc, dashboardSvc, rdb, kafkaConsumer, logger)
 			_ = consumer.NewRemediationConsumer(remediationSvc, remediationRepo, ctemRemGroupRepo, ctemFindingRepo, kafkaConsumer, logger)
+			dataEventConsumer := consumer.NewDataEventConsumer(alertSvc, dspmSvc, rdb, guard, producer, logger, crossSuiteMetrics)
 			kafkaConsumer.Subscribe(events.Topics.IAMEvents, consumer.NewIAMEventConsumer(alertSvc, rdb, guard, producer, logger, crossSuiteMetrics))
+			kafkaConsumer.Subscribe(events.Topics.DataSourceEvents, dataEventConsumer)
+			kafkaConsumer.Subscribe(events.Topics.DarkDataEvents, dataEventConsumer)
 			kafkaConsumer.Subscribe(events.Topics.FileEvents, consumer.NewFileEventConsumer(alertSvc, guard, producer, logger, crossSuiteMetrics))
 		}
 	}

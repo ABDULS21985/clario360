@@ -1,0 +1,215 @@
+# =============================================================================
+# Clario 360 — Hotfix Pipeline
+# Accelerated CI for hotfix/* branches — runs critical tests only, builds
+# images, and offers fast-track deployment to staging.
+# =============================================================================
+
+name: Hotfix
+
+on:
+  push:
+    branches:
+      - "hotfix/*"
+      - "hotfix/**"
+
+concurrency:
+  group: hotfix-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  packages: write
+  security-events: write
+  id-token: write
+
+env:
+  GOWORK: "off"
+
+jobs:
+  # ===========================================================================
+  # JOB 1: Fast lint (critical checks only)
+  # ===========================================================================
+  lint:
+    name: Fast Lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-go
+      - uses: ./.github/actions/setup-node
+
+      - name: Go vet
+        working-directory: backend
+        run: go vet ./...
+
+      - name: Frontend type check
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run type-check
+
+  # ===========================================================================
+  # JOB 2: Critical tests
+  # ===========================================================================
+  test:
+    name: Critical Tests
+    runs-on: ubuntu-latest
+    needs: lint
+    timeout-minutes: 15
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_PASSWORD: testpass
+          POSTGRES_USER: postgres
+        ports: ["5432:5432"]
+        options: --health-cmd "pg_isready -U postgres" --health-interval 10s --health-timeout 5s --health-retries 5
+      redis:
+        image: redis:7-alpine
+        ports: ["6379:6379"]
+        options: --health-cmd "redis-cli ping" --health-interval 10s --health-timeout 5s --health-retries 5
+
+    env:
+      IAM_DB_URL: postgres://postgres:testpass@localhost:5432/iam_test?sslmode=disable
+      PLATFORM_DB_URL: postgres://postgres:testpass@localhost:5432/platform_test?sslmode=disable
+      CYBER_DB_URL: postgres://postgres:testpass@localhost:5432/cyber_test?sslmode=disable
+      DATA_DB_URL: postgres://postgres:testpass@localhost:5432/data_test?sslmode=disable
+      ACTA_DB_URL: postgres://postgres:testpass@localhost:5432/acta_test?sslmode=disable
+      LEX_DB_URL: postgres://postgres:testpass@localhost:5432/lex_test?sslmode=disable
+      VISUS_DB_URL: postgres://postgres:testpass@localhost:5432/visus_test?sslmode=disable
+      REDIS_URL: redis://localhost:6379/0
+      JWT_PRIVATE_KEY: ${{ secrets.TEST_JWT_PRIVATE_KEY }}
+      JWT_PUBLIC_KEY: ${{ secrets.TEST_JWT_PUBLIC_KEY }}
+      ENCRYPTION_KEY: ${{ secrets.TEST_ENCRYPTION_KEY }}
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-go
+      - uses: ./.github/actions/setup-test-infra
+        with:
+          pg_password: testpass
+
+      - name: Run backend tests
+        working-directory: backend
+        run: |
+          go test -race -count=1 -timeout=10m ./internal/...
+
+      - name: Run frontend tests
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run test
+
+  # ===========================================================================
+  # JOB 3: Security quick scan
+  # ===========================================================================
+  security:
+    name: Security Quick Scan
+    runs-on: ubuntu-latest
+    needs: lint
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-go
+
+      - name: govulncheck
+        working-directory: backend
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@latest
+          govulncheck ./...
+
+      - name: Secret detection
+        uses: trufflesecurity/trufflehog@main
+        with:
+          extra_args: --only-verified --json
+
+  # ===========================================================================
+  # JOB 4: Build hotfix images
+  # ===========================================================================
+  build-images:
+    name: Build ${{ matrix.service }}
+    runs-on: ubuntu-latest
+    needs: [test, security]
+    if: vars.CONTAINER_REGISTRY != ''
+    timeout-minutes: 30
+
+    strategy:
+      matrix:
+        include:
+          - service: api-gateway
+            dockerfile: deploy/docker/Dockerfile.backend
+          - service: iam-service
+            dockerfile: deploy/docker/Dockerfile.backend
+          - service: audit-service
+            dockerfile: deploy/docker/Dockerfile.backend
+          - service: workflow-engine
+            dockerfile: deploy/docker/Dockerfile.backend
+          - service: notification-service
+            dockerfile: deploy/docker/Dockerfile.backend
+          - service: file-service
+            dockerfile: deploy/docker/Dockerfile.backend
+          - service: cyber-service
+            dockerfile: deploy/docker/Dockerfile.backend
+          - service: data-service
+            dockerfile: deploy/docker/Dockerfile.backend
+          - service: acta-service
+            dockerfile: deploy/docker/Dockerfile.backend
+          - service: lex-service
+            dockerfile: deploy/docker/Dockerfile.backend
+          - service: visus-service
+            dockerfile: deploy/docker/Dockerfile.backend
+          - service: onboarding-service
+            dockerfile: deploy/docker/Dockerfile.backend
+          - service: migrator
+            dockerfile: deploy/docker/Dockerfile.migrator
+          - service: seeder
+            dockerfile: deploy/docker/Dockerfile.seeder
+          - service: frontend
+            dockerfile: deploy/docker/Dockerfile.frontend
+      fail-fast: false
+      max-parallel: 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to container registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ vars.CONTAINER_REGISTRY }}
+          username: ${{ secrets.REGISTRY_USERNAME }}
+          password: ${{ secrets.REGISTRY_PASSWORD }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ vars.CONTAINER_REGISTRY }}/clario360/${{ matrix.service }}
+          tags: |
+            type=sha,prefix=hotfix-
+            type=ref,event=branch
+
+      - name: Build and push
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ${{ matrix.dockerfile }}
+          build-args: |
+            BUILD_SERVICE=${{ matrix.service }}
+            BUILD_VERSION=hotfix-${{ github.sha }}
+            BUILD_DATE=${{ github.event.head_commit.timestamp }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          cache-from: type=gha,scope=${{ matrix.service }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.service }}
+          platforms: linux/amd64
+
+      - name: Scan with Trivy
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: "${{ vars.CONTAINER_REGISTRY }}/clario360/${{ matrix.service }}:hotfix-${{ github.sha }}"
+          severity: CRITICAL,HIGH
+          exit-code: "1"

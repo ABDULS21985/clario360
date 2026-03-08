@@ -1,12 +1,11 @@
 # =============================================================================
-# Clario 360 — Backend Multi-Stage Docker Build
-# Build: docker build --build-arg BUILD_SERVICE=api-gateway -f deploy/docker/Dockerfile.backend -t clario360-api-gateway .
+# Clario 360 — Database Migrator Docker Build
+# Build: docker build -f deploy/docker/Dockerfile.migrator -t clario360-migrator .
 # =============================================================================
 
 # --- Stage 1: Build ---
 FROM golang:1.22-alpine AS builder
 
-ARG BUILD_SERVICE=api-gateway
 ARG BUILD_VERSION=dev
 ARG BUILD_DATE=unknown
 
@@ -21,24 +20,20 @@ RUN go mod download
 # Copy source
 COPY backend/ .
 
-# Build the specific service
+# Build the migrator
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
     -ldflags="-w -s -X main.version=${BUILD_VERSION} -X main.buildDate=${BUILD_DATE}" \
-    -o /app/service \
-    ./cmd/${BUILD_SERVICE}
+    -o /app/migrator \
+    ./cmd/migrator
 
 # --- Stage 2: Runtime ---
 FROM gcr.io/distroless/static-debian12:nonroot
 
 COPY --from=builder /usr/share/zoneinfo /usr/share/zoneinfo
 COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
-COPY --from=builder /app/service /service
-
-# Copy migrations for the migrator service
+COPY --from=builder /app/migrator /migrator
 COPY --from=builder /build/migrations /migrations
 
-USER nonroot:nonroot
+USER 65534:65534
 
-EXPOSE 8080
-
-ENTRYPOINT ["/service"]
+ENTRYPOINT ["/migrator"]

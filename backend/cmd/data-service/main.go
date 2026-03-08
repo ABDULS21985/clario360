@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"net/url"
 	"os"
 	"os/signal"
@@ -37,6 +38,9 @@ import (
 	"github.com/clario360/platform/internal/events"
 	bootstrap "github.com/clario360/platform/internal/observability/bootstrap"
 	"github.com/clario360/platform/internal/observability/tracing"
+	"github.com/clario360/platform/internal/suiteapi"
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 )
 
 func main() {
@@ -241,6 +245,36 @@ func main() {
 		jwtMgr,
 		svc.Redis,
 	)
+	svc.Router.Get("/api/v1/internal/pipeline-owner", func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("X-Internal-Service") == "" {
+			suiteapi.WriteError(w, r, http.StatusUnauthorized, "UNAUTHORIZED", "internal access required", nil)
+			return
+		}
+
+		tenantID, err := uuid.Parse(strings.TrimSpace(r.URL.Query().Get("tenant_id")))
+		if err != nil {
+			suiteapi.WriteError(w, r, http.StatusBadRequest, "VALIDATION_ERROR", "invalid tenant_id", nil)
+			return
+		}
+		pipelineID, err := uuid.Parse(strings.TrimSpace(r.URL.Query().Get("pipeline_id")))
+		if err != nil {
+			suiteapi.WriteError(w, r, http.StatusBadRequest, "VALIDATION_ERROR", "invalid pipeline_id", nil)
+			return
+		}
+
+		pipelineItem, err := pipelineRepo.Get(r.Context(), tenantID, pipelineID)
+		if err != nil {
+			if errors.Is(err, pgx.ErrNoRows) {
+				suiteapi.WriteError(w, r, http.StatusNotFound, "NOT_FOUND", "pipeline not found", nil)
+				return
+			}
+			logger.Error().Err(err).Str("tenant_id", tenantID.String()).Str("pipeline_id", pipelineID.String()).Msg("failed to resolve pipeline owner")
+			suiteapi.WriteError(w, r, http.StatusInternalServerError, "INTERNAL_ERROR", "failed to resolve pipeline owner", nil)
+			return
+		}
+
+		suiteapi.WriteJSON(w, http.StatusOK, map[string]string{"user_id": pipelineItem.CreatedBy.String()})
+	})
 	svc.Router.Get("/api/v1/admin/dlq/count", events.DLQCountHandler("data-service", dlqTracker, logger))
 	pipelineScheduler.Start(ctx)
 	qualityScheduler.Start(ctx)

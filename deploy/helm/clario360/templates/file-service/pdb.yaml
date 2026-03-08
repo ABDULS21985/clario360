@@ -1,13 +1,21 @@
-{{- if and .Values.fileService.enabled .Values.fileService.pdb.enabled }}
+{{- if .Values.fileService.enabled }}
 apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:
-  name: {{ include "clario360.fullname" . }}-file-service
+  name: {{ include "clario360.componentName" (dict "root" . "component" "file-service") }}
   namespace: {{ include "clario360.namespace" . }}
   labels:
     {{- include "clario360.componentLabels" (dict "root" . "component" "file-service") | nindent 4 }}
 spec:
-  minAvailable: {{ .Values.fileService.pdb.minAvailable | default 1 }}
+  {{- if .Values.fileService.pdb }}
+  {{- if .Values.fileService.pdb.minAvailable }}
+  minAvailable: {{ .Values.fileService.pdb.minAvailable }}
+  {{- else }}
+  maxUnavailable: {{ .Values.fileService.pdb.maxUnavailable | default 1 }}
+  {{- end }}
+  {{- else }}
+  maxUnavailable: 1
+  {{- end }}
   selector:
     matchLabels:
       {{- include "clario360.componentSelectorLabels" (dict "root" . "component" "file-service") | nindent 6 }}

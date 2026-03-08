@@ -15,6 +15,7 @@ const (
 	RecipientRoleBased       RecipientMode = "role_based"
 	RecipientDirect          RecipientMode = "direct"
 	RecipientMixed           RecipientMode = "mixed"
+	RecipientComputed        RecipientMode = "computed"
 	RecipientTenantBroadcast RecipientMode = "tenant_broadcast"
 )
 
@@ -32,6 +33,7 @@ type NotificationRule struct {
 	Roles         []string
 	RoleField     string
 	DirectFields  []string
+	ComputedRecipient string
 	TitleTemplate string
 	BodyTemplate  string
 	ActionURLTmpl string
@@ -91,8 +93,9 @@ func NewRuleEngine() *RuleEngine {
 		Category:      model.CategorySecurity,
 		Priority:      model.PriorityCritical,
 		Channels:      []string{"email", "in_app", "push"},
-		RecipientMode: RecipientRoleBased,
+		RecipientMode: RecipientMixed,
 		Roles:         []string{"security-manager"},
+		DirectFields:  []string{"created_by"},
 		TitleTemplate: "Remediation Failed",
 		BodyTemplate:  "Automated remediation {{.id}} failed. Error: {{.error}}",
 		ActionURLTmpl: "/cyber/remediation/{{.id}}",
@@ -104,8 +107,8 @@ func NewRuleEngine() *RuleEngine {
 		Category:      model.CategorySecurity,
 		Priority:      model.PriorityMedium,
 		Channels:      []string{"in_app"},
-		RecipientMode: RecipientRoleBased,
-		Roles:         []string{"security-analyst", "security-manager"},
+		RecipientMode: RecipientComputed,
+		ComputedRecipient: "asset_owners_from_event",
 		TitleTemplate: "Remediation Completed",
 		BodyTemplate:  "Remediation {{.id}} completed successfully.",
 		ActionURLTmpl: "/cyber/remediation/{{.id}}",
@@ -118,8 +121,8 @@ func NewRuleEngine() *RuleEngine {
 		Category:      model.CategoryData,
 		Priority:      model.PriorityHigh,
 		Channels:      []string{"email", "in_app"},
-		RecipientMode: RecipientDirect,
-		DirectFields:  []string{"created_by"},
+		RecipientMode: RecipientComputed,
+		ComputedRecipient: "pipeline_owner_from_event",
 		TitleTemplate: "Pipeline Failed: {{.pipeline_name}}",
 		BodyTemplate:  "Pipeline {{.pipeline_name}} failed. {{.error_message}}",
 		ActionURLTmpl: "/data/pipelines/{{.pipeline_id}}",
@@ -166,8 +169,8 @@ func NewRuleEngine() *RuleEngine {
 		Category:      model.CategoryGovernance,
 		Priority:      model.PriorityMedium,
 		Channels:      []string{"email", "in_app"},
-		RecipientMode: RecipientDirect,
-		DirectFields:  []string{"attendee_ids"},
+		RecipientMode: RecipientComputed,
+		ComputedRecipient: "committee_members_from_event",
 		TitleTemplate: "Meeting Scheduled: {{.title}}",
 		BodyTemplate:  "Meeting {{.title}} is scheduled for {{formatDate .scheduled_at}}.",
 		ActionURLTmpl: "/acta/meetings/{{.id}}",
@@ -178,8 +181,8 @@ func NewRuleEngine() *RuleEngine {
 		NotifType:     model.NotifMeetingReminder,
 		Category:      model.CategoryGovernance,
 		Channels:      []string{"email", "in_app"},
-		RecipientMode: RecipientDirect,
-		DirectFields:  []string{"attendee_ids"},
+		RecipientMode: RecipientComputed,
+		ComputedRecipient: "meeting_attendees_from_event",
 		PriorityFunc: func(data map[string]interface{}) string {
 			if floatValue(data["hours_until"]) <= 1 {
 				return model.PriorityHigh
@@ -223,8 +226,8 @@ func NewRuleEngine() *RuleEngine {
 		Category:      model.CategoryGovernance,
 		Priority:      model.PriorityMedium,
 		Channels:      []string{"email", "in_app"},
-		RecipientMode: RecipientDirect,
-		DirectFields:  []string{"attendee_ids"},
+		RecipientMode: RecipientComputed,
+		ComputedRecipient: "committee_members_from_event",
 		TitleTemplate: "Minutes Approved",
 		BodyTemplate:  "Meeting minutes have been approved.",
 		ActionURLTmpl: "/acta/meetings/{{.meeting_id}}",

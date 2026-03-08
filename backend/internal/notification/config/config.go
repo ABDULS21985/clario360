@@ -46,6 +46,9 @@ type Config struct {
 
 	// IAM service URL for role-based recipient resolution
 	IAMServiceURL string
+	DataServiceURL string
+	ActaServiceURL string
+	CyberServiceURL string
 
 	// Rate limiting
 	RateLimitPerMinute int
@@ -80,6 +83,9 @@ func LoadFromEnv() *Config {
 		DigestDailyUTCHour:      envInt("NOTIF_DIGEST_DAILY_UTC_HOUR", 8),
 		DigestWeeklyDay:         envInt("NOTIF_DIGEST_WEEKLY_DAY", 1),
 		IAMServiceURL:           envStr("NOTIF_IAM_SERVICE_URL", "http://iam-service:8083"),
+		DataServiceURL:          envStr("NOTIF_DATA_SERVICE_URL", "http://data-service:8091"),
+		ActaServiceURL:          envStr("NOTIF_ACTA_SERVICE_URL", "http://acta-service:8086"),
+		CyberServiceURL:         envStr("NOTIF_CYBER_SERVICE_URL", "http://cyber-service:8090"),
 		RateLimitPerMinute:      envInt("NOTIF_RATE_LIMIT_PER_MINUTE", 120),
 		Environment:             envStr("NOTIF_ENVIRONMENT", "development"),
 	}

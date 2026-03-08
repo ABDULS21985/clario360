@@ -2,12 +2,13 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "clario360.fullname" . }}-file-service
+  name: {{ include "clario360.componentName" (dict "root" . "component" "file-service") }}
   namespace: {{ include "clario360.namespace" . }}
   labels:
     {{- include "clario360.componentLabels" (dict "root" . "component" "file-service") | nindent 4 }}
 spec:
   replicas: {{ .Values.fileService.replicaCount | default 2 }}
+  revisionHistoryLimit: {{ .Values.fileService.revisionHistoryLimit | default 5 }}
   selector:
     matchLabels:
       {{- include "clario360.componentSelectorLabels" (dict "root" . "component" "file-service") | nindent 6 }}
@@ -19,10 +20,16 @@ spec:
   template:
     metadata:
       annotations:
-        checksum/config: {{ include (print $.Template.BasePath "/file-service/configmap.yaml") . | sha256sum }}
-        {{- include "clario360.prometheusAnnotations" (dict "metricsPort" "9091") | nindent 8 }}
+        checksum/config: {{ include (print $.Template.BasePath "/configmap-services.yaml") . | sha256sum }}
+        {{- include "clario360.prometheusAnnotations" (dict "metricsPort" "9092") | nindent 8 }}
+        {{- with .Values.fileService.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
       labels:
         {{- include "clario360.componentSelectorLabels" (dict "root" . "component" "file-service") | nindent 8 }}
+        {{- with .Values.fileService.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
     spec:
       {{- with .Values.global.imagePullSecrets }}
       imagePullSecrets:
@@ -31,34 +38,36 @@ spec:
       serviceAccountName: {{ include "clario360.serviceAccountName" (dict "root" . "component" "file-service" "svcConfig" .Values.fileService) }}
       securityContext:
         {{- include "clario360.podSecurityContext" . | nindent 8 }}
+      terminationGracePeriodSeconds: {{ .Values.fileService.terminationGracePeriodSeconds | default 30 }}
       containers:
         - name: file-service
+          image: {{ include "clario360.image" (dict "imageConfig" .Values.fileService.image "root" . "defaultRepo" "clario360/file-service") }}
+          imagePullPolicy: {{ .Values.fileService.image.pullPolicy | default "IfNotPresent" }}
           securityContext:
             {{- include "clario360.containerSecurityContext" . | nindent 12 }}
-          image: "{{ .Values.global.imageRegistry }}/{{ .Values.fileService.image.repository }}:{{ .Values.fileService.image.tag | default .Chart.AppVersion }}"
-          imagePullPolicy: {{ .Values.fileService.image.pullPolicy | default "IfNotPresent" }}
           ports:
             - name: http
-              containerPort: 8091
+              containerPort: 8092
               protocol: TCP
-            - name: metrics
-              containerPort: 9091
+            - name: admin
+              containerPort: 9092
               protocol: TCP
           envFrom:
             - configMapRef:
                 name: {{ include "clario360.fullname" . }}-shared-config
             - configMapRef:
-                name: {{ include "clario360.fullname" . }}-file-service-config
-            - secretRef:
-                name: {{ include "clario360.fullname" . }}-redis-secret
+                name: {{ include "clario360.componentName" (dict "root" . "component" "file-service") }}-config
           env:
             - name: FILE_DB_URL
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "clario360.fullname" . }}-database-secret
+                  name: {{ include "clario360.fullname" . }}-database-credentials
                   key: PLATFORM_DB_URL
             - name: FILE_REDIS_URL
-              value: "redis://:$(REDIS_PASSWORD)@$(REDIS_HOST):$(REDIS_PORT)/0"
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "clario360.fullname" . }}-redis-credentials
+                  key: REDIS_URL
             - name: FILE_KAFKA_BROKERS
               valueFrom:
                 configMapKeyRef:
@@ -76,20 +85,23 @@ spec:
             - name: FILE_MINIO_ACCESS_KEY
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "clario360.fullname" . }}-minio-secret
-                  key: FILE_MINIO_ACCESS_KEY
+                  name: {{ include "clario360.fullname" . }}-minio-credentials
+                  key: MINIO_ACCESS_KEY
             - name: FILE_MINIO_SECRET_KEY
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "clario360.fullname" . }}-minio-secret
-                  key: FILE_MINIO_SECRET_KEY
+                  name: {{ include "clario360.fullname" . }}-minio-credentials
+                  key: MINIO_SECRET_KEY
             - name: FILE_ENCRYPTION_MASTER_KEY
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "clario360.fullname" . }}-encryption-secret
-                  key: FILE_ENCRYPTION_MASTER_KEY
+                  name: {{ include "clario360.fullname" . }}-encryption-key
+                  key: ENCRYPTION_KEY
             - name: OTEL_SERVICE_NAME
               value: "file-service"
+            {{- with .Values.fileService.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
           {{- include "clario360.healthProbes" (dict "portName" "http" "healthPath" "/healthz" "readyPath" "/readyz") | nindent 10 }}
           resources:
             {{- toYaml .Values.fileService.resources | nindent 12 }}
@@ -104,7 +116,7 @@ spec:
           emptyDir: {}
         - name: jwt-public-key
           secret:
-            secretName: {{ include "clario360.fullname" . }}-jwt-secret
+            secretName: {{ include "clario360.fullname" . }}-jwt-keys
             items:
               - key: AUTH_RSA_PUBLIC_KEY_PEM
                 path: jwt-public-key.pem

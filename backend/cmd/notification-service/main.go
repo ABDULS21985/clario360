@@ -214,7 +214,13 @@ func main() {
 		kafkaConsumer.SetDeadLetterProducer(producer)
 		kafkaConsumer.SetCrossSuiteMetrics(crossSuiteMetrics)
 		kafkaConsumer.SetDLQTracker(dlqTracker, "notification-service")
-		recipientResolver := consumer.NewRecipientResolver(notifCfg.IAMServiceURL, logger)
+		recipientResolver := consumer.NewRecipientResolver(
+			notifCfg.IAMServiceURL,
+			notifCfg.DataServiceURL,
+			notifCfg.ActaServiceURL,
+			notifCfg.CyberServiceURL,
+			logger,
+		)
 		notifConsumer = consumer.NewNotificationConsumer(kafkaConsumer, notifSvc, recipientResolver, guard, crossSuiteMetrics, logger)
 	}
 

@@ -1,12 +1,14 @@
 package handler
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"net"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
@@ -52,30 +54,36 @@ func New(
 	}
 }
 
-// PublicRoutes returns routes that do not require authentication.
+// PublicOnboardingRoutes returns routes that do not require authentication.
 // Mount at /api/v1/onboarding
-func (h *Handler) PublicRoutes() chi.Router {
+func (h *Handler) PublicOnboardingRoutes() chi.Router {
 	r := chi.NewRouter()
 	r.Post("/register", h.Register)
 	r.Post("/verify-email", h.VerifyEmail)
 	r.Post("/resend-otp", h.ResendOTP)
 	r.Get("/status/{tenantId}", h.GetOnboardingStatus)
-	// Invitation public endpoints
-	r.Get("/invitations/validate", h.ValidateInviteToken)
-	r.Post("/invitations/accept", h.AcceptInvitation)
 	return r
 }
 
 // WizardRoutes returns routes for the onboarding wizard (requires auth).
-// Mount at /api/v1/onboarding
+// Mount at /api/v1/onboarding/wizard
 func (h *Handler) WizardRoutes() chi.Router {
 	r := chi.NewRouter()
-	r.Get("/progress", h.GetWizardProgress)
+	r.Get("/", h.GetWizardProgress)
 	r.Post("/organization", h.SaveOrganization)
 	r.Post("/branding", h.SaveBranding)
 	r.Post("/team", h.SaveTeam)
 	r.Post("/suites", h.SaveSuites)
 	r.Post("/complete", h.CompleteWizard)
+	return r
+}
+
+// PublicInvitationRoutes returns invitation endpoints that do not require authentication.
+// Mount at /api/v1/invitations
+func (h *Handler) PublicInvitationRoutes() chi.Router {
+	r := chi.NewRouter()
+	r.Get("/validate", h.ValidateInviteToken)
+	r.Post("/accept", h.AcceptInvitation)
 	return r
 }
 
@@ -85,8 +93,7 @@ func (h *Handler) InvitationRoutes() chi.Router {
 	r := chi.NewRouter()
 	r.Get("/", h.ListInvitations)
 	r.Post("/", h.CreateBatchInvitations)
-	r.Post("/{id}/cancel", h.CancelInvitation)
-	r.Post("/{id}/resend", h.ResendInvitation)
+	r.Post("/resend/{id}", h.ResendInvitation)
 	r.Delete("/{id}", h.CancelInvitation)
 	return r
 }
@@ -95,9 +102,10 @@ func (h *Handler) InvitationRoutes() chi.Router {
 // Mount at /api/v1/admin/tenants
 func (h *Handler) AdminRoutes() chi.Router {
 	r := chi.NewRouter()
-	r.Post("/{id}/provision", h.AdminProvision)
+	r.Post("/provision", h.AdminProvision)
 	r.Get("/{id}/provision-status", h.AdminGetProvisionStatus)
 	r.Post("/{id}/deprovision", h.AdminDeprovision)
+	r.Post("/{id}/reprovision", h.AdminReprovision)
 	r.Post("/{id}/reactivate", h.AdminReactivate)
 	return r
 }
@@ -189,7 +197,7 @@ func (h *Handler) GetOnboardingStatus(w http.ResponseWriter, r *http.Request) {
 // Public: Invitations
 // -------------------------------------------------------------------------
 
-// ValidateInviteToken handles GET /api/v1/onboarding/invitations/validate?token=...
+// ValidateInviteToken handles GET /api/v1/invitations/validate?token=...
 func (h *Handler) ValidateInviteToken(w http.ResponseWriter, r *http.Request) {
 	token := strings.TrimSpace(r.URL.Query().Get("token"))
 	if token == "" {
@@ -204,7 +212,7 @@ func (h *Handler) ValidateInviteToken(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, details)
 }
 
-// AcceptInvitation handles POST /api/v1/onboarding/invitations/accept
+// AcceptInvitation handles POST /api/v1/invitations/accept
 func (h *Handler) AcceptInvitation(w http.ResponseWriter, r *http.Request) {
 	var req onboardingdto.AcceptInviteRequest
 	if err := parseBody(r, &req); err != nil {
@@ -226,7 +234,7 @@ func (h *Handler) AcceptInvitation(w http.ResponseWriter, r *http.Request) {
 // Authenticated: Wizard
 // -------------------------------------------------------------------------
 
-// GetWizardProgress handles GET /api/v1/onboarding/progress
+// GetWizardProgress handles GET /api/v1/onboarding/wizard
 func (h *Handler) GetWizardProgress(w http.ResponseWriter, r *http.Request) {
 	currentUser := iamauth.MustUserFromContext(r.Context())
 	tenantID, err := uuid.Parse(currentUser.TenantID)
@@ -243,7 +251,7 @@ func (h *Handler) GetWizardProgress(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, progress)
 }
 
-// SaveOrganization handles POST /api/v1/onboarding/organization
+// SaveOrganization handles POST /api/v1/onboarding/wizard/organization
 func (h *Handler) SaveOrganization(w http.ResponseWriter, r *http.Request) {
 	currentUser := iamauth.MustUserFromContext(r.Context())
 	tenantID, err := uuid.Parse(currentUser.TenantID)
@@ -266,7 +274,7 @@ func (h *Handler) SaveOrganization(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, resp)
 }
 
-// SaveBranding handles POST /api/v1/onboarding/branding
+// SaveBranding handles POST /api/v1/onboarding/wizard/branding
 func (h *Handler) SaveBranding(w http.ResponseWriter, r *http.Request) {
 	currentUser := iamauth.MustUserFromContext(r.Context())
 	tenantID, err := uuid.Parse(currentUser.TenantID)
@@ -299,7 +307,7 @@ func (h *Handler) SaveBranding(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, resp)
 }
 
-// SaveTeam handles POST /api/v1/onboarding/team
+// SaveTeam handles POST /api/v1/onboarding/wizard/team
 func (h *Handler) SaveTeam(w http.ResponseWriter, r *http.Request) {
 	currentUser := iamauth.MustUserFromContext(r.Context())
 	tenantID, err := uuid.Parse(currentUser.TenantID)
@@ -330,7 +338,7 @@ func (h *Handler) SaveTeam(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, resp)
 }
 
-// SaveSuites handles POST /api/v1/onboarding/suites
+// SaveSuites handles POST /api/v1/onboarding/wizard/suites
 func (h *Handler) SaveSuites(w http.ResponseWriter, r *http.Request) {
 	currentUser := iamauth.MustUserFromContext(r.Context())
 	tenantID, err := uuid.Parse(currentUser.TenantID)
@@ -353,7 +361,7 @@ func (h *Handler) SaveSuites(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, resp)
 }
 
-// CompleteWizard handles POST /api/v1/onboarding/complete
+// CompleteWizard handles POST /api/v1/onboarding/wizard/complete
 func (h *Handler) CompleteWizard(w http.ResponseWriter, r *http.Request) {
 	currentUser := iamauth.MustUserFromContext(r.Context())
 	tenantID, err := uuid.Parse(currentUser.TenantID)
@@ -427,7 +435,7 @@ func (h *Handler) CreateBatchInvitations(w http.ResponseWriter, r *http.Request)
 	writeJSON(w, http.StatusCreated, map[string]any{"data": invitations, "count": len(invitations)})
 }
 
-// CancelInvitation handles DELETE /api/v1/invitations/{id} and POST /api/v1/invitations/{id}/cancel
+// CancelInvitation handles DELETE /api/v1/invitations/{id}
 func (h *Handler) CancelInvitation(w http.ResponseWriter, r *http.Request) {
 	currentUser := iamauth.MustUserFromContext(r.Context())
 	tenantID, err := uuid.Parse(currentUser.TenantID)
@@ -455,7 +463,7 @@ func (h *Handler) CancelInvitation(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"message": "Invitation cancelled."})
 }
 
-// ResendInvitation handles POST /api/v1/invitations/{id}/resend
+// ResendInvitation handles POST /api/v1/invitations/resend/{id}
 func (h *Handler) ResendInvitation(w http.ResponseWriter, r *http.Request) {
 	currentUser := iamauth.MustUserFromContext(r.Context())
 	tenantID, err := uuid.Parse(currentUser.TenantID)

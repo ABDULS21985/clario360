@@ -3,9 +3,11 @@ package main
 import (
 	"context"
 	"errors"
+	"net/http"
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strings"
 	"syscall"
 	"time"
 
@@ -22,7 +24,9 @@ import (
 	sharedmw "github.com/clario360/platform/internal/middleware"
 	bootstrap "github.com/clario360/platform/internal/observability/bootstrap"
 	"github.com/clario360/platform/internal/observability/tracing"
+	"github.com/clario360/platform/internal/suiteapi"
 	workflowrepo "github.com/clario360/platform/internal/workflow/repository"
+	"github.com/google/uuid"
 	"github.com/rs/zerolog"
 )
 
@@ -115,6 +119,78 @@ func main() {
 	app.RegisterRoutes(svc.Router, jwtMgr, svc.Redis, actaCfg.RateLimitPerMinute)
 	dlqTracker := events.NewDLQTracker(svc.Redis)
 	crossSuiteMetrics := events.NewCrossSuiteMetrics(svc.Metrics.Registry())
+	svc.Router.Get("/api/v1/internal/committee-members", func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("X-Internal-Service") == "" {
+			suiteapi.WriteError(w, r, http.StatusUnauthorized, "UNAUTHORIZED", "internal access required", nil)
+			return
+		}
+
+		tenantID, err := uuid.Parse(strings.TrimSpace(r.URL.Query().Get("tenant_id")))
+		if err != nil {
+			suiteapi.WriteError(w, r, http.StatusBadRequest, "VALIDATION_ERROR", "invalid tenant_id", nil)
+			return
+		}
+		committeeID, err := uuid.Parse(strings.TrimSpace(r.URL.Query().Get("committee_id")))
+		if err != nil {
+			suiteapi.WriteError(w, r, http.StatusBadRequest, "VALIDATION_ERROR", "invalid committee_id", nil)
+			return
+		}
+
+		members, err := app.Store.ListCommitteeMembers(r.Context(), tenantID, committeeID, true)
+		if err != nil {
+			logger.Error().Err(err).Str("tenant_id", tenantID.String()).Str("committee_id", committeeID.String()).Msg("failed to resolve committee members")
+			suiteapi.WriteError(w, r, http.StatusInternalServerError, "INTERNAL_ERROR", "failed to resolve committee members", nil)
+			return
+		}
+
+		userIDs := make([]string, 0, len(members))
+		seen := make(map[string]struct{}, len(members))
+		for _, member := range members {
+			userID := member.UserID.String()
+			if _, ok := seen[userID]; ok {
+				continue
+			}
+			seen[userID] = struct{}{}
+			userIDs = append(userIDs, userID)
+		}
+		suiteapi.WriteJSON(w, http.StatusOK, map[string][]string{"user_ids": userIDs})
+	})
+	svc.Router.Get("/api/v1/internal/meeting-attendees", func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("X-Internal-Service") == "" {
+			suiteapi.WriteError(w, r, http.StatusUnauthorized, "UNAUTHORIZED", "internal access required", nil)
+			return
+		}
+
+		tenantID, err := uuid.Parse(strings.TrimSpace(r.URL.Query().Get("tenant_id")))
+		if err != nil {
+			suiteapi.WriteError(w, r, http.StatusBadRequest, "VALIDATION_ERROR", "invalid tenant_id", nil)
+			return
+		}
+		meetingID, err := uuid.Parse(strings.TrimSpace(r.URL.Query().Get("meeting_id")))
+		if err != nil {
+			suiteapi.WriteError(w, r, http.StatusBadRequest, "VALIDATION_ERROR", "invalid meeting_id", nil)
+			return
+		}
+
+		attendance, err := app.Store.ListAttendance(r.Context(), tenantID, meetingID)
+		if err != nil {
+			logger.Error().Err(err).Str("tenant_id", tenantID.String()).Str("meeting_id", meetingID.String()).Msg("failed to resolve meeting attendees")
+			suiteapi.WriteError(w, r, http.StatusInternalServerError, "INTERNAL_ERROR", "failed to resolve meeting attendees", nil)
+			return
+		}
+
+		userIDs := make([]string, 0, len(attendance))
+		seen := make(map[string]struct{}, len(attendance))
+		for _, attendee := range attendance {
+			userID := attendee.UserID.String()
+			if _, ok := seen[userID]; ok {
+				continue
+			}
+			seen[userID] = struct{}{}
+			userIDs = append(userIDs, userID)
+		}
+		suiteapi.WriteJSON(w, http.StatusOK, map[string][]string{"user_ids": userIDs})
+	})
 	svc.Router.Get("/api/v1/admin/dlq/count", events.DLQCountHandler("acta-service", dlqTracker, logger))
 
 	var kafkaConsumer *events.Consumer

@@ -25,6 +25,7 @@ var Topics = struct {
 
 	// Data
 	DataSourceEvents    string
+	DarkDataEvents      string
 	PipelineEvents      string
 	QualityEvents       string
 	ContradictionEvents string
@@ -60,6 +61,7 @@ var Topics = struct {
 
 	// Data
 	DataSourceEvents:    "data.source.events",
+	DarkDataEvents:      "data.darkdata.events",
 	PipelineEvents:      "data.pipeline.events",
 	QualityEvents:       "data.quality.events",
 	ContradictionEvents: "data.contradiction.events",
@@ -111,6 +113,7 @@ func AllTopics() []string {
 		Topics.DSPMEvents,
 		Topics.VCISOEvents,
 		Topics.DataSourceEvents,
+		Topics.DarkDataEvents,
 		Topics.PipelineEvents,
 		Topics.QualityEvents,
 		Topics.ContradictionEvents,
