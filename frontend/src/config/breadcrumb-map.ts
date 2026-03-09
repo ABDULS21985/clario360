@@ -36,6 +36,11 @@ export const breadcrumbMap: Record<string, string> = {
   notifications: 'Notifications',
   files: 'Files',
   notifications_prefs: 'Notification Preferences',
+  tenants: 'Tenants',
+  'api-keys': 'API Keys',
+  invitations: 'Invitations',
+  new: 'New',
+  callback: 'Callback',
 };
 
 export const UUID_REGEX =

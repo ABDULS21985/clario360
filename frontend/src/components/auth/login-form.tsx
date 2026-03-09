@@ -13,6 +13,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Spinner } from '@/components/ui/spinner';
 import { MFACodeInput } from './mfa-code-input';
+import { OAuthProviders } from './oauth-providers';
 import { loginSchema, type LoginFormData } from '@/lib/validators';
 import { useAuth } from '@/hooks/use-auth';
 import { useCountdown } from '@/hooks/use-countdown';
@@ -262,6 +263,8 @@ export function LoginForm() {
             )}
           </Button>
         </form>
+
+        <OAuthProviders />
 
         <p className="text-center text-sm text-muted-foreground">
           Don&apos;t have an account?{' '}

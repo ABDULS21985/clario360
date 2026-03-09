@@ -65,7 +65,7 @@ export interface AuditChange {
   new_value: unknown;
 }
 
-export interface AuditLogDetail extends AuditLog {
+export interface AuditLogDetail extends Omit<AuditLog, "correlation_id"> {
   request_body: Record<string, unknown> | null;
   response_status: number | null;
   response_body: Record<string, unknown> | null;

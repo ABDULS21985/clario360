@@ -8,6 +8,7 @@ import { Key, Shield, Laptop, Trash2, Plus, CheckCircle } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { ConnectedAccounts } from "@/components/auth/connected-accounts";
 import {
   Card,
   CardContent,
@@ -274,6 +275,9 @@ export default function SettingsPage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Connected Accounts (OAuth) */}
+      <ConnectedAccounts />
 
       {/* Active Sessions */}
       <Card>

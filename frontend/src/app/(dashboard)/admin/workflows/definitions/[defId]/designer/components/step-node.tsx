@@ -41,7 +41,7 @@ interface StepNodeProps {
   selected: boolean;
   readOnly: boolean;
   zoom: number;
-  stepStatus?: 'completed' | 'running' | 'failed' | 'pending';
+  stepStatus?: string;
   onSelect: (stepId: string) => void;
   onDragStart: (stepId: string, e: React.MouseEvent) => void;
   onConnectStart: (stepId: string, e: React.MouseEvent) => void;

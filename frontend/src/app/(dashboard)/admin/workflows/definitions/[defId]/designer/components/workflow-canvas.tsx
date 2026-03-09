@@ -22,7 +22,7 @@ interface WorkflowCanvasProps {
   readOnly: boolean;
   isSaving: boolean;
   isPublishing: boolean;
-  stepStatuses?: Record<string, StepExecution['status']>;
+  stepStatuses?: Record<string, string>;
   onSave: (steps: WorkflowStep[]) => void;
   onPublish: () => void;
 }

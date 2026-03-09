@@ -35,6 +35,9 @@ import {
   Building2,
   Gavel,
   Plug,
+  Key,
+  Mail,
+  Layout,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
@@ -182,6 +185,27 @@ export const navigation: NavSection[] = [
         permission: 'roles:read',
       },
       {
+        id: 'admin-tenants',
+        label: 'Tenants',
+        href: '/admin/tenants',
+        icon: Building2,
+        permission: 'admin:tenants',
+      },
+      {
+        id: 'admin-api-keys',
+        label: 'API Keys',
+        href: '/admin/api-keys',
+        icon: Key,
+        permission: 'users:read',
+      },
+      {
+        id: 'admin-invitations',
+        label: 'Invitations',
+        href: '/admin/invitations',
+        icon: Mail,
+        permission: 'users:write',
+      },
+      {
         id: 'admin-audit',
         label: 'Audit Logs',
         href: '/admin/audit',
@@ -220,6 +244,12 @@ export const navigation: NavSection[] = [
           variant: 'default',
           pollIntervalMs: 30000,
         },
+        children: [
+          { id: 'admin-workflow-tasks', label: 'Task Queue', href: '/workflows/tasks', icon: ClipboardList },
+          { id: 'admin-workflow-instances', label: 'Instances', href: '/workflows', icon: Workflow },
+          { id: 'admin-workflow-definitions', label: 'Definitions', href: '/admin/workflows/definitions', icon: GitBranch },
+          { id: 'admin-workflow-templates', label: 'Templates', href: '/admin/workflows/templates', icon: Layout },
+        ],
       },
       { id: 'admin-files', label: 'Files', href: '/files', icon: File },
       { id: 'admin-notifications', label: 'Notifications', href: '/notifications', icon: Bell },
