@@ -78,11 +78,13 @@ func main() {
 		logger.Fatal().Err(err).Msg("failed to create MinIO client")
 	}
 
-	// Verify MinIO connectivity
+	// Storage outages should not crash the process in local/dev environments.
+	// Keep the service up, surface the dependency as unhealthy, and let requests fail explicitly.
 	if _, err = minioClient.ListBuckets(ctx); err != nil {
-		logger.Fatal().Err(err).Msg("MinIO unreachable — cannot start")
+		logger.Warn().Err(err).Str("endpoint", cfg.MinIOEndpoint).Msg("MinIO unreachable — starting in degraded mode")
+	} else {
+		logger.Info().Str("endpoint", cfg.MinIOEndpoint).Msg("MinIO connected")
 	}
-	logger.Info().Str("endpoint", cfg.MinIOEndpoint).Msg("MinIO connected")
 
 	// 4. Initialize Storage
 	store, err := storage.NewStorage(storage.Config{
@@ -156,7 +158,7 @@ func main() {
 		fmHealth.NewMinIOChecker(minioClient),
 		fmHealth.NewClamAVChecker(scanner),
 	}
-	_ = health.NewCompositeHealthChecker(5*time.Second, fileCheckers...)
+	svc.Health.AddCheckers(fileCheckers...)
 
 	// 7. Initialize Kafka consumer
 	kafkaConsumer, err := events.NewConsumer(kafkaCfg, logger)

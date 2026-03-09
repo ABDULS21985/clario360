@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"sort"
@@ -201,6 +202,7 @@ func (r *ModelRegistryRepository) ListVersions(ctx context.Context, tenantID, mo
 		       v.feedback_count, v.promoted_to_staging_at, v.promoted_to_shadow_at,
 		       v.promoted_to_production_at, v.promoted_by, v.retired_at, v.retired_by,
 		       v.retirement_reason, v.rolled_back_at, v.rolled_back_by, v.rollback_reason,
+		       v.failed_at, v.failed_by, v.failed_from_status, v.failure_reason,
 		       v.replaced_version_id, v.created_by, v.created_at, v.updated_at
 		FROM ai_model_versions v
 		JOIN ai_models m ON m.id = v.model_id
@@ -234,6 +236,7 @@ func (r *ModelRegistryRepository) GetVersion(ctx context.Context, tenantID, mode
 		       v.feedback_count, v.promoted_to_staging_at, v.promoted_to_shadow_at,
 		       v.promoted_to_production_at, v.promoted_by, v.retired_at, v.retired_by,
 		       v.retirement_reason, v.rolled_back_at, v.rolled_back_by, v.rollback_reason,
+		       v.failed_at, v.failed_by, v.failed_from_status, v.failure_reason,
 		       v.replaced_version_id, v.created_by, v.created_at, v.updated_at
 		FROM ai_model_versions v
 		JOIN ai_models m ON m.id = v.model_id
@@ -265,6 +268,7 @@ func (r *ModelRegistryRepository) GetCurrentProductionVersion(ctx context.Contex
 		       v.feedback_count, v.promoted_to_staging_at, v.promoted_to_shadow_at,
 		       v.promoted_to_production_at, v.promoted_by, v.retired_at, v.retired_by,
 		       v.retirement_reason, v.rolled_back_at, v.rolled_back_by, v.rollback_reason,
+		       v.failed_at, v.failed_by, v.failed_from_status, v.failure_reason,
 		       v.replaced_version_id, v.created_by, v.created_at, v.updated_at
 		FROM ai_model_versions v
 		JOIN ai_models m ON m.id = v.model_id
@@ -290,6 +294,7 @@ func (r *ModelRegistryRepository) GetCurrentShadowVersion(ctx context.Context, t
 		       v.feedback_count, v.promoted_to_staging_at, v.promoted_to_shadow_at,
 		       v.promoted_to_production_at, v.promoted_by, v.retired_at, v.retired_by,
 		       v.retirement_reason, v.rolled_back_at, v.rolled_back_by, v.rollback_reason,
+		       v.failed_at, v.failed_by, v.failed_from_status, v.failure_reason,
 		       v.replaced_version_id, v.created_by, v.created_at, v.updated_at
 		FROM ai_model_versions v
 		JOIN ai_models m ON m.id = v.model_id
@@ -315,6 +320,7 @@ func (r *ModelRegistryRepository) GetVersionByID(ctx context.Context, tenantID, 
 		       v.feedback_count, v.promoted_to_staging_at, v.promoted_to_shadow_at,
 		       v.promoted_to_production_at, v.promoted_by, v.retired_at, v.retired_by,
 		       v.retirement_reason, v.rolled_back_at, v.rolled_back_by, v.rollback_reason,
+		       v.failed_at, v.failed_by, v.failed_from_status, v.failure_reason,
 		       v.replaced_version_id, v.created_by, v.created_at, v.updated_at
 		FROM ai_model_versions v
 		JOIN ai_models m ON m.id = v.model_id
@@ -346,6 +352,7 @@ func (r *ModelRegistryRepository) listVersionsByStatus(ctx context.Context, stat
 		       v.feedback_count, v.promoted_to_staging_at, v.promoted_to_shadow_at,
 		       v.promoted_to_production_at, v.promoted_by, v.retired_at, v.retired_by,
 		       v.retirement_reason, v.rolled_back_at, v.rolled_back_by, v.rollback_reason,
+		       v.failed_at, v.failed_by, v.failed_from_status, v.failure_reason,
 		       v.replaced_version_id, v.created_by, v.created_at, v.updated_at
 		FROM ai_model_versions v
 		JOIN ai_models m ON m.id = v.model_id
@@ -368,6 +375,10 @@ func (r *ModelRegistryRepository) listVersionsByStatus(ctx context.Context, stat
 }
 
 func (r *ModelRegistryRepository) UpdateVersionStatus(ctx context.Context, version *aigovmodel.ModelVersion) error {
+	var failedFromStatus any
+	if version.FailedFromStatus != nil {
+		failedFromStatus = string(*version.FailedFromStatus)
+	}
 	cmd, err := r.db.Exec(ctx, `
 		UPDATE ai_model_versions
 		SET status = $4,
@@ -388,15 +399,20 @@ func (r *ModelRegistryRepository) UpdateVersionStatus(ctx context.Context, versi
 		    rolled_back_at = $19,
 		    rolled_back_by = $20,
 		    rollback_reason = $21,
-		    replaced_version_id = $22,
-		    updated_at = $23
+		    failed_at = $22,
+		    failed_by = $23,
+		    failed_from_status = $24,
+		    failure_reason = $25,
+		    replaced_version_id = $26,
+		    updated_at = $27
 		WHERE tenant_id = $1 AND model_id = $2 AND id = $3`,
 		version.TenantID, version.ModelID, version.ID, version.Status, version.PredictionCount,
 		version.AvgLatencyMS, version.AvgConfidence, version.AccuracyMetric, version.FalsePositiveRate,
 		version.FalseNegativeRate, version.FeedbackCount, version.PromotedToStagingAt,
 		version.PromotedToShadowAt, version.PromotedToProductionAt, version.PromotedBy, version.RetiredAt,
 		version.RetiredBy, version.RetirementReason, version.RolledBackAt, version.RolledBackBy,
-		version.RollbackReason, version.ReplacedVersionID, version.UpdatedAt,
+		version.RollbackReason, version.FailedAt, version.FailedBy, failedFromStatus,
+		version.FailureReason, version.ReplacedVersionID, version.UpdatedAt,
 	)
 	if err != nil {
 		return fmt.Errorf("update ai model version: %w", err)
@@ -489,18 +505,39 @@ func (r *ModelRegistryRepository) UpdateVersionAggregates(ctx context.Context, t
 	return nil
 }
 
+func (r *ModelRegistryRepository) UpdateVersionValidationMetrics(ctx context.Context, tenantID, versionID uuid.UUID, trainingMetrics json.RawMessage, accuracy, falsePositiveRate, falseNegativeRate float64) error {
+	cmd, err := r.db.Exec(ctx, `
+		UPDATE ai_model_versions
+		SET training_metrics = $3,
+		    accuracy_metric = $4,
+		    false_positive_rate = $5,
+		    false_negative_rate = $6,
+		    updated_at = now()
+		WHERE tenant_id = $1 AND id = $2`,
+		tenantID, versionID, trainingMetrics, accuracy, falsePositiveRate, falseNegativeRate,
+	)
+	if err != nil {
+		return fmt.Errorf("update ai model validation metrics: %w", err)
+	}
+	if cmd.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
 func (r *ModelRegistryRepository) LifecycleHistory(ctx context.Context, tenantID, modelID uuid.UUID) ([]aigovmodel.LifecycleHistoryEntry, error) {
 	versions, err := r.ListVersions(ctx, tenantID, modelID)
 	if err != nil {
 		return nil, err
 	}
-	history := make([]aigovmodel.LifecycleHistoryEntry, 0, len(versions)*3)
+	history := make([]aigovmodel.LifecycleHistoryEntry, 0, len(versions)*6)
 	for _, version := range versions {
 		history = appendHistory(history, version, version.PromotedToStagingAt, nil, aigovmodel.VersionStatusStaging, version.PromotedBy, "")
 		history = appendHistory(history, version, version.PromotedToShadowAt, ptrStatus(aigovmodel.VersionStatusStaging), aigovmodel.VersionStatusShadow, version.PromotedBy, "")
 		history = appendHistory(history, version, version.PromotedToProductionAt, ptrStatus(aigovmodel.VersionStatusShadow), aigovmodel.VersionStatusProduction, version.PromotedBy, "")
 		history = appendHistory(history, version, version.RetiredAt, ptrStatus(aigovmodel.VersionStatusProduction), aigovmodel.VersionStatusRetired, version.RetiredBy, derefString(version.RetirementReason))
 		history = appendHistory(history, version, version.RolledBackAt, ptrStatus(aigovmodel.VersionStatusProduction), aigovmodel.VersionStatusRolledBack, version.RolledBackBy, derefString(version.RollbackReason))
+		history = appendHistory(history, version, version.FailedAt, version.FailedFromStatus, aigovmodel.VersionStatusFailed, version.FailedBy, derefString(version.FailureReason))
 	}
 	sort.Slice(history, func(i, j int) bool {
 		return history[i].ChangedAt.After(history[j].ChangedAt)
@@ -518,6 +555,7 @@ func (r *ModelRegistryRepository) getVersionBySlugAndStatus(ctx context.Context,
 		       v.feedback_count, v.promoted_to_staging_at, v.promoted_to_shadow_at,
 		       v.promoted_to_production_at, v.promoted_by, v.retired_at, v.retired_by,
 		       v.retirement_reason, v.rolled_back_at, v.rolled_back_by, v.rollback_reason,
+		       v.failed_at, v.failed_by, v.failed_from_status, v.failure_reason,
 		       v.replaced_version_id, v.created_by, v.created_at, v.updated_at
 		FROM ai_model_versions v
 		JOIN ai_models m ON m.id = v.model_id
@@ -557,22 +595,26 @@ func scanModel(row scannable) (*aigovmodel.RegisteredModel, error) {
 func scanVersion(row scannable) (*aigovmodel.ModelVersion, error) {
 	item := &aigovmodel.ModelVersion{}
 	var (
-		artifactConfig []byte
-		trainingMetrics []byte
-		explanationTemplate *string
-		trainingDataDesc *string
-		trainingDataHash *string
-		promotedToStaging *time.Time
-		promotedToShadow *time.Time
+		artifactConfig       []byte
+		trainingMetrics      []byte
+		explanationTemplate  *string
+		trainingDataDesc     *string
+		trainingDataHash     *string
+		promotedToStaging    *time.Time
+		promotedToShadow     *time.Time
 		promotedToProduction *time.Time
-		promotedBy *uuid.UUID
-		retiredAt *time.Time
-		retiredBy *uuid.UUID
-		retirementReason *string
-		rolledBackAt *time.Time
-		rolledBackBy *uuid.UUID
-		rollbackReason *string
-		replacedVersionID *uuid.UUID
+		promotedBy           *uuid.UUID
+		retiredAt            *time.Time
+		retiredBy            *uuid.UUID
+		retirementReason     *string
+		rolledBackAt         *time.Time
+		rolledBackBy         *uuid.UUID
+		rollbackReason       *string
+		failedAt             *time.Time
+		failedBy             *uuid.UUID
+		failedFromStatus     *string
+		failureReason        *string
+		replacedVersionID    *uuid.UUID
 	)
 	if err := row.Scan(
 		&item.ID, &item.TenantID, &item.ModelID, &item.ModelSlug, &item.ModelName, &item.ModelType,
@@ -582,7 +624,8 @@ func scanVersion(row scannable) (*aigovmodel.ModelVersion, error) {
 		&item.PredictionCount, &item.AvgLatencyMS, &item.AvgConfidence, &item.AccuracyMetric,
 		&item.FalsePositiveRate, &item.FalseNegativeRate, &item.FeedbackCount, &promotedToStaging,
 		&promotedToShadow, &promotedToProduction, &promotedBy, &retiredAt, &retiredBy,
-		&retirementReason, &rolledBackAt, &rolledBackBy, &rollbackReason, &replacedVersionID,
+		&retirementReason, &rolledBackAt, &rolledBackBy, &rollbackReason, &failedAt, &failedBy,
+		&failedFromStatus, &failureReason, &replacedVersionID,
 		&item.CreatedBy, &item.CreatedAt, &item.UpdatedAt,
 	); err != nil {
 		return nil, err
@@ -602,6 +645,13 @@ func scanVersion(row scannable) (*aigovmodel.ModelVersion, error) {
 	item.RolledBackAt = ptrTime(rolledBackAt)
 	item.RolledBackBy = ptrUUID(rolledBackBy)
 	item.RollbackReason = rollbackReason
+	item.FailedAt = ptrTime(failedAt)
+	item.FailedBy = ptrUUID(failedBy)
+	if failedFromStatus != nil {
+		status := aigovmodel.VersionStatus(*failedFromStatus)
+		item.FailedFromStatus = &status
+	}
+	item.FailureReason = failureReason
 	item.ReplacedVersionID = ptrUUID(replacedVersionID)
 	return item, nil
 }

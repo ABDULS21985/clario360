@@ -140,7 +140,7 @@ else
         "gcr.io/distroless/static-debian12:nonroot"
         "postgres:16-alpine"
         "redis:7-alpine"
-        "bitnami/kafka:3.7"
+        "bitnamilegacy/kafka:4.0.0-debian-12-r10"
         "prom/prometheus:v2.50.0"
         "grafana/grafana:10.3.1"
         "nginx:1.25-alpine"

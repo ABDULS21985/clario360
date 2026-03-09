@@ -12,6 +12,7 @@ func RegisterRoutes(r chi.Router, services Services, logger zerolog.Logger) {
 	shadow := NewShadowHandler(services, logger)
 	lifecycle := NewLifecycleHandler(services, logger)
 	drift := NewDriftHandler(services, logger)
+	validation := NewValidationHandler(services, logger)
 	dashboard := NewDashboardHandler(services, logger)
 
 	r.Route("/ai", func(r chi.Router) {
@@ -25,6 +26,11 @@ func RegisterRoutes(r chi.Router, services Services, logger zerolog.Logger) {
 			r.Get("/{id}/versions/{vid}", registry.GetVersion)
 			r.Post("/{id}/versions/{vid}/promote", lifecycle.Promote)
 			r.Post("/{id}/versions/{vid}/retire", lifecycle.Retire)
+			r.Post("/{id}/versions/{vid}/fail", lifecycle.Fail)
+			r.Post("/{id}/versions/{vid}/validate", validation.Run)
+			r.Post("/{id}/versions/{vid}/validation/preview", validation.Preview)
+			r.Get("/{id}/versions/{vid}/validation", validation.Latest)
+			r.Get("/{id}/versions/{vid}/validation/history", validation.History)
 			r.Post("/{id}/rollback", lifecycle.Rollback)
 			r.Get("/{id}/lifecycle-history", lifecycle.History)
 			r.Post("/{id}/shadow/start", shadow.Start)

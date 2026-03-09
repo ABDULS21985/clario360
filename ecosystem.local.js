@@ -246,6 +246,8 @@ module.exports = {
       FILE_MINIO_BUCKET_PREFIX: "clario360",
       FILE_ENCRYPTION_MASTER_KEY: fileEncryptionKey,
       FILE_CLAMAV_ADDRESS: "localhost:3310",
+      FILE_TRACING_ENABLED: "false",
+      FILE_TRACING_ENDPOINT: "",
       FILE_ENVIRONMENT: "development",
     }),
     serviceApp("api-gateway", {

@@ -901,6 +901,8 @@ export FILE_MINIO_USE_SSL="false"
 export FILE_MINIO_BUCKET_PREFIX="clario360"
 export FILE_ENCRYPTION_MASTER_KEY="${FILE_ENCRYPTION_KEY}"
 export FILE_CLAMAV_ADDRESS="localhost:3310"
+export FILE_TRACING_ENABLED="false"
+export FILE_TRACING_ENDPOINT=""
 export FILE_ENVIRONMENT="development"
 
 # ── Start all services ────────────────────────────────────────────────────────

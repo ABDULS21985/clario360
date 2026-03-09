@@ -14,6 +14,8 @@ import type {
   AIPredictionStats,
   AIShadowComparison,
   AIShadowDivergence,
+  AIValidationPreview,
+  AIValidationResult,
 } from '@/types/ai-governance';
 import type {
   ActaActionItem,
@@ -269,6 +271,8 @@ export const enterpriseApi = {
       apiPost<{ data: AIModelVersion }>(`/api/v1/ai/models/${id}/versions/${versionId}/promote`, payload ?? {}).then((res) => res.data),
     retire: (id: string, versionId: string, payload: { reason: string }) =>
       apiPost<{ data: AIModelVersion }>(`/api/v1/ai/models/${id}/versions/${versionId}/retire`, payload).then((res) => res.data),
+    failVersion: (id: string, versionId: string, payload: { reason: string }) =>
+      apiPost<{ data: AIModelVersion }>(`/api/v1/ai/models/${id}/versions/${versionId}/fail`, payload).then((res) => res.data),
     rollback: (id: string, payload: { reason: string }) =>
       apiPost<{ data: AIModelVersion }>(`/api/v1/ai/models/${id}/rollback`, payload).then((res) => res.data),
     lifecycleHistory: (id: string): Promise<AILifecycleHistoryEntry[]> => fetchSuiteData(`/api/v1/ai/models/${id}/lifecycle-history`),
@@ -294,6 +298,14 @@ export const enterpriseApi = {
       fetchSuiteData(`/api/v1/ai/models/${id}/drift/history`, { limit }),
     performance: (id: string, period = '30d'): Promise<AIPerformancePoint[]> =>
       fetchSuiteData(`/api/v1/ai/models/${id}/performance`, { period }),
+    previewValidation: (id: string, versionId: string, payload: unknown): Promise<AIValidationPreview> =>
+      apiPost<{ data: AIValidationPreview }>(`/api/v1/ai/models/${id}/versions/${versionId}/validation/preview`, payload).then((res) => res.data),
+    validate: (id: string, versionId: string, payload: unknown): Promise<AIValidationResult> =>
+      apiPost<{ data: AIValidationResult }>(`/api/v1/ai/models/${id}/versions/${versionId}/validate`, payload).then((res) => res.data),
+    latestValidation: (id: string, versionId: string): Promise<AIValidationResult> =>
+      fetchSuiteData(`/api/v1/ai/models/${id}/versions/${versionId}/validation`),
+    validationHistory: (id: string, versionId: string, limit = 10): Promise<AIValidationResult[]> =>
+      fetchSuiteData(`/api/v1/ai/models/${id}/versions/${versionId}/validation/history`, { limit }),
   },
 };
 

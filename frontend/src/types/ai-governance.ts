@@ -47,6 +47,9 @@ export type AIArtifactType =
 export type AIDriftLevel = 'none' | 'low' | 'moderate' | 'significant';
 
 export type AIShadowRecommendation = 'promote' | 'keep_shadow' | 'reject' | 'needs_review';
+export type AIValidationDatasetType = 'historical' | 'custom' | 'live_replay';
+export type AIValidationRecommendation = 'promote' | 'keep_testing' | 'reject';
+export type AIValidationLabel = 'threat' | 'benign';
 
 export interface AIModelVersion {
   id: string;
@@ -85,6 +88,10 @@ export interface AIModelVersion {
   rolled_back_at?: string | null;
   rolled_back_by?: string | null;
   rollback_reason?: string | null;
+  failed_at?: string | null;
+  failed_by?: string | null;
+  failed_from_status?: AIVersionStatus | null;
+  failure_reason?: string | null;
   replaced_version_id?: string | null;
   created_by: string;
   created_at: string;
@@ -292,4 +299,79 @@ export interface AIDashboardModelRow {
 export interface AIDashboardData {
   kpis: AIDashboardKPI;
   models: AIDashboardModelRow[];
+}
+
+export interface AIValidationMetricsSummary {
+  dataset_size: number;
+  positive_count: number;
+  negative_count: number;
+  true_positives: number;
+  false_positives: number;
+  true_negatives: number;
+  false_negatives: number;
+  precision: number;
+  recall: number;
+  f1_score: number;
+  false_positive_rate: number;
+  false_negative_rate?: number;
+  accuracy: number;
+  auc?: number;
+}
+
+export interface AIROCPoint {
+  threshold: number;
+  fpr: number;
+  tpr: number;
+}
+
+export interface AIValidationPredictionSample {
+  prediction_id?: string | null;
+  input_hash: string;
+  input_summary: JsonValue;
+  predicted_output: JsonValue;
+  predicted_label: AIValidationLabel;
+  expected_label: AIValidationLabel;
+  confidence: number;
+  severity?: string;
+  rule_type?: string;
+  explanation: string;
+}
+
+export interface AIValidationResult {
+  id: string;
+  version_id: string;
+  dataset_type: AIValidationDatasetType;
+  dataset_size: number;
+  positive_count: number;
+  negative_count: number;
+  true_positives: number;
+  false_positives: number;
+  true_negatives: number;
+  false_negatives: number;
+  precision: number;
+  recall: number;
+  f1_score: number;
+  false_positive_rate: number;
+  accuracy: number;
+  auc: number;
+  roc_curve: AIROCPoint[];
+  production_metrics?: AIValidationMetricsSummary | null;
+  deltas?: Record<string, number> | null;
+  by_severity: Record<string, AIValidationMetricsSummary>;
+  by_rule_type?: Record<string, AIValidationMetricsSummary>;
+  false_positive_samples: AIValidationPredictionSample[];
+  false_negative_samples: AIValidationPredictionSample[];
+  recommendation: AIValidationRecommendation;
+  recommendation_reason: string;
+  warnings: string[];
+  validated_at: string;
+  duration_ms: number;
+}
+
+export interface AIValidationPreview {
+  dataset_type: AIValidationDatasetType;
+  dataset_size: number;
+  positive_count: number;
+  negative_count: number;
+  warnings: string[];
 }

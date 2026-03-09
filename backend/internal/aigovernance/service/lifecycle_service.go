@@ -111,6 +111,41 @@ func (s *LifecycleService) Retire(ctx context.Context, tenantID, modelID, versio
 	return version, nil
 }
 
+func (s *LifecycleService) Fail(ctx context.Context, tenantID, modelID, versionID, failedBy uuid.UUID, reason string) (*aigovmodel.ModelVersion, error) {
+	version, err := s.repo.GetVersion(ctx, tenantID, modelID, versionID)
+	if err != nil {
+		return nil, err
+	}
+	if err := validateFailureTransition(version); err != nil {
+		return nil, err
+	}
+	reason = strings.TrimSpace(reason)
+	if reason == "" {
+		return nil, fmt.Errorf("reason is required")
+	}
+	from := version.Status
+	now := time.Now().UTC()
+	version.Status = aigovmodel.VersionStatusFailed
+	version.FailedAt = &now
+	version.FailedBy = &failedBy
+	version.FailedFromStatus = versionStatusPtr(from)
+	version.FailureReason = &reason
+	version.UpdatedAt = now
+	if err := s.repo.UpdateVersionStatus(ctx, version); err != nil {
+		return nil, err
+	}
+	s.publish(ctx, "com.clario360.ai.model.version.failed", tenantID, map[string]any{
+		"model_id":     modelID,
+		"model_slug":   version.ModelSlug,
+		"version_id":   versionID,
+		"from_status":  from,
+		"to_status":    version.Status,
+		"failed_by":    failedBy,
+		"failure_note": reason,
+	})
+	return version, nil
+}
+
 func (s *LifecycleService) Rollback(ctx context.Context, tenantID, modelID, rolledBackBy uuid.UUID, reason string) (*aigovmodel.ModelVersion, error) {
 	current, err := s.repo.GetCurrentProductionVersion(ctx, tenantID, modelID)
 	if err != nil {
@@ -196,6 +231,19 @@ func (s *LifecycleService) nextStatus(ctx context.Context, version *aigovmodel.M
 	}
 }
 
+func validateFailureTransition(version *aigovmodel.ModelVersion) error {
+	switch version.Status {
+	case aigovmodel.VersionStatusDevelopment, aigovmodel.VersionStatusStaging, aigovmodel.VersionStatusShadow:
+		return nil
+	case aigovmodel.VersionStatusProduction:
+		return fmt.Errorf("invalid transition: cannot mark a production version as failed; rollback or retire it instead")
+	case aigovmodel.VersionStatusFailed:
+		return fmt.Errorf("invalid transition: version %d is already failed", version.VersionNumber)
+	default:
+		return fmt.Errorf("invalid transition: version %d cannot be marked failed from %s", version.VersionNumber, version.Status)
+	}
+}
+
 func validateArtifact(version *aigovmodel.ModelVersion) error {
 	if len(version.ArtifactConfig) == 0 || string(version.ArtifactConfig) == "null" {
 		return fmt.Errorf("artifact_config must not be empty")
@@ -229,4 +277,9 @@ func (s *LifecycleService) publish(ctx context.Context, eventType string, tenant
 	if err := s.producer.Publish(ctx, events.Topics.AIEvents, event); err != nil {
 		s.logger.Warn().Err(err).Str("event_type", eventType).Msg("failed to publish ai lifecycle event")
 	}
+}
+
+func versionStatusPtr(status aigovmodel.VersionStatus) *aigovmodel.VersionStatus {
+	value := status
+	return &value
 }

@@ -45,6 +45,7 @@ type aigovIntegrationEnv struct {
 	predictionRepo *repository.PredictionLogRepository
 	shadowRepo     *repository.ShadowComparisonRepository
 	driftRepo      *repository.DriftReportRepository
+	validationRepo *repository.ValidationResultRepository
 
 	registrySvc      *aigovservice.RegistryService
 	predictionSvc    *aigovservice.PredictionService
@@ -52,6 +53,7 @@ type aigovIntegrationEnv struct {
 	shadowSvc        *aigovservice.ShadowService
 	lifecycleSvc     *aigovservice.LifecycleService
 	driftSvc         *aigovservice.DriftService
+	validationSvc    *aigovservice.ValidationService
 	predictionLogger *aigovmiddleware.PredictionLogger
 }
 
@@ -132,6 +134,7 @@ func startSharedEnv() (*aigovIntegrationEnv, error) {
 	predictionRepo := repository.NewPredictionLogRepository(db, logger)
 	shadowRepo := repository.NewShadowComparisonRepository(db, logger)
 	driftRepo := repository.NewDriftReportRepository(db, logger)
+	validationRepo := repository.NewValidationResultRepository(db, logger)
 	explanationSvc := aigovservice.NewExplanationService(logger)
 
 	return &aigovIntegrationEnv{
@@ -143,12 +146,14 @@ func startSharedEnv() (*aigovIntegrationEnv, error) {
 		predictionRepo:   predictionRepo,
 		shadowRepo:       shadowRepo,
 		driftRepo:        driftRepo,
+		validationRepo:   validationRepo,
 		registrySvc:      aigovservice.NewRegistryService(registryRepo, nil, metrics, logger),
 		predictionSvc:    aigovservice.NewPredictionService(predictionRepo, registryRepo, nil, metrics, logger),
 		comparisonSvc:    aigovservice.NewComparisonService(registryRepo, predictionRepo, shadowRepo, nil, metrics, logger),
 		shadowSvc:        aigovservice.NewShadowService(registryRepo, shadowRepo, predictionRepo, nil, metrics, logger),
 		lifecycleSvc:     aigovservice.NewLifecycleService(registryRepo, shadowRepo, nil, metrics, logger),
 		driftSvc:         aigovservice.NewDriftService(registryRepo, predictionRepo, driftRepo, nil, metrics, logger),
+		validationSvc:    aigovservice.NewValidationService(registryRepo, predictionRepo, validationRepo, nil, metrics, nil, logger),
 		predictionLogger: aigovmiddleware.NewPredictionLogger(ctx, explanationSvc, predictionRepo, registryRepo, nil, metrics, logger),
 	}, nil
 }

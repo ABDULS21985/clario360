@@ -57,3 +57,33 @@ func TestValidateArtifactHashMismatch(t *testing.T) {
 		t.Fatal("expected artifact hash validation error")
 	}
 }
+
+func TestValidateFailureTransition(t *testing.T) {
+	tests := []struct {
+		name    string
+		status  aigovmodel.VersionStatus
+		wantErr bool
+	}{
+		{name: "development", status: aigovmodel.VersionStatusDevelopment},
+		{name: "staging", status: aigovmodel.VersionStatusStaging},
+		{name: "shadow", status: aigovmodel.VersionStatusShadow},
+		{name: "production", status: aigovmodel.VersionStatusProduction, wantErr: true},
+		{name: "retired", status: aigovmodel.VersionStatusRetired, wantErr: true},
+		{name: "failed", status: aigovmodel.VersionStatusFailed, wantErr: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := validateFailureTransition(&aigovmodel.ModelVersion{
+				VersionNumber: 7,
+				Status:        tt.status,
+			})
+			if tt.wantErr && err == nil {
+				t.Fatal("expected error")
+			}
+			if !tt.wantErr && err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+		})
+	}
+}

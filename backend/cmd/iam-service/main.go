@@ -188,6 +188,7 @@ func main() {
 	aiPredictionRepo := aigovrepo.NewPredictionLogRepository(svc.DBPool, svc.Logger)
 	aiShadowRepo := aigovrepo.NewShadowComparisonRepository(svc.DBPool, svc.Logger)
 	aiDriftRepo := aigovrepo.NewDriftReportRepository(svc.DBPool, svc.Logger)
+	aiValidationRepo := aigovrepo.NewValidationResultRepository(svc.DBPool, svc.Logger)
 	aiExplanationSvc := aigovservice.NewExplanationService(svc.Logger)
 	aiRegistrySvc := aigovservice.NewRegistryService(aiRegistryRepo, producer, aiMetrics, svc.Logger)
 	aiPredictionSvc := aigovservice.NewPredictionService(aiPredictionRepo, aiRegistryRepo, producer, aiMetrics, svc.Logger)
@@ -195,6 +196,7 @@ func main() {
 	aiShadowSvc := aigovservice.NewShadowService(aiRegistryRepo, aiShadowRepo, aiPredictionRepo, producer, aiMetrics, svc.Logger)
 	aiLifecycleSvc := aigovservice.NewLifecycleService(aiRegistryRepo, aiShadowRepo, producer, aiMetrics, svc.Logger)
 	aiDriftSvc := aigovservice.NewDriftService(aiRegistryRepo, aiPredictionRepo, aiDriftRepo, producer, aiMetrics, svc.Logger)
+	aiValidationSvc := aigovservice.NewValidationService(aiRegistryRepo, aiPredictionRepo, aiValidationRepo, producer, aiMetrics, nil, svc.Logger)
 	aiDashboardSvc := aigovservice.NewDashboardService(aiRegistryRepo, aiPredictionRepo, aiDriftRepo, svc.Logger)
 	aiServices := aigovhandler.Services{
 		Registry:     aiRegistrySvc,
@@ -203,6 +205,7 @@ func main() {
 		Shadow:       aiShadowSvc,
 		Lifecycle:    aiLifecycleSvc,
 		Drift:        aiDriftSvc,
+		Validation:   aiValidationSvc,
 		Dashboard:    aiDashboardSvc,
 	}
 	go func() {

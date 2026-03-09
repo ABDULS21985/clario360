@@ -8,8 +8,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
 
-	aigovservice "github.com/clario360/platform/internal/aigovernance/service"
 	"github.com/clario360/platform/internal/aigovernance/repository"
+	aigovservice "github.com/clario360/platform/internal/aigovernance/service"
 	"github.com/clario360/platform/internal/suiteapi"
 )
 
@@ -57,10 +57,12 @@ func isValidationError(err error) bool {
 		"invalid",
 		"must",
 		"reject",
+		"insufficient",
 		"approval",
 		"rollback",
 		"shadow mode",
 		"transition",
+		"configured",
 	} {
 		if strings.Contains(text, token) {
 			return true
@@ -76,5 +78,6 @@ type Services struct {
 	Shadow       *aigovservice.ShadowService
 	Lifecycle    *aigovservice.LifecycleService
 	Drift        *aigovservice.DriftService
+	Validation   *aigovservice.ValidationService
 	Dashboard    *aigovservice.DashboardService
 }

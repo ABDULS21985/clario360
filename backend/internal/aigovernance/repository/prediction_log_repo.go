@@ -269,6 +269,40 @@ func (r *PredictionLogRepository) ListByVersionAndWindow(ctx context.Context, te
 	return items, rows.Err()
 }
 
+func (r *PredictionLogRepository) ListLatestByVersionAndInputHashes(ctx context.Context, tenantID, versionID uuid.UUID, hashes []string) ([]aigovmodel.PredictionLog, error) {
+	if len(hashes) == 0 {
+		return nil, nil
+	}
+	rows, err := r.db.Query(ctx, `
+		SELECT DISTINCT ON (input_hash)
+		       id, tenant_id, model_id, model_version_id, '' AS model_slug, 0 AS version_number, input_hash,
+		       input_summary, prediction, confidence, explanation_structured, explanation_text,
+		       explanation_factors, suite, use_case, COALESCE(entity_type, ''), entity_id,
+		       is_shadow, shadow_production_version_id, shadow_divergence, feedback_correct,
+		       feedback_by, feedback_at, feedback_notes, feedback_corrected_output, latency_ms,
+		       created_at
+		FROM ai_prediction_logs
+		WHERE tenant_id = $1
+		  AND model_version_id = $2
+		  AND input_hash = ANY($3)
+		ORDER BY input_hash, created_at DESC`,
+		tenantID, versionID, hashes,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("list ai logs by input hashes: %w", err)
+	}
+	defer rows.Close()
+	items := make([]aigovmodel.PredictionLog, 0, len(hashes))
+	for rows.Next() {
+		item, err := scanPrediction(rows)
+		if err != nil {
+			return nil, err
+		}
+		items = append(items, *item)
+	}
+	return items, rows.Err()
+}
+
 func (r *PredictionLogRepository) PerformanceSeries(ctx context.Context, tenantID, modelID uuid.UUID, since time.Time) ([]aigovmodel.PerformancePoint, error) {
 	rows, err := r.db.Query(ctx, `
 		SELECT date_trunc('day', created_at) AS period_start,

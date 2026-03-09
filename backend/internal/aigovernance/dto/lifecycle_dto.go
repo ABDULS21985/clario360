@@ -11,6 +11,10 @@ type RetireVersionRequest struct {
 	Reason string `json:"reason"`
 }
 
+type FailVersionRequest struct {
+	Reason string `json:"reason"`
+}
+
 type RollbackRequest struct {
 	Reason string `json:"reason"`
 }

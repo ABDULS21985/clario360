@@ -23,11 +23,13 @@ type Runtime struct {
 	PredictionRepo   *repository.PredictionLogRepository
 	ShadowRepo       *repository.ShadowComparisonRepository
 	DriftRepo        *repository.DriftReportRepository
+	ValidationRepo   *repository.ValidationResultRepository
 	Metrics          *aigovservice.Metrics
 	ExplanationSvc   *aigovservice.ExplanationService
 	PredictionLogger *aigovmiddleware.PredictionLogger
 	ComparisonSvc    *aigovservice.ComparisonService
 	DriftSvc         *aigovservice.DriftService
+	ValidationSvc    *aigovservice.ValidationService
 }
 
 func NewRuntime(ctx context.Context, cfg *config.Config, reg prometheus.Registerer, producer *events.Producer, logger zerolog.Logger) (*Runtime, error) {
@@ -54,21 +56,25 @@ func NewRuntime(ctx context.Context, cfg *config.Config, reg prometheus.Register
 	predictionRepo := repository.NewPredictionLogRepository(pool, logger)
 	shadowRepo := repository.NewShadowComparisonRepository(pool, logger)
 	driftRepo := repository.NewDriftReportRepository(pool, logger)
+	validationRepo := repository.NewValidationResultRepository(pool, logger)
 	explanationSvc := aigovservice.NewExplanationService(logger)
 	predictionLogger := aigovmiddleware.NewPredictionLogger(ctx, explanationSvc, predictionRepo, registryRepo, producer, metrics, logger)
 	comparisonSvc := aigovservice.NewComparisonService(registryRepo, predictionRepo, shadowRepo, producer, metrics, logger)
 	driftSvc := aigovservice.NewDriftService(registryRepo, predictionRepo, driftRepo, producer, metrics, logger)
+	validationSvc := aigovservice.NewValidationService(registryRepo, predictionRepo, validationRepo, producer, metrics, nil, logger)
 	return &Runtime{
 		Pool:             pool,
 		RegistryRepo:     registryRepo,
 		PredictionRepo:   predictionRepo,
 		ShadowRepo:       shadowRepo,
 		DriftRepo:        driftRepo,
+		ValidationRepo:   validationRepo,
 		Metrics:          metrics,
 		ExplanationSvc:   explanationSvc,
 		PredictionLogger: predictionLogger,
 		ComparisonSvc:    comparisonSvc,
 		DriftSvc:         driftSvc,
+		ValidationSvc:    validationSvc,
 	}, nil
 }
 
