@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
-import { ArrowLeftRight } from 'lucide-react';
+import { ArrowLeftRight, PencilLine, Plus } from 'lucide-react';
 import { PageHeader } from '@/components/common/page-header';
 import { PermissionRedirect } from '@/components/common/permission-redirect';
 import { Badge } from '@/components/ui/badge';
@@ -18,17 +18,23 @@ import { VersionTimeline } from '../_components/version-timeline';
 import { PredictionLogTable } from '../_components/prediction-log-table';
 import { ShadowComparisonChart } from '../_components/shadow-comparison-chart';
 import { DriftChart } from '../_components/drift-chart';
+import { ModelFormDialog } from '../_components/model-form-dialog';
 import { PerformanceChart } from '../_components/performance-chart';
 import { PromoteDialog } from '../_components/promote-dialog';
 import { RollbackDialog } from '../_components/rollback-dialog';
+import { VersionFormDialog } from '../_components/version-form-dialog';
+import { VersionLifecycleDialog, type VersionLifecycleAction } from '../_components/version-lifecycle-dialog';
 
 export default function AIModelDetailPage() {
   const params = useParams<{ modelId: string }>();
   const modelId = params?.modelId ?? '';
 
   const [busyVersionId, setBusyVersionId] = useState<string | null>(null);
+  const [modelFormOpen, setModelFormOpen] = useState(false);
+  const [versionFormOpen, setVersionFormOpen] = useState(false);
   const [promoteTarget, setPromoteTarget] = useState<AIModelVersion | null>(null);
   const [rollbackOpen, setRollbackOpen] = useState(false);
+  const [lifecycleTarget, setLifecycleTarget] = useState<{ action: VersionLifecycleAction; version: AIModelVersion } | null>(null);
 
   const modelQuery = useQuery({
     queryKey: ['ai-model', modelId],
@@ -123,6 +129,18 @@ export default function AIModelDetailPage() {
           description={model?.description ?? 'Governance detail for a registered model.'}
           actions={
             <div className="flex items-center gap-2">
+              {model ? (
+                <Button variant="outline" onClick={() => setModelFormOpen(true)}>
+                  <PencilLine className="mr-1.5 h-3.5 w-3.5" />
+                  Edit Model
+                </Button>
+              ) : null}
+              {model ? (
+                <Button onClick={() => setVersionFormOpen(true)}>
+                  <Plus className="mr-1.5 h-3.5 w-3.5" />
+                  New Version
+                </Button>
+              ) : null}
               {productionVersion ? (
                 <Button variant="outline" onClick={() => setRollbackOpen(true)}>
                   <ArrowLeftRight className="mr-1.5 h-3.5 w-3.5" />
@@ -176,6 +194,9 @@ export default function AIModelDetailPage() {
               busyVersionId={busyVersionId}
               onPromote={(version) => setPromoteTarget(version)}
               onStartShadow={(version) => void startShadow(version)}
+              onStopShadow={(version) => setLifecycleTarget({ action: 'stop_shadow', version })}
+              onRetire={(version) => setLifecycleTarget({ action: 'retire', version })}
+              onFail={(version) => setLifecycleTarget({ action: 'fail', version })}
             />
           </TabsContent>
 
@@ -268,10 +289,43 @@ export default function AIModelDetailPage() {
         }}
       />
 
+      <ModelFormDialog
+        open={modelFormOpen}
+        onOpenChange={setModelFormOpen}
+        model={model as AIRegisteredModel | null}
+        onSaved={() => {
+          void refreshAll();
+        }}
+      />
+
+      <VersionFormDialog
+        open={versionFormOpen}
+        onOpenChange={setVersionFormOpen}
+        model={model as AIRegisteredModel | null}
+        onSaved={() => {
+          void refreshAll();
+        }}
+      />
+
       <RollbackDialog
         open={rollbackOpen}
         onOpenChange={setRollbackOpen}
         model={model as AIRegisteredModel | null}
+        onSaved={() => {
+          void refreshAll();
+        }}
+      />
+
+      <VersionLifecycleDialog
+        action={lifecycleTarget?.action ?? null}
+        open={Boolean(lifecycleTarget)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setLifecycleTarget(null);
+          }
+        }}
+        model={model as AIRegisteredModel | null}
+        version={lifecycleTarget?.version ?? null}
         onSaved={() => {
           void refreshAll();
         }}

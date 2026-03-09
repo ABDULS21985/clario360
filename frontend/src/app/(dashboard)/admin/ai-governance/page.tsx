@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Bot } from 'lucide-react';
+import { Bot, Plus } from 'lucide-react';
 import { PageHeader } from '@/components/common/page-header';
 import { PermissionRedirect } from '@/components/common/permission-redirect';
 import { DataTable } from '@/components/shared/data-table/data-table';
@@ -13,6 +13,7 @@ import { showApiError, showSuccess } from '@/lib/toast';
 import type { AIDashboardModelRow, AIModelVersion, AIRegisteredModel } from '@/types/ai-governance';
 import { createModelColumns } from './_components/model-columns';
 import { ModelCard } from './_components/model-card';
+import { ModelFormDialog } from './_components/model-form-dialog';
 import { PromoteDialog } from './_components/promote-dialog';
 import { RollbackDialog } from './_components/rollback-dialog';
 
@@ -23,6 +24,7 @@ export default function AIGovernancePage() {
   });
 
   const [busyModelId, setBusyModelId] = useState<string | null>(null);
+  const [modelFormOpen, setModelFormOpen] = useState(false);
   const [promoteTarget, setPromoteTarget] = useState<{ model: AIRegisteredModel; version: AIModelVersion } | null>(null);
   const [rollbackTarget, setRollbackTarget] = useState<AIRegisteredModel | null>(null);
 
@@ -130,9 +132,15 @@ export default function AIGovernancePage() {
           title="AI Governance"
           description="Registered models, lifecycle controls, shadow comparisons, drift signals, and prediction feedback across every suite."
           actions={
-            <Button variant="outline" onClick={() => void Promise.all([dashboardQuery.refetch(), refetch()])}>
-              Refresh
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button onClick={() => setModelFormOpen(true)}>
+                <Plus className="mr-1.5 h-4 w-4" />
+                Register Model
+              </Button>
+              <Button variant="outline" onClick={() => void Promise.all([dashboardQuery.refetch(), refetch()])}>
+                Refresh
+              </Button>
+            </div>
           }
         />
 
@@ -177,6 +185,14 @@ export default function AIGovernancePage() {
         }}
         model={promoteTarget?.model ?? null}
         version={promoteTarget?.version ?? null}
+        onSaved={() => {
+          void Promise.all([dashboardQuery.refetch(), refetch()]);
+        }}
+      />
+
+      <ModelFormDialog
+        open={modelFormOpen}
+        onOpenChange={setModelFormOpen}
         onSaved={() => {
           void Promise.all([dashboardQuery.refetch(), refetch()]);
         }}

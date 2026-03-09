@@ -3,17 +3,21 @@ import { fetchSuiteData, fetchSuitePaginated } from '@/lib/suite-api';
 import type { PaginatedResponse } from '@/types/api';
 import type { FetchParams } from '@/types/table';
 import type {
+  AICreateVersionPayload,
   AIDashboardData,
   AIDriftReport,
   AIExplanation,
   AILifecycleHistoryEntry,
   AIModelVersion,
+  AIRegisterModelPayload,
+  AIRegisteredModel,
   AIModelWithVersions,
   AIPerformancePoint,
   AIPredictionLog,
   AIPredictionStats,
   AIShadowComparison,
   AIShadowDivergence,
+  AIUpdateModelPayload,
   AIValidationPreview,
   AIValidationResult,
 } from '@/types/ai-governance';
@@ -264,7 +268,13 @@ export const enterpriseApi = {
   ai: {
     getDashboard: (): Promise<AIDashboardData> => fetchSuiteData('/api/v1/ai/dashboard'),
     listModels: (params: FetchParams) => fetchSuitePaginated<AIModelWithVersions>('/api/v1/ai/models', params),
+    createModel: (payload: AIRegisterModelPayload): Promise<AIRegisteredModel> =>
+      apiPost<{ data: AIRegisteredModel }>('/api/v1/ai/models', payload).then((res) => res.data),
     getModel: (id: string): Promise<AIModelWithVersions> => fetchSuiteData(`/api/v1/ai/models/${id}`),
+    updateModel: (id: string, payload: AIUpdateModelPayload): Promise<AIRegisteredModel> =>
+      apiPut<{ data: AIRegisteredModel }>(`/api/v1/ai/models/${id}`, payload).then((res) => res.data),
+    createVersion: (id: string, payload: AICreateVersionPayload): Promise<AIModelVersion> =>
+      apiPost<{ data: AIModelVersion }>(`/api/v1/ai/models/${id}/versions`, payload).then((res) => res.data),
     listVersions: (id: string): Promise<AIModelVersion[]> => fetchSuiteData(`/api/v1/ai/models/${id}/versions`),
     getVersion: (id: string, versionId: string): Promise<AIModelVersion> => fetchSuiteData(`/api/v1/ai/models/${id}/versions/${versionId}`),
     promote: (id: string, versionId: string, payload?: { approved_by?: string; override?: boolean }) =>

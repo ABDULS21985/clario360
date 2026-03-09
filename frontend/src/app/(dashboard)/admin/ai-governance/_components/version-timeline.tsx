@@ -1,5 +1,7 @@
 'use client';
 
+import Link from 'next/link';
+import { Ban, CirclePause, FlaskConical } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -12,6 +14,9 @@ interface VersionTimelineProps {
   busyVersionId?: string | null;
   onPromote: (version: AIModelVersion) => void;
   onStartShadow: (version: AIModelVersion) => void;
+  onStopShadow: (version: AIModelVersion) => void;
+  onRetire: (version: AIModelVersion) => void;
+  onFail: (version: AIModelVersion) => void;
 }
 
 function statusVariant(status: string) {
@@ -36,6 +41,9 @@ export function VersionTimeline({
   busyVersionId,
   onPromote,
   onStartShadow,
+  onStopShadow,
+  onRetire,
+  onFail,
 }: VersionTimelineProps) {
   return (
     <div className="grid gap-4 lg:grid-cols-[1.4fr_1fr]">
@@ -58,6 +66,12 @@ export function VersionTimeline({
                     <div className="font-mono text-xs text-muted-foreground">{version.artifact_hash.slice(0, 12)}…</div>
                   </div>
                   <div className="flex flex-wrap gap-2">
+                    <Button asChild variant="ghost" size="sm">
+                      <Link href={`/admin/ai-governance/${version.model_id}/validate?versionId=${version.id}`}>
+                        <FlaskConical className="mr-1.5 h-3.5 w-3.5" />
+                        Validate
+                      </Link>
+                    </Button>
                     {(version.status === 'development' || version.status === 'staging' || version.status === 'shadow') ? (
                       <Button variant="outline" size="sm" disabled={isBusy} onClick={() => onPromote(version)}>
                         {version.status === 'shadow' ? 'Promote to Prod' : 'Promote'}
@@ -66,6 +80,23 @@ export function VersionTimeline({
                     {version.status === 'staging' ? (
                       <Button variant="ghost" size="sm" disabled={isBusy} onClick={() => onStartShadow(version)}>
                         Start Shadow
+                      </Button>
+                    ) : null}
+                    {version.status === 'shadow' ? (
+                      <Button variant="ghost" size="sm" disabled={isBusy} onClick={() => onStopShadow(version)}>
+                        <CirclePause className="mr-1.5 h-3.5 w-3.5" />
+                        Stop Shadow
+                      </Button>
+                    ) : null}
+                    {(version.status === 'development' || version.status === 'staging' || version.status === 'shadow') ? (
+                      <Button variant="ghost" size="sm" disabled={isBusy} onClick={() => onFail(version)}>
+                        <Ban className="mr-1.5 h-3.5 w-3.5" />
+                        Mark Failed
+                      </Button>
+                    ) : null}
+                    {(version.status !== 'retired' && version.status !== 'rolled_back') ? (
+                      <Button variant="ghost" size="sm" disabled={isBusy} onClick={() => onRetire(version)}>
+                        Retire
                       </Button>
                     ) : null}
                   </div>
@@ -96,6 +127,7 @@ export function VersionTimeline({
                 {entry.from_status ? `${entry.from_status} -> ${entry.to_status}` : `Entered ${entry.to_status}`}
               </p>
               {entry.reason ? <p className="mt-1 text-sm">{entry.reason}</p> : null}
+              {entry.changed_by ? <p className="mt-1 text-xs text-muted-foreground">Changed by {entry.changed_by}</p> : null}
               <RelativeTime date={entry.changed_at} className="mt-1 text-xs text-muted-foreground" />
             </div>
           ))}

@@ -119,6 +119,41 @@ export interface AIRegisteredModel {
   updated_at: string;
 }
 
+export interface AIRegisterModelPayload {
+  name: string;
+  slug: string;
+  description: string;
+  model_type: AIModelType;
+  suite: AIModelSuite;
+  owner_user_id?: string;
+  owner_team?: string;
+  risk_tier: AIRiskTier;
+  tags: string[];
+  metadata: JsonValue;
+}
+
+export interface AIUpdateModelPayload {
+  name?: string;
+  description?: string;
+  owner_user_id?: string;
+  owner_team?: string;
+  risk_tier?: AIRiskTier;
+  status?: AIModelStatus;
+  tags?: string[];
+  metadata?: JsonValue;
+}
+
+export interface AICreateVersionPayload {
+  description: string;
+  artifact_type: AIArtifactType;
+  artifact_config: JsonValue;
+  explainability_type: AIExplainabilityType;
+  explanation_template?: string | null;
+  training_data_desc?: string | null;
+  training_data_hash?: string | null;
+  training_metrics: JsonValue;
+}
+
 export interface AIModelWithVersions {
   model: AIRegisteredModel;
   production_version?: AIModelVersion | null;
