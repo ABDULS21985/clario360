@@ -93,7 +93,36 @@ export const fileStatusConfig: StatusConfig = {
 export const tenantStatusConfig: StatusConfig = {
   active: { label: "Active", color: "green", icon: CheckCircle },
   suspended: { label: "Suspended", color: "red", icon: Ban },
+  provisioning: { label: "Provisioning", color: "blue", icon: Clock },
+  deprovisioning: { label: "Deprovisioning", color: "orange", icon: Clock },
+  deprovisioned: { label: "Deprovisioned", color: "gray", icon: XCircle },
   deactivated: { label: "Deactivated", color: "gray", icon: XCircle },
+};
+
+export const tenantPlanConfig: StatusConfig = {
+  starter: { label: "Starter", color: "gray", icon: Building2 },
+  professional: { label: "Professional", color: "blue", icon: Building2 },
+  enterprise: { label: "Enterprise", color: "purple", icon: Building2 },
+  custom: { label: "Custom", color: "teal", icon: Building2 },
+};
+
+export const apiKeyStatusConfig: StatusConfig = {
+  active: { label: "Active", color: "green", icon: CheckCircle },
+  revoked: { label: "Revoked", color: "red", icon: Ban },
+  expired: { label: "Expired", color: "gray", icon: Clock },
+};
+
+export const invitationStatusConfig: StatusConfig = {
+  pending: { label: "Pending", color: "yellow", icon: Clock },
+  accepted: { label: "Accepted", color: "green", icon: CheckCircle },
+  expired: { label: "Expired", color: "gray", icon: Clock },
+  cancelled: { label: "Cancelled", color: "red", icon: Ban },
+};
+
+export const workflowDefinitionStatusConfig: StatusConfig = {
+  draft: { label: "Draft", color: "gray", icon: FileEdit },
+  active: { label: "Active", color: "green", icon: CheckCircle },
+  archived: { label: "Archived", color: "gray", icon: Ban },
 };
 
 export const workflowStatusConfig: StatusConfig = {

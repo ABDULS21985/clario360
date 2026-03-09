@@ -30,6 +30,7 @@ import {
   ClipboardList,
   Workflow,
   Bell,
+  BellRing,
   File,
   Building2,
   Gavel,
@@ -222,6 +223,13 @@ export const navigation: NavSection[] = [
       },
       { id: 'admin-files', label: 'Files', href: '/files', icon: File },
       { id: 'admin-notifications', label: 'Notifications', href: '/notifications', icon: Bell },
+      {
+        id: 'admin-notification-management',
+        label: 'Notification Mgmt',
+        href: '/admin/notifications',
+        icon: BellRing,
+        permission: 'tenant:write',
+      },
     ],
   },
 ];

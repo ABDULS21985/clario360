@@ -255,3 +255,257 @@ export interface Alert {
   created_at: string;
   updated_at: string;
 }
+
+// ── Workflow Definition types ──
+
+export type WorkflowDefinitionStatus = 'draft' | 'active' | 'archived';
+export type WorkflowCategory = 'approval' | 'onboarding' | 'review' | 'escalation' | 'notification' | 'data_pipeline' | 'compliance' | 'custom';
+
+export interface WorkflowTrigger {
+  type: 'manual' | 'event' | 'schedule' | 'webhook';
+  event_type?: string;
+  schedule_cron?: string;
+  webhook_path?: string;
+  conditions?: WorkflowCondition[];
+}
+
+export interface WorkflowCondition {
+  field: string;
+  operator: 'eq' | 'neq' | 'gt' | 'gte' | 'lt' | 'lte' | 'in' | 'not_in' | 'contains' | 'matches';
+  value: unknown;
+  logic?: 'and' | 'or';
+}
+
+export type WorkflowStepType =
+  | 'approval'
+  | 'review'
+  | 'task'
+  | 'notification'
+  | 'condition'
+  | 'parallel_gateway'
+  | 'join_gateway'
+  | 'delay'
+  | 'webhook'
+  | 'script'
+  | 'sub_workflow'
+  | 'end';
+
+export interface WorkflowStepConfig {
+  form_schema?: Record<string, unknown>;
+  approval_type?: 'single' | 'unanimous' | 'majority';
+  min_approvers?: number;
+  notification_template?: string;
+  notification_channels?: ('email' | 'in_app' | 'webhook')[];
+  conditions?: WorkflowCondition[];
+  delay_minutes?: number;
+  delay_until?: string;
+  webhook_url?: string;
+  webhook_method?: 'GET' | 'POST' | 'PUT';
+  webhook_headers?: Record<string, string>;
+  webhook_body_template?: string;
+  sub_workflow_id?: string;
+  script_id?: string;
+}
+
+export type AssigneeStrategy =
+  | { type: 'specific_user'; user_id: string }
+  | { type: 'role'; role_id: string }
+  | { type: 'manager_of'; relative_to: 'initiator' | 'previous_assignee' }
+  | { type: 'round_robin'; user_pool: string[] }
+  | { type: 'least_loaded'; role_id: string };
+
+export interface WorkflowTransition {
+  id: string;
+  target_step_id: string;
+  label: string;
+  condition?: WorkflowCondition;
+}
+
+export interface WorkflowStep {
+  id: string;
+  name: string;
+  type: WorkflowStepType;
+  config: WorkflowStepConfig;
+  position: { x: number; y: number };
+  transitions: WorkflowTransition[];
+  timeout_minutes: number | null;
+  on_timeout: 'skip' | 'escalate' | 'fail';
+  assignee_strategy: AssigneeStrategy;
+}
+
+export interface WorkflowVariable {
+  name: string;
+  type: 'string' | 'number' | 'boolean' | 'date' | 'json';
+  default_value?: unknown;
+  required: boolean;
+  description: string;
+}
+
+export interface WorkflowDefinition {
+  id: string;
+  name: string;
+  description: string;
+  category: WorkflowCategory;
+  status: WorkflowDefinitionStatus;
+  version: number;
+  trigger: WorkflowTrigger;
+  steps: WorkflowStep[];
+  variables: WorkflowVariable[];
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+  published_at: string | null;
+  instance_count: number;
+}
+
+export interface WorkflowDefinitionVersion {
+  version: number;
+  status: WorkflowDefinitionStatus;
+  published_at: string | null;
+  published_by: string | null;
+  change_summary: string;
+  step_count: number;
+}
+
+export interface CreateInstanceRequest {
+  definition_id: string;
+  variables?: Record<string, unknown>;
+  context?: Record<string, unknown>;
+}
+
+export interface TaskComment {
+  id: string;
+  user_id: string;
+  user_name: string;
+  content: string;
+  created_at: string;
+}
+
+export interface CompleteTaskRequest {
+  action: 'approve' | 'reject' | 'complete' | 'escalate';
+  form_data?: Record<string, unknown>;
+  comment?: string;
+}
+
+export interface AssignTaskRequest {
+  user_id: string;
+  comment?: string;
+}
+
+export interface WorkflowTemplate {
+  id: string;
+  name: string;
+  description: string;
+  category: WorkflowCategory;
+  preview_image_url: string | null;
+  steps: WorkflowStep[];
+  variables: WorkflowVariable[];
+  trigger: WorkflowTrigger;
+  usage_count: number;
+  tags: string[];
+}
+
+export interface CreateFromTemplateRequest {
+  template_id: string;
+  name: string;
+  description?: string;
+}
+
+// ── Notification Webhook Types ──
+
+export interface NotificationWebhook {
+  id: string;
+  name: string;
+  url: string;
+  secret: string | null;
+  events: string[];
+  status: 'active' | 'inactive' | 'failing';
+  headers: Record<string, string>;
+  retry_policy: RetryPolicy;
+  created_at: string;
+  updated_at: string;
+  last_triggered_at: string | null;
+  success_count: number;
+  failure_count: number;
+}
+
+export interface RetryPolicy {
+  max_retries: number;
+  backoff_type: 'linear' | 'exponential';
+  initial_delay_seconds: number;
+}
+
+export interface CreateWebhookRequest {
+  name: string;
+  url: string;
+  events: string[];
+  headers?: Record<string, string>;
+  retry_policy?: Partial<RetryPolicy>;
+}
+
+export interface CreateWebhookResponse {
+  webhook: NotificationWebhook;
+  secret: string;
+}
+
+export interface WebhookDelivery {
+  id: string;
+  webhook_id: string;
+  event_type: string;
+  status: 'success' | 'failed' | 'pending' | 'retrying';
+  request_url: string;
+  request_body: Record<string, unknown>;
+  response_status: number | null;
+  response_body: string | null;
+  duration_ms: number | null;
+  attempt_count: number;
+  next_retry_at: string | null;
+  created_at: string;
+}
+
+// ── Delivery Stats ──
+
+export interface DeliveryStats {
+  period: string;
+  total_sent: number;
+  delivered: number;
+  failed: number;
+  delivery_rate: number;
+  by_channel: Record<string, ChannelStats>;
+  by_type: Record<string, number>;
+  by_day: { date: string; sent: number; delivered: number; failed: number }[];
+  avg_delivery_time_ms: number;
+}
+
+export interface ChannelStats {
+  sent: number;
+  delivered: number;
+  failed: number;
+  avg_delivery_time_ms: number;
+}
+
+// ── Test Notification ──
+
+export type NotificationType =
+  | 'alert'
+  | 'task'
+  | 'approval'
+  | 'system'
+  | 'mention'
+  | 'deadline'
+  | 'completion'
+  | 'error'
+  | 'report';
+
+export interface TestNotificationRequest {
+  type: NotificationType;
+  channel: 'email' | 'in_app' | 'push' | 'webhook';
+  recipient_user_id?: string;
+  webhook_id?: string;
+}
+
+export interface RetryFailedRequest {
+  channel?: string;
+  since?: string;
+  notification_ids?: string[];
+}

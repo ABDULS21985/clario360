@@ -160,7 +160,13 @@ export const API_ENDPOINTS = {
   // Notifications
   NOTIFICATIONS: '/api/v1/notifications',
   NOTIFICATIONS_UNREAD_COUNT: '/api/v1/notifications/unread-count',
+  NOTIFICATIONS_READ_ALL: '/api/v1/notifications/read-all',
+  NOTIFICATIONS_BULK_DELETE: '/api/v1/notifications/bulk',
   NOTIFICATIONS_PREFERENCES: '/api/v1/notifications/preferences',
+  NOTIFICATIONS_WEBHOOKS: '/api/v1/notifications/webhooks',
+  NOTIFICATIONS_DELIVERY_STATS: '/api/v1/notifications/delivery-stats',
+  NOTIFICATIONS_TEST: '/api/v1/notifications/test',
+  NOTIFICATIONS_RETRY_FAILED: '/api/v1/notifications/retry-failed',
 
   // Audit
   AUDIT_LOGS: '/api/v1/audit/logs',
@@ -170,6 +176,9 @@ export const API_ENDPOINTS = {
 
   // Workflows
   WORKFLOWS_INSTANCES: '/api/v1/workflows/instances',
+  WORKFLOWS_DEFINITIONS: '/api/v1/workflows/definitions',
+  WORKFLOWS_TEMPLATES: '/api/v1/workflows/templates',
+  WORKFLOWS_DEFINITIONS_FROM_TEMPLATE: '/api/v1/workflows/definitions/from-template',
 } as const;
 
 // Route paths
@@ -200,7 +209,11 @@ export const ROUTES = {
   ADMIN_AUDIT: '/admin/audit',
   WORKFLOWS: '/workflows',
   WORKFLOWS_TASKS: '/workflows/tasks',
+  WORKFLOWS_DEFINITIONS: '/admin/workflows/definitions',
+  WORKFLOWS_TEMPLATES: '/admin/workflows/templates',
   NOTIFICATIONS: '/notifications',
+  ADMIN_NOTIFICATIONS: '/admin/notifications',
+  ADMIN_NOTIFICATIONS_WEBHOOKS: '/admin/notifications/webhooks',
   SETTINGS: '/settings',
   SETTINGS_NOTIFICATIONS: '/settings/notifications',
 } as const;
