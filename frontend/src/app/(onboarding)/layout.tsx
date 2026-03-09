@@ -16,7 +16,7 @@ export default function OnboardingLayout({ children }: { children: React.ReactNo
   return (
     <div className="flex min-h-screen flex-col bg-[radial-gradient(circle_at_top,_rgba(15,81,50,0.09),_transparent_38%),linear-gradient(180deg,_#f8faf7_0%,_#f3f7f4_48%,_#eef4f0_100%)]">
       <header className="border-b border-[#0f5132]/10 bg-white/85 px-6 py-6 backdrop-blur">
-        <div className="mx-auto flex w-full max-w-5xl flex-col items-center gap-5">
+        <div className="flex w-full flex-col items-center gap-5">
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[#0f5132] text-sm font-bold text-white shadow-sm">
               C
@@ -47,7 +47,7 @@ export default function OnboardingLayout({ children }: { children: React.ReactNo
         </div>
       </header>
 
-      <main className="flex flex-1 flex-col items-center px-4 py-10">
+      <main className="flex flex-1 flex-col px-4 py-10">
         {children}
       </main>
 

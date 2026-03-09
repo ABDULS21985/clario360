@@ -19,20 +19,11 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { RelativeTime } from "@/components/shared/relative-time";
 import { SeverityIndicator } from "@/components/shared/severity-indicator";
 import { useAuditLogDetail } from "@/hooks/use-audit";
+import { resolveAuditSeverity } from "@/lib/audit";
 import { formatDateTime } from "@/lib/format";
 import { ChangesDiff } from "./changes-diff";
 import { JsonViewer } from "./json-viewer";
 import type { AuditLogDetail } from "@/types/audit";
-
-function getSeverityFromAction(
-  action: string
-): "critical" | "high" | "medium" | "low" | "info" {
-  if (action.includes("delete") || action.includes("suspend")) return "high";
-  if (action.includes("login.failed") || action.includes("unauthorized"))
-    return "medium";
-  if (action.includes("create") || action.includes("update")) return "low";
-  return "info";
-}
 
 interface LogDetailProps {
   logId: string;
@@ -105,7 +96,7 @@ export function LogDetail({ logId }: LogDetailProps) {
             {log.action}
           </code>
           <SeverityIndicator
-            severity={getSeverityFromAction(log.action)}
+            severity={resolveAuditSeverity(log.action, log.severity)}
             size="sm"
           />
         </div>

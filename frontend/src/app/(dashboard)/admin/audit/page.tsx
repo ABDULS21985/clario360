@@ -1,5 +1,6 @@
 "use client";
 
+import { useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import {
   ShieldCheck,
@@ -23,56 +24,39 @@ import {
 } from "@/components/ui/tabs";
 import { useDataTable } from "@/hooks/use-data-table";
 import api from "@/lib/api";
+import {
+  AUDIT_SEVERITY_FILTER_OPTIONS,
+  buildAuditLogQueryParams,
+  getDefaultAuditDateRange,
+  resolveAuditSeverity,
+} from "@/lib/audit";
 import type { ColumnDef } from "@tanstack/react-table";
 import type { AuditLog } from "@/types/models";
 import type { PaginatedResponse } from "@/types/api";
-import type { FilterConfig } from "@/types/table";
+import type { FetchParams, FilterConfig } from "@/types/table";
 import { AuditDashboard } from "./_components/audit-dashboard";
 import { AuditExportForm } from "./_components/audit-export-form";
 import { AuditVerifyPanel } from "./_components/audit-verify-panel";
 import { AuditPartitions } from "./_components/audit-partitions";
 
-async function fetchAuditLogs(params: {
-  page: number;
-  per_page: number;
-  sort?: string;
-  order?: string;
-  search?: string;
-  filters?: Record<string, string | string[]>;
-}): Promise<PaginatedResponse<AuditLog>> {
+async function fetchAuditLogs(
+  params: FetchParams,
+  defaultDateRange = getDefaultAuditDateRange()
+): Promise<PaginatedResponse<AuditLog>> {
   const { data } = await api.get<PaginatedResponse<AuditLog>>(
     "/api/v1/audit/logs",
     {
-      params: {
-        page: params.page,
-        per_page: params.per_page,
-        sort: params.sort ?? "created_at",
-        order: params.order ?? "desc",
-        search: params.search || undefined,
-        service: params.filters?.service,
-        severity: params.filters?.severity,
-        user_id: params.filters?.user_id,
-      },
+      params: buildAuditLogQueryParams(params, defaultDateRange),
     }
   );
   return data;
-}
-
-function getSeverityFromAction(
-  action: string
-): "critical" | "high" | "medium" | "low" | "info" {
-  if (action.includes("delete") || action.includes("suspend")) return "high";
-  if (action.includes("login.failed") || action.includes("unauthorized"))
-    return "medium";
-  if (action.includes("create") || action.includes("update")) return "low";
-  return "info";
 }
 
 const auditFilters: FilterConfig[] = [
   {
     key: "service",
     label: "Service",
-    type: "multi-select",
+    type: "select",
     options: [
       { label: "IAM Service", value: "iam-service" },
       { label: "Cyber Service", value: "cyber-service" },
@@ -85,14 +69,8 @@ const auditFilters: FilterConfig[] = [
   {
     key: "severity",
     label: "Severity",
-    type: "multi-select",
-    options: [
-      { label: "Critical", value: "critical" },
-      { label: "High", value: "high" },
-      { label: "Medium", value: "medium" },
-      { label: "Low", value: "low" },
-      { label: "Info", value: "info" },
-    ],
+    type: "select",
+    options: AUDIT_SEVERITY_FILTER_OPTIONS,
   },
 ];
 
@@ -151,7 +129,10 @@ const auditColumns: ColumnDef<AuditLog>[] = [
     enableSorting: false,
     cell: ({ row }) => (
       <SeverityIndicator
-        severity={getSeverityFromAction(row.original.action)}
+        severity={resolveAuditSeverity(
+          row.original.action,
+          row.original.severity
+        )}
         size="sm"
       />
     ),
@@ -171,9 +152,14 @@ const auditColumns: ColumnDef<AuditLog>[] = [
 
 export default function AuditLogsPage() {
   const router = useRouter();
+  const defaultDateRange = useMemo(() => getDefaultAuditDateRange(), []);
+  const fetchAuditLogsWithDefaults = useCallback(
+    (params: FetchParams) => fetchAuditLogs(params, defaultDateRange),
+    [defaultDateRange]
+  );
 
   const { tableProps } = useDataTable<AuditLog>({
-    fetchFn: fetchAuditLogs,
+    fetchFn: fetchAuditLogsWithDefaults,
     queryKey: "audit-logs",
     defaultPageSize: 50,
     defaultSort: { column: "created_at", direction: "desc" },
@@ -211,7 +197,7 @@ export default function AuditLogsPage() {
         </TabsList>
 
         <TabsContent value="dashboard">
-          <AuditDashboard />
+          <AuditDashboard params={defaultDateRange} />
         </TabsContent>
 
         <TabsContent value="logs">

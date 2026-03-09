@@ -2,21 +2,30 @@
 
 import { useQuery, useMutation, type UseQueryOptions, type UseMutationOptions } from "@tanstack/react-query";
 import api from "@/lib/api";
-import type { AxiosError } from "axios";
+import type { AxiosError, AxiosRequestConfig } from "axios";
 import type { ApiError } from "@/types/api";
+
+type UseApiQueryOptions<T> = Omit<
+  UseQueryOptions<T, AxiosError<ApiError>>,
+  "queryKey" | "queryFn"
+> & {
+  requestConfig?: AxiosRequestConfig;
+};
 
 export function useApiQuery<T>(
   key: string[],
   url: string,
-  options?: Omit<UseQueryOptions<T, AxiosError<ApiError>>, "queryKey" | "queryFn">
+  options?: UseApiQueryOptions<T>
 ) {
+  const { requestConfig, ...queryOptions } = options ?? {};
+
   return useQuery<T, AxiosError<ApiError>>({
     queryKey: key,
     queryFn: async () => {
-      const { data } = await api.get<T>(url);
+      const { data } = await api.get<T>(url, requestConfig);
       return data;
     },
-    ...options,
+    ...queryOptions,
   });
 }
 

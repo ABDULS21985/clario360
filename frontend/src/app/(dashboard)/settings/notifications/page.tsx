@@ -264,7 +264,7 @@ export default function NotificationPreferencesPage() {
   const watchDigestEnabled = form.watch('digest.enabled');
 
   return (
-    <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6 max-w-2xl">
+    <form onSubmit={form.handleSubmit(onSubmit)} className="w-full space-y-6">
       <PageHeader
         title="Notification Preferences"
         description="Customize how and when you receive notifications."

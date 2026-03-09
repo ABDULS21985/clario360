@@ -45,7 +45,7 @@ export function DataTableColumnHeader<TData, TValue>({
       <Button
         variant="ghost"
         size="sm"
-        className="-ml-3 h-8 data-[state=open]:bg-accent"
+        className="-ml-3 h-8 rounded-xl px-3 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground hover:text-foreground data-[state=open]:bg-accent"
         onClick={handleSort}
         aria-sort={ariaSort}
       >

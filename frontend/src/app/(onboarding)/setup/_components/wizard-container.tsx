@@ -142,7 +142,7 @@ export function WizardContainer() {
 
   if (isLoading) {
     return (
-      <div className="flex w-full max-w-3xl flex-col items-center justify-center gap-3 rounded-[28px] border border-white/70 bg-white/90 px-8 py-16 shadow-[0_30px_80px_rgba(15,81,50,0.08)]">
+      <div className="flex w-full flex-col items-center justify-center gap-3 rounded-[28px] border border-white/70 bg-white/90 px-8 py-16 shadow-[0_30px_80px_rgba(15,81,50,0.08)]">
         <Spinner />
         <p className="text-sm text-slate-500">Loading your onboarding wizard…</p>
       </div>
@@ -151,7 +151,7 @@ export function WizardContainer() {
 
   if (loadError || !wizard) {
     return (
-      <div className="w-full max-w-2xl rounded-[28px] border border-red-200 bg-white p-8 shadow-sm">
+      <div className="w-full rounded-[28px] border border-red-200 bg-white p-8 shadow-sm">
         <Alert variant="destructive">
           <AlertCircle className="h-4 w-4" />
           <AlertDescription>{loadError ?? 'Unable to load onboarding state.'}</AlertDescription>
@@ -161,7 +161,7 @@ export function WizardContainer() {
   }
 
   return (
-    <div className="w-full max-w-3xl rounded-[32px] border border-white/80 bg-white/90 p-8 shadow-[0_35px_90px_rgba(15,81,50,0.1)] backdrop-blur">
+    <div className="w-full rounded-[32px] border border-white/80 bg-white/90 p-8 shadow-[0_35px_90px_rgba(15,81,50,0.1)] backdrop-blur">
       <StepIndicator currentStep={currentStep} />
 
       <div className="mb-8">

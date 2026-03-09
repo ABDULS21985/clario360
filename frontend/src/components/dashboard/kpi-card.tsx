@@ -54,37 +54,39 @@ export function KpiCard({
 
   const content = (
     <HighlightAnimation highlight={highlightKey !== null} highlightKey={highlightKey}>
-      <Card className={cn(href && 'cursor-pointer transition-shadow hover:shadow-md')}>
+      <Card className={cn('group overflow-hidden', href && 'cursor-pointer')}>
         <CardContent className="p-6">
-          <div className="flex items-start justify-between">
-            <div className="space-y-1">
-              <p className="text-sm font-medium text-muted-foreground">{title}</p>
+          <div className="flex items-start justify-between gap-4">
+            <div className="space-y-3">
+              <span className="inline-flex items-center rounded-full border border-border/70 bg-secondary/70 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                {title}
+              </span>
               {isLoading ? (
-                <div className="h-8 w-16 animate-pulse rounded bg-muted" />
+                <div className="h-10 w-20 animate-pulse rounded-xl bg-muted" />
               ) : isError ? (
                 <p className="text-2xl font-bold text-muted-foreground" title="Failed to load">
                   —
                 </p>
               ) : (
                 <div className="flex items-center gap-2">
-                  <p className="text-2xl font-bold">
+                  <p className="text-3xl font-semibold tracking-[-0.04em] text-slate-950">
                     {value ?? '—'}
-                    {unit && <span className="ml-1 text-sm font-normal text-muted-foreground">{unit}</span>}
+                    {unit && <span className="ml-1 text-base font-medium text-muted-foreground">{unit}</span>}
                   </p>
                   {showDelta && liveDelta ? (
-                    <span className="text-xs font-medium text-yellow-700">
+                    <span className="rounded-full bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-700">
                       {liveDelta > 0 ? `↑${liveDelta}` : `${liveDelta}`}
                     </span>
                   ) : null}
                 </div>
               )}
             </div>
-            <div className={cn('rounded-lg bg-muted p-2', iconColor)}>
+            <div className={cn('flex h-11 w-11 items-center justify-center rounded-2xl border border-white/70 bg-gradient-to-br from-white via-secondary/60 to-secondary shadow-sm', iconColor)}>
               <Icon className="h-5 w-5" />
             </div>
           </div>
           {trend && !isLoading && !isError && (
-            <div className="mt-3 flex items-center gap-1 text-xs">
+            <div className="mt-4 flex items-center gap-2 text-xs">
               {trend.direction === 'up' ? (
                 <TrendingUp className={cn('h-3.5 w-3.5', trend.sentiment === 'bad' ? 'text-destructive' : 'text-green-600')} />
               ) : trend.direction === 'down' ? (
@@ -94,11 +96,12 @@ export function KpiCard({
               )}
               <span
                 className={cn(
-                  trend.direction === 'neutral' && 'text-muted-foreground',
-                  trend.direction === 'up' && trend.sentiment === 'bad' && 'text-destructive',
-                  trend.direction === 'up' && trend.sentiment === 'good' && 'text-green-600',
-                  trend.direction === 'down' && trend.sentiment === 'good' && 'text-green-600',
-                  trend.direction === 'down' && trend.sentiment === 'bad' && 'text-destructive',
+                  'inline-flex items-center rounded-full px-3 py-1 font-medium',
+                  trend.direction === 'neutral' && 'bg-muted text-muted-foreground',
+                  trend.direction === 'up' && trend.sentiment === 'bad' && 'bg-red-50 text-destructive',
+                  trend.direction === 'up' && trend.sentiment === 'good' && 'bg-emerald-50 text-green-600',
+                  trend.direction === 'down' && trend.sentiment === 'good' && 'bg-emerald-50 text-green-600',
+                  trend.direction === 'down' && trend.sentiment === 'bad' && 'bg-red-50 text-destructive',
                 )}
               >
                 {trend.value > 0 ? '+' : ''}{trend.value} {trend.label}

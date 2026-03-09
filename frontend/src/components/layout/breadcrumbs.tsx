@@ -10,24 +10,24 @@ export function Breadcrumbs() {
   if (crumbs.length <= 1) return null;
 
   return (
-    <nav aria-label="Breadcrumb">
-      <ol role="list" className="flex flex-wrap items-center gap-1 text-sm">
+    <nav aria-label="Breadcrumb" className="min-w-0">
+      <ol role="list" className="flex min-w-0 flex-wrap items-center gap-1.5 text-sm">
         {crumbs.map((crumb, idx) => (
           <li key={crumb.href} className="flex items-center gap-1">
             {idx > 0 && (
-              <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />
+              <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/70" aria-hidden="true" />
             )}
             {crumb.isLast ? (
               <span
                 aria-current="page"
-                className="font-medium text-foreground truncate max-w-[200px]"
+                className="inline-flex max-w-[220px] items-center truncate rounded-full border border-emerald-200/80 bg-emerald-50/90 px-3 py-1 text-xs font-semibold tracking-[0.02em] text-emerald-950 shadow-sm"
               >
                 {crumb.label}
               </span>
             ) : (
               <Link
                 href={crumb.href}
-                className="text-muted-foreground hover:text-foreground truncate max-w-[150px] transition-colors"
+                className="inline-flex max-w-[180px] items-center truncate rounded-full border border-transparent bg-white/70 px-3 py-1 text-xs font-medium text-muted-foreground shadow-sm transition-all hover:border-border/70 hover:bg-white hover:text-foreground"
               >
                 {crumb.label}
               </Link>

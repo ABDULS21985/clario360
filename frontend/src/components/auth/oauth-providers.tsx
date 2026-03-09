@@ -45,7 +45,7 @@ export function OAuthProviders({ className }: OAuthProvidersProps) {
 
   if (isLoading) {
     return (
-      <div className={cn("flex justify-center py-2", className)}>
+      <div className={cn("flex justify-center py-4", className)}>
         <Spinner size="sm" />
       </div>
     );
@@ -62,17 +62,16 @@ export function OAuthProviders({ className }: OAuthProvidersProps) {
   };
 
   return (
-    <div className={cn("space-y-3", className)}>
-      <div className="relative">
-        <div className="absolute inset-0 flex items-center">
-          <span className="w-full border-t" />
-        </div>
-        <div className="relative flex justify-center text-xs uppercase">
-          <span className="bg-background px-2 text-muted-foreground">Or continue with</span>
-        </div>
+    <div className={cn("space-y-4", className)}>
+      <div className="flex items-center gap-3">
+        <span className="h-px flex-1 bg-slate-200" />
+        <span className="text-[11px] font-semibold uppercase tracking-[0.28em] text-slate-400">
+          Alternative access
+        </span>
+        <span className="h-px flex-1 bg-slate-200" />
       </div>
 
-      <div className="grid gap-2">
+      <div className={cn("grid gap-3", enabledProviders.length > 1 && "sm:grid-cols-2")}>
         {enabledProviders.map((provider) => {
           const Icon = PROVIDER_ICONS[provider.provider];
           return (
@@ -80,11 +79,18 @@ export function OAuthProviders({ className }: OAuthProvidersProps) {
               key={provider.provider}
               variant="outline"
               type="button"
-              className="w-full"
+              className="group h-12 w-full justify-start rounded-2xl border-slate-200 bg-white/90 px-4 text-slate-700 shadow-sm transition-all hover:border-[#0f5132]/30 hover:bg-[#0f5132]/5 hover:text-[#0f5132]"
               onClick={() => handleOAuthLogin(provider.provider)}
             >
-              {Icon && <Icon className="mr-2 h-4 w-4" />}
-              {provider.display_name}
+              {Icon ? (
+                <span className="mr-3 flex h-8 w-8 items-center justify-center rounded-xl bg-slate-50 text-slate-600 transition-colors group-hover:bg-white group-hover:text-[#0f5132]">
+                  <Icon className="h-4 w-4" />
+                </span>
+              ) : null}
+              <span className="text-sm font-medium">{provider.display_name}</span>
+              <span className="ml-auto text-[11px] uppercase tracking-[0.24em] text-slate-400 transition-colors group-hover:text-[#0f5132]/70">
+                SSO
+              </span>
             </Button>
           );
         })}

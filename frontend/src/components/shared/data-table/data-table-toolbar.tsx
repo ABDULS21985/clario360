@@ -66,10 +66,10 @@ export function DataTableToolbar<TData>({
   };
 
   return (
-    <div className="space-y-2">
-      <div className="flex flex-wrap items-center gap-2">
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-center gap-2 rounded-[22px] border border-[color:var(--card-border)] bg-[rgba(255,255,255,0.74)] p-3 shadow-[0_18px_40px_-36px_rgba(15,23,42,0.3)] backdrop-blur-md">
         {searchSlot && (
-          <div className="flex-1 min-w-[200px] max-w-sm">{searchSlot}</div>
+          <div className="min-w-[220px] flex-1 max-w-md">{searchSlot}</div>
         )}
 
         {filters?.map((filter) => (
@@ -85,7 +85,7 @@ export function DataTableToolbar<TData>({
           <Button
             variant="ghost"
             size="sm"
-            className="h-8 px-2 text-muted-foreground"
+            className="h-9 px-3 text-muted-foreground"
             onClick={onClearFilters}
           >
             <X className="mr-1 h-4 w-4" />
@@ -97,7 +97,7 @@ export function DataTableToolbar<TData>({
           {enableColumnToggle && columns && onColumnVisibilityChange && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm" className="h-8">
+                <Button variant="outline" size="sm" className="h-9">
                   <Settings2 className="mr-2 h-4 w-4" />
                   Columns
                 </Button>
@@ -128,7 +128,7 @@ export function DataTableToolbar<TData>({
           {enableExport && onExport && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm" className="h-8">
+                <Button variant="outline" size="sm" className="h-9">
                   <Download className="mr-2 h-4 w-4" />
                   Export
                 </Button>
@@ -164,7 +164,7 @@ export function DataTableToolbar<TData>({
       )}
 
       {selectedCount > 0 && bulkActions && bulkActions.length > 0 && (
-        <div className="flex items-center gap-2 rounded-md border border-border bg-muted/50 px-3 py-2">
+        <div className="flex items-center gap-2 rounded-[20px] border border-primary/10 bg-primary/5 px-3 py-2.5">
           <span className="text-sm font-medium">{selectedCount} selected</span>
           <div className="ml-auto flex items-center gap-2">
             {bulkActions.map((action) => (

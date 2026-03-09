@@ -44,30 +44,40 @@ export function MobileSidebar() {
       <aside
         aria-label="Mobile navigation"
         className={cn(
-          'fixed inset-y-0 left-0 z-50 flex w-72 flex-col border-r bg-card shadow-xl',
+          'fixed inset-y-3 left-3 z-50 flex w-[calc(100vw-1.5rem)] max-w-[320px] flex-col overflow-hidden rounded-[30px] border border-[color:var(--sidebar-border)] bg-[var(--sidebar-bg)] text-white shadow-[0_35px_85px_-45px_rgba(15,23,42,0.9)]',
           'animate-in slide-in-from-left-0 duration-200',
         )}
       >
         {/* Header */}
-        <div className="flex h-16 items-center justify-between border-b px-4">
+        <div className="flex items-center justify-between border-b border-white/10 px-4 py-4">
           <Link
             href="/dashboard"
-            className="font-bold text-lg text-primary"
+            className="flex items-center gap-3"
             onClick={() => setMobileOpen(false)}
           >
-            Clario 360
+            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[linear-gradient(135deg,#d1fae5,#fef3c7)] text-base font-bold tracking-tight text-slate-950 shadow-sm">
+              C
+            </div>
+            <div>
+              <p className="text-base font-semibold tracking-[-0.03em] text-white">
+                Clario 360
+              </p>
+              <p className="text-[11px] uppercase tracking-[0.26em] text-slate-300">
+                Enterprise Grid
+              </p>
+            </div>
           </Link>
           <button
             onClick={() => setMobileOpen(false)}
             aria-label="Close navigation menu"
-            className="rounded-md p-1.5 text-muted-foreground hover:bg-accent"
+            className="rounded-2xl border border-white/10 bg-white/6 p-2 text-slate-300 transition-colors hover:bg-white/10 hover:text-white"
           >
             <X className="h-5 w-5" />
           </button>
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 overflow-y-auto py-3 px-2">
+        <nav className="sidebar-scroll flex-1 overflow-y-auto px-3 py-4">
           {navigation.map((section) => {
             if (section.permission !== '*:read' && !hasPermission(section.permission)) {
               return null;
@@ -97,7 +107,7 @@ export function MobileSidebar() {
           })}
         </nav>
 
-        <div className="border-t">
+        <div className="border-t border-white/10 px-3 pb-3 pt-1">
           <SidebarUserFooter collapsed={false} />
         </div>
       </aside>

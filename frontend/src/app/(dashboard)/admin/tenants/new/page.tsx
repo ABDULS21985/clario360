@@ -136,7 +136,7 @@ export default function ProvisionTenantPage() {
   const values = methods.watch();
 
   return (
-    <div className="space-y-6 max-w-2xl">
+    <div className="w-full space-y-6">
       <div className="flex items-center gap-2">
         <Button variant="ghost" size="icon" asChild>
           <Link href="/admin/tenants" aria-label="Back to tenants">

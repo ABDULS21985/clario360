@@ -36,7 +36,7 @@ export function SearchInput({
 
   return (
     <div className={cn("relative", className)}>
-      <div className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2">
+      <div className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2">
         {loading ? (
           <Spinner className="h-4 w-4 text-muted-foreground" />
         ) : (
@@ -47,13 +47,13 @@ export function SearchInput({
         value={internal}
         onChange={(e) => setInternal(e.target.value)}
         placeholder={placeholder}
-        className="pl-9 pr-9 h-8"
+        className="h-11 rounded-2xl border-border/70 bg-white/75 pl-10 pr-10 shadow-sm"
         onKeyDown={(e) => { if (e.key === "Escape") { setInternal(""); onChange(""); } }}
         aria-label={placeholder}
       />
       {internal && (
         <button
-          className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-0.5 hover:bg-muted focus:outline-none focus:ring-1 focus:ring-ring"
+          className="absolute right-2 top-1/2 -translate-y-1/2 rounded-xl p-1 hover:bg-muted focus:outline-none focus:ring-1 focus:ring-ring"
           onClick={() => { setInternal(""); onChange(""); }}
           aria-label="Clear search"
           type="button"

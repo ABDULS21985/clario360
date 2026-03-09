@@ -164,7 +164,7 @@ export function DataTable<TData, TValue = unknown>({
   const cellPadding = compact ? "px-3 py-1.5" : "px-4 py-3";
 
   return (
-    <div className={cn("w-full space-y-3", className)}>
+    <div className={cn("w-full space-y-4", className)}>
       <DataTableToolbar
         searchSlot={resolvedSearchSlot}
         filters={filters}
@@ -184,11 +184,11 @@ export function DataTable<TData, TValue = unknown>({
         getSelectedIds={() => selectedIds}
       />
 
-      <div className="rounded-md border border-border overflow-hidden">
+      <div className="overflow-hidden rounded-[26px] border border-[color:var(--card-border)] bg-[var(--card-bg)] shadow-[var(--card-shadow)] backdrop-blur-md">
         <div className="overflow-x-auto">
           <Table>
             <TableHeader
-              className={cn(stickyHeader && "sticky top-0 z-10 bg-background")}
+              className={cn(stickyHeader && "sticky top-0 z-10 bg-[rgba(249,251,249,0.96)] backdrop-blur-md")}
             >
               {table.getHeaderGroups().map((headerGroup) => (
                 <TableRow

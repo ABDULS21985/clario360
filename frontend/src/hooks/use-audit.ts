@@ -1,8 +1,10 @@
 "use client";
 
+import { useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import api from "@/lib/api";
+import { normalizeAuditStatsParams } from "@/lib/audit";
 import { downloadBlob, parseApiError } from "@/lib/format";
 import type { AxiosError } from "axios";
 import type { ApiError } from "@/types/api";
@@ -22,12 +24,17 @@ import type {
 // ── Statistics ───────────────────────────────────────────────────────────────
 
 export function useAuditStats(params?: AuditStatsParams) {
+  const normalizedParams = useMemo(
+    () => normalizeAuditStatsParams(params),
+    [params?.date_from, params?.date_to, params?.group_by]
+  );
+
   return useQuery<AuditLogStats, AxiosError<ApiError>>({
-    queryKey: ["audit-stats", params],
+    queryKey: ["audit-stats", normalizedParams],
     queryFn: async () => {
       const { data } = await api.get<AuditLogStats>(
         "/api/v1/audit/logs/stats",
-        { params }
+        { params: normalizedParams }
       );
       return data;
     },

@@ -24,7 +24,7 @@ function MetricRow({ label, value, highlight = false }: MetricRowProps) {
 }
 
 export function ThreatLandscapeSection({ landscape }: { landscape: ThreatLandscape }) {
-  const threatTypes = Object.entries(landscape.threat_by_type);
+  const threatTypes = Object.entries(landscape.threat_by_type ?? {});
   const maxCount = threatTypes.reduce((max, [, count]) => Math.max(max, count), 1);
 
   return (
