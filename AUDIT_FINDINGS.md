@@ -1,10 +1,10 @@
 # Clario360 Audit Findings
 
-Date: 2026-03-08
+Date: 2026-03-09
 
 ## Scope
 
-This audit covered the canonical frontend contracts, shared frontend API clients, direct frontend call sites for workflows/settings/notifications/auth, gateway route registration, shared backend response writers, websocket upgrade paths, middleware error paths, startup defaults, PM2 local topology, and smoke-test automation.
+This audit covered the canonical frontend contracts, shared frontend API clients, direct frontend call sites for workflows/settings/notifications/auth, gateway route registration, shared backend response writers, websocket upgrade paths, middleware error paths, startup defaults, PM2 local topology, smoke-test automation, and the external integration admin/runtime surface for Slack, Teams, Jira, ServiceNow, and generic webhooks.
 
 Primary source files reviewed during the audit included:
 
@@ -83,6 +83,11 @@ Verified gateway prefix ownership from `backend/internal/gateway/config/routes.g
 | 13 | Notebook server listing failed hard when JupyterHub was unavailable in local/runtime environments | The notebook service treated upstream connectivity failures as fatal instead of degrading to an empty list for a discovery endpoint | Notebook dashboard and `/api/v1/notebooks/servers` | Fixed |
 | 14 | VCISO executive briefing and posture summary returned 500 for empty-alert tenants | The overall MTTR aggregate query scanned nullable aggregate results into non-nullable float fields | `/api/v1/cyber/vciso/briefing`, `/api/v1/cyber/vciso/posture-summary`, shared cyber MTTR reporting | Fixed |
 | 15 | Lex dashboard queries crashed on empty/default datasets | Contract repository methods appended `ORDER BY c.*` outside the `contractJSONSelect(...)` subquery, referencing an out-of-scope alias | `/api/v1/lex/dashboard`, recent contracts, lex contract list query path | Fixed |
+| 16 | External integration admin functionality stopped at a minimal list page | The first pass only exposed basic CRUD, without provider readiness, install guidance, delivery log inspection, or ticket-link detail/sync surfaces | Admin integrations pages, notification-service integration APIs | Fixed |
+| 17 | Slack and Jira OAuth install flow was not actually usable from the admin UI | OAuth start depended on request auth context, but the frontend authenticates API calls with bearer headers, not browser redirects | Slack/Jira integration setup, notification-service integration routes, frontend admin install actions | Fixed |
+| 18 | Local OAuth readiness was opaque and runtime secrets were not surfaced clearly | PM2/startup config did not expose optional provider secrets consistently, and the integration admin surface could not tell operators which env vars were missing | `ecosystem.local.js`, `scripts/start.sh`, integration provider status API, admin integrations UI | Fixed |
+| 19 | Jira and ServiceNow inbound webhook verification was only partially live-verified and unknown links could bubble into noisy failures | Signed inbound handling compiled, but unknown external tickets were not explicitly treated as ignorable no-op events in the live runtime path | Jira webhook receiver, ServiceNow webhook receiver, smoke automation | Fixed |
+| 20 | Frontend production build regressed while expanding integration admin pages | App Router hook call sites across the repo still assumed non-null `usePathname`, `useSearchParams`, and related values; the build also lacked a minimal `_document` entry | Integration admin pages plus unrelated dashboard/auth pages sharing the same Next runtime assumptions | Fixed |
 
 ## Fixes Applied
 
@@ -116,6 +121,37 @@ Verified gateway prefix ownership from `backend/internal/gateway/config/routes.g
 - Fixed the remaining lex contract JSON query builders to order by the outer `t.*` alias instead of the inner `c.*` alias, which restored the dashboard and recent-contract paths.
 - Normalized UEBA profile and timeline list endpoints to the canonical paginated contract and ensured empty results serialize as `data: []`, not `null`.
 - Extended `scripts/smoke-test.sh` to cover the repaired live endpoints: `/api/v1/users/me/sessions`, `/api/v1/notebooks/servers`, `/api/v1/cyber/vciso/briefing`, `/api/v1/cyber/vciso/posture-summary`, `/api/v1/lex/dashboard`, `/api/v1/cyber/ueba/profiles`, `/api/v1/cyber/ueba/alerts`, and `/api/v1/cyber/ueba/profiles/{entityId}/timeline`.
+
+### External integrations admin/runtime completion
+
+- Added provider readiness and capability metadata to the integration API so the admin UI can distinguish OAuth-backed setup (`slack`, `jira`) from manual setup (`teams`, `servicenow`, `webhook`) and surface missing runtime env vars directly.
+- Added `GET /api/v1/integrations/providers`, `GET /api/v1/integrations/ticket-links/{id}`, and integration ticket-link filtering by `integration_id`.
+- Added protected OAuth bootstrap endpoints for Slack and Jira that create a short-lived install state under the authenticated tenant/user context and return a public redirect URL. This fixed the real browser flow for bearer-based frontend auth.
+- Updated public Slack/Jira OAuth start handlers to accept pre-created state IDs, validate state existence, and fail with canonical `503` config errors instead of misleading `401` responses when provider credentials are absent.
+- Allowed setup-pending Slack/Jira integrations to be completed incrementally without forcing full validation on every update; valid edits now automatically promote them to `active`.
+- Normalized Jira and ServiceNow inbound webhook behavior so valid signed callbacks for unknown external tickets are acknowledged with `200` and logged, rather than surfacing as runtime failures.
+- Expanded `scripts/smoke-test.sh` to verify:
+  - integration provider inventory
+  - Slack/Jira OAuth bootstrap behavior
+  - temporary webhook integration CRUD/test/delivery flow
+  - signed Slack Events API verification
+  - Teams JWT rejection path
+  - signed Jira webhook verification
+  - ServiceNow shared-secret webhook verification
+- Built the full tenant-admin integration frontend surface:
+  - provider readiness cards
+  - create/edit setup dialog with provider-specific fields
+  - integration detail page with overview, delivery log, and ticket-link tabs
+  - ticket-link detail page with force-sync action
+  - OAuth install actions wired through the protected bootstrap endpoints
+- Added local secret-file/env support for:
+  - `NOTIF_SLACK_CLIENT_ID`
+  - `NOTIF_SLACK_CLIENT_SECRET`
+  - `NOTIF_SLACK_SIGNING_SECRET`
+  - `NOTIF_ATLASSIAN_CLIENT_ID`
+  - `NOTIF_ATLASSIAN_CLIENT_SECRET`
+  via `.dev-secrets/*`, `scripts/start.sh`, and `ecosystem.local.js`.
+- Restored frontend production-build stability by adding `frontend/src/pages/_document.tsx` and sweeping the remaining nullable Next navigation-hook assumptions that the expanded admin surface exposed.
 
 ### Startup and routing consistency
 
@@ -218,6 +254,36 @@ Key files changed during this audit:
 - `backend/internal/lex/repository/contract_repo.go`
 - `backend/internal/audit/handler/audit_handler.go`
 - `backend/internal/observability/tracing/http_propagation.go`
+- `backend/cmd/notification-service/main.go`
+- `backend/internal/integration/dto/integration_dto.go`
+- `backend/internal/integration/handler/common.go`
+- `backend/internal/integration/handler/integration_handler.go`
+- `backend/internal/integration/handler/jira_handler.go`
+- `backend/internal/integration/handler/routes.go`
+- `backend/internal/integration/handler/servicenow_handler.go`
+- `backend/internal/integration/handler/slack_handler.go`
+- `backend/internal/integration/repository/ticket_link_repo.go`
+- `backend/internal/integration/service/integration_service.go`
+- `ecosystem.local.js`
+- `scripts/start.sh`
+- `scripts/smoke-test.sh`
+- `frontend/src/app/(dashboard)/admin/integrations/page.tsx`
+- `frontend/src/app/(dashboard)/admin/integrations/[id]/page.tsx`
+- `frontend/src/app/(dashboard)/admin/integrations/ticket-links/[id]/page.tsx`
+- `frontend/src/app/(dashboard)/admin/integrations/_components/integration-form-dialog.tsx`
+- `frontend/src/app/(dashboard)/admin/integrations/_components/delivery-log-table.tsx`
+- `frontend/src/app/(dashboard)/admin/integrations/_components/ticket-links-table.tsx`
+- `frontend/src/app/(dashboard)/admin/integrations/_components/integration-utils.ts`
+- `frontend/src/types/integration.ts`
+- `frontend/src/config/navigation.ts`
+- `frontend/src/pages/_document.tsx`
+- `frontend/src/hooks/use-data-table.ts`
+- `frontend/src/hooks/use-breadcrumbs.ts`
+- `frontend/src/components/layout/sidebar-nav-item.tsx`
+- `frontend/src/components/auth/session-expired-dialog.tsx`
+- `frontend/src/app/(dashboard)/notifications/notifications-page-client.tsx`
+- `frontend/src/app/(dashboard)/workflows/tasks/tasks-page-client.tsx`
+- `frontend/src/app/(dashboard)/data/sources/page.tsx`
 - `backend/internal/observability/metrics/http_metrics.go`
 - `backend/cmd/api-gateway/main.go`
 - `frontend/src/lib/api.ts`
@@ -245,7 +311,7 @@ Verified successfully:
 - `bash -n /Users/mac/clario360/scripts/start.sh`
 - `pm2 restart /Users/mac/clario360/ecosystem.config.js --update-env`
 - `CLARIO360_SMOKE_EMAIL=admin@clario.dev CLARIO360_SMOKE_PASSWORD='Cl@rio360Dev!' bash /Users/mac/clario360/scripts/smoke-test.sh`
-  - final result: `pass=38 fail=0 skip=0`
+  - final result: `pass=58 fail=0 skip=0`
 - Direct authenticated gateway verification after PM2 restart:
   - `GET /api/v1/data/quality/score/trend?days=30` -> `200 {"data":[]}`
   - `GET /api/v1/data/quality/dashboard` -> `200 {"data":{...}}`
@@ -256,10 +322,19 @@ Verified successfully:
   - `GET /api/v1/cyber/ueba/profiles/test-entity/timeline?page=1&per_page=20` -> `200 {"data":[],"meta":{...}}`
   - `GET /api/v1/notebooks/servers` -> `200 []`
   - `GET /api/v1/users/me/sessions` -> `200 [...]`
+  - `GET /api/v1/integrations/providers` -> `200 {"data":[...]}` with provider readiness and missing runtime config surfaced for Slack/Jira
+  - `POST /api/v1/integrations/slack/oauth/session` -> canonical `503 {"error":...}` when local Slack OAuth secrets are absent
+  - `POST /api/v1/integrations/jira/oauth/session` -> canonical `503 {"error":...}` when local Atlassian OAuth secrets are absent
 - Browser-style websocket probe through the live gateway returned `HTTP/1.1 101 Switching Protocols`
 - Production `next build` completed successfully without the previous standalone trace warning about `page_client-reference-manifest.js`
 
 ## Residual Risks / Follow-Up
 
 - No blocking runtime issues remain from this audit pass.
+- Real Slack and Jira workspace/project installs now have a working in-product bootstrap flow, but they still require operators to supply valid vendor credentials:
+  - `NOTIF_SLACK_CLIENT_ID`
+  - `NOTIF_SLACK_CLIENT_SECRET`
+  - `NOTIF_ATLASSIAN_CLIENT_ID`
+  - `NOTIF_ATLASSIAN_CLIENT_SECRET`
+  Until those are configured, the platform correctly reports the providers as not ready and returns canonical `503` install-bootstrap errors.
 - PM2 error logs still contain historical OTLP exporter errors from before the final env fix; they are stale log entries, not current runtime failures.

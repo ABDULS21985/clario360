@@ -422,11 +422,13 @@ func TestBriefingHistory_Success(t *testing.T) {
 				t.Errorf("expected tenantID %s, got %s", tenantID, tid)
 			}
 			return &dto.VCISOBriefingHistoryResponse{
-				Data:       []*model.VCISOBriefingRecord{},
-				Total:      0,
-				Page:       1,
-				PerPage:    20,
-				TotalPages: 0,
+				Data: []*model.VCISOBriefingRecord{},
+				Meta: dto.PaginationMeta{
+					Total:      0,
+					Page:       1,
+					PerPage:    20,
+					TotalPages: 0,
+				},
 			}, nil
 		},
 	}
@@ -460,11 +462,13 @@ func TestBriefingHistory_WithTypeFilter(t *testing.T) {
 				t.Errorf("expected type filter 'executive', got %v", params.Type)
 			}
 			return &dto.VCISOBriefingHistoryResponse{
-				Data:       []*model.VCISOBriefingRecord{},
-				Total:      0,
-				Page:       1,
-				PerPage:    20,
-				TotalPages: 0,
+				Data: []*model.VCISOBriefingRecord{},
+				Meta: dto.PaginationMeta{
+					Total:      0,
+					Page:       1,
+					PerPage:    20,
+					TotalPages: 0,
+				},
 			}, nil
 		},
 	}
@@ -517,11 +521,13 @@ func TestBriefingHistory_Pagination(t *testing.T) {
 				t.Errorf("expected per_page=5, got %d", params.PerPage)
 			}
 			return &dto.VCISOBriefingHistoryResponse{
-				Data:       []*model.VCISOBriefingRecord{},
-				Total:      10,
-				Page:       2,
-				PerPage:    5,
-				TotalPages: 2,
+				Data: []*model.VCISOBriefingRecord{},
+				Meta: dto.PaginationMeta{
+					Total:      10,
+					Page:       2,
+					PerPage:    5,
+					TotalPages: 2,
+				},
 			}, nil
 		},
 	}
