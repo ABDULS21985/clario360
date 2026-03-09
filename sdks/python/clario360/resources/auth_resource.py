@@ -21,14 +21,7 @@ class AuthResource:
         return self._http.refresh()
 
     async def arefresh(self) -> AuthTokens:
-        await self._async_http._refresh()  # noqa: SLF001
-        payload = {
-            "access_token": self._async_http._auth.access_token,  # noqa: SLF001
-            "refresh_token": self._async_http._auth.refresh_token,  # noqa: SLF001
-        }
-        if self._async_http.user is not None:
-            payload["user"] = self._async_http.user.to_dict()
-        return AuthTokens.from_dict(payload)
+        return await self._async_http.refresh()
 
     def logout(self) -> None:
         if self._http.auth_state.refresh_token:

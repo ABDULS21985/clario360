@@ -322,6 +322,16 @@ class AsyncHTTPClient:
             self._auth.tenant_id = tokens.user.tenant_id
         return tokens
 
+    async def refresh(self) -> AuthTokens:
+        await self._refresh()
+        if not self._auth.access_token:
+            raise AuthenticationError("refresh did not return an access token", code="INVALID_RESPONSE")
+        return AuthTokens(
+            access_token=self._auth.access_token,
+            refresh_token=self._auth.refresh_token,
+            user=self._user,
+        )
+
     async def get(self, path: str, *, params: Optional[Mapping[str, Any]] = None) -> JSONValue:
         return await self._request("GET", path, params=params)
 
