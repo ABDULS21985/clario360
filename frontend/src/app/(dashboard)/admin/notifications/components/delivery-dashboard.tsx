@@ -90,7 +90,7 @@ export function DeliveryDashboard() {
             <Send className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.total_sent.toLocaleString()}</div>
+            <div className="text-2xl font-bold">{(stats.total_sent ?? 0).toLocaleString()}</div>
           </CardContent>
         </Card>
 
@@ -100,7 +100,7 @@ export function DeliveryDashboard() {
             <CheckCircle className="h-4 w-4 text-green-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.delivered.toLocaleString()}</div>
+            <div className="text-2xl font-bold">{(stats.delivered ?? 0).toLocaleString()}</div>
           </CardContent>
         </Card>
 
@@ -111,8 +111,8 @@ export function DeliveryDashboard() {
           </CardHeader>
           <CardContent>
             <div className="flex items-center gap-2">
-              <span className="text-2xl font-bold">{stats.failed.toLocaleString()}</span>
-              {stats.failed > 0 && (
+              <span className="text-2xl font-bold">{(stats.failed ?? 0).toLocaleString()}</span>
+              {(stats.failed ?? 0) > 0 && (
                 <Button
                   variant="ghost"
                   size="sm"
@@ -134,7 +134,7 @@ export function DeliveryDashboard() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {(stats.delivery_rate * 100).toFixed(1)}%
+              {((stats.delivery_rate ?? 0) * 100).toFixed(1)}%
             </div>
           </CardContent>
         </Card>
@@ -146,9 +146,9 @@ export function DeliveryDashboard() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {stats.avg_delivery_time_ms < 1000
-                ? `${stats.avg_delivery_time_ms}ms`
-                : `${(stats.avg_delivery_time_ms / 1000).toFixed(1)}s`}
+              {(stats.avg_delivery_time_ms ?? 0) < 1000
+                ? `${stats.avg_delivery_time_ms ?? 0}ms`
+                : `${((stats.avg_delivery_time_ms ?? 0) / 1000).toFixed(1)}s`}
             </div>
           </CardContent>
         </Card>
@@ -162,7 +162,7 @@ export function DeliveryDashboard() {
         open={retryOpen}
         onOpenChange={setRetryOpen}
         title="Retry Failed Deliveries"
-        description={`This will retry ${stats.failed} failed notification deliveries${channel ? ` for the ${channel} channel` : ''}. Continue?`}
+        description={`This will retry ${stats.failed ?? 0} failed notification deliveries${channel ? ` for the ${channel} channel` : ''}. Continue?`}
         confirmLabel="Retry All"
         onConfirm={handleRetry}
         loading={retryMutation.isPending}

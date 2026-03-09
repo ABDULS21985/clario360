@@ -37,7 +37,7 @@ export function MitreMatrix({
   onSelectTechnique,
 }: MitreMatrixProps) {
   // Group techniques by tactic
-  const byTactic = coverage.techniques.reduce<Record<string, MITRETechniqueCoverage[]>>(
+  const byTactic = (coverage.techniques ?? []).reduce<Record<string, MITRETechniqueCoverage[]>>(
     (acc, t) => {
       if (!acc[t.tactic_id]) acc[t.tactic_id] = [];
       acc[t.tactic_id].push(t);
@@ -46,7 +46,7 @@ export function MitreMatrix({
     {},
   );
 
-  const tactics = coverage.tactics;
+  const tactics = coverage.tactics ?? [];
   const maxRows = tactics.reduce((max, tactic) => {
     const techniques = byTactic[tactic.id] ?? [];
     const filtered = techniques.filter(

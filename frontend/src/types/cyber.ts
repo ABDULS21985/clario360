@@ -752,6 +752,21 @@ export interface DataAsset {
   updated_at: string;
 }
 
+export interface DSPMScan {
+  id: string;
+  tenant_id: string;
+  status: string;
+  assets_scanned: number;
+  pii_assets_found: number;
+  high_risk_found: number;
+  findings_count: number;
+  started_at: string;
+  completed_at?: string | null;
+  duration_ms?: number | null;
+  created_by: string;
+  created_at: string;
+}
+
 export interface DSPMDashboard {
   total_data_assets: number;
   by_classification: Record<string, number>;
@@ -760,7 +775,7 @@ export interface DSPMDashboard {
   unencrypted_count: number;
   no_access_control_count: number;
   internet_facing_count: number;
-  recent_scans: number;
+  recent_scans: DSPMScan[];
 }
 
 // ─── vCISO ────────────────────────────────────────────────────────────────────

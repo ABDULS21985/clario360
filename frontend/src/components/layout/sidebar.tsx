@@ -38,7 +38,7 @@ export function Sidebar() {
       <aside
         aria-label="Main navigation"
         className={cn(
-          'flex h-full shrink-0 flex-col overflow-hidden rounded-[30px] border border-[color:var(--sidebar-border)] bg-[var(--sidebar-bg)] text-white shadow-[0_35px_85px_-45px_rgba(15,23,42,0.9)] transition-[width] duration-300 ease-out',
+          'flex h-full shrink-0 flex-col overflow-hidden rounded-[30px] border border-[color:var(--sidebar-border)] [background:var(--sidebar-bg)] text-white shadow-[0_35px_85px_-45px_rgba(15,23,42,0.9)] transition-[width] duration-300 ease-out',
           collapsed ? 'w-[88px]' : 'w-[292px]',
         )}
       >

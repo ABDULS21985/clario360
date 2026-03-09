@@ -44,7 +44,7 @@ export function MobileSidebar() {
       <aside
         aria-label="Mobile navigation"
         className={cn(
-          'fixed inset-y-3 left-3 z-50 flex w-[calc(100vw-1.5rem)] max-w-[320px] flex-col overflow-hidden rounded-[30px] border border-[color:var(--sidebar-border)] bg-[var(--sidebar-bg)] text-white shadow-[0_35px_85px_-45px_rgba(15,23,42,0.9)]',
+          'fixed inset-y-3 left-3 z-50 flex w-[calc(100vw-1.5rem)] max-w-[320px] flex-col overflow-hidden rounded-[30px] border border-[color:var(--sidebar-border)] [background:var(--sidebar-bg)] text-white shadow-[0_35px_85px_-45px_rgba(15,23,42,0.9)]',
           'animate-in slide-in-from-left-0 duration-200',
         )}
       >

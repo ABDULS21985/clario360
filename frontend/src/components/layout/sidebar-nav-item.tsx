@@ -31,7 +31,7 @@ export function SidebarNavItem({ item, collapsed, badgeCount }: SidebarNavItemPr
         'group relative flex items-center gap-3 rounded-2xl px-3 py-2.5 text-sm font-medium transition-all duration-200',
         collapsed ? 'justify-center px-2.5' : 'justify-start',
         isActive
-          ? 'bg-[var(--sidebar-active)] text-slate-900 shadow-[0_18px_40px_-28px_rgba(15,23,42,0.65)]'
+          ? '[background:var(--sidebar-active)] text-slate-900 shadow-[0_18px_40px_-28px_rgba(15,23,42,0.65)]'
           : 'text-slate-300 hover:bg-[var(--sidebar-hover)] hover:text-white',
       )}
     >

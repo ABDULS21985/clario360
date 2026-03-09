@@ -45,7 +45,7 @@ interface DeliveryChartsProps {
 
 export function DeliveryCharts({ stats }: DeliveryChartsProps) {
   const trendData = useMemo(() =>
-    stats.by_day.map((d) => ({
+    (stats.by_day ?? []).map((d) => ({
       ...d,
       date: format(parseISO(d.date), 'MMM d'),
     })),
@@ -53,7 +53,7 @@ export function DeliveryCharts({ stats }: DeliveryChartsProps) {
   );
 
   const channelData = useMemo(() =>
-    Object.entries(stats.by_channel).map(([channel, data]) => ({
+    Object.entries(stats.by_channel ?? {}).map(([channel, data]) => ({
       channel: channel.replace('_', '-'),
       sent: data.sent,
       delivered: data.delivered,
@@ -63,7 +63,7 @@ export function DeliveryCharts({ stats }: DeliveryChartsProps) {
   );
 
   const typeData = useMemo(() =>
-    Object.entries(stats.by_type).map(([type, count]) => ({
+    Object.entries(stats.by_type ?? {}).map(([type, count]) => ({
       name: type,
       value: count,
     })),

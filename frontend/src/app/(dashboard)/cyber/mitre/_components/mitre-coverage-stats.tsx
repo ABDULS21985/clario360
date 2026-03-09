@@ -15,7 +15,7 @@ export function MitreCoverageStats({ coverage }: MitreCoverageStatsProps) {
   const activePct = total > 0 ? (active / total) * 100 : 0;
   const passivePct = total > 0 ? (passive / total) * 100 : 0;
 
-  const topTactic = coverage.tactics.reduce<{ name: string; covered: number } | null>(
+  const topTactic = (coverage.tactics ?? []).reduce<{ name: string; covered: number } | null>(
     (best, t) => (!best || t.covered_count > best.covered ? { name: t.name, covered: t.covered_count } : best),
     null,
   );
@@ -25,7 +25,7 @@ export function MitreCoverageStats({ coverage }: MitreCoverageStatsProps) {
       <div className="mb-3 flex items-center justify-between">
         <span className="text-sm font-semibold">Overall Coverage</span>
         <span className="text-lg font-bold tabular-nums">
-          {coverage.coverage_percent.toFixed(0)}%
+          {(coverage.coverage_percent ?? 0).toFixed(0)}%
           <span className="ml-1.5 text-xs font-normal text-muted-foreground">
             ({coverage.covered_techniques} of {total} techniques)
           </span>
