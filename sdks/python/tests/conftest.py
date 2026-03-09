@@ -6,8 +6,6 @@ from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 import pytest
-import requests
-
 from clario360.client import Clario360
 
 
@@ -107,7 +105,10 @@ class StubRouter:
 @pytest.fixture()
 def router(monkeypatch: pytest.MonkeyPatch) -> StubRouter:
     stub = StubRouter()
-    monkeypatch.setattr("requests.sessions.Session.request", stub.request)
+    def _request(session: Any, method: str, url: str, **kwargs: Any) -> MockResponse:
+        return stub.request(session, method, url, **kwargs)
+
+    monkeypatch.setattr("requests.sessions.Session.request", _request)
     monkeypatch.setattr("clario360.http_client.time.sleep", lambda _: None)
 
     async def _async_sleep(_: float) -> None:
@@ -125,4 +126,3 @@ def api_url() -> str:
 @pytest.fixture()
 def api_key_client(api_url: str) -> Clario360:
     return Clario360(api_url=api_url, api_key="clario360_ak_test")
-

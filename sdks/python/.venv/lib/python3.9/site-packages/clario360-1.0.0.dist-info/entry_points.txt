@@ -1,0 +1,2 @@
+[console_scripts]
+clario360 = clario360_cli.cli:cli
