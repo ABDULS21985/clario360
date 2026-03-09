@@ -15,6 +15,8 @@ export function useOAuthProviders() {
       const { data } = await api.get<OAuthProvider[]>("/api/v1/auth/oauth/providers");
       return data;
     },
+    retry: false,
+    staleTime: 5 * 60 * 1000,
   });
 }
 
@@ -25,6 +27,8 @@ export function useOAuthConnections() {
       const { data } = await api.get<OAuthConnection[]>("/api/v1/auth/oauth/connections");
       return data;
     },
+    retry: false,
+    staleTime: 5 * 60 * 1000,
   });
 }
 

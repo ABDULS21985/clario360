@@ -27,7 +27,9 @@ export function ComplianceStatusSection({
 }: {
   frameworks: ComplianceFramework[];
 }) {
-  if (frameworks.length === 0) {
+  const list = Array.isArray(frameworks) ? frameworks : [];
+
+  if (list.length === 0) {
     return (
       <p className="text-sm text-muted-foreground py-4 text-center">
         No compliance frameworks configured.
@@ -37,7 +39,7 @@ export function ComplianceStatusSection({
 
   return (
     <div className="space-y-4">
-      {frameworks.map((fw) => {
+      {list.map((fw) => {
         const config = statusConfig[fw.status];
 
         return (

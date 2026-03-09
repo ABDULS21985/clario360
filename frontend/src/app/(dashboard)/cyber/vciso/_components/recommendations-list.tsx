@@ -29,7 +29,7 @@ export function RecommendationsList({
     });
   }
 
-  if (recommendations.length === 0) {
+  if (!recommendations || recommendations.length === 0) {
     return (
       <p className="text-sm text-muted-foreground py-4 text-center">
         No recommendations at this time.
@@ -39,12 +39,12 @@ export function RecommendationsList({
 
   return (
     <div className="space-y-2">
-      {recommendations.map((rec) => {
+      {recommendations.map((rec, idx) => {
         const isExpanded = expandedIds.has(rec.id);
 
         return (
           <div
-            key={rec.id}
+            key={rec.id ?? idx}
             className="rounded-lg border bg-white overflow-hidden"
           >
             {/* Collapsed header — always visible */}
@@ -110,13 +110,13 @@ export function RecommendationsList({
                 <p className="text-sm text-muted-foreground">{rec.description}</p>
 
                 {/* Actions checklist */}
-                {rec.actions.length > 0 && (
+                {(rec.actions ?? []).length > 0 && (
                   <div className="space-y-1.5">
                     <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                       Actions
                     </p>
                     <ul className="space-y-1">
-                      {rec.actions.map((action, idx) => (
+                      {(rec.actions ?? []).map((action, idx) => (
                         <li key={idx} className="flex items-start gap-2 text-sm">
                           <CheckCircle className="mt-0.5 h-4 w-4 flex-shrink-0 text-green-500" />
                           <span className="text-foreground">{action}</span>

@@ -99,6 +99,9 @@ func (p *WebSocketProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		"X-User-Email": []string{claims.Email},
 		"X-Request-ID": []string{reqID},
 	}
+	if len(claims.Roles) > 0 {
+		backendHeaders["X-User-Roles"] = []string{strings.Join(claims.Roles, ",")}
+	}
 
 	dialer := websocket.Dialer{
 		HandshakeTimeout: 10 * time.Second,

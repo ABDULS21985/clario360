@@ -134,10 +134,27 @@ func (h *WebSocketHandler) authenticate(r *http.Request) (*auth.Claims, error) {
 			token = strings.TrimSpace(authHeader[7:])
 		}
 	}
-	if token == "" {
+	if token != "" {
+		return h.jwtMgr.ValidateAccessToken(token)
+	}
+
+	// Fallback: accept gateway-injected headers — the gateway already validated
+	// the JWT and strips the token before dialing the backend WebSocket.
+	userID := strings.TrimSpace(r.Header.Get("X-User-ID"))
+	tenantID := strings.TrimSpace(r.Header.Get("X-Tenant-ID"))
+	if userID == "" || tenantID == "" {
 		return nil, context.Canceled
 	}
-	return h.jwtMgr.ValidateAccessToken(token)
+	var roles []string
+	if rolesHeader := strings.TrimSpace(r.Header.Get("X-User-Roles")); rolesHeader != "" {
+		roles = strings.Split(rolesHeader, ",")
+	}
+	return &auth.Claims{
+		UserID:   userID,
+		TenantID: tenantID,
+		Email:    strings.TrimSpace(r.Header.Get("X-User-Email")),
+		Roles:    roles,
+	}, nil
 }
 
 func withRequestAuth(ctx context.Context, claims *auth.Claims) context.Context {
