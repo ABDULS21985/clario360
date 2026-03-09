@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { Database, ScanSearch } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { PageHeader } from '@/components/common/page-header';
@@ -16,7 +17,7 @@ import { DSPMKpiCards } from './_components/dspm-kpi-cards';
 import { ClassificationChart } from './_components/classification-chart';
 import { dataAssetColumns } from './_components/data-asset-columns';
 import { ScanTriggerDialog } from './_components/scan-trigger-dialog';
-import type { DataAsset, DSPMDashboard } from '@/types/cyber';
+import type { DataAsset, DSPMDashboard, ShadowDetectionResult } from '@/types/cyber';
 import type { PaginatedResponse } from '@/types/api';
 import type { FetchParams } from '@/types/table';
 
@@ -38,8 +39,21 @@ export default function CyberDspmPage() {
       apiGet<PaginatedResponse<DataAsset>>(API_ENDPOINTS.CYBER_DSPM_DATA_ASSETS, params as unknown as Record<string, unknown>),
     defaultSort: { column: 'risk_score', direction: 'desc' },
   });
+  const shadowQuery = useQuery({
+    queryKey: ['cyber-dspm-shadow-copies'],
+    queryFn: () => apiGet<{ data: ShadowDetectionResult }>(API_ENDPOINTS.CYBER_DSPM_SHADOW_COPIES),
+    staleTime: 120000,
+  });
 
   const dashboard = dashEnvelope?.data;
+  const shadowResult = shadowQuery.data?.data;
+  const shadowMatches = shadowResult?.matches ?? [];
+  const highRiskShare = dashboard && dashboard.total_data_assets > 0
+    ? Math.round((dashboard.high_risk_assets_count / dashboard.total_data_assets) * 100)
+    : 0;
+  const piiCoverage = dashboard && dashboard.total_data_assets > 0
+    ? Math.round((dashboard.pii_assets_count / dashboard.total_data_assets) * 100)
+    : 0;
 
   const filters = [
     {
@@ -96,7 +110,7 @@ export default function CyberDspmPage() {
             <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
               {/* Classification chart */}
               <div className="rounded-xl border bg-card p-5">
-                <ClassificationChart data={dashboard.by_classification} />
+                <ClassificationChart data={dashboard.classification_breakdown} />
               </div>
 
               {/* Posture bars */}
@@ -104,6 +118,11 @@ export default function CyberDspmPage() {
                 <h3 className="mb-4 text-sm font-semibold">Posture Overview</h3>
                 <div className="space-y-3">
                   {[
+                    {
+                      label: 'PII Coverage',
+                      value: piiCoverage,
+                      good: true,
+                    },
                     {
                       label: 'Encryption Coverage',
                       value: dashboard.total_data_assets > 0
@@ -119,10 +138,8 @@ export default function CyberDspmPage() {
                       good: true,
                     },
                     {
-                      label: 'Internet Exposure',
-                      value: dashboard.total_data_assets > 0
-                        ? Math.round((dashboard.internet_facing_count / dashboard.total_data_assets) * 100)
-                        : 0,
+                      label: 'High Risk Assets',
+                      value: highRiskShare,
                       good: false,
                     },
                   ].map(({ label, value, good }) => {
@@ -153,7 +170,7 @@ export default function CyberDspmPage() {
                   </div>
                 </div>
                 <div className="mt-4 rounded-lg border bg-muted/20 p-3 text-xs text-muted-foreground">
-                  Run regular DSPM scans to keep classification and posture data current. Recommended: weekly full scan.
+                  Continuous DSPM is now watching pipeline transit, at-rest drift, and shadow-copy activity in addition to manual full scans.
                 </div>
                 <Button className="mt-4 w-full" variant="outline" size="sm" onClick={() => setScanOpen(true)}>
                   <ScanSearch className="mr-1.5 h-3.5 w-3.5" />
@@ -163,6 +180,53 @@ export default function CyberDspmPage() {
             </div>
           </>
         )}
+
+        <div className="rounded-xl border bg-card">
+          <div className="border-b px-5 py-4">
+            <h3 className="text-sm font-semibold">Shadow Copy Detection</h3>
+            <p className="text-xs text-muted-foreground">Structural fingerprint matches without lineage-backed copy paths.</p>
+          </div>
+          <div className="p-5">
+            {shadowQuery.isLoading ? (
+              <LoadingSkeleton variant="table-row" count={3} />
+            ) : shadowQuery.error ? (
+              <ErrorState
+                message="Failed to load shadow copy matches"
+                onRetry={() => void shadowQuery.refetch()}
+              />
+            ) : shadowMatches.length === 0 ? (
+              <div className="rounded-lg border bg-muted/20 p-4 text-sm text-muted-foreground">
+                {shadowResult?.summary ?? 'No unauthorized shadow-copy candidates were detected in the latest structural scan.'}
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {shadowResult?.summary ? (
+                  <div className="rounded-lg border bg-muted/20 p-3 text-sm text-muted-foreground">
+                    {shadowResult.summary}
+                  </div>
+                ) : null}
+                {shadowMatches.slice(0, 6).map((match) => (
+                  <div key={`${match.source_asset_id}-${match.target_asset_id}-${match.fingerprint}`} className="rounded-lg border p-4">
+                    <div className="flex items-start justify-between gap-4">
+                      <div>
+                        <p className="text-sm font-medium">
+                          {match.source_asset_name}.{match.source_table} → {match.target_asset_name}.{match.target_table}
+                        </p>
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          {match.match_type.replace(/_/g, ' ')} match · {Math.round(match.similarity * 100)}% similarity
+                        </p>
+                      </div>
+                      <div className="text-right text-xs text-muted-foreground">
+                        <div>Sources: {shadowResult?.sources_count ?? 0}</div>
+                        <div>Tables: {shadowResult?.tables_count ?? 0}</div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
 
         {/* Data Assets Table */}
         <div className="rounded-xl border bg-card">

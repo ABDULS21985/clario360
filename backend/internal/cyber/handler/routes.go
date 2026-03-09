@@ -174,6 +174,7 @@ func RegisterRoutes(
 			r.Get("/dspm/exposure", dspmHandler.Exposure)
 			r.Get("/dspm/dependencies", dspmHandler.Dependencies)
 			r.Get("/dspm/dashboard", dspmHandler.Dashboard)
+			r.Get("/dspm/shadow-copies", dspmHandler.DetectShadowCopies)
 		}
 
 		uebahandler.RegisterRoutes(r, uebaHandler)

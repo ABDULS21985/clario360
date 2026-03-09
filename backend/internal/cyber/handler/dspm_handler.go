@@ -164,6 +164,19 @@ func (h *DSPMHandler) Dashboard(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, envelope{"data": result})
 }
 
+func (h *DSPMHandler) DetectShadowCopies(w http.ResponseWriter, r *http.Request) {
+	tenantID, _, ok := requireTenantAndUser(w, r)
+	if !ok {
+		return
+	}
+	result, err := h.svc.DetectShadowCopies(r.Context(), tenantID)
+	if err != nil {
+		h.writeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, envelope{"data": result})
+}
+
 func (h *DSPMHandler) writeError(w http.ResponseWriter, err error) {
 	switch {
 	case errors.Is(err, repository.ErrNotFound):

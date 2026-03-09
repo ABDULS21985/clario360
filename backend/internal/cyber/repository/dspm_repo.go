@@ -328,9 +328,21 @@ func (r *DSPMRepository) Dashboard(ctx context.Context, tenantID uuid.UUID) (*mo
 	_ = r.db.QueryRow(ctx, `
 		SELECT COUNT(*), COUNT(*) FILTER (WHERE contains_pii),
 		       COUNT(*) FILTER (WHERE risk_score >= 70),
-		       COALESCE(AVG(posture_score), 0), COALESCE(AVG(risk_score), 0)
+		       COALESCE(AVG(posture_score), 0), COALESCE(AVG(risk_score), 0),
+		       COUNT(*) FILTER (WHERE COALESCE(encrypted_at_rest, false) = false),
+		       COUNT(*) FILTER (WHERE access_control_type IS NULL OR access_control_type = ''),
+		       COUNT(*) FILTER (WHERE network_exposure = 'internet_facing')
 		FROM dspm_data_assets WHERE tenant_id=$1`, tenantID,
-	).Scan(&dash.TotalDataAssets, &dash.PIIAssetsCount, &dash.HighRiskAssetsCount, &dash.AvgPostureScore, &dash.AvgRiskScore)
+	).Scan(
+		&dash.TotalDataAssets,
+		&dash.PIIAssetsCount,
+		&dash.HighRiskAssetsCount,
+		&dash.AvgPostureScore,
+		&dash.AvgRiskScore,
+		&dash.UnencryptedCount,
+		&dash.NoAccessControlCount,
+		&dash.InternetFacingCount,
+	)
 
 	classRows, err := r.db.Query(ctx, `
 		SELECT data_classification, COUNT(*) FROM dspm_data_assets

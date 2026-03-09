@@ -14,6 +14,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/rs/zerolog"
@@ -33,6 +34,9 @@ import (
 	cyberdashboard "github.com/clario360/platform/internal/cyber/dashboard"
 	"github.com/clario360/platform/internal/cyber/detection"
 	cyberdspm "github.com/clario360/platform/internal/cyber/dspm"
+	cybercompliance "github.com/clario360/platform/internal/cyber/dspm/compliance"
+	cybercontinuous "github.com/clario360/platform/internal/cyber/dspm/continuous"
+	cybershadow "github.com/clario360/platform/internal/cyber/dspm/shadow"
 	"github.com/clario360/platform/internal/cyber/enrichment"
 	"github.com/clario360/platform/internal/cyber/handler"
 	"github.com/clario360/platform/internal/cyber/indicator"
@@ -60,8 +64,10 @@ import (
 	"github.com/clario360/platform/internal/events"
 	lexrepo "github.com/clario360/platform/internal/lex/repository"
 	lexservice "github.com/clario360/platform/internal/lex/service"
+	platformmw "github.com/clario360/platform/internal/middleware"
 	bootstrap "github.com/clario360/platform/internal/observability/bootstrap"
 	"github.com/clario360/platform/internal/observability/tracing"
+	"github.com/clario360/platform/internal/rca"
 	"github.com/clario360/platform/internal/suiteapi"
 	visusrepo "github.com/clario360/platform/internal/visus/repository"
 	visusservice "github.com/clario360/platform/internal/visus/service"
@@ -402,7 +408,22 @@ func main() {
 	dspmPosture := cyberdspm.NewPostureAssessor()
 	dspmDependency := cyberdspm.NewDependencyMapper(db)
 	dspmScanner := cyberdspm.NewDSPMScanner(db, dspmRepo, dspmClassifier, dspmPosture, dspmDependency, logger)
-	dspmSvc := service.NewDSPMService(dspmRepo, dspmScanner, dspmDependency, producer, logger)
+	dspmTagger := cybercompliance.NewComplianceTagger()
+	dspmShadowDetector := cybershadow.NewDetector(db, dataPool, logger)
+	continuousDSPM := cybercontinuous.NewEngine(
+		db,
+		dataPool,
+		dspmRepo,
+		alertRepo,
+		dspmClassifier,
+		dspmTagger,
+		dspmShadowDetector,
+		producer,
+		cybercontinuous.DefaultConfig(),
+		logger,
+	)
+	dspmSvc := service.NewDSPMService(dspmRepo, dspmScanner, dspmDependency, dspmTagger, dspmShadowDetector, producer, logger)
+	rcaEngine := rca.NewEngine(db, dataPool, logger)
 	vcisoRecommender := cybervciso.NewRecommendationAggregator(db, recommendationEngine, logger)
 	vcisoBriefing := cybervciso.NewBriefingGenerator(db, riskScorer, mttrCalc, vcisoRecommender, logger)
 	vcisoReporter := cybervciso.NewReportGenerator(vcisoBriefing, logger)
@@ -501,40 +522,40 @@ func main() {
 		)
 	}
 	vcisoToolDeps := &vcisotools.Dependencies{
-		CyberDB:                db,
-		AlertService:           alertSvc,
-		AlertRepo:              alertRepo,
-		AssetService:           assetSvc,
-		AssetRepo:              assetRepo,
-		VulnerabilityService:   vulnerabilitySvc,
-		RiskService:            riskSvc,
-		RuleService:            ruleSvc,
-		UEBAService:            uebaSvc,
-		VCISOService:           vcisoSvc,
-		RemediationService:     remediationSvc,
-		DataPool:               dataPool,
-		DataPipelineRepo:       dataPipelineRepo,
-		DataPipelineRunRepo:    dataPipelineRunRepo,
-		ActaPool:               actaPool,
-		ActaStore:              actaStore,
-		ActaComplianceService:  actaComplianceSvc,
-		LexPool:                lexPool,
-		LexContractRepo:        lexContractRepo,
-		LexAlertRepo:           lexAlertRepo,
-		LexDocumentRepo:        lexDocumentRepo,
-		LexClauseRepo:          lexClauseRepo,
-		LexComplianceRepo:      lexComplianceRepo,
-		LexComplianceService:   lexComplianceSvc,
-		VisusPool:              visusPool,
-		VisusDashboardRepo:     visusDashboardRepo,
-		VisusWidgetRepo:        visusWidgetRepo,
-		VisusKPIRepo:           visusKPIRepo,
-		VisusSnapshotRepo:      visusSnapshotRepo,
-		VisusAlertRepo:         visusAlertRepo,
-		VisusDashboardService:  visusDashboardSvc,
-		VisusWidgetService:     visusWidgetSvc,
-		Producer:               producer,
-		Logger:                 logger,
+		CyberDB:               db,
+		AlertService:          alertSvc,
+		AlertRepo:             alertRepo,
+		AssetService:          assetSvc,
+		AssetRepo:             assetRepo,
+		VulnerabilityService:  vulnerabilitySvc,
+		RiskService:           riskSvc,
+		RuleService:           ruleSvc,
+		UEBAService:           uebaSvc,
+		VCISOService:          vcisoSvc,
+		RemediationService:    remediationSvc,
+		DataPool:              dataPool,
+		DataPipelineRepo:      dataPipelineRepo,
+		DataPipelineRunRepo:   dataPipelineRunRepo,
+		ActaPool:              actaPool,
+		ActaStore:             actaStore,
+		ActaComplianceService: actaComplianceSvc,
+		LexPool:               lexPool,
+		LexContractRepo:       lexContractRepo,
+		LexAlertRepo:          lexAlertRepo,
+		LexDocumentRepo:       lexDocumentRepo,
+		LexClauseRepo:         lexClauseRepo,
+		LexComplianceRepo:     lexComplianceRepo,
+		LexComplianceService:  lexComplianceSvc,
+		VisusPool:             visusPool,
+		VisusDashboardRepo:    visusDashboardRepo,
+		VisusWidgetRepo:       visusWidgetRepo,
+		VisusKPIRepo:          visusKPIRepo,
+		VisusSnapshotRepo:     visusSnapshotRepo,
+		VisusAlertRepo:        visusAlertRepo,
+		VisusDashboardService: visusDashboardSvc,
+		VisusWidgetService:    visusWidgetSvc,
+		Producer:              producer,
+		Logger:                logger,
 	}
 	vcisoClassifier := vcisochatengine.NewIntentClassifier()
 	vcisoContextManager := vcisochatengine.NewContextManager(func() time.Time { return time.Now().UTC() }, 30*time.Minute)
@@ -595,6 +616,7 @@ func main() {
 	dspmHandler := handler.NewDSPMHandler(dspmSvc)
 	vcisoHandler := handler.NewVCISOHandler(vcisoSvc)
 	uebaHTTPHandler := uebahandler.NewUEBAHandler(uebaSvc)
+	rcaHandler := rca.NewHandler(rcaEngine, logger)
 	vcisoChatHandler := vcisochathandler.NewChatHandler(vcisoChatEngine, vcisoConversationRepo, logger)
 	vcisoWSHandler := vcisochathandler.NewWebSocketHandler(vcisoChatEngine, jwtMgr, logger)
 	handler.RegisterRoutes(
@@ -615,6 +637,11 @@ func main() {
 		jwtMgr,
 		rdb,
 	)
+	svc.Router.Group(func(r chi.Router) {
+		r.Use(platformmw.Auth(jwtMgr))
+		r.Use(platformmw.Tenant)
+		rcaHandler.RegisterRoutes(r)
+	})
 	vcisochathandler.RegisterRoutes(svc.Router, vcisochathandler.RouteDeps{
 		ChatHandler:          vcisoChatHandler,
 		WSHandler:            vcisoWSHandler,
@@ -704,6 +731,7 @@ func main() {
 			kafkaConsumer.Subscribe(events.Topics.IAMEvents, consumer.NewIAMEventConsumer(alertSvc, rdb, guard, producer, logger, crossSuiteMetrics))
 			kafkaConsumer.Subscribe(events.Topics.DataSourceEvents, dataEventConsumer)
 			kafkaConsumer.Subscribe(events.Topics.DarkDataEvents, dataEventConsumer)
+			kafkaConsumer.Subscribe(events.Topics.PipelineEvents, events.EventHandlerFunc(continuousDSPM.HandlePipelineEvent))
 			kafkaConsumer.Subscribe(events.Topics.FileEvents, consumer.NewFileEventConsumer(alertSvc, guard, producer, logger, crossSuiteMetrics))
 			if aiRuntime != nil && aiRuntime.PredictionLogger != nil {
 				kafkaConsumer.Subscribe(events.Topics.AIEvents, aigovconsumer.NewCacheInvalidationConsumer(aiRuntime.PredictionLogger, logger))
@@ -732,6 +760,13 @@ func main() {
 	// Scheduler (no-op until scans are registered)
 	g.Go(func() error {
 		err := sched.Start(gCtx)
+		if err != nil && !errors.Is(err, context.Canceled) {
+			return err
+		}
+		return nil
+	})
+	g.Go(func() error {
+		err := continuousDSPM.Start(gCtx)
 		if err != nil && !errors.Is(err, context.Canceled) {
 			return err
 		}

@@ -5,6 +5,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/clario360/platform/internal/cyber/dspm/shadow"
 	"github.com/clario360/platform/internal/cyber/dto"
 	"github.com/clario360/platform/internal/cyber/model"
 	"github.com/clario360/platform/internal/cyber/service"
@@ -42,6 +43,7 @@ type dspmService interface {
 	ExposureAnalysis(ctx context.Context, tenantID uuid.UUID) (*model.DSPMExposureAnalysis, error)
 	Dependencies(ctx context.Context, tenantID uuid.UUID) ([]model.DSPMDependencyNode, error)
 	Dashboard(ctx context.Context, tenantID uuid.UUID) (*model.DSPMDashboard, error)
+	DetectShadowCopies(ctx context.Context, tenantID uuid.UUID) (*shadow.DetectionResult, error)
 }
 
 // vcisoService abstracts the vCISO service layer for testability.

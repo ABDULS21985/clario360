@@ -725,29 +725,46 @@ export interface DSPMPostureFinding {
   guidance: string;
 }
 
+export interface ComplianceTag {
+  framework: string;
+  article: string;
+  category: string;
+  requirement: string;
+  impact: string;
+  severity: CyberSeverity;
+}
+
 export interface DataAsset {
   id: string;
   tenant_id: string;
   asset_id: string;
   asset_name: string;
   asset_type: string;
-  classification: string;
+  scan_id?: string | null;
+  data_classification: string;
   sensitivity_score: number;
+  contains_pii: boolean;
+  pii_column_count: number;
+  estimated_record_count?: number | null;
   posture_score: number;
   risk_score: number;
-  encrypted_at_rest?: boolean;
-  encrypted_in_transit?: boolean;
-  access_control_type?: string;
-  network_exposure?: string;
-  backup_configured?: boolean;
-  audit_logging?: boolean;
-  last_access_review?: string;
-  record_count?: number;
-  database_type?: string;
+  encrypted_at_rest?: boolean | null;
+  encrypted_in_transit?: boolean | null;
+  access_control_type?: string | null;
+  network_exposure?: string | null;
+  backup_configured?: boolean | null;
+  audit_logging?: boolean | null;
+  last_access_review?: string | null;
+  consumer_count?: number;
+  producer_count?: number;
+  database_type?: string | null;
+  schema_info?: Record<string, unknown>;
   posture_findings: DSPMPostureFinding[];
   pii_types: string[];
-  last_scanned?: string;
-  scan_id?: string;
+  metadata?: Record<string, unknown> & {
+    compliance_tags?: ComplianceTag[];
+  };
+  last_scanned_at?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -769,13 +786,130 @@ export interface DSPMScan {
 
 export interface DSPMDashboard {
   total_data_assets: number;
-  by_classification: Record<string, number>;
+  pii_assets_count: number;
+  high_risk_assets_count: number;
   avg_posture_score: number;
   avg_risk_score: number;
   unencrypted_count: number;
   no_access_control_count: number;
   internet_facing_count: number;
+  classification_breakdown: Record<string, number>;
+  exposure_breakdown: Record<string, number>;
+  top_risky_assets: DataAsset[];
   recent_scans: DSPMScan[];
+  pii_type_frequency: Record<string, number>;
+}
+
+export interface ShadowCopyMatch {
+  source_asset_id: string;
+  source_asset_name: string;
+  source_table: string;
+  target_asset_id: string;
+  target_asset_name: string;
+  target_table: string;
+  fingerprint: string;
+  match_type: string;
+  similarity: number;
+  has_lineage: boolean;
+}
+
+export interface ShadowDetectionResult {
+  tenant_id: string;
+  matches: ShadowCopyMatch[];
+  sources_count: number;
+  tables_count: number;
+  duration: number | string;
+  summary: string;
+}
+
+export type RootCauseAnalysisType = 'security_alert' | 'pipeline_failure' | 'quality_issue';
+
+export interface RootCauseEvidence {
+  label: string;
+  field: string;
+  value: unknown;
+  description: string;
+}
+
+export interface RootCauseStep {
+  order: number;
+  event_id: string;
+  event_type: string;
+  source: string;
+  description: string;
+  timestamp: string;
+  severity?: string;
+  mitre_phase?: string;
+  mitre_technique_id?: string;
+  evidence: RootCauseEvidence[];
+  is_root_cause: boolean;
+  metadata?: Record<string, unknown>;
+}
+
+export interface RootCauseTimelineEvent {
+  id: string;
+  timestamp: string;
+  source: string;
+  type: string;
+  summary: string;
+  severity?: string;
+  source_ip?: string;
+  user_id?: string;
+  asset_id?: string;
+  mitre_phase?: string;
+  mitre_technique_id?: string;
+  metadata?: Record<string, unknown>;
+}
+
+export interface RootCauseAffectedAsset {
+  asset_id: string;
+  asset_name: string;
+  asset_type: string;
+  criticality: string;
+  impact_type: string;
+}
+
+export interface RootCauseDataRisk {
+  asset_id: string;
+  asset_name: string;
+  classification: string;
+  contains_pii: boolean;
+  pii_types?: string[];
+}
+
+export interface RootCauseImpactAssessment {
+  direct_assets: RootCauseAffectedAsset[];
+  transitive_assets: RootCauseAffectedAsset[];
+  total_affected: number;
+  data_at_risk: RootCauseDataRisk[];
+  users_at_risk: number;
+  business_impact: string;
+  summary: string;
+}
+
+export interface RootCauseRecommendation {
+  priority: number;
+  category: string;
+  action: string;
+  rationale: string;
+  root_cause_type: string;
+}
+
+export interface RootCauseAnalysis {
+  id: string;
+  tenant_id: string;
+  type: RootCauseAnalysisType;
+  incident_id: string;
+  status: string;
+  root_cause?: RootCauseStep | null;
+  causal_chain: RootCauseStep[];
+  timeline: RootCauseTimelineEvent[];
+  impact?: RootCauseImpactAssessment | null;
+  recommendations: RootCauseRecommendation[];
+  confidence: number;
+  summary: string;
+  analyzed_at: string;
+  duration_ms: number;
 }
 
 // ─── vCISO ────────────────────────────────────────────────────────────────────

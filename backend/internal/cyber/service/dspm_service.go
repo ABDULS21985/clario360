@@ -9,6 +9,8 @@ import (
 	"github.com/rs/zerolog"
 
 	"github.com/clario360/platform/internal/cyber/dspm"
+	"github.com/clario360/platform/internal/cyber/dspm/compliance"
+	"github.com/clario360/platform/internal/cyber/dspm/shadow"
 	"github.com/clario360/platform/internal/cyber/dto"
 	"github.com/clario360/platform/internal/cyber/model"
 	"github.com/clario360/platform/internal/cyber/repository"
@@ -19,6 +21,8 @@ type DSPMService struct {
 	repo       *repository.DSPMRepository
 	scanner    *dspm.DSPMScanner
 	dependency *dspm.DependencyMapper
+	tagger     *compliance.ComplianceTagger
+	shadow     *shadow.Detector
 	producer   *events.Producer
 	logger     zerolog.Logger
 
@@ -30,6 +34,8 @@ func NewDSPMService(
 	repo *repository.DSPMRepository,
 	scanner *dspm.DSPMScanner,
 	dependency *dspm.DependencyMapper,
+	tagger *compliance.ComplianceTagger,
+	shadowDetector *shadow.Detector,
 	producer *events.Producer,
 	logger zerolog.Logger,
 ) *DSPMService {
@@ -37,6 +43,8 @@ func NewDSPMService(
 		repo:       repo,
 		scanner:    scanner,
 		dependency: dependency,
+		tagger:     tagger,
+		shadow:     shadowDetector,
 		producer:   producer,
 		logger:     logger.With().Str("service", "dspm").Logger(),
 		running:    make(map[uuid.UUID]context.CancelFunc),
@@ -55,6 +63,7 @@ func (s *DSPMService) ListDataAssets(ctx context.Context, tenantID uuid.UUID, pa
 	if items == nil {
 		items = []*model.DSPMDataAsset{}
 	}
+	s.enrichAssets(items)
 	return &dto.DSPMAssetListResponse{
 		Data: items,
 		Meta: dto.NewPaginationMeta(params.Page, params.PerPage, total),
@@ -62,7 +71,12 @@ func (s *DSPMService) ListDataAssets(ctx context.Context, tenantID uuid.UUID, pa
 }
 
 func (s *DSPMService) GetDataAsset(ctx context.Context, tenantID, assetID uuid.UUID) (*model.DSPMDataAsset, error) {
-	return s.repo.GetDataAssetByID(ctx, tenantID, assetID)
+	item, err := s.repo.GetDataAssetByID(ctx, tenantID, assetID)
+	if err != nil {
+		return nil, err
+	}
+	s.enrichAsset(item)
+	return item, nil
 }
 
 func (s *DSPMService) TriggerScan(ctx context.Context, tenantID, userID uuid.UUID, actor *Actor) (*model.DSPMScan, error) {
@@ -198,4 +212,33 @@ func (s *DSPMService) Dependencies(ctx context.Context, tenantID uuid.UUID) ([]m
 
 func (s *DSPMService) Dashboard(ctx context.Context, tenantID uuid.UUID) (*model.DSPMDashboard, error) {
 	return s.repo.Dashboard(ctx, tenantID)
+}
+
+func (s *DSPMService) DetectShadowCopies(ctx context.Context, tenantID uuid.UUID) (*shadow.DetectionResult, error) {
+	if s.shadow == nil {
+		return &shadow.DetectionResult{
+			TenantID: tenantID,
+			Matches:  []shadow.ShadowMatch{},
+		}, nil
+	}
+	return s.shadow.Detect(ctx, tenantID)
+}
+
+func (s *DSPMService) enrichAssets(items []*model.DSPMDataAsset) {
+	for _, item := range items {
+		s.enrichAsset(item)
+	}
+}
+
+func (s *DSPMService) enrichAsset(item *model.DSPMDataAsset) {
+	if item == nil || s.tagger == nil || len(item.PIITypes) == 0 {
+		return
+	}
+	if item.Metadata == nil {
+		item.Metadata = make(map[string]interface{})
+	}
+	if _, exists := item.Metadata["compliance_tags"]; exists {
+		return
+	}
+	item.Metadata["compliance_tags"] = s.tagger.TagPIITypes(item.PIITypes)
 }

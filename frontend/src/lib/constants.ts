@@ -85,6 +85,10 @@ export const API_ENDPOINTS = {
   CYBER_DSPM_DASHBOARD: '/api/v1/cyber/dspm/dashboard',
   CYBER_DSPM_DATA_ASSETS: '/api/v1/cyber/dspm/data-assets',
   CYBER_DSPM_SCAN: '/api/v1/cyber/dspm/scan',
+  CYBER_DSPM_SHADOW_COPIES: '/api/v1/cyber/dspm/shadow-copies',
+
+  // Root Cause Analysis
+  RCA_ANALYZE: '/api/v1/rca/analyze',
 
   // Cyber — vCISO
   CYBER_VCISO_BRIEFING: '/api/v1/cyber/vciso/briefing',

@@ -3,6 +3,7 @@ package shadow
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
@@ -12,11 +13,12 @@ import (
 
 // DetectionResult contains all detected shadow copies for a tenant.
 type DetectionResult struct {
-	TenantID     uuid.UUID      `json:"tenant_id"`
-	Matches      []ShadowMatch  `json:"matches"`
-	SourcesCount int            `json:"sources_count"`
-	TablesCount  int            `json:"tables_count"`
-	Duration     time.Duration  `json:"duration"`
+	TenantID     uuid.UUID     `json:"tenant_id"`
+	Matches      []ShadowMatch `json:"matches"`
+	SourcesCount int           `json:"sources_count"`
+	TablesCount  int           `json:"tables_count"`
+	Duration     time.Duration `json:"duration"`
+	Summary      string        `json:"summary"`
 }
 
 // ShadowMatch is a confirmed or suspected shadow copy.
@@ -78,6 +80,8 @@ func (d *Detector) Detect(ctx context.Context, tenantID uuid.UUID) (*DetectionRe
 	// Step 3: Check lineage for each match
 	var shadowMatches []ShadowMatch
 	tablesCount := len(allFingerprints)
+	seenMatches := make(map[string]struct{}, len(matches))
+	lineageCache := make(map[string]bool)
 
 	for _, match := range matches {
 		// Skip self-matches (same source)
@@ -85,7 +89,18 @@ func (d *Detector) Detect(ctx context.Context, tenantID uuid.UUID) (*DetectionRe
 			continue
 		}
 
-		hasLineage := d.checkLineageExists(ctx, tenantID, match.SourceFingerprint.SourceID, match.TargetFingerprint.SourceID)
+		matchKey := unorderedMatchKey(match)
+		if _, seen := seenMatches[matchKey]; seen {
+			continue
+		}
+		seenMatches[matchKey] = struct{}{}
+
+		lineageKey := unorderedAssetPairKey(match.SourceFingerprint.SourceID, match.TargetFingerprint.SourceID)
+		hasLineage, ok := lineageCache[lineageKey]
+		if !ok {
+			hasLineage = d.checkLineageExists(ctx, tenantID, match.SourceFingerprint.SourceID, match.TargetFingerprint.SourceID)
+			lineageCache[lineageKey] = hasLineage
+		}
 
 		shadowMatches = append(shadowMatches, ShadowMatch{
 			SourceAssetID:   uuidFromString(match.SourceFingerprint.SourceID),
@@ -107,6 +122,7 @@ func (d *Detector) Detect(ctx context.Context, tenantID uuid.UUID) (*DetectionRe
 		SourcesCount: len(fingerprints),
 		TablesCount:  tablesCount,
 		Duration:     time.Since(start),
+		Summary:      fmt.Sprintf("%d potential shadow copies across %d sources and %d tables", len(shadowMatches), len(fingerprints), tablesCount),
 	}, nil
 }
 
@@ -178,4 +194,20 @@ func uuidFromString(s string) uuid.UUID {
 		return uuid.Nil
 	}
 	return id
+}
+
+func unorderedMatchKey(match MatchResult) string {
+	left := match.SourceFingerprint.SourceID + "|" + match.SourceFingerprint.TableName
+	right := match.TargetFingerprint.SourceID + "|" + match.TargetFingerprint.TableName
+	if left > right {
+		left, right = right, left
+	}
+	return left + "->" + right + "|" + match.MatchType
+}
+
+func unorderedAssetPairKey(sourceID, targetID string) string {
+	if sourceID > targetID {
+		sourceID, targetID = targetID, sourceID
+	}
+	return sourceID + "->" + targetID
 }

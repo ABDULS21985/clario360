@@ -104,9 +104,15 @@ func (e *Engine) ExecutePipeline(ctx context.Context, pipelineID uuid.UUID, trig
 	logger := NewRunLogger(e.logRepo)
 	logger.Info(ctx, run.TenantID, run.ID, "run", "Pipeline run started.", map[string]any{"pipeline_id": pipelineItem.ID})
 	e.publish(ctx, "data.pipeline.run.started", pipelineItem.TenantID, map[string]any{
-		"id":           run.ID,
-		"pipeline_id":  pipelineItem.ID,
-		"triggered_by": run.TriggeredBy,
+		"id":            run.ID,
+		"pipeline_id":   pipelineItem.ID,
+		"pipeline_name": pipelineItem.Name,
+		"status":        model.PipelineRunStatusRunning,
+		"source_id":     pipelineItem.SourceID,
+		"target_id":     pipelineItem.TargetID,
+		"source_table":  pipelineItem.Config.SourceTable,
+		"target_table":  pipelineItem.Config.TargetTable,
+		"triggered_by":  run.TriggeredBy,
 	})
 
 	sourceRecord, err := e.sourceRepo.Get(ctx, pipelineItem.TenantID, pipelineItem.SourceID)
@@ -250,8 +256,13 @@ func (e *Engine) ExecutePipeline(ctx context.Context, pipelineID uuid.UUID, trig
 		"tenant_id":         pipelineItem.TenantID,
 		"created_by":        pipelineItem.CreatedBy,
 		"status":            model.PipelineRunStatusCompleted,
+		"source_id":         pipelineItem.SourceID,
+		"target_id":         pipelineItem.TargetID,
+		"source_table":      pipelineItem.Config.SourceTable,
+		"target_table":      pipelineItem.Config.TargetTable,
 		"records_extracted": run.RecordsExtracted,
 		"records_loaded":    run.RecordsLoaded,
+		"records_count":     run.RecordsLoaded,
 		"duration_ms":       durationMs,
 	})
 	return run, nil
@@ -290,6 +301,11 @@ func (e *Engine) failRun(ctx context.Context, pipelineItem *model.Pipeline, run 
 		"tenant_id":     pipelineItem.TenantID,
 		"created_by":    pipelineItem.CreatedBy,
 		"status":        model.PipelineRunStatusFailed,
+		"source_id":     pipelineItem.SourceID,
+		"target_id":     pipelineItem.TargetID,
+		"source_table":  pipelineItem.Config.SourceTable,
+		"target_table":  pipelineItem.Config.TargetTable,
+		"records_count": run.RecordsExtracted,
 		"error_phase":   phase,
 		"error":         message,
 		"error_message": message,

@@ -13,6 +13,7 @@ import { SeverityIndicator } from '@/components/shared/severity-indicator';
 import { StatusBadge } from '@/components/shared/status-badge';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { RootCauseAnalysisPanel } from '@/components/cyber/root-cause-analysis-panel';
 import { ArrowLeft, UserCheck, RefreshCw, ArrowUpCircle } from 'lucide-react';
 import { AlertExplanationPanel } from './_components/alert-explanation-panel';
 import { AlertContextPanel } from './_components/alert-context-panel';
@@ -23,7 +24,7 @@ import { AlertRemediationTab } from './_components/alert-remediation-tab';
 import { AlertStatusDialog } from '../_components/alert-status-dialog';
 import { AlertAssignDialog } from '../_components/alert-assign-dialog';
 import { AlertEscalateDialog } from '../_components/alert-escalate-dialog';
-import type { CyberAlert } from '@/types/cyber';
+import type { CyberAlert, RootCauseAnalysis } from '@/types/cyber';
 
 interface Props {
   params: Promise<{ id: string }>;
@@ -36,11 +37,18 @@ export default function AlertDetailPage({ params }: Props) {
   const [statusOpen, setStatusOpen] = useState(false);
   const [assignOpen, setAssignOpen] = useState(false);
   const [escalateOpen, setEscalateOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState('investigation');
 
   const { data: envelope, isLoading, error, refetch } = useQuery({
     queryKey: [`cyber-alert-${id}`],
     queryFn: () => apiGet<{ data: CyberAlert }>(`${API_ENDPOINTS.CYBER_ALERTS}/${id}`),
     refetchInterval: 30000,
+  });
+  const rootCauseQuery = useQuery({
+    queryKey: ['cyber-alert-root-cause', id],
+    queryFn: () => apiGet<{ data: RootCauseAnalysis }>(`/api/v1/rca/security_alert/${id}`),
+    enabled: activeTab === 'root-cause' && Boolean(id),
+    staleTime: 120000,
   });
 
   const alert = envelope?.data;
@@ -105,12 +113,13 @@ export default function AlertDetailPage({ params }: Props) {
             <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
               {/* Left: tabs */}
               <div className="lg:col-span-2">
-                <Tabs defaultValue="investigation">
+                <Tabs value={activeTab} onValueChange={setActiveTab}>
                   <TabsList className="w-full justify-start overflow-x-auto">
                     <TabsTrigger value="investigation">Investigation</TabsTrigger>
                     <TabsTrigger value="explanation">AI Analysis</TabsTrigger>
                     <TabsTrigger value="evidence">Evidence</TabsTrigger>
                     <TabsTrigger value="timeline">Timeline</TabsTrigger>
+                    <TabsTrigger value="root-cause">Root Cause</TabsTrigger>
                     <TabsTrigger value="remediation">Remediation</TabsTrigger>
                   </TabsList>
 
@@ -128,6 +137,17 @@ export default function AlertDetailPage({ params }: Props) {
                   </TabsContent>
                   <TabsContent value="timeline" className="mt-4">
                     <AlertTimelineTab alertId={alert.id} />
+                  </TabsContent>
+                  <TabsContent value="root-cause" className="mt-4">
+                    <RootCauseAnalysisPanel
+                      analysis={rootCauseQuery.data?.data}
+                      isLoading={rootCauseQuery.isLoading || rootCauseQuery.isFetching}
+                      error={rootCauseQuery.error instanceof Error ? rootCauseQuery.error.message : null}
+                      onAnalyze={() => void rootCauseQuery.refetch()}
+                      analyzeLabel="Refresh Analysis"
+                      emptyTitle="Analyze the underlying attack path"
+                      emptyDescription="This view reconstructs the earliest correlated security event, the kill-chain progression, and the blast radius for this alert."
+                    />
                   </TabsContent>
                   <TabsContent value="remediation" className="mt-4">
                     <AlertRemediationTab alertId={alert.id} explanation={alert.explanation} />

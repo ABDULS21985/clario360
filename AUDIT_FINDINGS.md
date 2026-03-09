@@ -4,7 +4,7 @@ Date: 2026-03-09
 
 ## Scope
 
-This audit covered the canonical frontend contracts, shared frontend API clients, direct frontend call sites for workflows/settings/notifications/auth, gateway route registration, shared backend response writers, websocket upgrade paths, middleware error paths, startup defaults, PM2 local topology, smoke-test automation, and the external integration admin/runtime surface for Slack, Teams, Jira, ServiceNow, and generic webhooks.
+This audit covered the canonical frontend contracts, shared frontend API clients, direct frontend call sites for workflows/settings/notifications/auth, gateway route registration, shared backend response writers, websocket upgrade paths, middleware error paths, startup defaults, PM2 local topology, smoke-test automation, the external integration admin/runtime surface for Slack, Teams, Jira, ServiceNow, and generic webhooks, and the Prompt 59 closeout work for continuous DSPM, compliance tagging, and root-cause analysis.
 
 Primary source files reviewed during the audit included:
 
@@ -88,6 +88,9 @@ Verified gateway prefix ownership from `backend/internal/gateway/config/routes.g
 | 18 | Local OAuth readiness was opaque and runtime secrets were not surfaced clearly | PM2/startup config did not expose optional provider secrets consistently, and the integration admin surface could not tell operators which env vars were missing | `ecosystem.local.js`, `scripts/start.sh`, integration provider status API, admin integrations UI | Fixed |
 | 19 | Jira and ServiceNow inbound webhook verification was only partially live-verified and unknown links could bubble into noisy failures | Signed inbound handling compiled, but unknown external tickets were not explicitly treated as ignorable no-op events in the live runtime path | Jira webhook receiver, ServiceNow webhook receiver, smoke automation | Fixed |
 | 20 | Frontend production build regressed while expanding integration admin pages | App Router hook call sites across the repo still assumed non-null `usePathname`, `useSearchParams`, and related values; the build also lacked a minimal `_document` entry | Integration admin pages plus unrelated dashboard/auth pages sharing the same Next runtime assumptions | Fixed |
+| 21 | Continuous DSPM capabilities existed in backend packages but were not actually live in the service runtime | `cyber-service` was not wiring the continuous DSPM engine, shadow-copy route, or pipeline-event subscription, and DSPM dashboard/data-asset responses still exposed backend/frontend field drift | `cyber-service`, `data-service` pipeline events, cyber DSPM dashboard/page | Fixed |
+| 22 | Compliance-tag and shadow-copy data were not surfaced to users despite backend support | DSPM assets were returned without compliance-tag enrichment, the dashboard lacked shadow-copy access, and frontend DSPM types still assumed stale classification fields | DSPM service/handler layer, DSPM frontend table/dashboard | Fixed |
+| 23 | RCA existed in backend packages but had no reachable frontend workflow | `cyber-service` did not mount RCA routes, and the alert/pipeline detail pages had no root-cause UI even though the engine and analyzers already existed | RCA engine/handler, cyber alert detail page, data pipeline detail page | Fixed |
 
 ## Fixes Applied
 
@@ -153,6 +156,26 @@ Verified gateway prefix ownership from `backend/internal/gateway/config/routes.g
   via `.dev-secrets/*`, `scripts/start.sh`, and `ecosystem.local.js`.
 - Restored frontend production-build stability by adding `frontend/src/pages/_document.tsx` and sweeping the remaining nullable Next navigation-hook assumptions that the expanded admin surface exposed.
 
+### Continuous DSPM, compliance tagging, and RCA
+
+- Wired `cyber-service` to instantiate and start the continuous DSPM engine, subscribe it to `data.pipeline.events`, and expose the RCA HTTP routes behind the existing auth and tenant middleware.
+- Extended emitted data-pipeline lifecycle events so the continuous DSPM pipeline and transit watchers receive the source/target/table context they already expect.
+- Added a live `GET /api/v1/cyber/dspm/shadow-copies` surface and connected it to the existing backend shadow detector.
+- Enriched DSPM data-asset responses with compliance tags generated from the existing multi-framework compliance tagger, without mutating the canonical backend asset schema model.
+- Extended the DSPM dashboard aggregates to expose the posture metrics the frontend needs for encryption, access-control, and internet-exposure views.
+- Corrected the frontend DSPM types and dashboard rendering to the actual backend contract:
+  - `data_classification`
+  - `classification_breakdown`
+  - `pii_assets_count`
+  - `high_risk_assets_count`
+  - posture/exposure counts
+  - `metadata.compliance_tags`
+- Added a reusable root-cause analysis panel component and connected it to:
+  - cyber alert detail via `GET /api/v1/rca/security_alert/{incidentId}`
+  - data pipeline detail via `GET /api/v1/rca/pipeline_failure/{incidentId}`
+- Added a new root-cause tab to the alert and pipeline detail pages so the existing RCA engine is now represented in the frontend.
+- Added a new shadow-copy section to the DSPM page so the backend shadow-detection capability is visible in the dashboard instead of remaining backend-only.
+
 ### Startup and routing consistency
 
 - Verified gateway prefix coverage for onboarding, invitations, AI governance, notifications, files, workflows, and suite routes.
@@ -202,6 +225,24 @@ This appendix records the frontend API surface that was audited, grouped by the 
 | `frontend/src/app/(dashboard)/cyber/vciso/_components/chat-panel.tsx` | `GET /ws/v1/cyber/vciso/chat?token=...` upgrade | websocket upgrade with token auth | `cyber-service` via gateway |
 
 The inventory above covers the direct frontend endpoint definitions and the shared API wrappers that fan out into the dashboard pages. Dynamic entity-specific URLs were audited through those wrapper definitions and direct call sites.
+
+## Prompt 59 Files Changed
+
+- `backend/cmd/cyber-service/main.go`
+- `backend/internal/cyber/model/dspm.go`
+- `backend/internal/cyber/repository/dspm_repo.go`
+- `backend/internal/cyber/service/dspm_service.go`
+- `backend/internal/cyber/handler/handler_interfaces.go`
+- `backend/internal/cyber/handler/dspm_handler.go`
+- `backend/internal/cyber/handler/routes.go`
+- `backend/internal/data/pipeline/engine.go`
+- `frontend/src/lib/constants.ts`
+- `frontend/src/types/cyber.ts`
+- `frontend/src/components/cyber/root-cause-analysis-panel.tsx`
+- `frontend/src/app/(dashboard)/cyber/dspm/page.tsx`
+- `frontend/src/app/(dashboard)/cyber/dspm/_components/data-asset-columns.tsx`
+- `frontend/src/app/(dashboard)/cyber/alerts/[id]/page.tsx`
+- `frontend/src/app/(dashboard)/data/pipelines/[id]/page.tsx`
 
 ## Files Changed
 
@@ -306,6 +347,7 @@ Verified successfully:
 - `cd /Users/mac/clario360/backend && GOWORK=off go build ./...`
 - `cd /Users/mac/clario360/frontend && npm run build`
 - `cd /Users/mac/clario360/frontend && npm run type-check`
+- `cd /Users/mac/clario360/backend && GOWORK=off go test ./internal/cyber/dspm/compliance ./internal/cyber/dspm/shadow ./internal/rca`
 - `node -c /Users/mac/clario360/ecosystem.local.js`
 - `bash -n /Users/mac/clario360/scripts/smoke-test.sh`
 - `bash -n /Users/mac/clario360/scripts/start.sh`
@@ -325,12 +367,20 @@ Verified successfully:
   - `GET /api/v1/integrations/providers` -> `200 {"data":[...]}` with provider readiness and missing runtime config surfaced for Slack/Jira
   - `POST /api/v1/integrations/slack/oauth/session` -> canonical `503 {"error":...}` when local Slack OAuth secrets are absent
   - `POST /api/v1/integrations/jira/oauth/session` -> canonical `503 {"error":...}` when local Atlassian OAuth secrets are absent
+  - `GET /api/v1/cyber/dspm/shadow-copies` -> `200 {"data":{"matches":[],"summary":...}}`
 - Browser-style websocket probe through the live gateway returned `HTTP/1.1 101 Switching Protocols`
 - Production `next build` completed successfully without the previous standalone trace warning about `page_client-reference-manifest.js`
+- Additional Prompt 59 runtime verification:
+  - targeted sequential PM2 restarts for `iam-service`, `cyber-service`, and `data-service` restored live listener availability after the PM2-wide restart left those services between bootstrap and HTTP bind
+  - `GET http://localhost:8085/healthz` -> `200`
+  - `GET http://localhost:8086/healthz` -> `200`
+  - authenticated gateway probes confirm `0` seeded alerts and `0` seeded pipelines in the current local tenant, so live RCA route exercise was limited to route availability and frontend/runtime integration rather than a real incident replay
 
 ## Residual Risks / Follow-Up
 
 - No blocking runtime issues remain from this audit pass.
+- The local dev tenant currently has no seeded alerts or pipeline runs, so the new RCA UI and endpoints are live but were not exercised against a real incident graph in this pass.
+- A full `pm2 restart ecosystem.config.js --update-env` can still leave some Go services temporarily wedged before HTTP bind during local infra churn; sequential service restarts recovered the stack without source changes, so this appears to be an existing runtime/startup coordination issue rather than a Prompt 59 regression.
 - Real Slack and Jira workspace/project installs now have a working in-product bootstrap flow, but they still require operators to supply valid vendor credentials:
   - `NOTIF_SLACK_CLIENT_ID`
   - `NOTIF_SLACK_CLIENT_SECRET`

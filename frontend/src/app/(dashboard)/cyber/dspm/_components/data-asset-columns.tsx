@@ -45,10 +45,10 @@ export const dataAssetColumns: ColumnDef<DataAsset>[] = [
   },
   {
     id: 'classification',
-    accessorKey: 'classification',
+    accessorKey: 'data_classification',
     header: 'Classification',
     cell: ({ row }: { row: Row<DataAsset> }) => {
-      const cls = row.original.classification;
+      const cls = row.original.data_classification;
       const color = CLASSIFICATION_COLORS[cls] ?? 'bg-muted text-muted-foreground';
       return (
         <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium capitalize ${color}`}>
@@ -92,7 +92,7 @@ export const dataAssetColumns: ColumnDef<DataAsset>[] = [
     cell: ({ row }: { row: Row<DataAsset> }) => {
       const exp = row.original.network_exposure;
       if (!exp) return <span className="text-xs text-muted-foreground">—</span>;
-      const isInternet = exp === 'internet';
+      const isInternet = exp === 'internet_facing';
       return (
         <div className={`flex items-center gap-1 text-xs ${isInternet ? 'text-red-600' : 'text-muted-foreground'}`}>
           {isInternet && <Globe className="h-3.5 w-3.5" />}
@@ -110,9 +110,27 @@ export const dataAssetColumns: ColumnDef<DataAsset>[] = [
       return (
         <div className="flex flex-wrap gap-1">
           {types.slice(0, 2).map((t) => (
-            <Badge key={t} variant="outline" className="text-xs px-1.5 py-0">{t}</Badge>
+            <Badge key={t} variant="outline" className="text-xs px-1.5 py-0">{t.replace(/_/g, ' ')}</Badge>
           ))}
           {types.length > 2 && <Badge variant="outline" className="text-xs px-1.5 py-0">+{types.length - 2}</Badge>}
+        </div>
+      );
+    },
+  },
+  {
+    id: 'compliance',
+    header: 'Compliance',
+    cell: ({ row }: { row: Row<DataAsset> }) => {
+      const tags = row.original.metadata?.compliance_tags ?? [];
+      if (!tags.length) return <span className="text-xs text-muted-foreground">—</span>;
+      return (
+        <div className="flex flex-wrap gap-1">
+          {tags.slice(0, 2).map((tag) => (
+            <Badge key={`${tag.framework}-${tag.article}`} variant="outline" className="text-xs px-1.5 py-0">
+              {tag.framework.toUpperCase()} {tag.article}
+            </Badge>
+          ))}
+          {tags.length > 2 ? <Badge variant="outline" className="text-xs px-1.5 py-0">+{tags.length - 2}</Badge> : null}
         </div>
       );
     },
