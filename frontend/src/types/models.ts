@@ -231,17 +231,78 @@ export interface AuditLog {
   created_at: string;
 }
 
-export interface FileItem {
+export type FileStatus = 'pending' | 'processing' | 'available' | 'quarantined' | 'deleted';
+export type FileVirusScanStatus = 'pending' | 'scanning' | 'clean' | 'infected' | 'error' | 'skipped';
+export type FileLifecyclePolicy = 'standard' | 'temporary' | 'archive' | 'audit_retention';
+export type FileSuite = 'cyber' | 'data' | 'acta' | 'lex' | 'visus' | 'platform' | 'models';
+
+export interface FileRecord {
   id: string;
   tenant_id: string;
   name: string;
   original_name: string;
+  sanitized_name: string;
   content_type: string;
+  detected_content_type?: string;
   size: number;
-  status: 'pending' | 'processing' | 'available' | 'quarantined' | 'deleted';
+  size_bytes: number;
+  status: FileStatus;
+  checksum_sha256: string;
+  encrypted: boolean;
+  virus_scan_status: FileVirusScanStatus;
   uploaded_by: string;
+  suite: FileSuite;
+  entity_type?: string | null;
+  entity_id?: string | null;
+  tags: string[];
+  version_number: number;
+  is_public: boolean;
+  lifecycle_policy: FileLifecyclePolicy;
+  expires_at?: string | null;
   created_at: string;
   updated_at: string;
+}
+
+export interface FileItem extends FileRecord {}
+
+export interface FileAccessLogEntry {
+  id: string;
+  file_id: string;
+  tenant_id: string;
+  user_id: string;
+  action: string;
+  ip_address: string;
+  user_agent: string;
+  created_at: string;
+}
+
+export interface FileQuarantineEntry {
+  id: string;
+  file_id: string;
+  original_bucket: string;
+  original_key: string;
+  quarantine_bucket: string;
+  quarantine_key: string;
+  virus_name: string;
+  scanned_at: string;
+  quarantined_at: string;
+  resolved: boolean;
+  resolved_by?: string | null;
+  resolved_at?: string | null;
+  resolution_action?: 'deleted' | 'restored' | 'false_positive' | null;
+}
+
+export interface FileStorageStat {
+  tenant_id: string;
+  suite: string;
+  file_count: number;
+  total_bytes: number;
+}
+
+export interface FilePresignedDownload {
+  url: string;
+  method: string;
+  expires_at: string;
 }
 
 export interface Alert {

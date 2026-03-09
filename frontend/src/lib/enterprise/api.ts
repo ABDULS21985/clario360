@@ -1,6 +1,13 @@
 import api, { apiDelete, apiGet, apiPost, apiPut, apiUpload } from '@/lib/api';
 import { fetchSuiteData, fetchSuitePaginated } from '@/lib/suite-api';
 import type { PaginatedResponse } from '@/types/api';
+import type {
+  FileAccessLogEntry,
+  FilePresignedDownload,
+  FileQuarantineEntry,
+  FileRecord,
+  FileStorageStat,
+} from '@/types/models';
 import type { FetchParams } from '@/types/table';
 import type {
   AICreateVersionPayload,
@@ -82,11 +89,52 @@ export const enterpriseApi = {
     },
   },
   files: {
+    list: (params?: {
+      page?: number;
+      per_page?: number;
+      suite?: string;
+      entity_type?: string;
+      entity_id?: string;
+      uploaded_by?: string;
+      tag?: string;
+    }): Promise<PaginatedResponse<FileRecord>> =>
+      apiGet<PaginatedResponse<FileRecord>>('/api/v1/files', params),
+    get: (id: string): Promise<FileRecord> => apiGet<FileRecord>(`/api/v1/files/${id}`),
     upload: (
       file: File,
       fields: Record<string, string>,
       onProgress?: (progress: number) => void,
     ): Promise<FileUploadRecord> => apiUpload<FileUploadRecord>('/api/v1/files/upload', file, fields, onProgress),
+    delete: (id: string): Promise<{ status: string }> => apiDelete<{ status: string }>(`/api/v1/files/${id}`),
+    versions: (id: string): Promise<FileRecord[]> =>
+      apiGet<{ versions: FileRecord[] }>(`/api/v1/files/${id}/versions`).then((res) => res.versions),
+    accessLog: (
+      id: string,
+      params?: { page?: number; per_page?: number },
+    ): Promise<PaginatedResponse<FileAccessLogEntry>> =>
+      apiGet<PaginatedResponse<FileAccessLogEntry>>(`/api/v1/files/${id}/access-log`, params),
+    stats: (): Promise<FileStorageStat[]> =>
+      apiGet<{ storage_stats: FileStorageStat[] }>('/api/v1/files/stats').then((res) => res.storage_stats),
+    quarantine: (
+      params?: { page?: number; per_page?: number },
+    ): Promise<PaginatedResponse<FileQuarantineEntry>> =>
+      apiGet<PaginatedResponse<FileQuarantineEntry>>('/api/v1/files/quarantine', params),
+    resolveQuarantine: (
+      id: string,
+      action: 'deleted' | 'restored' | 'false_positive',
+    ): Promise<{ quarantine_id: string; action: string; resolved_by: string; status: string }> =>
+      apiPost<{ quarantine_id: string; action: string; resolved_by: string; status: string }>(
+        `/api/v1/files/quarantine/${id}/resolve`,
+        { action },
+      ),
+    rescan: (id: string): Promise<{ file_id: string; status: string }> =>
+      apiPost<{ file_id: string; status: string }>(`/api/v1/files/${id}/rescan`),
+    getPresignedDownload: (id: string): Promise<FilePresignedDownload> =>
+      apiGet<FilePresignedDownload>(`/api/v1/files/${id}/presigned`),
+    download: async (id: string): Promise<Blob> => {
+      const response = await api.get<Blob>(`/api/v1/files/${id}/download`, { responseType: 'blob' });
+      return response.data;
+    },
   },
   acta: {
     getDashboard: (): Promise<ActaDashboard> => fetchSuiteData('/api/v1/acta/dashboard'),
