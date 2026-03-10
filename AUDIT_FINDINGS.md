@@ -232,6 +232,7 @@ The inventory above covers the direct frontend endpoint definitions and the shar
 
 ## Prompt 59 Files Changed
 
+- `backend/cmd/prompt59-seeder/main.go`
 - `backend/cmd/cyber-service/main.go`
 - `backend/internal/cyber/model/dspm.go`
 - `backend/internal/cyber/dspm/shadow/comparator.go`
@@ -243,6 +244,8 @@ The inventory above covers the direct frontend endpoint definitions and the shar
 - `backend/internal/cyber/handler/routes.go`
 - `backend/internal/rca/handler.go`
 - `backend/internal/rca/impact.go`
+- `backend/internal/rca/pipeline_failure_analyzer.go`
+- `backend/internal/rca/quality_issue_analyzer.go`
 - `backend/internal/data/pipeline/engine.go`
 - `backend/internal/gateway/config/routes.go`
 - `frontend/src/lib/constants.ts`
@@ -388,12 +391,19 @@ Verified successfully:
   - `GET http://localhost:8086/healthz` -> `200`
   - `pm2 restart clario360-cyber-service --update-env`
   - `pm2 restart clario360-api-gateway --update-env`
-  - authenticated gateway probes confirm `0` seeded alerts and `0` seeded pipelines in the current local tenant, so live RCA route exercise was limited to route availability and frontend/runtime integration rather than a real incident replay
+  - `cd /Users/mac/clario360/backend && GOWORK=off go run ./cmd/prompt59-seeder`
+    - seeded security RCA alert: `40000000-0000-0000-0000-000000000003`
+    - seeded upstream pipeline run: `30000000-0000-0000-0000-000000000001`
+    - seeded downstream pipeline run: `30000000-0000-0000-0000-000000000002`
+    - seeded exact-match shadow sources: `10000000-0000-0000-0000-000000000002` and `10000000-0000-0000-0000-000000000004`
+  - authenticated gateway probes confirm seeded live incident data now exercises the Prompt 59 flows:
+    - `GET /api/v1/cyber/dspm/shadow-copies` -> `200` with `1` exact structural shadow-copy match and `has_lineage=false`
+    - `GET /api/v1/rca/security_alert/40000000-0000-0000-0000-000000000003` -> `200` with a `7`-step causal chain rooted at `T1190` initial access plus populated impact assessment
+    - `GET /api/v1/rca/pipeline_failure/30000000-0000-0000-0000-000000000002` -> `200` with upstream root cause `30000000-0000-0000-0000-000000000001`
 
 ## Residual Risks / Follow-Up
 
 - No blocking runtime issues remain from this audit pass.
-- The local dev tenant currently has no seeded alerts or pipeline runs, so the new RCA UI and endpoints are live but were not exercised against a real incident graph in this pass.
 - A full `pm2 restart ecosystem.config.js --update-env` can still leave some Go services temporarily wedged before HTTP bind during local infra churn; sequential service restarts recovered the stack without source changes, so this appears to be an existing runtime/startup coordination issue rather than a Prompt 59 regression.
 - Real Slack and Jira workspace/project installs now have a working in-product bootstrap flow, but they still require operators to supply valid vendor credentials:
   - `NOTIF_SLACK_CLIENT_ID`

@@ -170,9 +170,17 @@ func (d *Detector) checkLineageExists(ctx context.Context, tenantID uuid.UUID, s
 	if d.dataDB == nil {
 		return false
 	}
+	sourceUUID, err := uuid.Parse(sourceID)
+	if err != nil {
+		return false
+	}
+	targetUUID, err := uuid.Parse(targetID)
+	if err != nil {
+		return false
+	}
 
 	var count int
-	err := d.dataDB.QueryRow(ctx, `
+	err = d.dataDB.QueryRow(ctx, `
 		SELECT COUNT(*) FROM data_lineage_edges
 		WHERE tenant_id = $1
 		  AND active = true
@@ -180,7 +188,7 @@ func (d *Detector) checkLineageExists(ctx context.Context, tenantID uuid.UUID, s
 		    (source_id = $2 AND target_id = $3)
 		    OR (source_id = $3 AND target_id = $2)
 		  )
-	`, tenantID, sourceID, targetID).Scan(&count)
+	`, tenantID, sourceUUID, targetUUID).Scan(&count)
 	if err != nil {
 		d.logger.Debug().Err(err).Msg("lineage check failed, assuming no lineage")
 		return false

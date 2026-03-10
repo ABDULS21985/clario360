@@ -14,6 +14,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/clario360/platform/internal/auth"
+	"github.com/clario360/platform/internal/cyber/dspm/shadow"
 	"github.com/clario360/platform/internal/cyber/dto"
 	"github.com/clario360/platform/internal/cyber/model"
 	"github.com/clario360/platform/internal/cyber/repository"
@@ -32,6 +33,7 @@ type mockDSPMService struct {
 	exposureAnalysisFn      func(ctx context.Context, tenantID uuid.UUID) (*model.DSPMExposureAnalysis, error)
 	dependenciesFn          func(ctx context.Context, tenantID uuid.UUID) ([]model.DSPMDependencyNode, error)
 	dashboardFn             func(ctx context.Context, tenantID uuid.UUID) (*model.DSPMDashboard, error)
+	detectShadowCopiesFn    func(ctx context.Context, tenantID uuid.UUID) (*shadow.DetectionResult, error)
 }
 
 func (m *mockDSPMService) ListDataAssets(ctx context.Context, tenantID uuid.UUID, params *dto.DSPMAssetListParams) (*dto.DSPMAssetListResponse, error) {
@@ -93,6 +95,13 @@ func (m *mockDSPMService) Dependencies(ctx context.Context, tenantID uuid.UUID) 
 func (m *mockDSPMService) Dashboard(ctx context.Context, tenantID uuid.UUID) (*model.DSPMDashboard, error) {
 	if m.dashboardFn != nil {
 		return m.dashboardFn(ctx, tenantID)
+	}
+	return nil, nil
+}
+
+func (m *mockDSPMService) DetectShadowCopies(ctx context.Context, tenantID uuid.UUID) (*shadow.DetectionResult, error) {
+	if m.detectShadowCopiesFn != nil {
+		return m.detectShadowCopiesFn(ctx, tenantID)
 	}
 	return nil, nil
 }

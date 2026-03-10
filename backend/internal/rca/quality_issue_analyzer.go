@@ -174,10 +174,10 @@ func (a *QualityIssueAnalyzer) traceUpstream(ctx context.Context, tenantID uuid.
 		FROM data_lineage_edges le
 		JOIN quality_results qr ON qr.source_id = le.source_id::uuid AND qr.tenant_id = le.tenant_id
 		WHERE le.tenant_id = $1
-		  AND le.target_id = $2::text
+		  AND le.target_id = $2
 		  AND le.active = true
 		  AND qr.status = 'failed'
-		  AND qr.created_at >= $3 - INTERVAL '24 hours'
+		  AND qr.created_at >= ($3::timestamptz - INTERVAL '24 hours')
 		ORDER BY qr.created_at DESC
 		LIMIT 5
 	`, tenantID, sourceID, detectedAt)
@@ -217,7 +217,7 @@ func (a *QualityIssueAnalyzer) checkSchemaChange(ctx context.Context, tenantID u
 	err := a.dataDB.QueryRow(ctx, `
 		SELECT COUNT(*) FROM schema_change_log
 		WHERE tenant_id = $1 AND source_id = $2
-		  AND detected_at >= $3 - INTERVAL '7 days'
+		  AND detected_at >= ($3::timestamptz - INTERVAL '7 days')
 	`, tenantID, sourceID, detectedAt).Scan(&count)
 	if err != nil {
 		return false

@@ -233,11 +233,11 @@ func (a *PipelineFailureAnalyzer) walkUpstream(ctx context.Context, tenantID, pi
 		JOIN pipelines p ON p.id = le.source_id::uuid AND p.tenant_id = le.tenant_id
 		JOIN pipeline_runs r ON r.pipeline_id = p.id AND r.tenant_id = p.tenant_id
 		WHERE le.tenant_id = $1
-		  AND le.target_id = $2::text
+		  AND le.target_id = $2
 		  AND le.active = true
 		  AND r.status = 'failed'
-		  AND r.created_at >= $3 - INTERVAL '24 hours'
-		  AND r.created_at <= $3
+		  AND r.created_at >= ($3::timestamptz - INTERVAL '24 hours')
+		  AND r.created_at <= $3::timestamptz
 		ORDER BY r.created_at DESC
 		LIMIT 5
 	`, tenantID, pipelineID, failTime)
@@ -295,7 +295,7 @@ func (a *PipelineFailureAnalyzer) checkSchemaChanges(ctx context.Context, tenant
 	err := a.dataDB.QueryRow(ctx, `
 		SELECT COUNT(*) FROM schema_change_log
 		WHERE tenant_id = $1 AND source_id = $2
-		  AND detected_at >= $3 - INTERVAL '7 days'
+		  AND detected_at >= ($3::timestamptz - INTERVAL '7 days')
 	`, tenantID, *run.sourceID, run.failedAt).Scan(&changeCount)
 	if err != nil || changeCount == 0 {
 		return nil
