@@ -229,7 +229,7 @@ func (a *PipelineFailureAnalyzer) walkUpstream(ctx context.Context, tenantID, pi
 
 	rows, err := a.dataDB.Query(ctx, `
 		SELECT DISTINCT p.id, p.name, r.id, r.status::text, r.error_message, r.created_at
-		FROM lineage_edges le
+		FROM data_lineage_edges le
 		JOIN pipelines p ON p.id = le.source_id::uuid AND p.tenant_id = le.tenant_id
 		JOIN pipeline_runs r ON r.pipeline_id = p.id AND r.tenant_id = p.tenant_id
 		WHERE le.tenant_id = $1

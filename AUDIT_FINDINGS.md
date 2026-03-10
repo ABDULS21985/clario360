@@ -1,6 +1,6 @@
 # Clario360 Audit Findings
 
-Date: 2026-03-09
+Date: 2026-03-10
 
 ## Scope
 
@@ -54,6 +54,7 @@ Verified gateway prefix ownership from `backend/internal/gateway/config/routes.g
 | `/api/v1/workflows` | `workflow-engine` |
 | `/api/v1/audit` | `audit-service` |
 | `/api/v1/cyber` | `cyber-service` |
+| `/api/v1/rca` | `cyber-service` |
 | `/api/v1/data` | `data-service` |
 | `/api/v1/acta` | `acta-service` |
 | `/api/v1/lex` | `lex-service` |
@@ -161,8 +162,11 @@ Verified gateway prefix ownership from `backend/internal/gateway/config/routes.g
 - Wired `cyber-service` to instantiate and start the continuous DSPM engine, subscribe it to `data.pipeline.events`, and expose the RCA HTTP routes behind the existing auth and tenant middleware.
 - Extended emitted data-pipeline lifecycle events so the continuous DSPM pipeline and transit watchers receive the source/target/table context they already expect.
 - Added a live `GET /api/v1/cyber/dspm/shadow-copies` surface and connected it to the existing backend shadow detector.
+- Fixed the shadow detector’s live SQL/schema assumptions (`name` vs `asset_name`) and switched it to unique-pair comparison so it no longer fails or double-compares mirrored table matches.
 - Enriched DSPM data-asset responses with compliance tags generated from the existing multi-framework compliance tagger, without mutating the canonical backend asset schema model.
 - Extended the DSPM dashboard aggregates to expose the posture metrics the frontend needs for encryption, access-control, and internet-exposure views.
+- Fixed RCA data-risk lookups to use the actual DSPM schema and normalized missing-incident RCA responses to `404 NOT_FOUND` instead of leaking backend `500` errors.
+- Added `/api/v1/rca` to the gateway route registry so the new frontend root-cause workflows are reachable through the public API path instead of only inside `cyber-service`.
 - Corrected the frontend DSPM types and dashboard rendering to the actual backend contract:
   - `data_classification`
   - `classification_breakdown`
@@ -230,12 +234,17 @@ The inventory above covers the direct frontend endpoint definitions and the shar
 
 - `backend/cmd/cyber-service/main.go`
 - `backend/internal/cyber/model/dspm.go`
+- `backend/internal/cyber/dspm/shadow/comparator.go`
+- `backend/internal/cyber/dspm/shadow/detector.go`
 - `backend/internal/cyber/repository/dspm_repo.go`
 - `backend/internal/cyber/service/dspm_service.go`
 - `backend/internal/cyber/handler/handler_interfaces.go`
 - `backend/internal/cyber/handler/dspm_handler.go`
 - `backend/internal/cyber/handler/routes.go`
+- `backend/internal/rca/handler.go`
+- `backend/internal/rca/impact.go`
 - `backend/internal/data/pipeline/engine.go`
+- `backend/internal/gateway/config/routes.go`
 - `frontend/src/lib/constants.ts`
 - `frontend/src/types/cyber.ts`
 - `frontend/src/components/cyber/root-cause-analysis-panel.tsx`
@@ -348,6 +357,7 @@ Verified successfully:
 - `cd /Users/mac/clario360/frontend && npm run build`
 - `cd /Users/mac/clario360/frontend && npm run type-check`
 - `cd /Users/mac/clario360/backend && GOWORK=off go test ./internal/cyber/dspm/compliance ./internal/cyber/dspm/shadow ./internal/rca`
+- `cd /Users/mac/clario360/backend && GOWORK=off go test ./internal/rca`
 - `node -c /Users/mac/clario360/ecosystem.local.js`
 - `bash -n /Users/mac/clario360/scripts/smoke-test.sh`
 - `bash -n /Users/mac/clario360/scripts/start.sh`
@@ -367,13 +377,17 @@ Verified successfully:
   - `GET /api/v1/integrations/providers` -> `200 {"data":[...]}` with provider readiness and missing runtime config surfaced for Slack/Jira
   - `POST /api/v1/integrations/slack/oauth/session` -> canonical `503 {"error":...}` when local Slack OAuth secrets are absent
   - `POST /api/v1/integrations/jira/oauth/session` -> canonical `503 {"error":...}` when local Atlassian OAuth secrets are absent
-  - `GET /api/v1/cyber/dspm/shadow-copies` -> `200 {"data":{"matches":[],"summary":...}}`
+  - `GET /api/v1/cyber/dspm/shadow-copies` -> `200 {"data":{"matches":[],"sources_count":0,"tables_count":0,...}}`
+  - `GET /api/v1/rca/security_alert/00000000-0000-0000-0000-000000000001` -> canonical `404 {"error":{"code":"NOT_FOUND","message":"Incident not found"}}`
+  - `POST /api/v1/rca/analyze` for a nonexistent security alert -> canonical `404 {"error":{"code":"NOT_FOUND","message":"Incident not found"}}`
 - Browser-style websocket probe through the live gateway returned `HTTP/1.1 101 Switching Protocols`
 - Production `next build` completed successfully without the previous standalone trace warning about `page_client-reference-manifest.js`
 - Additional Prompt 59 runtime verification:
   - targeted sequential PM2 restarts for `iam-service`, `cyber-service`, and `data-service` restored live listener availability after the PM2-wide restart left those services between bootstrap and HTTP bind
   - `GET http://localhost:8085/healthz` -> `200`
   - `GET http://localhost:8086/healthz` -> `200`
+  - `pm2 restart clario360-cyber-service --update-env`
+  - `pm2 restart clario360-api-gateway --update-env`
   - authenticated gateway probes confirm `0` seeded alerts and `0` seeded pipelines in the current local tenant, so live RCA route exercise was limited to route availability and frontend/runtime integration rather than a real incident replay
 
 ## Residual Risks / Follow-Up

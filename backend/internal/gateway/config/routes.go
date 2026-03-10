@@ -71,6 +71,7 @@ func DefaultRoutes() []RouteConfig {
 
 		// Cybersecurity Suite
 		{Prefix: "/api/v1/cyber", Service: "cyber-service", Public: false, EndpointGroup: EndpointGroupWrite},
+		{Prefix: "/api/v1/rca", Service: "cyber-service", Public: false, EndpointGroup: EndpointGroupWrite},
 
 		// Data Suite
 		{Prefix: "/api/v1/data", Service: "data-service", Public: false, EndpointGroup: EndpointGroupWrite},

@@ -75,7 +75,7 @@ func (d *Detector) Detect(ctx context.Context, tenantID uuid.UUID) (*DetectionRe
 		allFingerprints = append(allFingerprints, fps...)
 	}
 
-	matches := CompareFingerprints(allFingerprints, allFingerprints, 0.8)
+	matches := CompareUniqueFingerprints(allFingerprints, 0.8)
 
 	// Step 3: Check lineage for each match
 	var shadowMatches []ShadowMatch
@@ -129,7 +129,7 @@ func (d *Detector) Detect(ctx context.Context, tenantID uuid.UUID) (*DetectionRe
 // loadAssetFingerprints loads schema info from DSPM data assets and computes fingerprints.
 func (d *Detector) loadAssetFingerprints(ctx context.Context, tenantID uuid.UUID) (map[string][]TableFingerprint, error) {
 	rows, err := d.cyberDB.Query(ctx, `
-		SELECT asset_id, asset_name, schema_info
+		SELECT COALESCE(asset_id, id) AS source_id, name, schema_info
 		FROM dspm_data_assets
 		WHERE tenant_id = $1 AND schema_info IS NOT NULL AND schema_info != '{}'::jsonb
 	`, tenantID)
@@ -173,7 +173,7 @@ func (d *Detector) checkLineageExists(ctx context.Context, tenantID uuid.UUID, s
 
 	var count int
 	err := d.dataDB.QueryRow(ctx, `
-		SELECT COUNT(*) FROM lineage_edges
+		SELECT COUNT(*) FROM data_lineage_edges
 		WHERE tenant_id = $1
 		  AND active = true
 		  AND (

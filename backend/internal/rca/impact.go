@@ -26,10 +26,10 @@ func NewImpactAssessor(cyberDB *pgxpool.Pool, logger zerolog.Logger) *ImpactAsse
 func (ia *ImpactAssessor) AssessForAlert(ctx context.Context, tenantID uuid.UUID, assetIDs []uuid.UUID) (*ImpactAssessment, error) {
 	if len(assetIDs) == 0 {
 		return &ImpactAssessment{
-			DirectAssets:    []AffectedAsset{},
+			DirectAssets:     []AffectedAsset{},
 			TransitiveAssets: []AffectedAsset{},
-			DataAtRisk:      []DataRisk{},
-			Summary:         "No assets directly affected.",
+			DataAtRisk:       []DataRisk{},
+			Summary:          "No assets directly affected.",
 		}, nil
 	}
 
@@ -60,13 +60,13 @@ func (ia *ImpactAssessor) AssessForAlert(ctx context.Context, tenantID uuid.UUID
 	businessImpact := assessBusinessImpact(directAssets, transitiveAssets, dataAtRisk)
 
 	return &ImpactAssessment{
-		DirectAssets:    directAssets,
+		DirectAssets:     directAssets,
 		TransitiveAssets: transitiveAssets,
-		TotalAffected:   total,
-		DataAtRisk:      dataAtRisk,
-		UsersAtRisk:     usersAtRisk,
-		BusinessImpact:  businessImpact,
-		Summary:         buildImpactSummary(total, usersAtRisk, len(dataAtRisk), businessImpact),
+		TotalAffected:    total,
+		DataAtRisk:       dataAtRisk,
+		UsersAtRisk:      usersAtRisk,
+		BusinessImpact:   businessImpact,
+		Summary:          buildImpactSummary(total, usersAtRisk, len(dataAtRisk), businessImpact),
 	}, nil
 }
 
@@ -139,7 +139,7 @@ func (ia *ImpactAssessor) loadDataRisk(ctx context.Context, tenantID uuid.UUID, 
 	}
 
 	rows, err := ia.cyberDB.Query(ctx, `
-		SELECT asset_id, asset_name, data_classification, contains_pii, pii_types
+		SELECT asset_id, name AS asset_name, data_classification, contains_pii, pii_types
 		FROM dspm_data_assets
 		WHERE tenant_id = $1 AND asset_id = ANY($2)
 	`, tenantID, assetIDs)
@@ -212,4 +212,3 @@ func buildImpactSummary(totalAffected, usersAtRisk, dataRiskCount int, businessI
 		itoa(dataRiskCount) + " data classification records at risk. " +
 		"Business impact: " + businessImpact + "."
 }
-

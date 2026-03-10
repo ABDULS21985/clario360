@@ -2,10 +2,12 @@ package rca
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/rs/zerolog"
 
 	"github.com/clario360/platform/internal/auth"
@@ -59,6 +61,10 @@ func (h *Handler) Analyze(w http.ResponseWriter, r *http.Request) {
 
 	result, err := h.engine.Analyze(r.Context(), tenantID, req)
 	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			h.writeError(w, http.StatusNotFound, "NOT_FOUND", "Incident not found")
+			return
+		}
 		h.logger.Error().Err(err).Msg("RCA failed")
 		h.writeError(w, http.StatusInternalServerError, "RCA_FAILED", "Root cause analysis failed: "+err.Error())
 		return
@@ -84,6 +90,10 @@ func (h *Handler) GetResult(w http.ResponseWriter, r *http.Request) {
 
 	result, err := h.engine.GetCachedResult(r.Context(), tenantID, analysisType, incidentID)
 	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			h.writeError(w, http.StatusNotFound, "NOT_FOUND", "Incident not found")
+			return
+		}
 		h.writeError(w, http.StatusInternalServerError, "RCA_FAILED", err.Error())
 		return
 	}
@@ -108,6 +118,10 @@ func (h *Handler) GetTimeline(w http.ResponseWriter, r *http.Request) {
 
 	timeline, err := h.engine.GetTimeline(r.Context(), tenantID, analysisType, incidentID)
 	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			h.writeError(w, http.StatusNotFound, "NOT_FOUND", "Incident not found")
+			return
+		}
 		h.writeError(w, http.StatusInternalServerError, "TIMELINE_FAILED", err.Error())
 		return
 	}

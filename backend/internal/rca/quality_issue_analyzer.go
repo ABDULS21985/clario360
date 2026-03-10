@@ -171,7 +171,7 @@ func (a *QualityIssueAnalyzer) loadQualityIssue(ctx context.Context, tenantID, i
 func (a *QualityIssueAnalyzer) traceUpstream(ctx context.Context, tenantID uuid.UUID, sourceID uuid.UUID, detectedAt time.Time, startOrder int) []CausalStep {
 	rows, err := a.dataDB.Query(ctx, `
 		SELECT le.source_id, le.source_name, qr.id, qr.rule_name, qr.created_at
-		FROM lineage_edges le
+		FROM data_lineage_edges le
 		JOIN quality_results qr ON qr.source_id = le.source_id::uuid AND qr.tenant_id = le.tenant_id
 		WHERE le.tenant_id = $1
 		  AND le.target_id = $2::text

@@ -14,6 +14,26 @@ type MatchResult struct {
 	Similarity        float64 // 0.0-1.0
 }
 
+// CompareUniqueFingerprints finds matching tables across a single fingerprint set without
+// emitting mirrored duplicates. Each pair is compared once.
+func CompareUniqueFingerprints(fingerprints []TableFingerprint, threshold float64) []MatchResult {
+	var matches []MatchResult
+
+	for i := 0; i < len(fingerprints); i++ {
+		for j := i + 1; j < len(fingerprints); j++ {
+			if match, ok := compareFingerprintPair(fingerprints[i], fingerprints[j], threshold); ok {
+				matches = append(matches, match)
+			}
+		}
+	}
+
+	sort.Slice(matches, func(i, j int) bool {
+		return matches[i].Similarity > matches[j].Similarity
+	})
+
+	return matches
+}
+
 // CompareFingerprints finds matching tables across two sets of fingerprints.
 // Returns matches above the similarity threshold.
 func CompareFingerprints(source, target []TableFingerprint, threshold float64) []MatchResult {
@@ -21,47 +41,8 @@ func CompareFingerprints(source, target []TableFingerprint, threshold float64) [
 
 	for _, s := range source {
 		for _, t := range target {
-			// Skip if same source
-			if s.SourceID == t.SourceID && s.SourceID != "" {
-				continue
-			}
-
-			// Exact fingerprint match
-			if s.Hash != "" && s.Hash == t.Hash {
-				matches = append(matches, MatchResult{
-					SourceFingerprint: s,
-					TargetFingerprint: t,
-					MatchType:         "exact",
-					Similarity:        1.0,
-				})
-				continue
-			}
-
-			// Structural similarity: same column count + high column overlap
-			if len(s.Columns) > 0 && len(t.Columns) > 0 {
-				colSimilarity := columnSimilarity(s.Columns, t.Columns)
-				if colSimilarity >= threshold {
-					matches = append(matches, MatchResult{
-						SourceFingerprint: s,
-						TargetFingerprint: t,
-						MatchType:         "structural",
-						Similarity:        colSimilarity,
-					})
-					continue
-				}
-			}
-
-			// Name similarity with matching column count
-			if nameSimilar(s.TableName, t.TableName) && abs(len(s.Columns)-len(t.Columns)) <= 1 {
-				nameSim := nameEditDistanceSimilarity(s.TableName, t.TableName)
-				if nameSim >= threshold {
-					matches = append(matches, MatchResult{
-						SourceFingerprint: s,
-						TargetFingerprint: t,
-						MatchType:         "name_similar",
-						Similarity:        nameSim,
-					})
-				}
+			if match, ok := compareFingerprintPair(s, t, threshold); ok {
+				matches = append(matches, match)
 			}
 		}
 	}
@@ -72,6 +53,51 @@ func CompareFingerprints(source, target []TableFingerprint, threshold float64) [
 	})
 
 	return matches
+}
+
+func compareFingerprintPair(source, target TableFingerprint, threshold float64) (MatchResult, bool) {
+	// Skip if same source
+	if source.SourceID == target.SourceID && source.SourceID != "" {
+		return MatchResult{}, false
+	}
+
+	// Exact fingerprint match
+	if source.Hash != "" && source.Hash == target.Hash {
+		return MatchResult{
+			SourceFingerprint: source,
+			TargetFingerprint: target,
+			MatchType:         "exact",
+			Similarity:        1.0,
+		}, true
+	}
+
+	// Structural similarity: same column count + high column overlap
+	if len(source.Columns) > 0 && len(target.Columns) > 0 {
+		colSimilarity := columnSimilarity(source.Columns, target.Columns)
+		if colSimilarity >= threshold {
+			return MatchResult{
+				SourceFingerprint: source,
+				TargetFingerprint: target,
+				MatchType:         "structural",
+				Similarity:        colSimilarity,
+			}, true
+		}
+	}
+
+	// Name similarity with matching column count
+	if nameSimilar(source.TableName, target.TableName) && abs(len(source.Columns)-len(target.Columns)) <= 1 {
+		nameSim := nameEditDistanceSimilarity(source.TableName, target.TableName)
+		if nameSim >= threshold {
+			return MatchResult{
+				SourceFingerprint: source,
+				TargetFingerprint: target,
+				MatchType:         "name_similar",
+				Similarity:        nameSim,
+			}, true
+		}
+	}
+
+	return MatchResult{}, false
 }
 
 // columnSimilarity computes the Jaccard similarity of column sets.
