@@ -1,6 +1,6 @@
 # Frontend / Backend Feature Parity Report
 
-_Last reviewed: 8 March 2026_
+_Last reviewed: 12 March 2026_
 
 ## Summary
 
@@ -11,7 +11,8 @@ This report compares the user-facing feature surface implemented in the backend 
 - The frontend is **not yet at full parity** with the backend.
 - The previous draft undercounted the platform services; this revision now includes **IAM/Auth**, **Audit**, **Workflow**, **Notification**, and **File Service** alongside the main suites.
 - **Cyber**, **Data**, and **Acta** have the strongest end-user workflow coverage among the domain suites.
-- **Lex**, **Visus**, **Audit**, **File Service**, and parts of **AI Governance administration** still have substantial backend-ready capabilities that are not fully surfaced in the UI.
+- **Visus**, **Audit**, **File Service**, and parts of **AI Governance administration** still have substantial backend-ready capabilities that are not fully surfaced in the UI.
+- **Lex** has improved materially on the contract lifecycle path, but document administration and compliance-management tooling still trail the backend.
 - Some items that initially looked missing are already wired in the frontend, especially **audit chain verification**, **notification read/delete actions**, and several **workflow task actions**.
 
 ## Method
@@ -53,7 +54,7 @@ The earlier report missed several already-implemented frontend flows. Verified e
 | Notification | Medium | Medium | Partial | Listing, unread count, preferences save, mark-read, mark-all-read, and delete exist; webhook/admin observability gaps remain. |
 | File Service | Medium | Low | Partial / Weak | Listing and upload are present, but most lifecycle, download, metadata, and admin functions are missing. |
 | Acta | High | High | Partial / Strong | Most major meeting-management flows are surfaced; some lifecycle and CRUD edges are still missing. |
-| Lex | High | Medium | Partial / Weak | Backend analysis and compliance capabilities exceed current UI coverage. |
+| Lex | High | Medium-High | Partial | Core contract lifecycle, analysis, and review flows are now wired; document and compliance administration still lag. |
 | Cyber | Very High | High | Partial / Strong | Many operational views exist, but not every backend action is surfaced. |
 | Data | Very High | High | Partial / Strong | Large and broad frontend exists, but backend surface is larger still. |
 | Visus | High | Medium | Partial / Weak | Read/report views exist, but authoring and executive endpoints are underrepresented. |
@@ -207,29 +208,24 @@ The earlier report missed several already-implemented frontend flows. Verified e
 
 - Overview page
 - Contracts list and detail page
+- Contract create, edit, and delete flows
+- Contract analysis trigger, compliance run trigger, status change, renewal, and review-workflow start
+- Contract version history UI and upload-new-version flow
+- Clause review action from contract detail
 - Documents list page
 - Compliance page and dashboard widgets
 - Search support via command palette
 
 **Not clearly surfaced in frontend**
 
-- Contract create / edit / delete flows
-- Upload document to contract flow
-- Analyze contract flow
-- Contract version history UI
-- Renew contract flow
-- Start review flow
-- Clause risk summary detail UI
-- Clause review workflow
 - Document create / edit / delete / version upload flows
 - Compliance rule create / update / delete flows
-- Compliance run trigger
 - Alert status update flow
 - Workflow listing UI tied to Lex backend
 
 **Assessment**
 
-- Lex has the **largest frontend parity gap** relative to its backend capabilities.
+- Lex remains **partial**, but the highest-value contract lifecycle path is now substantially closer to parity; the remaining gaps are concentrated in document administration, compliance rule management, alert operations, and workflow-listing views.
 
 ### Cyber
 
