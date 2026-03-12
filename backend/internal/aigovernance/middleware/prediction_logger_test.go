@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"context"
+	"errors"
 	"sort"
 	"testing"
 	"time"
@@ -103,6 +104,24 @@ func TestPredictCachedVersion(t *testing.T) {
 		if _, err := logger.Predict(context.Background(), predictParams(tenantID, nil)); err != nil {
 			t.Fatalf("Predict() iteration %d error = %v", i+1, err)
 		}
+	}
+}
+
+func TestPredictMarksVersionLookupFailuresAsGovernanceUnavailable(t *testing.T) {
+	tenantID := uuid.New()
+	logger := &PredictionLogger{
+		predictionCh:   make(chan *aigovmodel.PredictionLog, 1),
+		shadowCh:       make(chan *aishadow.ExecutionTask, 1),
+		explanationSvc: aigovservice.NewExplanationService(zerolog.Nop()),
+		logger:         zerolog.Nop(),
+	}
+
+	_, err := logger.Predict(context.Background(), predictParams(tenantID, nil))
+	if err == nil {
+		t.Fatal("expected Predict() to fail when model registry is unavailable")
+	}
+	if !errors.Is(err, ErrGovernanceUnavailable) {
+		t.Fatalf("Predict() error = %v, want governance unavailable classification", err)
 	}
 }
 

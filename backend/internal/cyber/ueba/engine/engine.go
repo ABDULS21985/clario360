@@ -38,18 +38,23 @@ type CyberAlertCreator interface {
 	Create(ctx context.Context, alert *cybermodel.Alert) (*cybermodel.Alert, error)
 }
 
+type governedPredictor interface {
+	Predict(ctx context.Context, params aigovernance.PredictParams) (*aigovernance.PredictionResult, error)
+}
+
 type UEBAEngine struct {
 	collector   *collector.AccessEventCollector
 	profileRepo *uebarepo.ProfileRepository
 	eventRepo   *uebarepo.EventRepository
 	alertRepo   *uebarepo.AlertRepository
 	cyberAlerts CyberAlertCreator
-	predLogger  *aigovmiddleware.PredictionLogger
+	predLogger  governedPredictor
 	producer    *events.Producer
 	configStore *ConfigStore
 	redis       *redis.Client
 	metrics     *UEBAMetrics
 	logger      zerolog.Logger
+	runCycle    func(ctx context.Context, tenantID uuid.UUID, cfg UEBAConfig) (*cycleResult, error)
 
 	mu         sync.RWMutex
 	profiler   *profiler.BehavioralProfiler
@@ -103,6 +108,7 @@ func NewEngine(
 		metrics:     metrics,
 		logger:      logger.With().Str("component", "ueba-engine").Logger(),
 	}
+	engine.runCycle = engine.processCycle
 	engine.applyConfig(configStore.Snapshot())
 	return engine
 }
@@ -192,7 +198,7 @@ func (e *UEBAEngine) ProcessCycle(ctx context.Context, tenantID uuid.UUID) error
 
 func (e *UEBAEngine) runGovernedCycle(ctx context.Context, tenantID uuid.UUID, cfg UEBAConfig) (*cycleResult, error) {
 	if e.predLogger == nil {
-		return e.processCycle(ctx, tenantID, cfg)
+		return e.runCycle(ctx, tenantID, cfg)
 	}
 	result, err := e.predLogger.Predict(ctx, aigovernance.PredictParams{
 		TenantID:   tenantID,
@@ -221,7 +227,7 @@ func (e *UEBAEngine) runGovernedCycle(ctx context.Context, tenantID uuid.UUID, c
 			"max_events_per_cycle":     cfg.MaxEventsPerCycle,
 		},
 		ModelFunc: func(ctx context.Context, _ any) (*aigovernance.ModelOutput, error) {
-			outcome, err := e.processCycle(ctx, tenantID, cfg)
+			outcome, err := e.runCycle(ctx, tenantID, cfg)
 			if err != nil {
 				return nil, err
 			}
@@ -241,6 +247,13 @@ func (e *UEBAEngine) runGovernedCycle(ctx context.Context, tenantID uuid.UUID, c
 		},
 	})
 	if err != nil {
+		if errors.Is(err, aigovmiddleware.ErrGovernanceUnavailable) {
+			e.logger.Warn().
+				Err(err).
+				Str("tenant_id", tenantID.String()).
+				Msg("ai governance unavailable, continuing ueba cycle without prediction logging")
+			return e.runCycle(ctx, tenantID, cfg)
+		}
 		return nil, err
 	}
 

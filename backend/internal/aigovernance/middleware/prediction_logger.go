@@ -3,6 +3,7 @@ package middleware
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"sync"
@@ -22,6 +23,25 @@ import (
 type cacheEntry struct {
 	version   *aigovmodel.ModelVersion
 	expiresAt time.Time
+}
+
+var ErrGovernanceUnavailable = errors.New("ai governance unavailable")
+
+type governanceUnavailableError struct {
+	operation string
+	err       error
+}
+
+func (e *governanceUnavailableError) Error() string {
+	return fmt.Sprintf("%s: %v", e.operation, e.err)
+}
+
+func (e *governanceUnavailableError) Unwrap() error {
+	return e.err
+}
+
+func (e *governanceUnavailableError) Is(target error) bool {
+	return target == ErrGovernanceUnavailable
 }
 
 type PredictionLogger struct {
@@ -66,7 +86,10 @@ func (pl *PredictionLogger) Predict(ctx context.Context, params aigovernance.Pre
 	}
 	productionVersion, err := pl.getVersion(ctx, params.TenantID, params.ModelSlug, aigovmodel.VersionStatusProduction)
 	if err != nil {
-		return nil, fmt.Errorf("resolve production version: %w", err)
+		return nil, &governanceUnavailableError{
+			operation: "resolve production version",
+			err:       err,
+		}
 	}
 
 	start := time.Now()
@@ -94,26 +117,26 @@ func (pl *PredictionLogger) Predict(ctx context.Context, params aigovernance.Pre
 		inputSummary = aigovernance.SummarizeInput(params.Input)
 	}
 	logEntry := &aigovmodel.PredictionLog{
-		ID:                     uuid.New(),
-		TenantID:               params.TenantID,
-		ModelID:                productionVersion.ModelID,
-		ModelVersionID:         productionVersion.ID,
-		ModelSlug:              productionVersion.ModelSlug,
-		ModelVersionNumber:     productionVersion.VersionNumber,
-		InputHash:              inputHash,
-		InputSummary:           mustJSON(inputSummary),
-		Prediction:             mustJSON(modelOutput.Output),
-		Confidence:             floatPtr(modelOutput.Confidence),
-		ExplanationStructured:  mustJSON(explanation.Structured),
-		ExplanationText:        explanation.HumanReadable,
-		ExplanationFactors:     mustJSON(explanation.Factors),
-		Suite:                  string(productionVersion.ModelSuite),
-		UseCase:                params.UseCase,
-		EntityType:             params.EntityType,
-		EntityID:               params.EntityID,
-		IsShadow:               false,
-		LatencyMS:              int(latency.Milliseconds()),
-		CreatedAt:              time.Now().UTC(),
+		ID:                    uuid.New(),
+		TenantID:              params.TenantID,
+		ModelID:               productionVersion.ModelID,
+		ModelVersionID:        productionVersion.ID,
+		ModelSlug:             productionVersion.ModelSlug,
+		ModelVersionNumber:    productionVersion.VersionNumber,
+		InputHash:             inputHash,
+		InputSummary:          mustJSON(inputSummary),
+		Prediction:            mustJSON(modelOutput.Output),
+		Confidence:            floatPtr(modelOutput.Confidence),
+		ExplanationStructured: mustJSON(explanation.Structured),
+		ExplanationText:       explanation.HumanReadable,
+		ExplanationFactors:    mustJSON(explanation.Factors),
+		Suite:                 string(productionVersion.ModelSuite),
+		UseCase:               params.UseCase,
+		EntityType:            params.EntityType,
+		EntityID:              params.EntityID,
+		IsShadow:              false,
+		LatencyMS:             int(latency.Milliseconds()),
+		CreatedAt:             time.Now().UTC(),
 	}
 	select {
 	case pl.predictionCh <- logEntry:
@@ -304,10 +327,10 @@ func (pl *PredictionLogger) publishShadowDivergence(ctx context.Context, task *a
 		return
 	}
 	event, err := events.NewEvent("com.clario360.ai.shadow.divergence_detected", "iam-service", task.TenantID.String(), map[string]any{
-		"model_id":        task.ShadowVersion.ModelID,
+		"model_id":         task.ShadowVersion.ModelID,
 		"divergence_count": 1,
-		"agreement_rate":  0,
-		"reason":          divergence.Reason,
+		"agreement_rate":   0,
+		"reason":           divergence.Reason,
 	})
 	if err != nil {
 		pl.logger.Warn().Err(err).Str("model_slug", task.Params.ModelSlug).Msg("failed to build shadow divergence event")
