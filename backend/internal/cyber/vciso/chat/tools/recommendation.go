@@ -210,71 +210,74 @@ func (t *RecommendationTool) Execute(ctx context.Context, tenantID uuid.UUID, us
 			Priority:   1,
 			Category:   "security",
 			Title:      fmt.Sprintf("Resolve %d critical security alerts", len(current.criticalAlerts)),
-			Detail:     fmt.Sprintf("Most urgent: '%s'.", first["title"]),
+			Detail:     fmt.Sprintf("Most urgent: '%s'.", mapString(first, "title")),
 			Severity:   "critical",
 			EntityType: "alert",
-			EntityID:   first["id"].(string),
+			EntityID:   mapString(first, "id"),
 			Score:      100,
 		})
 	}
 	if len(current.pipelines) > 0 {
 		first := current.pipelines[0]
+		consecutive := mapInt(first, "consecutive")
 		score := 50
-		if first["consecutive"].(int) >= 3 {
+		if consecutive >= 3 {
 			score = 80
 		}
 		recs = append(recs, recommendationItem{
 			Category:   "data",
-			Title:      fmt.Sprintf("Fix failing pipeline '%s'", first["name"]),
-			Detail:     fmt.Sprintf("%d consecutive failures detected.", first["consecutive"]),
+			Title:      fmt.Sprintf("Fix failing pipeline '%s'", mapString(first, "name")),
+			Detail:     fmt.Sprintf("%d consecutive failures detected.", consecutive),
 			Severity:   "high",
 			EntityType: "pipeline",
-			EntityID:   first["id"].(string),
+			EntityID:   mapString(first, "id"),
 			Score:      score,
 		})
 	}
 	if len(current.contracts) > 0 {
 		first := current.contracts[0]
-		days := first["days"].(int)
+		days := mapInt(first, "days")
 		score := 45
 		if days < 3 {
 			score = 75
 		}
 		recs = append(recs, recommendationItem{
 			Category:   "legal",
-			Title:      fmt.Sprintf("Review expiring contract '%s'", first["title"]),
+			Title:      fmt.Sprintf("Review expiring contract '%s'", mapString(first, "title")),
 			Detail:     fmt.Sprintf("Expires in %d days.", days),
 			Severity:   "medium",
 			EntityType: "contract",
-			EntityID:   first["id"].(string),
+			EntityID:   mapString(first, "id"),
 			Score:      score,
 		})
 	}
 	if len(current.ueba) > 0 {
 		first := current.ueba[0]
+		uebaScore := mapFloat64(first, "score")
 		score := 40
-		if first["score"].(float64) > 80 {
+		if uebaScore > 80 {
 			score = 70
 		}
 		recs = append(recs, recommendationItem{
 			Category:   "ueba",
-			Title:      fmt.Sprintf("Investigate high-risk entity '%s'", first["name"]),
-			Detail:     fmt.Sprintf("Risk score %.1f/100.", first["score"]),
+			Title:      fmt.Sprintf("Investigate high-risk entity '%s'", mapString(first, "name")),
+			Detail:     fmt.Sprintf("Risk score %.1f/100.", uebaScore),
 			Severity:   "high",
 			EntityType: "user",
-			EntityID:   first["id"].(string),
+			EntityID:   mapString(first, "id"),
 			Score:      score,
 		})
 	}
 	if len(current.actionItems) > 0 {
 		first := current.actionItems[0]
+		dueDate := mapTime(first, "due")
 		recs = append(recs, recommendationItem{
 			Category:   "governance",
-			Title:      fmt.Sprintf("Address overdue action item '%s'", first["title"]),
-			Detail:     fmt.Sprintf("Due date: %s.", first["due"].(time.Time).Format("2006-01-02")),
+			Title:      fmt.Sprintf("Address overdue action item '%s'", mapString(first, "title")),
+			Detail:     fmt.Sprintf("Due date: %s.", dueDate.Format("2006-01-02")),
 			Severity:   "medium",
 			EntityType: "action_item",
-			EntityID:   first["id"].(string),
+			EntityID:   mapString(first, "id"),
 			Score:      65,
 		})
 	}
@@ -282,11 +285,11 @@ func (t *RecommendationTool) Execute(ctx context.Context, tenantID uuid.UUID, us
 		first := current.compliance[0]
 		recs = append(recs, recommendationItem{
 			Category:   "compliance",
-			Title:      fmt.Sprintf("Address compliance gap '%s'", first["title"]),
+			Title:      fmt.Sprintf("Address compliance gap '%s'", mapString(first, "title")),
 			Detail:     "Critical compliance alert is still open.",
 			Severity:   "medium",
 			EntityType: "compliance_alert",
-			EntityID:   first["id"].(string),
+			EntityID:   mapString(first, "id"),
 			Score:      60,
 		})
 	}

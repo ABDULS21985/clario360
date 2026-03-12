@@ -27,7 +27,6 @@ import (
 	"github.com/clario360/platform/internal/events"
 	lexrepo "github.com/clario360/platform/internal/lex/repository"
 	lexservice "github.com/clario360/platform/internal/lex/service"
-	visusmodel "github.com/clario360/platform/internal/visus/model"
 	visusrepo "github.com/clario360/platform/internal/visus/repository"
 	visusservice "github.com/clario360/platform/internal/visus/service"
 )
@@ -429,18 +428,54 @@ func sourceIPLabel(value string) string {
 	return value
 }
 
-func dashboardKPIWidget(dashboardID, tenantID uuid.UUID, title string, kpiID uuid.UUID, position visusmodel.WidgetPosition) visusmodel.Widget {
-	return visusmodel.Widget{
-		DashboardID: dashboardID,
-		TenantID:    tenantID,
-		Title:       title,
-		Type:        visusmodel.WidgetTypeGauge,
-		Position:    position,
-		Config: map[string]any{
-			"kpi_id": kpiID.String(),
-		},
-		RefreshIntervalSeconds: 300,
+// Safe map accessors — prevent panics from unexpected types in map[string]any.
+
+func mapString(m map[string]any, key string) string {
+	if v, ok := m[key].(string); ok {
+		return v
 	}
+	if v, ok := m[key]; ok && v != nil {
+		return fmt.Sprintf("%v", v)
+	}
+	return ""
+}
+
+func mapInt(m map[string]any, key string) int {
+	switch v := m[key].(type) {
+	case int:
+		return v
+	case int64:
+		return int(v)
+	case float64:
+		return int(v)
+	default:
+		return 0
+	}
+}
+
+func mapFloat64(m map[string]any, key string) float64 {
+	switch v := m[key].(type) {
+	case float64:
+		return v
+	case int:
+		return float64(v)
+	case int64:
+		return float64(v)
+	default:
+		return 0
+	}
+}
+
+func mapTime(m map[string]any, key string) time.Time {
+	switch v := m[key].(type) {
+	case time.Time:
+		return v
+	case string:
+		if t, err := time.Parse(time.RFC3339, v); err == nil {
+			return t
+		}
+	}
+	return time.Time{}
 }
 
 func makeListResult(text string, data any, actions []chatmodel.SuggestedAction, entities []chatmodel.EntityReference) *ToolResult {

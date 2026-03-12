@@ -11,6 +11,7 @@ import (
 type ChatRequest struct {
 	ConversationID *uuid.UUID `json:"conversation_id,omitempty"`
 	Message        string     `json:"message"`
+	PreferEngine   string     `json:"prefer_engine,omitempty"`
 }
 
 type ChatResponse struct {
@@ -19,6 +20,20 @@ type ChatResponse struct {
 	Response       chatmodel.ResponsePayload  `json:"response"`
 	Intent         string                     `json:"intent"`
 	Confidence     float64                    `json:"confidence"`
+	Engine         string                     `json:"engine,omitempty"`
+	Meta           *ResponseMeta              `json:"meta,omitempty"`
+}
+
+type ResponseMeta struct {
+	Intent         string  `json:"intent"`
+	Confidence     float64 `json:"confidence"`
+	ToolCallsCount int     `json:"tool_calls_count,omitempty"`
+	ReasoningSteps int     `json:"reasoning_steps,omitempty"`
+	LatencyMS      int     `json:"latency_ms,omitempty"`
+	TokensUsed     int     `json:"tokens_used,omitempty"`
+	Grounding      string  `json:"grounding,omitempty"`
+	Engine         string  `json:"engine,omitempty"`
+	RoutingReason  string  `json:"routing_reason,omitempty"`
 }
 
 type Suggestion struct {
@@ -61,4 +76,3 @@ type ConversationMessage struct {
 	ToolResult   any                        `json:"tool_result,omitempty"`
 	CreatedAt    time.Time                  `json:"created_at"`
 }
-

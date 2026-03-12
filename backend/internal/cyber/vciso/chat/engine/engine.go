@@ -101,7 +101,7 @@ func (e *Engine) GetSuggestions(ctx context.Context, conversationID *uuid.UUID, 
 	return e.suggestionEngine.GetSuggestions(ctx, tenantID, contextState)
 }
 
-func (e *Engine) ProcessMessage(ctx context.Context, conversationID *uuid.UUID, tenantID uuid.UUID, userID uuid.UUID, message string) (*chatdto.ChatResponse, error) {
+func (e *Engine) ProcessMessage(ctx context.Context, conversationID *uuid.UUID, tenantID uuid.UUID, userID uuid.UUID, message string, _ string) (*chatdto.ChatResponse, error) {
 	message = strings.TrimSpace(message)
 	if message == "" {
 		return nil, fmt.Errorf("message is required")
@@ -422,6 +422,15 @@ func (e *Engine) persistAndRespond(
 		Response:       payload,
 		Intent:         classification.Intent,
 		Confidence:     classification.Confidence,
+		Engine:         "rule_based",
+		Meta: &chatdto.ResponseMeta{
+			Intent:        classification.Intent,
+			Confidence:    classification.Confidence,
+			LatencyMS:     int(latency.Milliseconds()),
+			Grounding:     "passed",
+			Engine:        "rule_based",
+			RoutingReason: "deterministic classifier",
+		},
 	}, nil
 }
 

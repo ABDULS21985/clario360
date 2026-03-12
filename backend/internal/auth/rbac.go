@@ -25,6 +25,7 @@ const (
 	PermLexWrite         = "lex:write"
 	PermVisusRead        = "visus:read"
 	PermVisusWrite       = "visus:write"
+	PermVCISOLLMAdmin    = "vciso:llm:admin"
 	PermAdminAll         = "admin:*"
 )
 
@@ -41,6 +42,7 @@ var RolePermissions = map[string][]string{
 		PermActaRead, PermActaWrite,
 		PermLexRead, PermLexWrite,
 		PermVisusRead, PermVisusWrite,
+		PermVCISOLLMAdmin,
 	},
 	"analyst": {
 		PermCyberRead, PermDataRead, PermActaRead, PermLexRead, PermVisusRead,

@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -11,20 +12,25 @@ import (
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
 
-	chatengine "github.com/clario360/platform/internal/cyber/vciso/chat/engine"
 	chatdto "github.com/clario360/platform/internal/cyber/vciso/chat/dto"
 	chatmodel "github.com/clario360/platform/internal/cyber/vciso/chat/model"
 	chatrepo "github.com/clario360/platform/internal/cyber/vciso/chat/repository"
 	"github.com/clario360/platform/internal/suiteapi"
 )
 
+type ChatEngine interface {
+	Peek(message string) *chatmodel.ClassificationResult
+	GetSuggestions(ctx context.Context, conversationID *uuid.UUID, tenantID, userID uuid.UUID) ([]chatdto.Suggestion, error)
+	ProcessMessage(ctx context.Context, conversationID *uuid.UUID, tenantID uuid.UUID, userID uuid.UUID, message string, preferEngine string) (*chatdto.ChatResponse, error)
+}
+
 type ChatHandler struct {
-	engine           *chatengine.Engine
+	engine           ChatEngine
 	conversationRepo *chatrepo.ConversationRepository
 	logger           zerolog.Logger
 }
 
-func NewChatHandler(engine *chatengine.Engine, conversationRepo *chatrepo.ConversationRepository, logger zerolog.Logger) *ChatHandler {
+func NewChatHandler(engine ChatEngine, conversationRepo *chatrepo.ConversationRepository, logger zerolog.Logger) *ChatHandler {
 	return &ChatHandler{
 		engine:           engine,
 		conversationRepo: conversationRepo,
@@ -51,7 +57,7 @@ func (h *ChatHandler) Chat(w http.ResponseWriter, r *http.Request) {
 		suiteapi.WriteError(w, r, http.StatusBadRequest, "VALIDATION_ERROR", "message exceeds 2000 characters", nil)
 		return
 	}
-	resp, err := h.engine.ProcessMessage(r.Context(), req.ConversationID, tenantID, userID, req.Message)
+	resp, err := h.engine.ProcessMessage(r.Context(), req.ConversationID, tenantID, userID, req.Message, req.PreferEngine)
 	if err != nil {
 		h.writeError(w, r, err)
 		return

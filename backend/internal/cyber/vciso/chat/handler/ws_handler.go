@@ -12,11 +12,10 @@ import (
 	"github.com/rs/zerolog"
 
 	"github.com/clario360/platform/internal/auth"
-	chatengine "github.com/clario360/platform/internal/cyber/vciso/chat/engine"
 )
 
 type WebSocketHandler struct {
-	engine   *chatengine.Engine
+	engine   ChatEngine
 	jwtMgr   *auth.JWTManager
 	upgrader gorillaWS.Upgrader
 	logger   zerolog.Logger
@@ -26,13 +25,10 @@ type wsInboundMessage struct {
 	Type           string     `json:"type"`
 	ConversationID *uuid.UUID `json:"conversation_id,omitempty"`
 	Content        string     `json:"content"`
+	PreferEngine   string     `json:"prefer_engine,omitempty"`
 }
 
-type wsOutboundMessage struct {
-	Type string `json:"type"`
-}
-
-func NewWebSocketHandler(engine *chatengine.Engine, jwtMgr *auth.JWTManager, logger zerolog.Logger) *WebSocketHandler {
+func NewWebSocketHandler(engine ChatEngine, jwtMgr *auth.JWTManager, logger zerolog.Logger) *WebSocketHandler {
 	return &WebSocketHandler{
 		engine: engine,
 		jwtMgr: jwtMgr,
@@ -100,7 +96,7 @@ func (h *WebSocketHandler) HandleWebSocket(w http.ResponseWriter, r *http.Reques
 		if peek.ToolName != "" {
 			_ = writer.Write(map[string]any{"type": "status", "status": "executing", "tool": peek.ToolName})
 		}
-		resp, err := h.engine.ProcessMessage(withRequestAuth(context.Background(), claims), inbound.ConversationID, tenantID, userID, inbound.Content)
+		resp, err := h.engine.ProcessMessage(withRequestAuth(context.Background(), claims), inbound.ConversationID, tenantID, userID, inbound.Content, inbound.PreferEngine)
 		if err != nil {
 			_ = writer.Write(map[string]any{"type": "error", "code": "PROCESSING_ERROR", "message": err.Error()})
 			continue
@@ -113,8 +109,11 @@ func (h *WebSocketHandler) HandleWebSocket(w http.ResponseWriter, r *http.Reques
 			"data":            resp.Response.Data,
 			"data_type":       resp.Response.DataType,
 			"actions":         resp.Response.Actions,
+			"entities":        resp.Response.Entities,
 			"intent":          resp.Intent,
 			"confidence":      resp.Confidence,
+			"engine":          resp.Engine,
+			"meta":            resp.Meta,
 		})
 		suggestions, err := h.engine.GetSuggestions(withRequestAuth(context.Background(), claims), &resp.ConversationID, tenantID, userID)
 		if err == nil {

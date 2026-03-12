@@ -36,6 +36,7 @@ const (
 	ExplainabilityFeatureImportance    ExplainabilityType = "feature_importance"
 	ExplainabilityStatisticalDeviation ExplainabilityType = "statistical_deviation"
 	ExplainabilityTemplateBased        ExplainabilityType = "template_based"
+	ExplainabilityReasoningTrace       ExplainabilityType = "reasoning_trace"
 )
 
 type ModelVersion struct {

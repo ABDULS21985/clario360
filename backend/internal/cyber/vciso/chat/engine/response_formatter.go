@@ -24,6 +24,7 @@ func (f *ResponseFormatter) FormatToolResult(result *tools.ToolResult) chatmodel
 		Data:     result.Data,
 		DataType: result.DataType,
 		Actions:  result.Actions,
+		Entities: result.Entities,
 	}
 }
 
@@ -52,6 +53,7 @@ func (f *ResponseFormatter) UnknownIntent(suggestions []chatdto.Suggestion) chat
 		Text:     strings.Join(lines, "\n"),
 		DataType: "text",
 		Actions:  suggestionActions(suggestions),
+		Entities: []chatmodel.EntityReference{},
 	}
 }
 
@@ -64,6 +66,7 @@ func (f *ResponseFormatter) Clarification(req *ClarificationRequest) chatmodel.R
 		Text:     text,
 		DataType: "text",
 		Actions:  []chatmodel.SuggestedAction{},
+		Entities: []chatmodel.EntityReference{},
 	}
 }
 
@@ -73,7 +76,7 @@ func (f *ResponseFormatter) PermissionDenied(description string, missing []strin
 		text += " Required: " + strings.Join(missing, ", ") + "."
 	}
 	text += " Contact your admin to request access."
-	return chatmodel.ResponsePayload{Text: text, DataType: "text", Actions: []chatmodel.SuggestedAction{}}
+	return chatmodel.ResponsePayload{Text: text, DataType: "text", Actions: []chatmodel.SuggestedAction{}, Entities: []chatmodel.EntityReference{}}
 }
 
 func (f *ResponseFormatter) ToolTimeout() chatmodel.ResponsePayload {
@@ -81,6 +84,7 @@ func (f *ResponseFormatter) ToolTimeout() chatmodel.ResponsePayload {
 		Text:     "This query is taking longer than expected. Let me work on it and try again shortly.",
 		DataType: "text",
 		Actions:  []chatmodel.SuggestedAction{},
+		Entities: []chatmodel.EntityReference{},
 	}
 }
 
@@ -90,7 +94,7 @@ func (f *ResponseFormatter) ToolError(err error) chatmodel.ResponsePayload {
 		text += " " + sanitizeError(err.Error())
 	}
 	text += " You can try again or rephrase your question."
-	return chatmodel.ResponsePayload{Text: text, DataType: "text", Actions: []chatmodel.SuggestedAction{}}
+	return chatmodel.ResponsePayload{Text: text, DataType: "text", Actions: []chatmodel.SuggestedAction{}, Entities: []chatmodel.EntityReference{}}
 }
 
 func sanitizeError(value string) string {

@@ -1,7 +1,6 @@
 package engine
 
 import (
-	"fmt"
 	"net/netip"
 	"regexp"
 	"strconv"
@@ -244,11 +243,4 @@ func (e *EntityExtractor) extractDashboardDescription(message string) string {
 	return lower
 }
 
-func parseRFC3339(value string) (time.Time, error) {
-	ts, err := time.Parse(time.RFC3339, value)
-	if err != nil {
-		return time.Time{}, fmt.Errorf("parse time %q: %w", value, err)
-	}
-	return ts, nil
-}
 

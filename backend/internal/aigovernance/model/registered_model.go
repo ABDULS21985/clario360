@@ -18,6 +18,7 @@ const (
 	ModelTypeAnomalyDetector ModelType = "anomaly_detector"
 	ModelTypeScorer          ModelType = "scorer"
 	ModelTypeRecommender     ModelType = "recommender"
+	ModelTypeLLMAgentic      ModelType = "llm_agentic"
 )
 
 type ModelSuite string

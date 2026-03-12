@@ -64,5 +64,5 @@ type ResponsePayload struct {
 	Data     any               `json:"data,omitempty"`
 	DataType string            `json:"data_type"`
 	Actions  []SuggestedAction `json:"actions"`
+	Entities []EntityReference `json:"entities,omitempty"`
 }
-
