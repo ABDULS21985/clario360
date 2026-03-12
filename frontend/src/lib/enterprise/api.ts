@@ -233,8 +233,11 @@ export const enterpriseApi = {
     analyzeContract: (id: string) => apiPost<{ data: LexContractRiskAnalysis }>(`/api/v1/lex/contracts/${id}/analyze`).then((res) => res.data),
     createContract: (payload: unknown) => apiPost<{ data: LexContractRecord }>('/api/v1/lex/contracts', payload).then((res) => res.data),
     updateContract: (id: string, payload: unknown) => apiPut<{ data: LexContractRecord }>(`/api/v1/lex/contracts/${id}`, payload).then((res) => res.data),
+    deleteContract: (id: string) => apiDelete<void>(`/api/v1/lex/contracts/${id}`),
     updateContractStatus: (id: string, payload: unknown) =>
       apiPut<{ data: LexContractRecord }>(`/api/v1/lex/contracts/${id}/status`, payload).then((res) => res.data),
+    uploadContractDocument: (id: string, payload: unknown) =>
+      apiPost<{ data: LexContractVersion[] }>(`/api/v1/lex/contracts/${id}/upload`, payload).then((res) => res.data),
     listContractVersions: (id: string): Promise<LexContractVersion[]> => fetchSuiteData(`/api/v1/lex/contracts/${id}/versions`),
     renewContract: (id: string, payload: unknown) => apiPost<{ data: LexContractRecord }>(`/api/v1/lex/contracts/${id}/renew`, payload).then((res) => res.data),
     startContractReview: (id: string, payload: unknown) =>

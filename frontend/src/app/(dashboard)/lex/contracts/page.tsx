@@ -1,20 +1,25 @@
 'use client';
 
+import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { type ColumnDef } from '@tanstack/react-table';
-import { FileText } from 'lucide-react';
+import { FileText, Plus } from 'lucide-react';
 import { PageHeader } from '@/components/common/page-header';
 import { PermissionRedirect } from '@/components/common/permission-redirect';
 import { RelativeTime } from '@/components/shared/relative-time';
 import { StatusBadge } from '@/components/shared/status-badge';
 import { DataTable } from '@/components/shared/data-table/data-table';
 import { SearchInput } from '@/components/shared/forms/search-input';
+import { Button } from '@/components/ui/button';
 import { useDataTable } from '@/hooks/use-data-table';
+import { useAuth } from '@/hooks/use-auth';
 import { API_ENDPOINTS } from '@/lib/constants';
 import { fetchSuitePaginated } from '@/lib/suite-api';
 import { contractStatusConfig } from '@/lib/status-configs';
 import { summarizeNamedRecords } from '@/lib/suite-utils';
 import type { LexContract } from '@/types/suites';
+import { ContractFormDialog } from './_components/contract-form-dialog';
 
 const CONTRACT_FILTERS = [
   {
@@ -33,6 +38,11 @@ const CONTRACT_FILTERS = [
 ];
 
 export default function LexContractsPage() {
+  const router = useRouter();
+  const { hasPermission } = useAuth();
+  const [createOpen, setCreateOpen] = useState(false);
+  const canWrite = hasPermission('lex:write');
+
   const { tableProps, searchValue, setSearch } = useDataTable<LexContract>({
     queryKey: 'lex-contracts',
     fetchFn: (params) => fetchSuitePaginated<LexContract>(API_ENDPOINTS.LEX_CONTRACTS, params),
@@ -95,7 +105,18 @@ export default function LexContractsPage() {
   return (
     <PermissionRedirect permission="lex:read">
       <div className="space-y-6">
-        <PageHeader title="Contracts" description="Contract portfolio across lifecycle state, counterparty coverage, and renewal timing." />
+        <PageHeader
+          title="Contracts"
+          description="Contract portfolio across lifecycle state, counterparty coverage, and renewal timing."
+          actions={
+            canWrite ? (
+              <Button onClick={() => setCreateOpen(true)}>
+                <Plus className="mr-1.5 h-4 w-4" />
+                Create Contract
+              </Button>
+            ) : undefined
+          }
+        />
         <DataTable
           {...tableProps}
           columns={columns}
@@ -113,6 +134,11 @@ export default function LexContractsPage() {
             title: 'No contracts found',
             description: 'No contracts matched the current filters.',
           }}
+        />
+        <ContractFormDialog
+          open={createOpen}
+          onOpenChange={setCreateOpen}
+          onSaved={(contract) => router.push(`/lex/contracts/${contract.id}`)}
         />
       </div>
     </PermissionRedirect>

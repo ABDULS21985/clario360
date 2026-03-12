@@ -148,9 +148,10 @@ export const API_ENDPOINTS = {
   // Lex
   LEX_CONTRACTS: '/api/v1/lex/contracts',
   LEX_DOCUMENTS: '/api/v1/lex/documents',
-  LEX_REGULATIONS: '/api/v1/lex/regulations',
-  LEX_COMPLIANCE: '/api/v1/lex/compliance',
-  LEX_COMPLIANCE_CHECK: '/api/v1/lex/compliance/check',
+  LEX_COMPLIANCE_RULES: '/api/v1/lex/compliance/rules',
+  LEX_COMPLIANCE_ALERTS: '/api/v1/lex/compliance/alerts',
+  LEX_COMPLIANCE_DASHBOARD: '/api/v1/lex/compliance/dashboard',
+  LEX_COMPLIANCE_RUN: '/api/v1/lex/compliance/run',
 
   // Visus
   VISUS_DASHBOARDS: '/api/v1/visus/dashboards',
