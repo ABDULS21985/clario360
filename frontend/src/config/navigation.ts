@@ -245,8 +245,8 @@ export const navigation: NavSection[] = [
           pollIntervalMs: 30000,
         },
         children: [
-          { id: 'admin-workflow-tasks', label: 'Task Queue', href: '/workflows/tasks', icon: ClipboardList },
-          { id: 'admin-workflow-instances', label: 'Instances', href: '/workflows', icon: Workflow },
+          { id: 'admin-workflow-tasks', label: 'Task Queue', href: '/admin/workflows/tasks', icon: ClipboardList },
+          { id: 'admin-workflow-instances', label: 'Instances', href: '/admin/workflows/instances', icon: Workflow },
           { id: 'admin-workflow-definitions', label: 'Definitions', href: '/admin/workflows/definitions', icon: GitBranch },
           { id: 'admin-workflow-templates', label: 'Templates', href: '/admin/workflows/templates', icon: Layout },
         ],

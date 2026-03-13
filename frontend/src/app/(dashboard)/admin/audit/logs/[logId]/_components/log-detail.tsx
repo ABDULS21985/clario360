@@ -190,11 +190,11 @@ export function LogDetail({ logId }: LogDetailProps) {
           </Card>
 
           {/* Changes Diff */}
-          {log.changes.length > 0 && (
+          {log.changes?.length > 0 && (
             <Card>
               <CardHeader className="pb-3">
                 <CardTitle className="text-sm font-semibold">
-                  Changes ({log.changes.length})
+                  Changes ({log.changes?.length ?? 0})
                 </CardTitle>
               </CardHeader>
               <CardContent>

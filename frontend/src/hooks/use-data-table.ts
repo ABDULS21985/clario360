@@ -268,7 +268,7 @@ export function useDataTable<TData>(
 
   const tableProps: DataTableControlledProps<TData> = {
     data: queryData?.data ?? [],
-    totalRows: queryData?.meta.total ?? 0,
+    totalRows: queryData?.meta?.total ?? 0,
     page,
     pageSize,
     onPageChange: setPage,
@@ -288,7 +288,7 @@ export function useDataTable<TData>(
 
   return {
     data: queryData?.data ?? [],
-    totalRows: queryData?.meta.total ?? 0,
+    totalRows: queryData?.meta?.total ?? 0,
     isLoading,
     error: errorMessage,
     page,
