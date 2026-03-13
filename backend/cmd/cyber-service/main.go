@@ -26,6 +26,7 @@ import (
 	aigovconsumer "github.com/clario360/platform/internal/aigovernance/consumer"
 	aigovintegration "github.com/clario360/platform/internal/aigovernance/integration"
 	aigovmiddleware "github.com/clario360/platform/internal/aigovernance/middleware"
+	aigovseeder "github.com/clario360/platform/internal/aigovernance/seeder"
 	"github.com/clario360/platform/internal/auth"
 	"github.com/clario360/platform/internal/config"
 	"github.com/clario360/platform/internal/cyber/classifier"
@@ -201,6 +202,9 @@ func main() {
 	}
 	if platformPoolOwned {
 		defer platformPool.Close()
+	}
+	if err := seedGovernedModelsForExistingTenants(ctx, platformPool, logger); err != nil {
+		logger.Warn().Err(err).Msg("failed to seed ai governance models for existing tenants")
 	}
 	dataPool, dataPoolOwned := openOptionalDBPool(ctx, envOr("DATA_DB_URL", buildPostgresURL(cfg.Database, "data_db")), cfg, logger, "data")
 	if dataPoolOwned {
@@ -1111,4 +1115,74 @@ func openOptionalDBPool(ctx context.Context, dsn string, cfg *config.Config, log
 		return nil, false
 	}
 	return pool, true
+}
+
+func seedGovernedModelsForExistingTenants(ctx context.Context, platformPool *pgxpool.Pool, logger zerolog.Logger) error {
+	if platformPool == nil {
+		return nil
+	}
+
+	tenantIDs, err := listTenantIDs(ctx, platformPool)
+	if err != nil {
+		return err
+	}
+	if len(tenantIDs) == 0 {
+		return nil
+	}
+
+	seeder := aigovseeder.NewModelSeeder(platformPool, logger)
+	for _, tenantID := range tenantIDs {
+		actorID, err := firstTenantUserID(ctx, platformPool, tenantID)
+		if err != nil {
+			return fmt.Errorf("resolve seed actor for tenant %s: %w", tenantID, err)
+		}
+		if err := seeder.Seed(ctx, tenantID, actorID); err != nil {
+			return fmt.Errorf("seed ai models for tenant %s: %w", tenantID, err)
+		}
+	}
+	return nil
+}
+
+func listTenantIDs(ctx context.Context, pool *pgxpool.Pool) ([]uuid.UUID, error) {
+	rows, err := pool.Query(ctx, `
+		SELECT id
+		FROM tenants
+		WHERE status <> 'deprovisioned'
+		ORDER BY created_at ASC`)
+	if err != nil {
+		return nil, fmt.Errorf("list tenants: %w", err)
+	}
+	defer rows.Close()
+
+	tenantIDs := make([]uuid.UUID, 0)
+	for rows.Next() {
+		var tenantID uuid.UUID
+		if err := rows.Scan(&tenantID); err != nil {
+			return nil, fmt.Errorf("scan tenant id: %w", err)
+		}
+		tenantIDs = append(tenantIDs, tenantID)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate tenant ids: %w", err)
+	}
+	return tenantIDs, nil
+}
+
+func firstTenantUserID(ctx context.Context, pool *pgxpool.Pool, tenantID uuid.UUID) (uuid.UUID, error) {
+	var userID uuid.UUID
+	err := pool.QueryRow(ctx, `
+		SELECT id
+		FROM users
+		WHERE tenant_id = $1 AND deleted_at IS NULL
+		ORDER BY created_at ASC
+		LIMIT 1`,
+		tenantID,
+	).Scan(&userID)
+	if err == nil {
+		return userID, nil
+	}
+	if errors.Is(err, pgx.ErrNoRows) {
+		return uuid.Nil, nil
+	}
+	return uuid.Nil, fmt.Errorf("query tenant user: %w", err)
 }

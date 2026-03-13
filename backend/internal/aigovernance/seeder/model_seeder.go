@@ -43,7 +43,7 @@ func (s *ModelSeeder) Seed(ctx context.Context, tenantID, createdBy uuid.UUID) e
 				Description: spec.Description,
 				ModelType:   spec.ModelType,
 				Suite:       spec.Suite,
-				OwnerUserID: &createdBy,
+				OwnerUserID: optionalOwnerUserID(createdBy),
 				OwnerTeam:   spec.OwnerTeam,
 				RiskTier:    spec.RiskTier,
 				Status:      aigovmodel.ModelStatusActive,
@@ -98,6 +98,14 @@ func (s *ModelSeeder) Seed(ctx context.Context, tenantID, createdBy uuid.UUID) e
 		}
 	}
 	return nil
+}
+
+func optionalOwnerUserID(userID uuid.UUID) *uuid.UUID {
+	if userID == uuid.Nil {
+		return nil
+	}
+	id := userID
+	return &id
 }
 
 type modelSpec struct {
