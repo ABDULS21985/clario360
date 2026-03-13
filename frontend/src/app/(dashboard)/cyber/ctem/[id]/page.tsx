@@ -1,6 +1,6 @@
 'use client';
 
-import { use } from 'react';
+
 import { useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import { apiGet } from '@/lib/api';
@@ -17,7 +17,7 @@ import { FindingTable } from './_components/finding-table';
 import type { CTEMAssessment } from '@/types/cyber';
 
 interface Props {
-  params: Promise<{ id: string }>;
+  params: { id: string };
 }
 
 const STATUS_COLORS: Record<string, string> = {
@@ -29,7 +29,7 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 export default function CTEMAssessmentDetailPage({ params }: Props) {
-  const { id } = use(params);
+  const { id } = params;
   const router = useRouter();
 
   const { data: envelope, isLoading, error, refetch } = useQuery({

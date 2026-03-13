@@ -63,4 +63,3 @@ func (t *UEBASummaryTool) Execute(ctx context.Context, tenantID uuid.UUID, _ uui
 		messageAction("Show UEBA alerts", "Show critical alerts"),
 	}, entities), nil
 }
-

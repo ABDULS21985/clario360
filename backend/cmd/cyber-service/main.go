@@ -25,6 +25,7 @@ import (
 	"github.com/clario360/platform/internal/aigovernance"
 	aigovconsumer "github.com/clario360/platform/internal/aigovernance/consumer"
 	aigovintegration "github.com/clario360/platform/internal/aigovernance/integration"
+	aigovmiddleware "github.com/clario360/platform/internal/aigovernance/middleware"
 	"github.com/clario360/platform/internal/auth"
 	"github.com/clario360/platform/internal/config"
 	"github.com/clario360/platform/internal/cyber/classifier"
@@ -59,6 +60,19 @@ import (
 	vcisochathandler "github.com/clario360/platform/internal/cyber/vciso/chat/handler"
 	vcisorepository "github.com/clario360/platform/internal/cyber/vciso/chat/repository"
 	vcisotools "github.com/clario360/platform/internal/cyber/vciso/chat/tools"
+	vcisollm "github.com/clario360/platform/internal/cyber/vciso/llm"
+	vcisollmengine "github.com/clario360/platform/internal/cyber/vciso/llm/engine"
+	vcisollmgov "github.com/clario360/platform/internal/cyber/vciso/llm/governance"
+	vcisollmhandler "github.com/clario360/platform/internal/cyber/vciso/llm/handler"
+	vcisollmmodel "github.com/clario360/platform/internal/cyber/vciso/llm/model"
+	vcisollmprovider "github.com/clario360/platform/internal/cyber/vciso/llm/provider"
+	vcisollmrepo "github.com/clario360/platform/internal/cyber/vciso/llm/repository"
+	vcisollmtools "github.com/clario360/platform/internal/cyber/vciso/llm/tools"
+	vcisopredictengine "github.com/clario360/platform/internal/cyber/vciso/predict/engine"
+	vcisopredictexplainer "github.com/clario360/platform/internal/cyber/vciso/predict/explainer"
+	vcisopredictfeeds "github.com/clario360/platform/internal/cyber/vciso/predict/feeds"
+	vcisopredicthandler "github.com/clario360/platform/internal/cyber/vciso/predict/handler"
+	vcisopredictrepo "github.com/clario360/platform/internal/cyber/vciso/predict/repository"
 	datarepo "github.com/clario360/platform/internal/data/repository"
 	"github.com/clario360/platform/internal/database"
 	"github.com/clario360/platform/internal/events"
@@ -140,6 +154,8 @@ func main() {
 	m := cybermetrics.New()
 	uebaMetrics := uebaengine.NewMetrics(m.Registry)
 	vcisoChatMetrics := vcisochatengine.NewMetrics(m.Registry)
+	vcisoLLMMetrics := vcisollmengine.NewMetrics(m.Registry)
+	vcisoPredictMetrics := vcisopredictengine.NewMetrics(m.Registry)
 	promGatherers := prometheus.Gatherers{svc.Metrics.Registry(), m.Registry}
 
 	// ── 5. Kafka producer ──────────────────────────────────────────────────────
@@ -224,6 +240,8 @@ func main() {
 	dspmRepo := repository.NewDSPMRepository(db, logger)
 	vcisoRepo := repository.NewVCISORepository(db, logger)
 	vcisoConversationRepo := vcisorepository.NewConversationRepository(db, logger)
+	vcisoPredictionRepo := vcisopredictrepo.NewPredictionRepository(db, logger)
+	vcisoFeatureRepo := vcisopredictrepo.NewFeatureRepository(db, logger)
 	uebaProfileRepo := uebarepository.NewProfileRepository(db, logger)
 	uebaEventRepo := uebarepository.NewEventRepository(db, logger)
 	uebaAlertRepo := uebarepository.NewAlertRepository(db, logger)
@@ -521,6 +539,44 @@ func main() {
 			logger,
 		)
 	}
+	vcisoPredictFeatureStore := vcisopredictengine.NewFeatureStore(
+		db,
+		vcisoFeatureRepo,
+		vcisopredictfeeds.NewThreatFeedIngester(),
+		vcisopredictfeeds.NewCVEEnricher(),
+		vcisopredictfeeds.NewIndustryBenchmarker(),
+		vcisopredictfeeds.NewDarkWebMonitor(nil),
+		logger,
+	)
+	vcisoPredictRegistry := vcisopredictengine.NewModelRegistry(
+		vcisoPredictionRepo,
+		envOr("VCISO_PREDICT_MODEL_DIR", filepath.Join("var", "vciso-predictive-models")),
+		logger,
+	)
+	if err := vcisoPredictRegistry.EnsureDefaults(ctx); err != nil {
+		logger.Warn().Err(err).Msg("failed to ensure default predictive models")
+	}
+	if err := vcisoPredictRegistry.LoadActive(ctx); err != nil {
+		logger.Warn().Err(err).Msg("failed to load predictive models")
+	}
+	vcisoPredictEngine := vcisopredictengine.NewForecastEngine(
+		vcisoPredictFeatureStore,
+		vcisoPredictRegistry,
+		vcisoPredictionRepo,
+		vcisopredictexplainer.NewSHAPExplainer(),
+		vcisopredictexplainer.NewPredictionNarrator(),
+		vcisopredictexplainer.NewConfidenceCalibrator(),
+		vcisopredictengine.NewBacktester(),
+		vcisopredictengine.NewDriftDetector(),
+		func() *aigovmiddleware.PredictionLogger {
+			if aiRuntime != nil {
+				return aiRuntime.PredictionLogger
+			}
+			return nil
+		}(),
+		vcisoPredictMetrics,
+		logger,
+	)
 	vcisoToolDeps := &vcisotools.Dependencies{
 		CyberDB:               db,
 		AlertService:          alertSvc,
@@ -533,6 +589,7 @@ func main() {
 		UEBAService:           uebaSvc,
 		VCISOService:          vcisoSvc,
 		RemediationService:    remediationSvc,
+		PredictEngine:         vcisoPredictEngine,
 		DataPool:              dataPool,
 		DataPipelineRepo:      dataPipelineRepo,
 		DataPipelineRunRepo:   dataPipelineRunRepo,
@@ -558,38 +615,103 @@ func main() {
 		Logger:                logger,
 	}
 	vcisoClassifier := vcisochatengine.NewIntentClassifier()
-	vcisoContextManager := vcisochatengine.NewContextManager(func() time.Time { return time.Now().UTC() }, 30*time.Minute)
-	vcisoChatEngine := vcisochatengine.NewEngine(
-		vcisoClassifier,
-		vcisochatengine.NewEntityExtractor(func() time.Time { return time.Now().UTC() }),
-		vcisoContextManager,
-		vcisotools.NewRegistry(vcisoToolDeps),
-		vcisochatengine.NewToolRouter(vcisotools.NewRegistry(vcisoToolDeps), vcisoChatMetrics, logger),
-		vcisochatengine.NewResponseFormatter(),
-		vcisochatengine.NewSuggestionEngine(vcisoToolDeps, vcisoChatMetrics, logger),
-		vcisoConversationRepo,
-		nil,
-		producer,
-		vcisoChatMetrics,
-		logger,
+	vcisoContextManager := vcisochatengine.NewContextManager(
+		vcisochatengine.WithClock(func() time.Time { return time.Now().UTC() }),
+		vcisochatengine.WithIdleTimeout(30*time.Minute),
 	)
+	vcisoChatRegistry := vcisotools.NewRegistry(vcisoToolDeps)
+	vcisoChatEngine := vcisochatengine.NewEngine(vcisochatengine.EngineDeps{
+		Classifier:       vcisoClassifier,
+		Extractor:        vcisochatengine.NewEntityExtractor(func() time.Time { return time.Now().UTC() }),
+		ContextManager:   vcisoContextManager,
+		ToolRegistry:     vcisoChatRegistry,
+		ToolRouter:       vcisochatengine.NewToolRouter(vcisoChatRegistry, vcisoChatMetrics, logger),
+		Formatter:        vcisochatengine.NewResponseFormatter(),
+		SuggestionEngine: vcisochatengine.NewSuggestionEngine(vcisoToolDeps, vcisoChatMetrics, logger),
+		ConversationRepo: vcisoConversationRepo,
+		Producer:         producer,
+		Metrics:          vcisoChatMetrics,
+		Logger:           logger,
+	})
 	if aiRuntime != nil && aiRuntime.PredictionLogger != nil {
 		registry := vcisotools.NewRegistry(vcisoToolDeps)
-		vcisoChatEngine = vcisochatengine.NewEngine(
-			vcisoClassifier,
-			vcisochatengine.NewEntityExtractor(func() time.Time { return time.Now().UTC() }),
-			vcisoContextManager,
-			registry,
-			vcisochatengine.NewToolRouter(registry, vcisoChatMetrics, logger),
-			vcisochatengine.NewResponseFormatter(),
-			vcisochatengine.NewSuggestionEngine(vcisoToolDeps, vcisoChatMetrics, logger),
-			vcisoConversationRepo,
-			aiRuntime.PredictionLogger,
-			producer,
-			vcisoChatMetrics,
-			logger,
-		)
+		vcisoChatEngine = vcisochatengine.NewEngine(vcisochatengine.EngineDeps{
+			Classifier:       vcisoClassifier,
+			Extractor:        vcisochatengine.NewEntityExtractor(func() time.Time { return time.Now().UTC() }),
+			ContextManager:   vcisoContextManager,
+			ToolRegistry:     registry,
+			ToolRouter:       vcisochatengine.NewToolRouter(registry, vcisoChatMetrics, logger),
+			Formatter:        vcisochatengine.NewResponseFormatter(),
+			SuggestionEngine: vcisochatengine.NewSuggestionEngine(vcisoToolDeps, vcisoChatMetrics, logger),
+			ConversationRepo: vcisoConversationRepo,
+			PredLogger:       aiRuntime.PredictionLogger,
+			Producer:         producer,
+			Metrics:          vcisoChatMetrics,
+			Logger:           logger,
+		})
 	}
+	vcisoLLMCfg := vcisollm.LoadConfig()
+	vcisoLLMAuditRepo := vcisollmrepo.NewLLMAuditRepository(db, logger)
+	if vcisoLLMCfg.Enabled {
+		if err := vcisoLLMAuditRepo.EnsurePrompt(ctx, &vcisollmmodel.SystemPrompt{
+			Version:    vcisoLLMCfg.Prompt.ActiveVersion,
+			PromptText: vcisollmengine.DefaultPromptText(),
+			PromptHash: vcisollmengine.HashPrompt(vcisollmengine.DefaultPromptText()),
+			CreatedBy:  "cyber-service",
+			Active:     true,
+		}); err != nil {
+			logger.Warn().Err(err).Msg("failed to ensure default vciso llm prompt")
+		}
+	}
+	vcisoLLMProviderManager := vcisollmprovider.NewManager(vcisoLLMCfg)
+	vcisoLLMRegistry := vcisollmtools.NewRegistry(vcisoToolDeps)
+	vcisoLLMToolExecutor := vcisollmengine.NewToolCallExecutor(
+		vcisoLLMRegistry,
+		vcisollmengine.WithMaxResultSize(vcisoLLMCfg.Tokens.ToolResultMaxPerCall),
+		vcisollmengine.WithExecutorLogger(logger),
+	)
+	vcisoLLMContextCompiler := vcisollmengine.NewContextCompiler(vcisoConversationRepo, vcisollmengine.TokenBudget{
+		SystemPromptBudget:        vcisoLLMCfg.Tokens.SystemPromptBudget,
+		ConversationHistoryBudget: vcisoLLMCfg.Tokens.ConversationHistoryBudget,
+		ToolResultMaxPerCall:      vcisoLLMCfg.Tokens.ToolResultMaxPerCall,
+		ResponseMax:               vcisoLLMCfg.Tokens.ResponseMax,
+	}, vcisoLLMMetrics)
+	var vcisoLLMEngine *vcisollmengine.LLMEngine
+	if vcisoLLMCfg.Enabled {
+		vcisoLLMEngine = vcisollmengine.NewLLMEngine(vcisollmengine.Deps{
+			Cfg:              vcisoLLMCfg,
+			ConversationRepo: vcisoConversationRepo,
+			ContextManager:   vcisoContextManager,
+			PromptBuilder:    vcisollmengine.NewPromptBuilder(vcisoLLMAuditRepo),
+			ContextCompiler:  vcisoLLMContextCompiler,
+			ToolRegistry:     vcisoLLMRegistry,
+			ToolExecutor:     vcisoLLMToolExecutor,
+			ResponseSynth:    vcisollmengine.NewResponseSynthesizer(),
+			Hallucination:    vcisollmengine.NewHallucinationGuard(),
+			InjectionGuard:   vcisollmengine.NewInjectionGuard(),
+			PIIFilter:        vcisollmgov.NewPIIFilter(),
+			RateLimiter:      vcisollmgov.NewRateLimiter(vcisoLLMAuditRepo, vcisoLLMCfg.RateLimits, logger),
+			AuditRepo:        vcisoLLMAuditRepo,
+			ProviderManager:  vcisoLLMProviderManager,
+			FallbackHandler:  vcisollmengine.NewFallbackHandler(vcisoChatEngine),
+			PredLogger: func() *aigovmiddleware.PredictionLogger {
+				if aiRuntime != nil {
+					return aiRuntime.PredictionLogger
+				}
+				return nil
+			}(),
+			Metrics: vcisoLLMMetrics,
+			Logger:  logger,
+		})
+	}
+	vcisoUnifiedEngine := vcisollmengine.NewEngineRouter(
+		vcisoChatEngine,
+		vcisoLLMEngine,
+		vcisoConversationRepo,
+		vcisollmengine.WithConfidenceThresholds(vcisoLLMCfg.Routing.LLMThreshold, 0.50),
+		vcisollmengine.WithRouterLogger(logger),
+		vcisollmengine.WithRouterMetrics(vcisoLLMMetrics),
+	)
 	guard := events.NewIdempotencyGuard(rdb, 24*time.Hour)
 	crossSuiteMetrics := events.NewCrossSuiteMetrics(svc.Metrics.Registry())
 	dlqTracker := events.NewDLQTracker(rdb)
@@ -617,8 +739,13 @@ func main() {
 	vcisoHandler := handler.NewVCISOHandler(vcisoSvc)
 	uebaHTTPHandler := uebahandler.NewUEBAHandler(uebaSvc)
 	rcaHandler := rca.NewHandler(rcaEngine, logger)
-	vcisoChatHandler := vcisochathandler.NewChatHandler(vcisoChatEngine, vcisoConversationRepo, logger)
-	vcisoWSHandler := vcisochathandler.NewWebSocketHandler(vcisoChatEngine, jwtMgr, logger)
+	vcisoChatHandler := vcisochathandler.NewChatHandler(vcisoUnifiedEngine, vcisoConversationRepo, logger)
+	vcisoWSHandler := vcisochathandler.NewWebSocketHandler(vcisoUnifiedEngine, jwtMgr, logger)
+	var vcisoLLMHandler *vcisollmhandler.LLMHandler
+	if vcisoLLMEngine != nil {
+		vcisoLLMHandler = vcisollmhandler.NewLLMHandler(vcisoLLMEngine, vcisoLLMAuditRepo, logger)
+	}
+	vcisoPredictHandler := vcisopredicthandler.NewPredictionHandler(vcisoPredictEngine, logger)
 	handler.RegisterRoutes(
 		svc.Router,
 		assetHandler,
@@ -653,6 +780,54 @@ func main() {
 		VCISORecommendations: vcisoHandler.Recommendations,
 		VCISOReport:          vcisoHandler.Report,
 		VCISOPostureSummary:  vcisoHandler.PostureSummary,
+		LLMAudit: func() http.HandlerFunc {
+			if vcisoLLMHandler == nil {
+				return nil
+			}
+			return vcisoLLMHandler.Audit
+		}(),
+		LLMUsage: func() http.HandlerFunc {
+			if vcisoLLMHandler == nil {
+				return nil
+			}
+			return vcisoLLMHandler.Usage
+		}(),
+		LLMHealth: func() http.HandlerFunc {
+			if vcisoLLMHandler == nil {
+				return nil
+			}
+			return vcisoLLMHandler.Health
+		}(),
+		LLMUpdateConfig: func() http.HandlerFunc {
+			if vcisoLLMHandler == nil {
+				return nil
+			}
+			return vcisoLLMHandler.UpdateConfig
+		}(),
+		LLMListPrompts: func() http.HandlerFunc {
+			if vcisoLLMHandler == nil {
+				return nil
+			}
+			return vcisoLLMHandler.ListPrompts
+		}(),
+		LLMCreatePrompt: func() http.HandlerFunc {
+			if vcisoLLMHandler == nil {
+				return nil
+			}
+			return vcisoLLMHandler.CreatePrompt
+		}(),
+		LLMActivatePrompt: func() http.HandlerFunc {
+			if vcisoLLMHandler == nil {
+				return nil
+			}
+			return vcisoLLMHandler.ActivatePrompt
+		}(),
+	})
+	vcisopredicthandler.RegisterRoutes(svc.Router, vcisopredicthandler.RouteDeps{
+		Handler:    vcisoPredictHandler,
+		JWTManager: jwtMgr,
+		Redis:      rdb,
+		Logger:     logger,
 	})
 	svc.Router.Get("/api/v1/internal/assets/owners", func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("X-Internal-Service") == "" {
@@ -789,6 +964,13 @@ func main() {
 			return nil
 		})
 	}
+	g.Go(func() error {
+		err := vcisoPredictEngine.Start(gCtx)
+		if err != nil && !errors.Is(err, context.Canceled) {
+			return err
+		}
+		return nil
+	})
 
 	logger.Info().Int("port", bootstrapCfg.Port).Msg("cyber-service starting")
 	runErr := svc.Run(ctx)

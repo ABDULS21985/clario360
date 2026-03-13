@@ -109,12 +109,6 @@ func (p *AzureProvider) Complete(ctx context.Context, request *CompletionRequest
 	if resp.StatusCode >= 400 {
 		return nil, fmt.Errorf("azure openai completion failed: %s", strings.TrimSpace(string(respBody)))
 	}
-	openAI := &OpenAIProvider{}
-	openAIResp := map[string]any{}
-	if err := json.Unmarshal(respBody, &openAIResp); err != nil {
-		return nil, err
-	}
-	_ = openAI
 	return parseOpenAIResponse(respBody)
 }
 

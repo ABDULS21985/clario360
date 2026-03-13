@@ -6,19 +6,19 @@ import (
 )
 
 type VCISOMetrics struct {
-	MessagesTotal            *prometheus.CounterVec
-	IntentClassifiedTotal    *prometheus.CounterVec
-	IntentConfidence         *prometheus.HistogramVec
-	UnknownIntentsTotal      prometheus.Counter
-	ToolExecutionsTotal      *prometheus.CounterVec
-	ToolLatencySeconds       *prometheus.HistogramVec
-	ToolTimeoutsTotal        *prometheus.CounterVec
-	ConversationsActive      prometheus.Gauge
-	ConversationsTotal       prometheus.Counter
-	DashboardsCreatedTotal   prometheus.Counter
-	SuggestionsServedTotal   prometheus.Counter
-	PermissionDenialsTotal   *prometheus.CounterVec
-	ContextResolutionsTotal  *prometheus.CounterVec
+	MessagesTotal           *prometheus.CounterVec
+	IntentClassifiedTotal   *prometheus.CounterVec
+	IntentConfidence        *prometheus.HistogramVec
+	UnknownIntentsTotal     prometheus.Counter
+	ToolExecutionsTotal     *prometheus.CounterVec
+	ToolLatencySeconds      *prometheus.HistogramVec
+	ToolTimeoutsTotal       *prometheus.CounterVec
+	ConversationsActive     prometheus.Gauge
+	ConversationsTotal      prometheus.Counter
+	DashboardsCreatedTotal  prometheus.Counter
+	SuggestionsServedTotal  prometheus.Counter
+	PermissionDenialsTotal  *prometheus.CounterVec
+	ContextResolutionsTotal *prometheus.CounterVec
 }
 
 func NewMetrics(reg prometheus.Registerer) *VCISOMetrics {

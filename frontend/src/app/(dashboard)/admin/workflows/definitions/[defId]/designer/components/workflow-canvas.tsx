@@ -10,6 +10,7 @@ import { useCanvasState } from '../hooks/use-canvas-state';
 import type {
   WorkflowStep,
   WorkflowStepType,
+  WorkflowTransition,
   WorkflowDefinition,
   StepExecution,
 } from '@/types/models';
@@ -61,6 +62,27 @@ export function WorkflowCanvas({
   const [connectMouse, setConnectMouse] = useState<{ x: number; y: number } | null>(null);
 
   const selectedStep = canvas.steps.find((s) => s.id === canvas.selectedStepId) ?? null;
+
+  // Find selected transition and its source/target steps
+  const selectedTransitionInfo = (() => {
+    if (!canvas.selectedTransitionId) return null;
+    for (const step of canvas.steps) {
+      const transition = step.transitions.find(
+        (t) => t.id === canvas.selectedTransitionId,
+      );
+      if (transition) {
+        const targetStep = canvas.steps.find(
+          (s) => s.id === transition.target_step_id,
+        );
+        return {
+          transition,
+          fromStep: step,
+          toStep: targetStep,
+        };
+      }
+    }
+    return null;
+  })();
 
   // ── Handlers ──
 
@@ -346,13 +368,42 @@ export function WorkflowCanvas({
         </div>
       </div>
 
-      {/* Right properties panel */}
+      {/* Right properties panel — step */}
       {selectedStep && (
         <PropertiesPanel
+          mode="step"
           step={selectedStep}
           onUpdate={(updates) => canvas.updateStep(selectedStep.id, updates)}
           onRemove={() => canvas.removeStep(selectedStep.id)}
           onClose={() => canvas.selectStep(null)}
+          readOnly={readOnly}
+        />
+      )}
+
+      {/* Right properties panel — transition */}
+      {selectedTransitionInfo && (
+        <PropertiesPanel
+          mode="transition"
+          transition={selectedTransitionInfo.transition}
+          fromStepName={selectedTransitionInfo.fromStep.name}
+          toStepName={selectedTransitionInfo.toStep?.name ?? 'Unknown'}
+          onUpdateTransition={(updates) => {
+            const fromStep = selectedTransitionInfo.fromStep;
+            canvas.updateStep(fromStep.id, {
+              transitions: fromStep.transitions.map((t) =>
+                t.id === selectedTransitionInfo.transition.id
+                  ? { ...t, ...updates }
+                  : t,
+              ),
+            });
+          }}
+          onRemoveTransition={() => {
+            canvas.removeTransition(
+              selectedTransitionInfo.fromStep.id,
+              selectedTransitionInfo.transition.id,
+            );
+          }}
+          onClose={() => canvas.selectTransition(null)}
           readOnly={readOnly}
         />
       )}

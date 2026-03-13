@@ -22,7 +22,9 @@ func NewRemediationTool(deps *Dependencies) *RemediationTool {
 
 func (t *RemediationTool) Name() string { return "remediation" }
 
-func (t *RemediationTool) Description() string { return "start a governed remediation action for an alert or issue" }
+func (t *RemediationTool) Description() string {
+	return "start a governed remediation action for an alert or issue"
+}
 
 func (t *RemediationTool) RequiredPermissions() []string { return []string{"cyber:write"} }
 
@@ -45,16 +47,16 @@ func (t *RemediationTool) Execute(ctx context.Context, tenantID uuid.UUID, userI
 	}
 	affected = append(affected, alert.AssetIDs...)
 	req := &cyberdto.CreateRemediationRequest{
-		AlertID:            &alert.ID,
-		Type:               string(remediationType),
-		Severity:           string(alert.Severity),
-		Title:              "Remediate alert: " + alert.Title,
-		Description:        "Governed remediation action created by vCISO for alert " + alert.ID.String(),
-		Plan:               remediationPlanForAlert(alert, remediationType),
-		AffectedAssetIDs:   affected,
-		ExecutionMode:      "guided",
+		AlertID:              &alert.ID,
+		Type:                 string(remediationType),
+		Severity:             string(alert.Severity),
+		Title:                "Remediate alert: " + alert.Title,
+		Description:          "Governed remediation action created by vCISO for alert " + alert.ID.String(),
+		Plan:                 remediationPlanForAlert(alert, remediationType),
+		AffectedAssetIDs:     affected,
+		ExecutionMode:        "guided",
 		RequiresApprovalFrom: "security_manager",
-		Tags:               []string{"vciso", "alert", strings.ToLower(string(alert.Severity))},
+		Tags:                 []string{"vciso", "alert", strings.ToLower(string(alert.Severity))},
 		Metadata: map[string]any{
 			"source":   "vciso",
 			"alert_id": alert.ID.String(),
@@ -65,8 +67,8 @@ func (t *RemediationTool) Execute(ctx context.Context, tenantID uuid.UUID, userI
 		return nil, err
 	}
 	return &ToolResult{
-		Text: fmt.Sprintf("I created remediation **%s** for alert **%s**. Status: **%s**.", item.Title, alert.Title, item.Status),
-		Data: item,
+		Text:     fmt.Sprintf("I created remediation **%s** for alert **%s**. Status: **%s**.", item.Title, alert.Title, item.Status),
+		Data:     item,
 		DataType: "list",
 		Actions: []chatmodel.SuggestedAction{
 			navigateAction("Open remediation", "/cyber/remediation/"+item.ID.String()),
@@ -103,10 +105,9 @@ func remediationPlanForAlert(alert *cybermodel.Alert, remediationType cybermodel
 			{Number: 2, Action: string(remediationType), Description: "Apply the recommended control to contain or correct the issue."},
 			{Number: 3, Action: "verify", Description: "Re-check telemetry and confirm the triggering condition no longer appears."},
 		},
-		Reversible:       remediationType != cybermodel.RemediationTypeBlockIP,
-		RequiresReboot:   false,
+		Reversible:        remediationType != cybermodel.RemediationTypeBlockIP,
+		RequiresReboot:    false,
 		EstimatedDowntime: "low",
-		RiskLevel:        strings.ToLower(string(alert.Severity)),
+		RiskLevel:         strings.ToLower(string(alert.Severity)),
 	}
 }
-

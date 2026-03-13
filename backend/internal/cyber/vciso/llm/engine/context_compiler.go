@@ -2,28 +2,114 @@ package engine
 
 import (
 	"context"
-	"fmt"
 	"strings"
 
 	"github.com/google/uuid"
 
-	chatrepo "github.com/clario360/platform/internal/cyber/vciso/chat/repository"
+	chatmodel "github.com/clario360/platform/internal/cyber/vciso/chat/model"
 	llmmodel "github.com/clario360/platform/internal/cyber/vciso/llm/model"
 )
 
+const (
+	DefaultRecencyWindow = 10
+	DefaultSummaryBudget = 256
+)
+
+type messageLister interface {
+	ListMessages(ctx context.Context, tenantID, conversationID uuid.UUID) ([]chatmodel.Message, error)
+}
+
+type Summariser interface {
+	Summarise(ctx context.Context, msgs []chatmodel.Message) (string, error)
+}
+
+type DefaultSummariser struct {
+	MaxMessages int
+	MaxCharsPer int
+}
+
+func (s *DefaultSummariser) Summarise(_ context.Context, msgs []chatmodel.Message) (string, error) {
+	if len(msgs) == 0 {
+		return "", nil
+	}
+	maxMessages := s.MaxMessages
+	if maxMessages <= 0 {
+		maxMessages = 4
+	}
+	maxChars := s.MaxCharsPer
+	if maxChars <= 0 {
+		maxChars = 120
+	}
+	if len(msgs) > maxMessages {
+		msgs = msgs[len(msgs)-maxMessages:]
+	}
+	parts := make([]string, 0, len(msgs))
+	for _, msg := range msgs {
+		parts = append(parts, capitalise(string(msg.Role))+": "+truncateStr(strings.TrimSpace(msg.Content), maxChars))
+	}
+	return strings.Join(parts, " | "), nil
+}
+
 type CompiledContext struct {
-	Messages   []llmmodel.LLMMessage
-	ContextTurns int
+	Messages      []llmmodel.LLMMessage
+	ContextTurns  int
+	WasTruncated  bool
+	WasSummarised bool
+	DroppedTurns  int
+	TotalTokens   int
+	SummaryTokens int
 }
 
 type ContextCompiler struct {
-	conversationRepo *chatrepo.ConversationRepository
+	conversationRepo messageLister
 	budget           TokenBudget
 	metrics          *Metrics
+	recencyWindow    int
+	summaryBudget    int
+	summariser       Summariser
 }
 
-func NewContextCompiler(conversationRepo *chatrepo.ConversationRepository, budget TokenBudget, metrics *Metrics) *ContextCompiler {
-	return &ContextCompiler{conversationRepo: conversationRepo, budget: budget, metrics: metrics}
+type ContextCompilerOption func(*ContextCompiler)
+
+func WithRecencyWindow(n int) ContextCompilerOption {
+	return func(c *ContextCompiler) {
+		if n > 0 {
+			c.recencyWindow = n
+		}
+	}
+}
+
+func WithSummaryBudget(n int) ContextCompilerOption {
+	return func(c *ContextCompiler) {
+		if n > 0 {
+			c.summaryBudget = n
+		}
+	}
+}
+
+func WithSummariser(s Summariser) ContextCompilerOption {
+	return func(c *ContextCompiler) {
+		if s != nil {
+			c.summariser = s
+		}
+	}
+}
+
+func NewContextCompiler(conversationRepo messageLister, budget TokenBudget, metrics *Metrics, opts ...ContextCompilerOption) *ContextCompiler {
+	c := &ContextCompiler{
+		conversationRepo: conversationRepo,
+		budget:           budget,
+		metrics:          metrics,
+		recencyWindow:    DefaultRecencyWindow,
+		summaryBudget:    DefaultSummaryBudget,
+		summariser:       &DefaultSummariser{},
+	}
+	for _, opt := range opts {
+		if opt != nil {
+			opt(c)
+		}
+	}
+	return c
 }
 
 func (c *ContextCompiler) Compile(ctx context.Context, conversationID *uuid.UUID, tenantID uuid.UUID) (*CompiledContext, error) {
@@ -35,71 +121,111 @@ func (c *ContextCompiler) Compile(ctx context.Context, conversationID *uuid.UUID
 	if err != nil {
 		return nil, err
 	}
-	if len(messages) == 0 {
+	filtered := filterConversationMessages(messages)
+	if len(filtered) == 0 {
 		return compiled, nil
 	}
-	compiled.ContextTurns = min(len(messages), 10)
-	start := max(len(messages)-10, 0)
-	if start > 0 {
-		summary := summarizeMessages(messages[:start])
-		if summary != "" {
+
+	older, recent := splitRecent(filtered, c.recencyWindow)
+	compiled.ContextTurns = len(recent)
+	compiled.DroppedTurns = len(older)
+
+	if len(older) > 0 && c.summariser != nil {
+		summary, summaryErr := c.summariser.Summarise(ctx, older)
+		if summaryErr == nil && strings.TrimSpace(summary) != "" {
+			summary, summaryTokens, summaryTruncated := enforceSummaryBudget(summary, c.summaryBudget)
 			compiled.Messages = append(compiled.Messages, llmmodel.LLMMessage{
 				Role:    "assistant",
 				Content: "Conversation summary: " + summary,
 			})
+			compiled.WasSummarised = true
+			compiled.WasTruncated = summaryTruncated
+			compiled.SummaryTokens = summaryTokens
+			compiled.TotalTokens += estimateTokens("Conversation summary: " + summary)
 		}
 	}
-	tokens := 0
-	for _, item := range messages[start:] {
-		role := string(item.Role)
-		if role == "system" {
-			continue
+
+	// Compute how many tokens remain for recent messages after the summary.
+	available := -1 // -1 = unlimited
+	if c.budget.ConversationHistoryBudget > 0 {
+		usedSegments := make([]string, 0, len(compiled.Messages))
+		for _, msg := range compiled.Messages {
+			usedSegments = append(usedSegments, msg.Content)
 		}
-		msg := llmmodel.LLMMessage{Role: role, Content: item.Content}
+		available = remainingTokens(c.budget.ConversationHistoryBudget, usedSegments...)
+	}
+
+	for idx, item := range recent {
+		role := string(item.Role)
 		messageTokens := estimateTokens(item.Content)
-		if tokens+messageTokens > c.budget.ConversationHistoryBudget && len(compiled.Messages) > 0 {
+		if available >= 0 && messageTokens > available && len(compiled.Messages) > 0 {
+			compiled.WasTruncated = true
+			compiled.DroppedTurns += len(recent) - idx
 			break
 		}
-		compiled.Messages = append(compiled.Messages, msg)
-		tokens += messageTokens
+		compiled.Messages = append(compiled.Messages, llmmodel.LLMMessage{
+			Role:    role,
+			Content: item.Content,
+		})
+		compiled.TotalTokens += messageTokens
+		if available >= 0 {
+			available -= messageTokens
+		}
 	}
+
 	if c.metrics != nil && c.metrics.ContextTokensUsed != nil {
-		c.metrics.ContextTokensUsed.Observe(float64(tokens))
+		c.metrics.ContextTokensUsed.Observe(float64(compiled.TotalTokens))
 	}
 	return compiled, nil
 }
 
-func summarizeMessages(items []chatrepo.MessageCompat) string {
-	_ = items
-	return ""
-}
-
-func min(a, b int) int {
-	if a < b {
-		return a
+func filterConversationMessages(messages []chatmodel.Message) []chatmodel.Message {
+	filtered := make([]chatmodel.Message, 0, len(messages))
+	for _, item := range messages {
+		if strings.EqualFold(string(item.Role), "system") {
+			continue
+		}
+		filtered = append(filtered, item)
 	}
-	return b
+	return filtered
 }
 
-func max(a, b int) int {
-	if a > b {
-		return a
+func splitRecent(messages []chatmodel.Message, recencyWindow int) ([]chatmodel.Message, []chatmodel.Message) {
+	if recencyWindow <= 0 || len(messages) <= recencyWindow {
+		return nil, messages
 	}
-	return b
+	return messages[:len(messages)-recencyWindow], messages[len(messages)-recencyWindow:]
 }
 
-func summarizeMessages(messages interface{}) string {
-	switch typed := messages.(type) {
-	case []string:
-		return strings.Join(typed, " ")
-	default:
+func enforceSummaryBudget(summary string, budget int) (string, int, bool) {
+	if budget <= 0 {
+		return summary, estimateTokens(summary), false
+	}
+	if estimateTokens(summary) <= budget {
+		return summary, estimateTokens(summary), false
+	}
+	truncated := truncateToTokenBudget(summary, budget)
+	return truncated, estimateTokens(truncated), true
+}
+
+func capitalise(value string) string {
+	if value == "" {
 		return ""
 	}
+	runes := []rune(value)
+	runes[0] = []rune(strings.ToUpper(string(runes[0])))[0]
+	return string(runes)
 }
 
-func summarizeConversation(lines []string) string {
-	if len(lines) == 0 {
+func truncateStr(value string, maxLen int) string {
+	if maxLen <= 0 {
 		return ""
 	}
-	return fmt.Sprintf("%d earlier turns summarized.", len(lines))
+	if len(value) <= maxLen {
+		return value
+	}
+	if maxLen <= len("…") {
+		return "…"
+	}
+	return value[:maxLen-len("…")] + "…"
 }

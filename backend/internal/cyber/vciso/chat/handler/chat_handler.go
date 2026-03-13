@@ -193,8 +193,22 @@ func mapConversationMessage(item chatmodel.Message) chatdto.ConversationMessage 
 		ResponseType: item.ResponseType,
 		Actions:      item.SuggestedActions,
 		ToolResult:   toolResult,
+		Engine:       inferConversationMessageEngine(item),
 		CreatedAt:    item.CreatedAt,
 	}
+}
+
+func inferConversationMessageEngine(item chatmodel.Message) string {
+	if item.Role != chatmodel.MessageRoleAssistant {
+		return ""
+	}
+	if item.PredictionLogID != nil {
+		return "llm"
+	}
+	if item.ToolName != nil && strings.EqualFold(strings.TrimSpace(*item.ToolName), "llm") {
+		return "llm"
+	}
+	return "rule_based"
 }
 
 func sanitizeError(value string) string {

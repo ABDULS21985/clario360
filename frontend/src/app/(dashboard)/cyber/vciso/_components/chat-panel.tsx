@@ -30,9 +30,11 @@ export function ChatPanel() {
     statusText,
     isSending,
     conversations,
+    preferredEngine,
     sendMessage,
     loadConversation,
     startNewChat,
+    setPreferredEngine,
   } = useVCISOChat();
 
   // Auto-scroll on new messages or status changes
@@ -100,9 +102,16 @@ export function ChatPanel() {
                   Virtual CISO
                 </Badge>
                 {connectionBadge}
+                <Badge variant="outline" className="rounded-full text-[10px] uppercase tracking-[0.12em]">
+                  {preferredEngine === 'auto'
+                    ? 'Auto route'
+                    : preferredEngine === 'llm'
+                      ? 'LLM forced'
+                      : 'Deterministic forced'}
+                </Badge>
               </div>
               <p className="mt-2 text-sm text-muted-foreground">
-                Deterministic security assistant with audited tool execution.
+                Hybrid vCISO assistant with transparent routing, grounded responses, and auditable traces.
               </p>
             </div>
             <ConversationList
@@ -146,10 +155,23 @@ export function ChatPanel() {
         {/* Footer status */}
         <div className="border-t bg-slate-50/70 px-4 py-2 text-xs text-muted-foreground">
           {conversationId ? `Conversation ${conversationId.slice(0, 8)} active` : 'New conversation'}
+          {' · '}
+          {preferredEngine === 'auto'
+            ? 'Router decides per message'
+            : preferredEngine === 'llm'
+              ? 'LLM override active'
+              : 'Deterministic override active'}
         </div>
 
         {/* Input */}
-        <MessageInput value={input} onChange={setInput} onSend={() => void sendMessage(input)} disabled={isSending} />
+        <MessageInput
+          value={input}
+          preferredEngine={preferredEngine}
+          onChange={setInput}
+          onPreferredEngineChange={setPreferredEngine}
+          onSend={() => void sendMessage(input)}
+          disabled={isSending}
+        />
       </div>
 
       {/* Confirm dialog for dangerous actions (replaces window.confirm) */}

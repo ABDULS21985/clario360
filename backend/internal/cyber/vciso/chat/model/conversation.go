@@ -24,16 +24,16 @@ const (
 )
 
 type Conversation struct {
-	ID            uuid.UUID          `json:"id"`
-	TenantID      uuid.UUID          `json:"tenant_id"`
-	UserID        uuid.UUID          `json:"user_id"`
-	Title         string             `json:"title"`
-	Status        ConversationStatus `json:"status"`
-	MessageCount  int                `json:"message_count"`
+	ID            uuid.UUID           `json:"id"`
+	TenantID      uuid.UUID           `json:"tenant_id"`
+	UserID        uuid.UUID           `json:"user_id"`
+	Title         string              `json:"title"`
+	Status        ConversationStatus  `json:"status"`
+	MessageCount  int                 `json:"message_count"`
 	LastContext   ConversationContext `json:"last_context"`
-	LastMessageAt *time.Time         `json:"last_message_at,omitempty"`
-	CreatedAt     time.Time          `json:"created_at"`
-	UpdatedAt     time.Time          `json:"updated_at"`
+	LastMessageAt *time.Time          `json:"last_message_at,omitempty"`
+	CreatedAt     time.Time           `json:"created_at"`
+	UpdatedAt     time.Time           `json:"updated_at"`
 }
 
 type Message struct {

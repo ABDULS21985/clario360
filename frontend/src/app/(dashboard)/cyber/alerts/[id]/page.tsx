@@ -1,6 +1,6 @@
 'use client';
 
-import { use, useState } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import { apiGet } from '@/lib/api';
@@ -27,11 +27,11 @@ import { AlertEscalateDialog } from '../_components/alert-escalate-dialog';
 import type { CyberAlert, RootCauseAnalysis } from '@/types/cyber';
 
 interface Props {
-  params: Promise<{ id: string }>;
+  params: { id: string };
 }
 
 export default function AlertDetailPage({ params }: Props) {
-  const { id } = use(params);
+  const { id } = params;
   const router = useRouter();
 
   const [statusOpen, setStatusOpen] = useState(false);

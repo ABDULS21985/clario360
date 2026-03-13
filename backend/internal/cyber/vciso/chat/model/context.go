@@ -29,14 +29,13 @@ type Turn struct {
 }
 
 type ConversationContext struct {
-	ConversationID uuid.UUID          `json:"conversation_id"`
-	UserID         uuid.UUID          `json:"user_id"`
-	TenantID       uuid.UUID          `json:"tenant_id"`
-	Turns          []Turn             `json:"turns"`
-	LastEntities   []EntityReference  `json:"last_entities"`
-	ActiveFilters  map[string]string  `json:"active_filters"`
-	StartedAt      time.Time          `json:"started_at"`
-	LastActivityAt time.Time          `json:"last_activity_at"`
-	IdleTimeoutMin int                `json:"idle_timeout_min"`
+	ConversationID uuid.UUID         `json:"conversation_id"`
+	UserID         uuid.UUID         `json:"user_id"`
+	TenantID       uuid.UUID         `json:"tenant_id"`
+	Turns          []Turn            `json:"turns"`
+	LastEntities   []EntityReference `json:"last_entities"`
+	ActiveFilters  map[string]string `json:"active_filters"`
+	StartedAt      time.Time         `json:"started_at"`
+	LastActivityAt time.Time         `json:"last_activity_at"`
+	IdleTimeoutMin int               `json:"idle_timeout_min"`
 }
-

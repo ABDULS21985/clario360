@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -50,11 +50,11 @@ import {
 } from "../_components/integration-utils";
 
 interface Props {
-  params: Promise<{ id: string }>;
+  params: { id: string };
 }
 
 export default function IntegrationDetailPage({ params }: Props) {
-  const { id } = use(params);
+  const { id } = params;
   const router = useRouter();
   const [editOpen, setEditOpen] = useState(false);
   const [busyKey, setBusyKey] = useState<string | null>(null);

@@ -3,6 +3,7 @@ package tools
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/google/uuid"
@@ -32,10 +33,10 @@ func NewRegistry(deps *chattools.Dependencies) *Registry {
 		applyTimeRange(params, stringArg(args, "time_range"))
 		return params
 	}, requiredSchema(map[string]any{
-		"severity":  enumString("critical", "high", "medium", "low"),
+		"severity":   enumString("critical", "high", "medium", "low"),
 		"time_range": stringProp(timeRangeDescription()),
-		"status":    enumString("open", "acknowledged", "resolved", "all"),
-		"limit":     intProp("Maximum alerts to return", 1, 50),
+		"status":     enumString("open", "acknowledged", "resolved", "all"),
+		"limit":      intProp("Maximum alerts to return", 1, 50),
 	}), false))
 	register(wrapLegacy("get_alert_detail", "Get detailed information about a specific alert including explanation and affected assets.", legacy.Get("alert_detail"), func(args map[string]any) map[string]string {
 		return map[string]string{"alert_id": stringArg(args, "alert_id")}
@@ -103,6 +104,42 @@ func NewRegistry(deps *chattools.Dependencies) *Registry {
 		"report_type": enumString("executive_summary", "weekly", "monthly", "incident", "compliance"),
 		"time_range":  stringProp(timeRangeDescription()),
 	}, "report_type"), false))
+	register(wrapLegacy("get_threat_forecast", "Get predicted alert volume, emerging attack techniques, and campaign trends.", legacy.Get("get_threat_forecast"), func(args map[string]any) map[string]string {
+		return map[string]string{
+			"forecast_type": stringArg(args, "forecast_type"),
+			"time_horizon":  stringArg(args, "time_horizon"),
+		}
+	}, requiredSchema(map[string]any{
+		"forecast_type": enumString("alert_volume", "technique_trend", "campaign_detection"),
+		"time_horizon":  enumString("7_days", "30_days", "90_days"),
+	}, "forecast_type", "time_horizon"), false))
+	register(wrapLegacy("get_asset_risk_prediction", "Get predicted probability of each asset being targeted, ranked by risk.", legacy.Get("get_asset_risk_prediction"), func(args map[string]any) map[string]string {
+		return map[string]string{
+			"limit":      strconvItoa(intArg(args, "limit", 10)),
+			"asset_type": stringArg(args, "asset_type"),
+		}
+	}, requiredSchema(map[string]any{
+		"limit":      intProp("Maximum assets to return", 1, 50),
+		"asset_type": enumString("server", "endpoint", "database", "network", "all"),
+	}), false))
+	register(wrapLegacy("get_vulnerability_priority", "Get prioritized vulnerabilities ranked by predicted exploit probability.", legacy.Get("get_vulnerability_priority"), func(args map[string]any) map[string]string {
+		return map[string]string{
+			"limit":           strconvItoa(intArg(args, "limit", 20)),
+			"min_probability": stringArg(args, "min_probability"),
+		}
+	}, requiredSchema(map[string]any{
+		"limit":           intProp("Maximum vulnerabilities to return", 1, 100),
+		"min_probability": numberProp("Minimum exploit probability threshold between 0 and 1"),
+	}), false))
+	register(wrapLegacy("get_insider_threat_forecast", "Get users whose behavioral risk scores are predicted to escalate.", legacy.Get("get_insider_threat_forecast"), func(args map[string]any) map[string]string {
+		return map[string]string{
+			"time_horizon": stringArg(args, "time_horizon"),
+			"threshold":    strconvItoa(intArg(args, "threshold", 70)),
+		}
+	}, requiredSchema(map[string]any{
+		"time_horizon": enumString("7_days", "30_days"),
+		"threshold":    intProp("Minimum projected risk score", 0, 100),
+	}, "time_horizon"), false))
 
 	register(NewCrossSuiteQuery(deps))
 	register(NewExecutiveBriefingTool(deps))
@@ -191,7 +228,7 @@ func (t *RiskyUsersTool) Execute(ctx context.Context, tenantID uuid.UUID, _ uuid
 	}
 	sortRowsByScore(rows, "risk_score")
 	return listResult(
-		fmt.Sprintf("Returned %d UEBA entities above the requested threshold.", len(rows)),
+		summarizeRows(rows),
 		"table",
 		map[string]any{"items": rows},
 		[]chatmodel.SuggestedAction{{Label: "Open UEBA dashboard", Type: "navigate", Params: map[string]string{"url": "/cyber/ueba"}}},
@@ -205,6 +242,10 @@ func stringProp(description string) map[string]any {
 
 func intProp(description string, minimum, maximum int) map[string]any {
 	return map[string]any{"type": "integer", "description": description, "minimum": minimum, "maximum": maximum}
+}
+
+func numberProp(description string) map[string]any {
+	return map[string]any{"type": "integer", "description": description}
 }
 
 func boolProp(description string) map[string]any {

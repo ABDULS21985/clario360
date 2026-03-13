@@ -18,6 +18,7 @@ type EntityExtractor struct {
 	sinceDate       *regexp.Regexp
 	severityPattern *regexp.Regexp
 	countPattern    *regexp.Regexp
+	percentPattern  *regexp.Regexp
 	timePatterns    []timePattern
 	frameworkMap    map[string]string
 }
@@ -36,6 +37,7 @@ func NewEntityExtractor(now func() time.Time) *EntityExtractor {
 		sinceDate:       regexp.MustCompile(`(?i)\bsince\s+(\d{4}-\d{2}-\d{2})\b`),
 		severityPattern: regexp.MustCompile(`(?i)\b(critical|high|medium|low|info)\b`),
 		countPattern:    regexp.MustCompile(`(?i)\b(?:top|last|first)\s+(\d+)\b|\b(\d+)\s+most\b`),
+		percentPattern:  regexp.MustCompile(`(?i)\b(\d{1,3})\s*%`),
 		timePatterns:    defaultTimePatterns(),
 		frameworkMap: map[string]string{
 			"iso 27001": "iso27001",
@@ -82,6 +84,24 @@ func (e *EntityExtractor) Extract(message string, intent string) map[string]stri
 		e.extractSeverity(normalized, out)
 		e.extractCount(normalized, out)
 		e.extractFramework(normalized, out)
+	}
+	if intent == "threat_forecast_query" {
+		e.extractForecastType(normalized, out)
+		e.extractPredictiveHorizon(normalized, out)
+	}
+	if intent == "asset_risk_prediction_query" {
+		e.extractCount(normalized, out)
+		out["limit"] = out["count"]
+		e.extractAssetType(normalized, out)
+	}
+	if intent == "vulnerability_priority_query" {
+		e.extractCount(normalized, out)
+		out["limit"] = out["count"]
+		e.extractProbability(normalized, out)
+	}
+	if intent == "insider_forecast_query" {
+		e.extractPredictiveHorizon(normalized, out)
+		e.extractThreshold(normalized, out)
 	}
 	return out
 }
@@ -229,6 +249,63 @@ func (e *EntityExtractor) extractFramework(message string, out map[string]string
 	}
 }
 
+func (e *EntityExtractor) extractForecastType(message string, out map[string]string) {
+	switch {
+	case strings.Contains(message, "technique"):
+		out["forecast_type"] = "technique_trend"
+	case strings.Contains(message, "campaign") || strings.Contains(message, "coordinated attack"):
+		out["forecast_type"] = "campaign_detection"
+	default:
+		out["forecast_type"] = "alert_volume"
+	}
+}
+
+func (e *EntityExtractor) extractPredictiveHorizon(message string, out map[string]string) {
+	switch {
+	case strings.Contains(message, "90 days") || strings.Contains(message, "next quarter"):
+		out["time_horizon"] = "90_days"
+	case strings.Contains(message, "30 days") || strings.Contains(message, "next month"):
+		out["time_horizon"] = "30_days"
+	default:
+		out["time_horizon"] = "7_days"
+	}
+}
+
+func (e *EntityExtractor) extractAssetType(message string, out map[string]string) {
+	switch {
+	case strings.Contains(message, "server"):
+		out["asset_type"] = "server"
+	case strings.Contains(message, "endpoint"):
+		out["asset_type"] = "endpoint"
+	case strings.Contains(message, "database"):
+		out["asset_type"] = "database"
+	case strings.Contains(message, "network"):
+		out["asset_type"] = "network"
+	default:
+		out["asset_type"] = "all"
+	}
+}
+
+func (e *EntityExtractor) extractProbability(message string, out map[string]string) {
+	if match := e.percentPattern.FindStringSubmatch(message); len(match) > 1 {
+		out["min_probability"] = match[1] + "%"
+		return
+	}
+	if strings.Contains(message, "high probability") {
+		out["min_probability"] = "70%"
+		return
+	}
+	out["min_probability"] = "50%"
+}
+
+func (e *EntityExtractor) extractThreshold(message string, out map[string]string) {
+	if match := e.percentPattern.FindStringSubmatch(message); len(match) > 1 {
+		out["threshold"] = match[1]
+		return
+	}
+	out["threshold"] = "70"
+}
+
 func (e *EntityExtractor) extractDashboardDescription(message string) string {
 	normalized := strings.TrimSpace(message)
 	replacements := []string{"build me a", "build a", "create a", "make a", "generate a", "set up a", "dashboard", "view", "panel", "showing", "with"}
@@ -242,5 +319,3 @@ func (e *EntityExtractor) extractDashboardDescription(message string) string {
 	}
 	return lower
 }
-
-

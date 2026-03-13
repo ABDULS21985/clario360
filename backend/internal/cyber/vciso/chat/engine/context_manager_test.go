@@ -12,7 +12,10 @@ import (
 func TestContextManager_ResolveEntities(t *testing.T) {
 	t.Parallel()
 
-	manager := NewContextManager(func() time.Time { return time.Date(2026, 3, 8, 12, 0, 0, 0, time.UTC) }, 30*time.Minute)
+	manager := NewContextManager(
+		WithClock(func() time.Time { return time.Date(2026, 3, 8, 12, 0, 0, 0, time.UTC) }),
+		WithIdleTimeout(30*time.Minute),
+	)
 	conversation := manager.NewContext(uuid.New(), uuid.New(), uuid.New())
 	conversation.LastEntities = []chatmodel.EntityReference{
 		{Type: "alert", ID: "alert-1", Name: "Alert One", Index: 0},
@@ -48,7 +51,10 @@ func TestContextManager_ResolveEntities(t *testing.T) {
 func TestContextManager_FilterCarryover(t *testing.T) {
 	t.Parallel()
 
-	manager := NewContextManager(func() time.Time { return time.Now().UTC() }, 30*time.Minute)
+	manager := NewContextManager(
+		WithClock(func() time.Time { return time.Now().UTC() }),
+		WithIdleTimeout(30*time.Minute),
+	)
 	conversation := manager.NewContext(uuid.New(), uuid.New(), uuid.New())
 
 	entities := manager.ApplyFilterCarryover("Show critical alerts", map[string]string{"severity": "critical"}, &conversation)
@@ -72,7 +78,10 @@ func TestContextManager_MaxTurnsAndExpiry(t *testing.T) {
 
 	now := time.Date(2026, 3, 8, 12, 0, 0, 0, time.UTC)
 	current := now
-	manager := NewContextManager(func() time.Time { return current }, 30*time.Minute)
+	manager := NewContextManager(
+		WithClock(func() time.Time { return current }),
+		WithIdleTimeout(30*time.Minute),
+	)
 	conversation := manager.NewContext(uuid.New(), uuid.New(), uuid.New())
 
 	for i := 0; i < 12; i++ {

@@ -22,4 +22,3 @@ type ToolResult struct {
 	Actions  []chatmodel.SuggestedAction `json:"actions"`
 	Entities []chatmodel.EntityReference `json:"entities"`
 }
-

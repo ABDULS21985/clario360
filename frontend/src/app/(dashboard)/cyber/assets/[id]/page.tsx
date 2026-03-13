@@ -1,6 +1,6 @@
 'use client';
 
-import { use, useState } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import { apiGet } from '@/lib/api';
@@ -28,11 +28,11 @@ import { AssetConfigTab } from './_components/asset-config-tab';
 import type { CyberAsset } from '@/types/cyber';
 
 interface Props {
-  params: Promise<{ id: string }>;
+  params: { id: string };
 }
 
 export default function AssetDetailPage({ params }: Props) {
-  const { id } = use(params);
+  const { id } = params;
   const router = useRouter();
 
   const [editOpen, setEditOpen] = useState(false);

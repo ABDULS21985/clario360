@@ -7,9 +7,9 @@ import (
 
 	"github.com/google/uuid"
 
+	chatmodel "github.com/clario360/platform/internal/cyber/vciso/chat/model"
 	datadto "github.com/clario360/platform/internal/data/dto"
 	datamodel "github.com/clario360/platform/internal/data/model"
-	chatmodel "github.com/clario360/platform/internal/cyber/vciso/chat/model"
 )
 
 type PipelineStatusTool struct {
@@ -86,4 +86,3 @@ func pointerString(value *string, fallback string) string {
 	}
 	return *value
 }
-

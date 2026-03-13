@@ -24,7 +24,9 @@ func NewInvestigationTool(deps *Dependencies) *InvestigationTool {
 
 func (t *InvestigationTool) Name() string { return "investigation" }
 
-func (t *InvestigationTool) Description() string { return "run a comprehensive investigation on a specific alert" }
+func (t *InvestigationTool) Description() string {
+	return "run a comprehensive investigation on a specific alert"
+}
 
 func (t *InvestigationTool) RequiredPermissions() []string { return []string{"cyber:read"} }
 

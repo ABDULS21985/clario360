@@ -21,7 +21,9 @@ func NewAlertDetailTool(deps *Dependencies) *AlertDetailTool {
 
 func (t *AlertDetailTool) Name() string { return "alert_detail" }
 
-func (t *AlertDetailTool) Description() string { return "get detailed information about a specific alert" }
+func (t *AlertDetailTool) Description() string {
+	return "get detailed information about a specific alert"
+}
 
 func (t *AlertDetailTool) RequiredPermissions() []string { return []string{"cyber:read"} }
 

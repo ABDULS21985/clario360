@@ -30,7 +30,9 @@ func NewDashboardBuilderTool(deps *Dependencies) *DashboardBuilderTool {
 
 func (t *DashboardBuilderTool) Name() string { return "dashboard_builder" }
 
-func (t *DashboardBuilderTool) Description() string { return "build a custom dashboard with specified metrics and charts" }
+func (t *DashboardBuilderTool) Description() string {
+	return "build a custom dashboard with specified metrics and charts"
+}
 
 func (t *DashboardBuilderTool) RequiredPermissions() []string { return []string{"visus:write"} }
 
@@ -191,4 +193,3 @@ func layoutWidgetSpecs(dashboardID, tenantID uuid.UUID, specs []widgetSpec) []vi
 	}
 	return out
 }
-

@@ -23,6 +23,7 @@ import (
 	cybersvc "github.com/clario360/platform/internal/cyber/service"
 	uebasvc "github.com/clario360/platform/internal/cyber/ueba/service"
 	chatmodel "github.com/clario360/platform/internal/cyber/vciso/chat/model"
+	predictengine "github.com/clario360/platform/internal/cyber/vciso/predict/engine"
 	datarepo "github.com/clario360/platform/internal/data/repository"
 	"github.com/clario360/platform/internal/events"
 	lexrepo "github.com/clario360/platform/internal/lex/repository"
@@ -45,6 +46,7 @@ type Dependencies struct {
 	UEBAService          *uebasvc.UEBAService
 	VCISOService         *cybersvc.VCISOService
 	RemediationService   *cybersvc.RemediationService
+	PredictEngine        *predictengine.ForecastEngine
 
 	DataPool            *pgxpool.Pool
 	DataPipelineRepo    *datarepo.PipelineRepository
@@ -64,14 +66,14 @@ type Dependencies struct {
 	LexComplianceService *lexservice.ComplianceService
 	LexDashboardService  *lexservice.DashboardService
 
-	VisusPool              *pgxpool.Pool
-	VisusDashboardRepo     *visusrepo.DashboardRepository
-	VisusWidgetRepo        *visusrepo.WidgetRepository
-	VisusKPIRepo           *visusrepo.KPIRepository
-	VisusSnapshotRepo      *visusrepo.KPISnapshotRepository
-	VisusAlertRepo         *visusrepo.AlertRepository
-	VisusDashboardService  *visusservice.DashboardService
-	VisusWidgetService     *visusservice.WidgetService
+	VisusPool             *pgxpool.Pool
+	VisusDashboardRepo    *visusrepo.DashboardRepository
+	VisusWidgetRepo       *visusrepo.WidgetRepository
+	VisusKPIRepo          *visusrepo.KPIRepository
+	VisusSnapshotRepo     *visusrepo.KPISnapshotRepository
+	VisusAlertRepo        *visusrepo.AlertRepository
+	VisusDashboardService *visusservice.DashboardService
+	VisusWidgetService    *visusservice.WidgetService
 
 	Producer *events.Producer
 	Logger   zerolog.Logger

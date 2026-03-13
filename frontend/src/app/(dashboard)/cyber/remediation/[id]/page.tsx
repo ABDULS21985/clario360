@@ -1,6 +1,6 @@
 'use client';
 
-import { use, useState } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import { apiGet } from '@/lib/api';
@@ -32,11 +32,11 @@ import { useApiMutation } from '@/hooks/use-api-mutation';
 import type { RemediationAction, RemediationAuditEntry } from '@/types/cyber';
 
 interface Props {
-  params: Promise<{ id: string }>;
+  params: { id: string };
 }
 
 export default function RemediationDetailPage({ params }: Props) {
-  const { id } = use(params);
+  const { id } = params;
   const router = useRouter();
 
   const [approveOpen, setApproveOpen] = useState(false);

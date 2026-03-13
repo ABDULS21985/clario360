@@ -8,6 +8,7 @@ import { apiGet, apiPost } from '@/lib/api';
 import { getAccessToken } from '@/lib/auth';
 import { API_ENDPOINTS } from '@/lib/constants';
 import type {
+  VCISOEnginePreference,
   VCISOChatResponse,
   VCISOConversationDetail,
   VCISOConversationListItem,
@@ -58,6 +59,7 @@ export function useVCISOChat() {
   const [connectionState, setConnectionState] = useState<ConnectionState>('connecting');
   const [statusText, setStatusText] = useState<string | null>(null);
   const [isSending, setIsSending] = useState(false);
+  const [preferredEngine, setPreferredEngine] = useState<VCISOEnginePreference>('auto');
 
   // ── Conversations query ──────────────────────────────────────────────────
 
@@ -194,6 +196,11 @@ export function useVCISOChat() {
                   actions: Array.isArray(payload.actions) ? (payload.actions as VCISOSuggestedAction[]) : [],
                   tool_result: payload.data,
                   intent: payload.intent as string | undefined,
+                  engine: typeof payload.engine === 'string' ? payload.engine : m.engine,
+                  meta:
+                    payload.meta && typeof payload.meta === 'object'
+                      ? (payload.meta as VCISOConversationMessage['meta'])
+                      : m.meta,
                 }
               : m,
           ),
@@ -216,6 +223,11 @@ export function useVCISOChat() {
           tool_result: payload.data,
           created_at: new Date().toISOString(),
           intent: payload.intent as string | undefined,
+          engine: typeof payload.engine === 'string' ? payload.engine : undefined,
+          meta:
+            payload.meta && typeof payload.meta === 'object'
+              ? (payload.meta as VCISOConversationMessage['meta'])
+              : undefined,
         });
         void conversationsQuery.refetch();
         break;
@@ -277,7 +289,14 @@ export function useVCISOChat() {
 
     const socket = wsRef.current;
     if (socket && socket.readyState === WebSocket.OPEN) {
-      socket.send(JSON.stringify({ type: 'message', conversation_id: conversationId, content: message }));
+      socket.send(
+        JSON.stringify({
+          type: 'message',
+          conversation_id: conversationId,
+          content: message,
+          prefer_engine: preferredEngine === 'auto' ? undefined : preferredEngine,
+        }),
+      );
       return;
     }
 
@@ -286,6 +305,7 @@ export function useVCISOChat() {
       const response = await apiPost<VCISOChatResponse>(API_ENDPOINTS.CYBER_VCISO_CHAT, {
         conversation_id: conversationId,
         message,
+        prefer_engine: preferredEngine === 'auto' ? undefined : preferredEngine,
       });
       setConversationId(response.conversation_id);
       appendAssistantMessage({
@@ -297,6 +317,8 @@ export function useVCISOChat() {
         tool_result: response.response.data,
         created_at: new Date().toISOString(),
         intent: response.intent,
+        engine: response.engine,
+        meta: response.meta,
       });
       const suggestionResponse = await apiGet<SuggestionsResponse>(API_ENDPOINTS.CYBER_VCISO_SUGGESTIONS, {
         conversation_id: response.conversation_id,
@@ -344,12 +366,14 @@ export function useVCISOChat() {
     statusText,
     isSending,
     conversations: conversationsQuery.data?.data ?? [],
+    preferredEngine,
 
     // Actions
     sendMessage,
     loadConversation,
     startNewChat,
     setSuggestions,
+    setPreferredEngine,
   };
 }
 

@@ -22,6 +22,7 @@ import { LineChart } from '@/components/shared/charts/line-chart';
 import { PieChart } from '@/components/shared/charts/pie-chart';
 import { cn, formatDateTime } from '@/lib/utils';
 import type { VCISOConversationMessage, VCISOSuggestedAction } from '@/types/cyber';
+import { MessageDiagnostics } from './message-diagnostics';
 
 // ── Props ────────────────────────────────────────────────────────────────────
 
@@ -82,6 +83,7 @@ export function MessageBubble({ message, onAction }: MessageBubbleProps) {
             )}
           </div>
           {!isUser && renderStructuredContent(message)}
+          {!isUser && <MessageDiagnostics message={message} />}
         </div>
         {!isUser && message.actions.length > 0 && (
           <div className="flex flex-wrap gap-2">

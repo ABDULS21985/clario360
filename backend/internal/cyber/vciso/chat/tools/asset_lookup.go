@@ -23,7 +23,9 @@ func NewAssetLookupTool(deps *Dependencies) *AssetLookupTool {
 
 func (t *AssetLookupTool) Name() string { return "asset_lookup" }
 
-func (t *AssetLookupTool) Description() string { return "look up details about an asset, server, host, or device" }
+func (t *AssetLookupTool) Description() string {
+	return "look up details about an asset, server, host, or device"
+}
 
 func (t *AssetLookupTool) RequiredPermissions() []string { return []string{"cyber:read"} }
 

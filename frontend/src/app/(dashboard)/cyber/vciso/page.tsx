@@ -16,6 +16,7 @@ import type { VCISOBriefing } from '@/types/cyber';
 import { ChatPanel } from './_components/chat-panel';
 import { ComplianceStatusSection } from './_components/compliance-status-section';
 import { CriticalIssuesCards } from './_components/critical-issues-cards';
+import { LLMOpsPanel } from './_components/llm-ops-panel';
 import { RecommendationsList } from './_components/recommendations-list';
 import { RiskPostureSummary } from './_components/risk-posture-summary';
 import { ThreatLandscapeSection } from './_components/threat-landscape-section';
@@ -50,7 +51,7 @@ export default function CyberVcisoPage() {
       <div className="space-y-6">
         <PageHeader
           title="Virtual CISO"
-          description="Executive security briefing on the left, deterministic security chat on the right."
+          description="Executive security briefing, hybrid routed chat, and LLM observability in one workspace."
           actions={
             <div className="flex items-center gap-2">
               <Button variant="outline" size="sm" onClick={() => void refetch()}>
@@ -80,70 +81,74 @@ export default function CyberVcisoPage() {
         ) : error || !briefing ? (
           <ErrorState message="Failed to load the Virtual CISO briefing." onRetry={() => void refetch()} />
         ) : (
-          <div className="grid gap-6 xl:grid-cols-[minmax(0,1.45fr)_minmax(380px,1fr)]">
-            <div className="space-y-6">
-              <section className="relative overflow-hidden rounded-[2rem] border bg-[radial-gradient(circle_at_top_left,_rgba(14,165,233,0.16),_transparent_38%),linear-gradient(135deg,#0f172a,#1e293b)] p-6 text-white shadow-xl">
-                <div className="absolute right-6 top-6 opacity-10">
-                  <Bot className="h-28 w-28" />
-                </div>
-                <div className="relative space-y-5">
-                  <div className="flex flex-wrap items-center gap-3">
-                    <Badge className="rounded-full bg-white/15 text-white hover:bg-white/15">Executive Briefing</Badge>
-                    <Badge variant="outline" className="rounded-full border-white/20 bg-transparent text-white">
-                      {formatDate(briefing.period_start)} - {formatDate(briefing.period_end)}
-                    </Badge>
+          <div className="space-y-6">
+            <div className="grid gap-6 xl:grid-cols-[minmax(0,1.45fr)_minmax(380px,1fr)]">
+              <div className="space-y-6">
+                <section className="relative overflow-hidden rounded-[2rem] border bg-[radial-gradient(circle_at_top_left,_rgba(14,165,233,0.16),_transparent_38%),linear-gradient(135deg,#0f172a,#1e293b)] p-6 text-white shadow-xl">
+                  <div className="absolute right-6 top-6 opacity-10">
+                    <Bot className="h-28 w-28" />
                   </div>
-                  <div className="space-y-2">
-                    <h2 className="text-2xl font-semibold tracking-tight">Security posture at a glance</h2>
-                    <p className="max-w-3xl text-sm leading-6 text-white/80">{briefing.executive_summary}</p>
+                  <div className="relative space-y-5">
+                    <div className="flex flex-wrap items-center gap-3">
+                      <Badge className="rounded-full bg-white/15 text-white hover:bg-white/15">Executive Briefing</Badge>
+                      <Badge variant="outline" className="rounded-full border-white/20 bg-transparent text-white">
+                        {formatDate(briefing.period_start)} - {formatDate(briefing.period_end)}
+                      </Badge>
+                    </div>
+                    <div className="space-y-2">
+                      <h2 className="text-2xl font-semibold tracking-tight">Security posture at a glance</h2>
+                      <p className="max-w-3xl text-sm leading-6 text-white/80">{briefing.executive_summary}</p>
+                    </div>
+                    <div className="flex flex-wrap gap-6 text-sm">
+                      <div>
+                        <p className="text-white/60">Risk score</p>
+                        <p className="mt-1 text-3xl font-semibold">{briefing.risk_posture.overall_score}</p>
+                      </div>
+                      <div>
+                        <p className="text-white/60">Grade</p>
+                        <p className="mt-1 text-3xl font-semibold">{briefing.risk_posture.grade}</p>
+                      </div>
+                      <div>
+                        <p className="text-white/60">Generated</p>
+                        <p className="mt-1 font-medium">{formatDateTime(briefing.generated_at)}</p>
+                      </div>
+                    </div>
                   </div>
-                  <div className="flex flex-wrap gap-6 text-sm">
-                    <div>
-                      <p className="text-white/60">Risk score</p>
-                      <p className="mt-1 text-3xl font-semibold">{briefing.risk_posture.overall_score}</p>
-                    </div>
-                    <div>
-                      <p className="text-white/60">Grade</p>
-                      <p className="mt-1 text-3xl font-semibold">{briefing.risk_posture.grade}</p>
-                    </div>
-                    <div>
-                      <p className="text-white/60">Generated</p>
-                      <p className="mt-1 font-medium">{formatDateTime(briefing.generated_at)}</p>
-                    </div>
-                  </div>
-                </div>
-              </section>
+                </section>
 
-              <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
-                <div className="space-y-4">
-                  <div>
-                    <h3 className="mb-3 text-sm font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-                      Critical Issues
-                    </h3>
-                    <CriticalIssuesCards issues={briefing.critical_issues} />
+                <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
+                  <div className="space-y-4">
+                    <div>
+                      <h3 className="mb-3 text-sm font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                        Critical Issues
+                      </h3>
+                      <CriticalIssuesCards issues={briefing.critical_issues} />
+                    </div>
+                    <div>
+                      <h3 className="mb-3 text-sm font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                        Recommendations
+                      </h3>
+                      <RecommendationsList recommendations={briefing.recommendations} />
+                    </div>
                   </div>
-                  <div>
-                    <h3 className="mb-3 text-sm font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-                      Recommendations
-                    </h3>
-                    <RecommendationsList recommendations={briefing.recommendations} />
+                  <div className="space-y-4">
+                    <RiskPostureSummary posture={briefing.risk_posture} />
+                    <ThreatLandscapeSection landscape={briefing.threat_landscape} />
                   </div>
                 </div>
-                <div className="space-y-4">
-                  <RiskPostureSummary posture={briefing.risk_posture} />
-                  <ThreatLandscapeSection landscape={briefing.threat_landscape} />
-                </div>
+
+                <section>
+                  <h3 className="mb-3 text-sm font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                    Compliance Status
+                  </h3>
+                  <ComplianceStatusSection frameworks={briefing.compliance_status} />
+                </section>
               </div>
 
-              <section>
-                <h3 className="mb-3 text-sm font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-                  Compliance Status
-                </h3>
-                <ComplianceStatusSection frameworks={briefing.compliance_status} />
-              </section>
+              <ChatPanel />
             </div>
 
-            <ChatPanel />
+            <LLMOpsPanel />
           </div>
         )}
       </div>

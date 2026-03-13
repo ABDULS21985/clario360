@@ -7,8 +7,10 @@ import (
 
 	"github.com/google/uuid"
 
+	uebadto "github.com/clario360/platform/internal/cyber/ueba/dto"
 	chatmodel "github.com/clario360/platform/internal/cyber/vciso/chat/model"
 	chattools "github.com/clario360/platform/internal/cyber/vciso/chat/tools"
+	datadto "github.com/clario360/platform/internal/data/dto"
 )
 
 type CrossSuiteQuery struct {
@@ -35,7 +37,7 @@ func (t *CrossSuiteQuery) Schema() map[string]any {
 	}, "suites", "metric")
 }
 
-func (t *CrossSuiteQuery) Execute(ctx context.Context, tenantID uuid.UUID, userID uuid.UUID, args map[string]any) (*chattools.ToolResult, error) {
+func (t *CrossSuiteQuery) Execute(ctx context.Context, tenantID uuid.UUID, _ uuid.UUID, args map[string]any) (*chattools.ToolResult, error) {
 	suites := stringSliceArg(args, "suites")
 	if len(suites) < 2 {
 		return nil, fmt.Errorf("at least two suites are required")
@@ -87,7 +89,7 @@ func (t *CrossSuiteQuery) Execute(ctx context.Context, tenantID uuid.UUID, userI
 			}
 		case "data", "pipelines":
 			if t.deps != nil && t.deps.DataPipelineRepo != nil {
-				items, _, err := t.deps.DataPipelineRepo.List(ctx, tenantID, chattools.ListPipelinesParamsCompat(5))
+				items, _, err := t.deps.DataPipelineRepo.List(ctx, tenantID, datadto.ListPipelinesParams{Page: 1, PerPage: 5, Sort: "updated_at", Order: "desc"})
 				if err == nil {
 					failing := 0
 					for _, item := range items {
@@ -110,15 +112,15 @@ func (t *CrossSuiteQuery) Execute(ctx context.Context, tenantID uuid.UUID, userI
 					rows = append(rows, map[string]any{
 						"suite":     "Assets",
 						"status":    statusIcon("medium"),
-						"score":     fmt.Sprintf("%d total", stats.Total),
-						"key_issue": fmt.Sprintf("%d assets with vulnerabilities", stats.AssetsWithVulns),
+						"score":     fmt.Sprintf("%d total", stats.TotalAssets),
+						"key_issue": fmt.Sprintf("%d open vulnerabilities", stats.OpenVulnerabilities),
 					})
 				}
 			}
 		}
 	}
 	return listResult(
-		fmt.Sprintf("Compared %d suites.", len(rows)),
+		summarizeRows(rows),
 		"table",
 		map[string]any{"rows": rows},
 		[]chatmodel.SuggestedAction{{Label: "Open cyber dashboard", Type: "navigate", Params: map[string]string{"url": "/cyber"}}},
@@ -126,9 +128,19 @@ func (t *CrossSuiteQuery) Execute(ctx context.Context, tenantID uuid.UUID, userI
 	), nil
 }
 
-func firstContributor(items []any) string {
+func firstContributor[T any](items []T) string {
 	if len(items) == 0 {
 		return "No major contributor"
 	}
 	return "Top contributor present"
+}
+
+func countHighRisk(items []uebadto.RiskRankingItem) int {
+	total := 0
+	for _, item := range items {
+		if item.RiskScore >= 70 {
+			total++
+		}
+	}
+	return total
 }

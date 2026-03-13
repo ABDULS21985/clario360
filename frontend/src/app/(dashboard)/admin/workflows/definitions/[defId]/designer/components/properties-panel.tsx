@@ -13,13 +13,21 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { ConditionBuilder } from './condition-builder';
+import { FormSchemaBuilder } from './form-schema-builder';
 import type {
   WorkflowStep,
   WorkflowStepConfig,
+  WorkflowTransition,
+  WorkflowCondition,
   AssigneeStrategy,
+  FormField,
 } from '@/types/models';
 
-interface PropertiesPanelProps {
+// ── Step Properties ──
+
+interface StepPropertiesPanelProps {
+  mode: 'step';
   step: WorkflowStep;
   onUpdate: (updates: Partial<WorkflowStep>) => void;
   onRemove: () => void;
@@ -27,13 +35,104 @@ interface PropertiesPanelProps {
   readOnly: boolean;
 }
 
-export function PropertiesPanel({
+// ── Transition Properties ──
+
+interface TransitionPropertiesPanelProps {
+  mode: 'transition';
+  transition: WorkflowTransition;
+  fromStepName: string;
+  toStepName: string;
+  onUpdateTransition: (updates: Partial<WorkflowTransition>) => void;
+  onRemoveTransition: () => void;
+  onClose: () => void;
+  readOnly: boolean;
+}
+
+export type PropertiesPanelProps = StepPropertiesPanelProps | TransitionPropertiesPanelProps;
+
+export function PropertiesPanel(props: PropertiesPanelProps) {
+  if (props.mode === 'transition') {
+    return <TransitionPanel {...props} />;
+  }
+  return <StepPanel {...props} />;
+}
+
+// ── Transition Panel ──
+
+function TransitionPanel({
+  transition,
+  fromStepName,
+  toStepName,
+  onUpdateTransition,
+  onRemoveTransition,
+  onClose,
+  readOnly,
+}: TransitionPropertiesPanelProps) {
+  return (
+    <div className="w-72 border-l bg-background overflow-y-auto">
+      <div className="flex items-center justify-between p-3 border-b">
+        <h3 className="text-sm font-semibold">Transition</h3>
+        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={onClose}>
+          <X className="h-4 w-4" />
+        </Button>
+      </div>
+
+      <div className="p-3 space-y-4">
+        {/* From → To */}
+        <div className="text-xs text-muted-foreground">
+          <span className="font-medium text-foreground">{fromStepName}</span>
+          {' → '}
+          <span className="font-medium text-foreground">{toStepName}</span>
+        </div>
+
+        {/* Label */}
+        <div className="space-y-1.5">
+          <Label htmlFor="transition-label" className="text-xs">Label</Label>
+          <Input
+            id="transition-label"
+            value={transition.label}
+            onChange={(e) => onUpdateTransition({ label: e.target.value })}
+            placeholder="e.g. Approved, Rejected"
+            disabled={readOnly}
+            className="h-8 text-sm"
+          />
+        </div>
+
+        {/* Condition */}
+        <ConditionBuilder
+          conditions={transition.condition ? [transition.condition] : []}
+          onChange={(conditions) =>
+            onUpdateTransition({ condition: conditions[0] ?? undefined })
+          }
+          readOnly={readOnly}
+        />
+
+        {/* Remove */}
+        {!readOnly && (
+          <Button
+            variant="destructive"
+            size="sm"
+            className="w-full mt-4"
+            onClick={onRemoveTransition}
+          >
+            <Trash2 className="mr-1.5 h-3.5 w-3.5" />
+            Remove Transition
+          </Button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Step Panel ──
+
+function StepPanel({
   step,
   onUpdate,
   onRemove,
   onClose,
   readOnly,
-}: PropertiesPanelProps) {
+}: StepPropertiesPanelProps) {
   const updateConfig = useCallback(
     (configUpdates: Partial<WorkflowStepConfig>) => {
       onUpdate({ config: { ...step.config, ...configUpdates } });
@@ -278,6 +377,15 @@ export function PropertiesPanel({
           </div>
         )}
 
+        {/* Condition step config */}
+        {step.type === 'condition' && (
+          <ConditionBuilder
+            conditions={(step.config.conditions as WorkflowCondition[]) ?? []}
+            onChange={(conditions) => updateConfig({ conditions })}
+            readOnly={readOnly}
+          />
+        )}
+
         {/* ── Assignee Strategy (human steps only) ── */}
         {isHuman && (
           <div className="space-y-1.5">
@@ -332,6 +440,15 @@ export function PropertiesPanel({
               />
             )}
           </div>
+        )}
+
+        {/* ── Form Schema Builder (human steps only) ── */}
+        {isHuman && (
+          <FormSchemaBuilder
+            fields={(step.config.form_schema as FormField[]) ?? []}
+            onChange={(fields) => updateConfig({ form_schema: fields })}
+            readOnly={readOnly}
+          />
         )}
 
         {/* ── Timeout ── */}

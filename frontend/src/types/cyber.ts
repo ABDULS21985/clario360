@@ -975,6 +975,9 @@ export interface VCISOBriefing {
   previous_risk_score?: number;
 }
 
+export type VCISOEnginePreference = 'auto' | 'llm' | 'rule_based';
+export type VCISOEngine = 'llm' | 'rule_based' | 'fallback';
+
 export type VCISOResponseType =
   | 'text'
   | 'table'
@@ -997,12 +1000,27 @@ export interface VCISOResponsePayload {
   actions: VCISOSuggestedAction[];
 }
 
+export interface VCISOResponseMeta {
+  intent?: string;
+  confidence?: number;
+  tool_calls_count?: number;
+  reasoning_steps?: number;
+  latency_ms?: number;
+  synthesis_latency_ms?: number;
+  tokens_used?: number;
+  grounding?: string;
+  engine?: string;
+  routing_reason?: string;
+}
+
 export interface VCISOChatResponse {
   conversation_id: string;
   message_id: string;
   response: VCISOResponsePayload;
   intent: string;
   confidence: number;
+  engine?: string;
+  meta?: VCISOResponseMeta;
 }
 
 export interface VCISOSuggestion {
@@ -1029,6 +1047,8 @@ export interface VCISOConversationMessage {
   response_type?: VCISOResponseType | null;
   actions: VCISOSuggestedAction[];
   tool_result?: unknown;
+  engine?: string | null;
+  meta?: VCISOResponseMeta | null;
   created_at: string;
 }
 
@@ -1040,6 +1060,80 @@ export interface VCISOConversationDetail {
   last_message_at?: string | null;
   created_at: string;
   messages: VCISOConversationMessage[];
+}
+
+export interface VCISOLLMAuditToolCall {
+  name: string;
+  arguments: Record<string, unknown>;
+  result_summary: string;
+  success: boolean;
+  latency_ms: number;
+  called_at: string;
+}
+
+export interface VCISOLLMAuditReasoningStep {
+  step: number;
+  action: string;
+  detail: string;
+  tool_names?: string[];
+}
+
+export interface VCISOLLMAuditResponse {
+  message_id: string;
+  provider: string;
+  model: string;
+  prompt_tokens: number;
+  completion_tokens: number;
+  total_tokens: number;
+  tool_calls: VCISOLLMAuditToolCall[];
+  reasoning_trace: VCISOLLMAuditReasoningStep[];
+  grounding_result: string;
+  engine_used: string;
+  routing_reason?: string;
+  created_at: string;
+}
+
+export interface VCISOLLMUsage {
+  calls_today: number;
+  tokens_today: number;
+  cost_today: number;
+  calls_this_month: number;
+  cost_this_month: number;
+}
+
+export interface VCISOLLMHealth {
+  provider: string;
+  model: string;
+  status: string;
+  latency_ms: number;
+  rate_limit_remaining: number;
+}
+
+export interface VCISOLLMConfigRequest {
+  provider: string;
+  model: string;
+  temperature: number;
+}
+
+export interface VCISOLLMConfigResponse {
+  provider: string;
+  model: string;
+  temperature: number;
+}
+
+export interface VCISOLLMPromptVersion {
+  id: string;
+  version: string;
+  description?: string;
+  active: boolean;
+  created_by: string;
+  created_at: string;
+}
+
+export interface VCISOLLMPromptVersionRequest {
+  version: string;
+  prompt_text: string;
+  description: string;
 }
 
 // ─── MITRE ────────────────────────────────────────────────────────────────────

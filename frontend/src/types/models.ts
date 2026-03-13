@@ -352,7 +352,7 @@ export type WorkflowStepType =
   | 'end';
 
 export interface WorkflowStepConfig {
-  form_schema?: Record<string, unknown>;
+  form_schema?: FormField[];
   approval_type?: 'single' | 'unanimous' | 'majority';
   min_approvers?: number;
   notification_template?: string;

@@ -24,6 +24,10 @@ func NewRegistry(deps *Dependencies) *ToolRegistry {
 	register(NewTrendAnalysisTool(deps))
 	register(NewRemediationTool(deps))
 	register(NewReportGeneratorTool(deps))
+	register(NewThreatForecastTool(deps))
+	register(NewAssetRiskPredictionTool(deps))
+	register(NewVulnerabilityPriorityTool(deps))
+	register(NewInsiderThreatForecastTool(deps))
 	return &ToolRegistry{items: items}
 }
 
@@ -44,4 +48,3 @@ func (r *ToolRegistry) List() []Tool {
 	}
 	return out
 }
-

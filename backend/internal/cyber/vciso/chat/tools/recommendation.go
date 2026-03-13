@@ -37,7 +37,9 @@ func NewRecommendationTool(deps *Dependencies) *RecommendationTool {
 
 func (t *RecommendationTool) Name() string { return "recommendation" }
 
-func (t *RecommendationTool) Description() string { return "get prioritized recommendations on what to focus on" }
+func (t *RecommendationTool) Description() string {
+	return "get prioritized recommendations on what to focus on"
+}
 
 func (t *RecommendationTool) RequiredPermissions() []string {
 	return []string{"cyber:read", "data:read", "acta:read", "lex:read"}

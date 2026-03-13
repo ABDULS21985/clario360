@@ -20,9 +20,13 @@ func NewComplianceScoreTool(deps *Dependencies) *ComplianceScoreTool {
 
 func (t *ComplianceScoreTool) Name() string { return "compliance_score" }
 
-func (t *ComplianceScoreTool) Description() string { return "check compliance status across regulatory frameworks" }
+func (t *ComplianceScoreTool) Description() string {
+	return "check compliance status across regulatory frameworks"
+}
 
-func (t *ComplianceScoreTool) RequiredPermissions() []string { return []string{"lex:read", "acta:read"} }
+func (t *ComplianceScoreTool) RequiredPermissions() []string {
+	return []string{"lex:read", "acta:read"}
+}
 
 func (t *ComplianceScoreTool) Execute(ctx context.Context, tenantID uuid.UUID, _ uuid.UUID, params map[string]string) (*ToolResult, error) {
 	var (
@@ -35,9 +39,9 @@ func (t *ComplianceScoreTool) Execute(ctx context.Context, tenantID uuid.UUID, _
 		score, err := t.deps.LexComplianceService.GetScore(ctx, tenantID)
 		if err == nil {
 			components = append(components, map[string]any{
-				"name":        "Legal and contract compliance",
-				"score":       score.Score,
-				"open_alerts": score.OpenAlerts,
+				"name":          "Legal and contract compliance",
+				"score":         score.Score,
+				"open_alerts":   score.OpenAlerts,
 				"calculated_at": score.CalculatedAt,
 			})
 			total += score.Score
@@ -90,4 +94,3 @@ func (t *ComplianceScoreTool) Execute(ctx context.Context, tenantID uuid.UUID, _
 		Entities: nil,
 	}, nil
 }
-

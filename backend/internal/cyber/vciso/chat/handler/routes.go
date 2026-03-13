@@ -21,11 +21,19 @@ type RouteDeps struct {
 
 	// vCISO executive handler methods — must be registered under the same
 	// /api/v1/cyber/vciso sub-router to avoid chi route shadowing.
-	VCISOBriefing         http.HandlerFunc
-	VCISOBriefingHistory  http.HandlerFunc
-	VCISORecommendations  http.HandlerFunc
-	VCISOReport           http.HandlerFunc
-	VCISOPostureSummary   http.HandlerFunc
+	VCISOBriefing        http.HandlerFunc
+	VCISOBriefingHistory http.HandlerFunc
+	VCISORecommendations http.HandlerFunc
+	VCISOReport          http.HandlerFunc
+	VCISOPostureSummary  http.HandlerFunc
+
+	LLMAudit          http.HandlerFunc
+	LLMUsage          http.HandlerFunc
+	LLMHealth         http.HandlerFunc
+	LLMUpdateConfig   http.HandlerFunc
+	LLMListPrompts    http.HandlerFunc
+	LLMCreatePrompt   http.HandlerFunc
+	LLMActivatePrompt http.HandlerFunc
 }
 
 func RegisterRoutes(r chi.Router, deps RouteDeps) {
@@ -58,6 +66,27 @@ func RegisterRoutes(r chi.Router, deps RouteDeps) {
 			}
 			if deps.VCISOPostureSummary != nil {
 				r.Get("/posture-summary", deps.VCISOPostureSummary)
+			}
+			if deps.LLMAudit != nil {
+				r.Get("/llm/audit/{message_id}", deps.LLMAudit)
+			}
+			if deps.LLMUsage != nil {
+				r.Get("/llm/usage", deps.LLMUsage)
+			}
+			if deps.LLMHealth != nil {
+				r.Get("/llm/health", deps.LLMHealth)
+			}
+			if deps.LLMUpdateConfig != nil {
+				r.Put("/llm/config", deps.LLMUpdateConfig)
+			}
+			if deps.LLMListPrompts != nil {
+				r.Get("/llm/prompts", deps.LLMListPrompts)
+			}
+			if deps.LLMCreatePrompt != nil {
+				r.Post("/llm/prompts", deps.LLMCreatePrompt)
+			}
+			if deps.LLMActivatePrompt != nil {
+				r.Put("/llm/prompts/{version}/activate", deps.LLMActivatePrompt)
 			}
 		})
 	}

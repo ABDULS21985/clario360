@@ -21,7 +21,9 @@ func NewAlertSummaryTool(deps *Dependencies) *AlertSummaryTool {
 
 func (t *AlertSummaryTool) Name() string { return "alert_summary" }
 
-func (t *AlertSummaryTool) Description() string { return "view security alert counts and recent alerts" }
+func (t *AlertSummaryTool) Description() string {
+	return "view security alert counts and recent alerts"
+}
 
 func (t *AlertSummaryTool) RequiredPermissions() []string { return []string{"cyber:read"} }
 
@@ -103,11 +105,11 @@ func (t *AlertSummaryTool) Execute(ctx context.Context, tenantID uuid.UUID, user
 	}
 
 	return makeListResult(strings.Join(lines, "\n"), map[string]any{
-		"total":        total,
-		"alerts":       alerts,
-		"by_severity":  stats.BySeverity,
-		"by_status":    stats.ByStatus,
-		"open_count":   stats.OpenCount,
+		"total":          total,
+		"alerts":         alerts,
+		"by_severity":    stats.BySeverity,
+		"by_status":      stats.ByStatus,
+		"open_count":     stats.OpenCount,
 		"critical_count": criticalCount,
 	}, actions, entities), nil
 }

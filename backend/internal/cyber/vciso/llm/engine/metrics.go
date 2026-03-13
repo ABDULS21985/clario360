@@ -2,22 +2,28 @@ package engine
 
 import "github.com/prometheus/client_golang/prometheus"
 
+// Metrics holds all Prometheus collectors for the vCISO LLM engine.
+// Every field is nil-safe — callers use safeInc / safeObserve helpers
+// so a nil Metrics (or nil individual field) never panics.
 type Metrics struct {
-	QueriesTotal               *prometheus.CounterVec
-	CallsTotal                 *prometheus.CounterVec
-	CallLatencySeconds         *prometheus.HistogramVec
-	TokensTotal                *prometheus.CounterVec
-	CostUSDTotal               *prometheus.CounterVec
-	ToolLoopIterations         prometheus.Histogram
-	ToolCallsPerQuery          prometheus.Histogram
-	GroundingResultsTotal      *prometheus.CounterVec
-	InjectionDetectionsTotal   *prometheus.CounterVec
-	RateLimitRejectionsTotal   *prometheus.CounterVec
-	FallbackTotal              *prometheus.CounterVec
-	ResponseLatencySeconds     *prometheus.HistogramVec
-	ContextTokensUsed          prometheus.Histogram
+	QueriesTotal         *prometheus.CounterVec
+	CallsTotal           *prometheus.CounterVec
+	CallLatencySeconds   *prometheus.HistogramVec
+	TokensTotal          *prometheus.CounterVec
+	CostUSDTotal         *prometheus.CounterVec
+	ToolLoopIterations   prometheus.Histogram
+	ToolCallsPerQuery    prometheus.Histogram
+	GroundingResultsTotal *prometheus.CounterVec
+	InjectionDetectionsTotal *prometheus.CounterVec
+	RateLimitRejectionsTotal *prometheus.CounterVec
+	FallbackTotal        *prometheus.CounterVec
+	ResponseLatencySeconds *prometheus.HistogramVec
+	ContextTokensUsed    prometheus.Histogram
 }
 
+// NewMetrics creates a fully-wired Metrics instance registered against
+// the provided registerer.  If reg is nil a throwaway registry is used
+// (safe for tests / benchmarks).
 func NewMetrics(reg prometheus.Registerer) *Metrics {
 	if reg == nil {
 		reg = prometheus.NewRegistry()
@@ -97,4 +103,63 @@ func NewMetrics(reg prometheus.Registerer) *Metrics {
 		m.ContextTokensUsed,
 	)
 	return m
+}
+
+// NewMetricsSafe is like NewMetrics but returns an error instead of panicking
+// on duplicate registration.  Useful when metrics may be re-initialised
+// (e.g. in integration tests).
+func NewMetricsSafe(reg prometheus.Registerer) (*Metrics, error) {
+	if reg == nil {
+		reg = prometheus.NewRegistry()
+	}
+	m := NewMetrics(prometheus.NewRegistry()) // build with throwaway to get collectors
+
+	collectors := []prometheus.Collector{
+		m.QueriesTotal,
+		m.CallsTotal,
+		m.CallLatencySeconds,
+		m.TokensTotal,
+		m.CostUSDTotal,
+		m.ToolLoopIterations,
+		m.ToolCallsPerQuery,
+		m.GroundingResultsTotal,
+		m.InjectionDetectionsTotal,
+		m.RateLimitRejectionsTotal,
+		m.FallbackTotal,
+		m.ResponseLatencySeconds,
+		m.ContextTokensUsed,
+	}
+
+	for _, c := range collectors {
+		if err := reg.Register(c); err != nil {
+			// If already registered, skip (idempotent).
+			if _, ok := err.(prometheus.AlreadyRegisteredError); !ok {
+				return nil, err
+			}
+		}
+	}
+	return m, nil
+}
+
+// NewNoopMetrics returns a Metrics with every field nil.
+// All safe* helpers treat nil fields as no-ops, so this is safe to
+// pass anywhere a *Metrics is expected when you don't want telemetry.
+func NewNoopMetrics() *Metrics {
+	return &Metrics{}
+}
+
+// safeCounter increments a bare prometheus.Counter if non-nil.
+func safeCounter(c prometheus.Counter) {
+	if c == nil {
+		return
+	}
+	c.Inc()
+}
+
+// safeCounterAdd adds a value to a bare prometheus.Counter if non-nil.
+func safeCounterAdd(c prometheus.Counter, v float64) {
+	if c == nil {
+		return
+	}
+	c.Add(v)
 }

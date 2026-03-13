@@ -34,7 +34,7 @@ func (t *WhatIfAnalysisTool) Schema() map[string]any {
 	}, "scenario", "scenario_type")
 }
 
-func (t *WhatIfAnalysisTool) Execute(ctx context.Context, tenantID uuid.UUID, userID uuid.UUID, args map[string]any) (*chattools.ToolResult, error) {
+func (t *WhatIfAnalysisTool) Execute(ctx context.Context, tenantID uuid.UUID, _ uuid.UUID, args map[string]any) (*chattools.ToolResult, error) {
 	if t.deps == nil || t.deps.RiskService == nil {
 		return nil, fmt.Errorf("risk service is unavailable")
 	}

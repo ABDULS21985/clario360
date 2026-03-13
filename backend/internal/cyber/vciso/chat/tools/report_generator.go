@@ -60,4 +60,3 @@ func (t *ReportGeneratorTool) Execute(ctx context.Context, tenantID uuid.UUID, u
 		Entities: nil,
 	}, nil
 }
-

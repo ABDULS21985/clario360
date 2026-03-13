@@ -33,7 +33,7 @@ func (t *RootCauseTool) Schema() map[string]any {
 	}, "metric", "direction")
 }
 
-func (t *RootCauseTool) Execute(ctx context.Context, tenantID uuid.UUID, userID uuid.UUID, args map[string]any) (*chattools.ToolResult, error) {
+func (t *RootCauseTool) Execute(ctx context.Context, tenantID uuid.UUID, _ uuid.UUID, args map[string]any) (*chattools.ToolResult, error) {
 	metric := strings.ToLower(stringArg(args, "metric"))
 	timeRange := stringArg(args, "time_range")
 	if timeRange == "" {

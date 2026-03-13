@@ -1,6 +1,6 @@
 'use client';
 
-import { use } from 'react';
+
 import { useSearchParams, useRouter } from 'next/navigation';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
@@ -14,11 +14,11 @@ import { WebhookDeliveries } from './components/webhook-deliveries';
 import { WebhookSettingsForm } from './components/webhook-settings-form';
 
 interface WebhookDetailPageProps {
-  params: Promise<{ webhookId: string }>;
+  params: { webhookId: string };
 }
 
 export default function WebhookDetailPage({ params }: WebhookDetailPageProps) {
-  const { webhookId } = use(params);
+  const { webhookId } = params;
   const router = useRouter();
   const searchParams = useSearchParams();
   const activeTab = searchParams?.get('tab') ?? 'overview';

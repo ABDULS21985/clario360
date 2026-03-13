@@ -20,7 +20,9 @@ func NewTrendAnalysisTool(deps *Dependencies) *TrendAnalysisTool {
 
 func (t *TrendAnalysisTool) Name() string { return "trend_analysis" }
 
-func (t *TrendAnalysisTool) Description() string { return "analyze security trends and how metrics have changed" }
+func (t *TrendAnalysisTool) Description() string {
+	return "analyze security trends and how metrics have changed"
+}
 
 func (t *TrendAnalysisTool) RequiredPermissions() []string { return []string{"cyber:read"} }
 

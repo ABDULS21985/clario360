@@ -58,7 +58,7 @@ func (p *OpenAIProvider) EstimateCost(promptTokens, completionTokens int) float6
 }
 
 func (p *OpenAIProvider) HealthCheck(ctx context.Context) (*HealthStatus, error) {
-	if strings.TrimSpace(p.apiKey) == "" {
+	if strings.TrimSpace(p.apiKey) == "" && p.name != "local" {
 		return &HealthStatus{Provider: p.Name(), Model: p.Model(), Status: "unconfigured"}, nil
 	}
 	start := time.Now()
@@ -66,7 +66,9 @@ func (p *OpenAIProvider) HealthCheck(ctx context.Context) (*HealthStatus, error)
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("Authorization", "Bearer "+p.apiKey)
+	if p.apiKey != "" {
+		req.Header.Set("Authorization", "Bearer "+p.apiKey)
+	}
 	resp, err := p.client.Do(req)
 	if err != nil {
 		return &HealthStatus{Provider: p.Name(), Model: p.Model(), Status: "unavailable"}, err
@@ -86,7 +88,7 @@ func (p *OpenAIProvider) HealthCheck(ctx context.Context) (*HealthStatus, error)
 }
 
 func (p *OpenAIProvider) Complete(ctx context.Context, request *CompletionRequest) (*CompletionResponse, error) {
-	if strings.TrimSpace(p.apiKey) == "" {
+	if strings.TrimSpace(p.apiKey) == "" && p.name != "local" {
 		return nil, fmt.Errorf("openai api key is not configured")
 	}
 	if request == nil {
@@ -111,7 +113,9 @@ func (p *OpenAIProvider) Complete(ctx context.Context, request *CompletionReques
 	if err != nil {
 		return nil, err
 	}
-	httpReq.Header.Set("Authorization", "Bearer "+p.apiKey)
+	if p.apiKey != "" {
+		httpReq.Header.Set("Authorization", "Bearer "+p.apiKey)
+	}
 	httpReq.Header.Set("Content-Type", "application/json")
 	resp, err := p.client.Do(httpReq)
 	if err != nil {

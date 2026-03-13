@@ -2,7 +2,6 @@ package tools
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"net"
 	"sort"
@@ -27,20 +26,20 @@ type Tool interface {
 }
 
 type legacyToolAdapter struct {
-	name         string
-	description  string
-	permissions  []string
-	schema       map[string]any
-	destructive  bool
-	delegate     chattools.Tool
-	transform    func(map[string]any) map[string]string
+	name        string
+	description string
+	permissions []string
+	schema      map[string]any
+	destructive bool
+	delegate    chattools.Tool
+	transform   func(map[string]any) map[string]string
 }
 
-func (t *legacyToolAdapter) Name() string                { return t.name }
-func (t *legacyToolAdapter) Description() string         { return t.description }
+func (t *legacyToolAdapter) Name() string                  { return t.name }
+func (t *legacyToolAdapter) Description() string           { return t.description }
 func (t *legacyToolAdapter) RequiredPermissions() []string { return t.permissions }
-func (t *legacyToolAdapter) Schema() map[string]any      { return t.schema }
-func (t *legacyToolAdapter) IsDestructive() bool         { return t.destructive }
+func (t *legacyToolAdapter) Schema() map[string]any        { return t.schema }
+func (t *legacyToolAdapter) IsDestructive() bool           { return t.destructive }
 func (t *legacyToolAdapter) Execute(ctx context.Context, tenantID uuid.UUID, userID uuid.UUID, args map[string]any) (*chattools.ToolResult, error) {
 	if t.delegate == nil {
 		return nil, fmt.Errorf("tool %s is unavailable", t.name)
@@ -116,44 +115,48 @@ func applyTimeRange(params map[string]string, timeRange string) {
 	params["end_time"] = end.Format(time.RFC3339)
 }
 
-func stringArg(args map[string]any, key string) string {
-	value, ok := args[key]
-	if !ok || value == nil {
-		return ""
-	}
-	switch typed := value.(type) {
-	case string:
-		return strings.TrimSpace(typed)
-	case fmt.Stringer:
-		return strings.TrimSpace(typed.String())
-	default:
-		payload, _ := json.Marshal(typed)
-		return strings.Trim(strings.TrimSpace(string(payload)), `"`)
-	}
-}
+// func stringArg(args map[string]any, key string) string {
+// 	value, ok := args[key]
+// 	if !ok || value == nil {
+// 		return ""
+// 	}
+// 	switch typed := value.(type) {
+// 	case string:
+// 		return strings.TrimSpace(typed)
+// 	case fmt.Stringer:
+// 		return strings.TrimSpace(typed.String())
+// 	default:
+// 		payload, _ := json.Marshal(typed)
+// 		return strings.Trim(strings.TrimSpace(string(payload)), `"`)
+// 	}
+// }
 
-func intArg(args map[string]any, key string, fallback int) int {
-	value, ok := args[key]
-	if !ok || value == nil {
-		return fallback
-	}
-	switch typed := value.(type) {
-	case int:
-		return typed
-	case float64:
-		return int(typed)
-	case string:
-		if parsed, err := strconv.Atoi(strings.TrimSpace(typed)); err == nil {
-			return parsed
-		}
-	}
-	return fallback
-}
+// func intArg(args map[string]any, key string, fallback int) int {
+// 	value, ok := args[key]
+// 	if !ok || value == nil {
+// 		return fallback
+// 	}
+// 	switch typed := value.(type) {
+// 	case int:
+// 		return typed
+// 	case float64:
+// 		return int(typed)
+// 	case string:
+// 		if parsed, err := strconv.Atoi(strings.TrimSpace(typed)); err == nil {
+// 			return parsed
+// 		}
+// 	}
+// 	return fallback
+// }
 
-func boolArg(args map[string]any, key string) bool {
+func boolArg(args map[string]any, key string, fallback ...bool) bool {
+	defaultValue := false
+	if len(fallback) > 0 {
+		defaultValue = fallback[0]
+	}
 	value, ok := args[key]
 	if !ok || value == nil {
-		return false
+		return defaultValue
 	}
 	switch typed := value.(type) {
 	case bool:
@@ -162,7 +165,7 @@ func boolArg(args map[string]any, key string) bool {
 		parsed, _ := strconv.ParseBool(strings.TrimSpace(typed))
 		return parsed
 	default:
-		return false
+		return defaultValue
 	}
 }
 
@@ -326,6 +329,13 @@ func numeric(value any) float64 {
 	default:
 		return 0
 	}
+}
+
+func maxFloat(a, b float64) float64 {
+	if a > b {
+		return a
+	}
+	return b
 }
 
 func detectIdentifier(value string) (assetName, assetIP string) {

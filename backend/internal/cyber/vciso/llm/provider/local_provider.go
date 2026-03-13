@@ -1,6 +1,7 @@
 package provider
 
 import (
+	"net/http"
 	"os"
 	"strings"
 	"time"
@@ -26,7 +27,7 @@ func NewLocalProvider(cfg llmcfg.ProviderConfig) *LocalProvider {
 			timeout:     timeout,
 			temperature: cfg.Temperature,
 			maxTokens:   cfg.MaxTokens,
-			client:      nil,
+			client:      &http.Client{Timeout: timeout},
 		},
 	}
 }

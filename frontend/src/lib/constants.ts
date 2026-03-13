@@ -96,6 +96,11 @@ export const API_ENDPOINTS = {
   CYBER_VCISO_CHAT: '/api/v1/cyber/vciso/chat',
   CYBER_VCISO_CONVERSATIONS: '/api/v1/cyber/vciso/conversations',
   CYBER_VCISO_SUGGESTIONS: '/api/v1/cyber/vciso/suggestions',
+  CYBER_VCISO_LLM_USAGE: '/api/v1/cyber/vciso/llm/usage',
+  CYBER_VCISO_LLM_HEALTH: '/api/v1/cyber/vciso/llm/health',
+  CYBER_VCISO_LLM_CONFIG: '/api/v1/cyber/vciso/llm/config',
+  CYBER_VCISO_LLM_PROMPTS: '/api/v1/cyber/vciso/llm/prompts',
+  CYBER_VCISO_LLM_AUDIT: '/api/v1/cyber/vciso/llm/audit',
 
   // Cyber — MITRE
   CYBER_MITRE_COVERAGE: '/api/v1/cyber/mitre/coverage',

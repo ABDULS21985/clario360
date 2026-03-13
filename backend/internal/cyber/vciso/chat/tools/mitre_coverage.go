@@ -20,7 +20,9 @@ func NewMITRECoverageTool(deps *Dependencies) *MITRECoverageTool {
 
 func (t *MITRECoverageTool) Name() string { return "mitre_coverage" }
 
-func (t *MITRECoverageTool) Description() string { return "check MITRE ATT&CK detection coverage and gaps" }
+func (t *MITRECoverageTool) Description() string {
+	return "check MITRE ATT&CK detection coverage and gaps"
+}
 
 func (t *MITRECoverageTool) RequiredPermissions() []string { return []string{"cyber:read"} }
 
@@ -78,4 +80,3 @@ func (t *MITRECoverageTool) Execute(ctx context.Context, tenantID uuid.UUID, use
 		Entities: []chatmodel.EntityReference{},
 	}, nil
 }
-

@@ -1,1 +1,1 @@
-module.exports = require("./ecosystem.local.js");
+ecosystem.local.js

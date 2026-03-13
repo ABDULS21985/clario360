@@ -22,4 +22,3 @@ type ClassificationResult struct {
 	MatchedRule string            `json:"matched_rule"`
 	Entities    map[string]string `json:"entities"`
 }
-

@@ -1,6 +1,6 @@
 'use client';
 
-import { use } from 'react';
+
 import { useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import { ArrowLeft, ScanLine, AlertCircle } from 'lucide-react';
@@ -18,7 +18,7 @@ import type { AssetScan } from '@/types/cyber';
 import type { PaginatedResponse } from '@/types/api';
 
 interface Props {
-  params: Promise<{ id: string }>;
+  params: { id: string };
 }
 
 interface ScannedAsset {
@@ -80,7 +80,7 @@ function computeDuration(scan: AssetScan): string {
 }
 
 export default function ScanDetailPage({ params }: Props) {
-  const { id } = use(params);
+  const { id } = params;
   const router = useRouter();
 
   const { data: scanEnvelope, isLoading, error, refetch } = useQuery({
