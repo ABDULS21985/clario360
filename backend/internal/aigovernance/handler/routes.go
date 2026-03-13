@@ -45,5 +45,35 @@ func RegisterRoutes(r chi.Router, services Services, logger zerolog.Logger) {
 		r.Mount("/predictions", predictions.Routes())
 		r.Mount("/explanations", explanations.Routes())
 		r.Mount("/dashboard", dashboard.Routes())
+
+		// Compute infrastructure & benchmarking.
+		if services.Benchmark != nil {
+			bench := NewBenchmarkHandler(services.Benchmark, logger)
+			r.Route("/inference-servers", func(r chi.Router) {
+				r.Post("/", bench.CreateServer)
+				r.Get("/", bench.ListServers)
+				r.Get("/{serverId}", bench.GetServer)
+				r.Put("/{serverId}/status", bench.UpdateServerStatus)
+				r.Delete("/{serverId}", bench.DeleteServer)
+			})
+			r.Route("/benchmarks", func(r chi.Router) {
+				r.Route("/suites", func(r chi.Router) {
+					r.Post("/", bench.CreateSuite)
+					r.Get("/", bench.ListSuites)
+					r.Get("/{suiteId}", bench.GetSuite)
+					r.Post("/{suiteId}/run", bench.RunBenchmark)
+				})
+				r.Route("/runs", func(r chi.Router) {
+					r.Get("/", bench.ListRuns)
+					r.Get("/{runId}", bench.GetRun)
+					r.Post("/compare", bench.CompareRuns)
+				})
+			})
+			r.Route("/compute-costs", func(r chi.Router) {
+				r.Post("/", bench.CreateCostModel)
+				r.Get("/", bench.ListCostModels)
+				r.Post("/estimate", bench.EstimateCostSavings)
+			})
+		}
 	})
 }

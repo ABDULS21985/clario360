@@ -1,0 +1,18 @@
+{{- if .Values.inference.llamacpp.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "clario360.componentName" (dict "root" . "component" "llamacpp") }}
+  namespace: {{ include "clario360.namespace" . }}
+  labels:
+    {{- include "clario360.componentLabels" (dict "root" . "component" "llamacpp") | nindent 4 }}
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+      protocol: TCP
+  selector:
+    {{- include "clario360.componentSelectorLabels" (dict "root" . "component" "llamacpp") | nindent 4 }}
+{{- end }}

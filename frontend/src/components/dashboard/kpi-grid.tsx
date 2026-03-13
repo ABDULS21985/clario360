@@ -1,16 +1,17 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useMemo } from 'react';
 import { AlertTriangle, GitBranch, CheckSquare, BarChart3 } from 'lucide-react';
 import { useAuth } from '@/hooks/use-auth';
 import { API_ENDPOINTS } from '@/lib/constants';
 import { KpiCard } from './kpi-card';
+import { SparkLine } from './spark-line';
 import { useRealtimeData } from '@/hooks/use-realtime-data';
 
-interface AlertCount { count: number; trend?: number }
-interface PipelineCount { count: number }
-interface TaskCount { pending: number; overdue: number }
-interface QualityScore { score: number; trend?: number }
+interface AlertCount { count: number; trend?: number; history?: number[] }
+interface PipelineCount { count: number; history?: number[] }
+interface TaskCount { pending: number; overdue: number; history?: number[] }
+interface QualityScore { score: number; trend?: number; history?: number[] }
 
 export function KpiGrid() {
   const { hasPermission } = useAuth();
@@ -62,6 +63,14 @@ export function KpiGrid() {
   const taskDelta = useLiveDelta(taskData?.pending);
   const qualityDelta = useLiveDelta(qualityData?.score);
 
+  // Build sparkline history from data (use provided history or build from live deltas)
+  const alertHistory = useSparkHistory(alertData?.count, alertData?.history);
+  const pipelineHistory = useSparkHistory(pipelineData?.count, pipelineData?.history);
+  const taskHistory = useSparkHistory(taskData?.pending, taskData?.history);
+  const qualityHistory = useSparkHistory(qualityData?.score, qualityData?.history);
+
+  let cardIndex = 0;
+
   return (
     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
       {hasCyber && (
@@ -75,12 +84,17 @@ export function KpiGrid() {
           isError={Boolean(alertError)}
           highlightKey={alertUpdate?.getTime() ?? null}
           liveDelta={alertDelta}
+          index={cardIndex++}
           trend={
             alertData?.trend !== undefined
               ? { value: alertData.trend, label: '24h', direction: alertData.trend > 0 ? 'up' : alertData.trend < 0 ? 'down' : 'neutral', sentiment: alertData.trend > 0 ? 'bad' : 'good' }
               : undefined
           }
-        />
+        >
+          {alertHistory.length >= 2 && (
+            <SparkLine data={alertHistory} color="#EF4444" />
+          )}
+        </KpiCard>
       )}
       {hasData && (
         <KpiCard
@@ -93,7 +107,12 @@ export function KpiGrid() {
           isError={Boolean(pipelineError)}
           highlightKey={pipelineUpdate?.getTime() ?? null}
           liveDelta={pipelineDelta}
-        />
+          index={cardIndex++}
+        >
+          {pipelineHistory.length >= 2 && (
+            <SparkLine data={pipelineHistory} color="#F97316" />
+          )}
+        </KpiCard>
       )}
       <KpiCard
         title="Pending Tasks"
@@ -105,12 +124,17 @@ export function KpiGrid() {
         isError={Boolean(taskError)}
         highlightKey={taskUpdate?.getTime() ?? null}
         liveDelta={taskDelta}
+        index={cardIndex++}
         trend={
           taskData?.overdue !== undefined && taskData.overdue > 0
             ? { value: taskData.overdue, label: 'overdue', direction: 'up', sentiment: 'bad' }
             : undefined
         }
-      />
+      >
+        {taskHistory.length >= 2 && (
+          <SparkLine data={taskHistory} color="#3B82F6" />
+        )}
+      </KpiCard>
       {hasData && (
         <KpiCard
           title="Data Quality"
@@ -123,12 +147,17 @@ export function KpiGrid() {
           isError={Boolean(qualityError)}
           highlightKey={qualityUpdate?.getTime() ?? null}
           liveDelta={qualityDelta}
+          index={cardIndex++}
           trend={
             qualityData?.trend !== undefined
               ? { value: qualityData.trend, label: '7d', direction: qualityData.trend > 0 ? 'up' : qualityData.trend < 0 ? 'down' : 'neutral', sentiment: qualityData.trend >= 0 ? 'good' : 'bad' }
               : undefined
           }
-        />
+        >
+          {qualityHistory.length >= 2 && (
+            <SparkLine data={qualityHistory} color="#22C55E" />
+          )}
+        </KpiCard>
       )}
     </div>
   );
@@ -154,4 +183,28 @@ function useLiveDelta(value: number | undefined): number | null {
   }, [value]);
 
   return delta;
+}
+
+/** Builds a rolling sparkline history from live value changes or initial history array */
+function useSparkHistory(currentValue: number | undefined, serverHistory?: number[]): number[] {
+  const historyRef = useRef<number[]>([]);
+  const [history, setHistory] = useState<number[]>([]);
+
+  useEffect(() => {
+    // If server provides history, use it as the base
+    if (serverHistory && serverHistory.length > 0) {
+      historyRef.current = [...serverHistory];
+      setHistory(historyRef.current);
+      return;
+    }
+
+    // Otherwise build incrementally from live values
+    if (currentValue !== undefined) {
+      const next = [...historyRef.current, currentValue].slice(-12);
+      historyRef.current = next;
+      setHistory(next);
+    }
+  }, [currentValue, serverHistory]);
+
+  return history;
 }

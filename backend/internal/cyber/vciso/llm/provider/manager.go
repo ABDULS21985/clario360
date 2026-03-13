@@ -56,6 +56,10 @@ func (m *Manager) Resolve(ctx context.Context, tenantID uuid.UUID) (LLMProvider,
 		return NewAzureProvider(providerCfg), nil
 	case "local":
 		return NewLocalProvider(providerCfg), nil
+	case "llamacpp":
+		return NewLlamaCppProvider(providerCfg), nil
+	case "bitnet":
+		return NewBitNetProvider(providerCfg), nil
 	default:
 		return nil, fmt.Errorf("unsupported llm provider %q", providerName)
 	}

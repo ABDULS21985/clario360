@@ -15,6 +15,7 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 
+	aigovbenchmark "github.com/clario360/platform/internal/aigovernance/benchmark"
 	aigovdrift "github.com/clario360/platform/internal/aigovernance/drift"
 	aigovhandler "github.com/clario360/platform/internal/aigovernance/handler"
 	aigovrepo "github.com/clario360/platform/internal/aigovernance/repository"
@@ -198,6 +199,10 @@ func main() {
 	aiDriftSvc := aigovservice.NewDriftService(aiRegistryRepo, aiPredictionRepo, aiDriftRepo, producer, aiMetrics, svc.Logger)
 	aiValidationSvc := aigovservice.NewValidationService(aiRegistryRepo, aiPredictionRepo, aiValidationRepo, producer, aiMetrics, nil, svc.Logger)
 	aiDashboardSvc := aigovservice.NewDashboardService(aiRegistryRepo, aiPredictionRepo, aiDriftRepo, svc.Logger)
+	aiServerRepo := aigovrepo.NewInferenceServerRepository(svc.DBPool, svc.Logger)
+	aiBenchmarkRepo := aigovrepo.NewBenchmarkRepository(svc.DBPool, svc.Logger)
+	aiBenchmarkRunner := aigovbenchmark.NewRunner(svc.Logger)
+	aiBenchmarkSvc := aigovservice.NewBenchmarkService(aiBenchmarkRepo, aiServerRepo, aiBenchmarkRunner, aiMetrics, svc.Logger)
 	aiServices := aigovhandler.Services{
 		Registry:     aiRegistrySvc,
 		Predictions:  aiPredictionSvc,
@@ -207,6 +212,7 @@ func main() {
 		Drift:        aiDriftSvc,
 		Validation:   aiValidationSvc,
 		Dashboard:    aiDashboardSvc,
+		Benchmark:    aiBenchmarkSvc,
 	}
 	go func() {
 		_ = aigovshadow.NewScheduler(aiComparisonSvc, time.Hour, svc.Logger).Run(ctx)

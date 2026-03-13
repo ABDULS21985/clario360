@@ -91,3 +91,8 @@ escrow-0.1.0-test/
 .dev-bin/
 .dev-logs/
 .dev-pids/
+
+# Playwright
+frontend/e2e/.auth/
+frontend/test-results/
+frontend/playwright-report/

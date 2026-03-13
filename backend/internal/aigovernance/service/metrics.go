@@ -22,6 +22,12 @@ type Metrics struct {
 
 	// Monitoring alert metrics (used by clario360-alerts.yaml)
 	ModelDriftScore prometheus.Gauge // clario360_ai_model_drift_score
+
+	// Benchmark & inference server metrics.
+	BenchmarkRunsTotal      *prometheus.CounterVec
+	BenchmarkLatencySeconds *prometheus.HistogramVec
+	InferenceServerHealth   *prometheus.GaugeVec
+	ComputeCostPerToken     *prometheus.GaugeVec
 }
 
 func NewMetrics(reg prometheus.Registerer) *Metrics {
@@ -99,6 +105,23 @@ func NewMetrics(reg prometheus.Registerer) *Metrics {
 			Name: "clario360_ai_model_drift_score",
 			Help: "Maximum model drift score across all active models (used by Prometheus alerting rules).",
 		}),
+		BenchmarkRunsTotal: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name: "ai_benchmark_runs_total",
+			Help: "Benchmark runs by backend type and status.",
+		}, []string{"backend_type", "status"}),
+		BenchmarkLatencySeconds: prometheus.NewHistogramVec(prometheus.HistogramOpts{
+			Name:    "ai_benchmark_latency_seconds",
+			Help:    "Observed latency distribution in benchmark runs.",
+			Buckets: prometheus.ExponentialBuckets(0.01, 2, 14),
+		}, []string{"backend_type"}),
+		InferenceServerHealth: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Name: "ai_inference_server_health",
+			Help: "Health status of inference servers (1=healthy, 0=unhealthy).",
+		}, []string{"server_name", "backend_type"}),
+		ComputeCostPerToken: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Name: "ai_compute_cost_per_token",
+			Help: "Estimated cost per 1K tokens by backend.",
+		}, []string{"backend_type"}),
 	}
 	reg.MustRegister(
 		m.ModelsTotal,
@@ -118,6 +141,10 @@ func NewMetrics(reg prometheus.Registerer) *Metrics {
 		m.LifecyclePromotionsTotal,
 		m.LifecycleRollbacksTotal,
 		m.ModelDriftScore,
+		m.BenchmarkRunsTotal,
+		m.BenchmarkLatencySeconds,
+		m.InferenceServerHealth,
+		m.ComputeCostPerToken,
 	)
 	return m
 }

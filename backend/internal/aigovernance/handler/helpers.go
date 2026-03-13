@@ -80,4 +80,5 @@ type Services struct {
 	Drift        *aigovservice.DriftService
 	Validation   *aigovservice.ValidationService
 	Dashboard    *aigovservice.DashboardService
+	Benchmark    *aigovservice.BenchmarkService
 }

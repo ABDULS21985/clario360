@@ -426,35 +426,72 @@ func (r *ModelRegistryRepository) ListShadowVersions(ctx context.Context) ([]aig
 }
 
 func (r *ModelRegistryRepository) listVersionsByStatus(ctx context.Context, status aigovmodel.VersionStatus) ([]aigovmodel.ModelVersion, error) {
-	rows, err := r.db.Query(ctx, `
-		SELECT v.id, v.tenant_id, v.model_id, m.slug, m.name, m.model_type, m.suite, m.risk_tier,
-		       v.version_number, v.status, v.description, v.artifact_type, v.artifact_config,
-		       v.artifact_hash, v.explainability_type, v.explanation_template, v.training_data_desc,
-		       v.training_data_hash, v.training_metrics, v.prediction_count, v.avg_latency_ms,
-		       v.avg_confidence, v.accuracy_metric, v.false_positive_rate, v.false_negative_rate,
-		       v.feedback_count, v.promoted_to_staging_at, v.promoted_to_shadow_at,
-		       v.promoted_to_production_at, v.promoted_by, v.retired_at, v.retired_by,
-		       v.retirement_reason, v.rolled_back_at, v.rolled_back_by, v.rollback_reason,
-		       v.failed_at, v.failed_by, v.failed_from_status, v.failure_reason,
-		       v.replaced_version_id, v.created_by, v.created_at, v.updated_at
-		FROM ai_model_versions v
-		JOIN ai_models m ON m.id = v.model_id
-		WHERE v.status = $1 AND m.deleted_at IS NULL`,
-		status,
-	)
-	if err != nil {
-		return nil, fmt.Errorf("list ai model versions by status: %w", err)
-	}
-	defer rows.Close()
 	items := make([]aigovmodel.ModelVersion, 0)
-	for rows.Next() {
-		item, err := scanVersion(rows)
+	tenantIDs, err := r.listAllTenantIDs(ctx)
+	if err != nil {
+		return nil, err
+	}
+	for _, tenantID := range tenantIDs {
+		err := r.runReadWithTenant(ctx, tenantID, func(tx pgx.Tx) error {
+			rows, err := tx.Query(ctx, `
+				SELECT v.id, v.tenant_id, v.model_id, m.slug, m.name, m.model_type, m.suite, m.risk_tier,
+				       v.version_number, v.status, v.description, v.artifact_type, v.artifact_config,
+				       v.artifact_hash, v.explainability_type, v.explanation_template, v.training_data_desc,
+				       v.training_data_hash, v.training_metrics, v.prediction_count, v.avg_latency_ms,
+				       v.avg_confidence, v.accuracy_metric, v.false_positive_rate, v.false_negative_rate,
+				       v.feedback_count, v.promoted_to_staging_at, v.promoted_to_shadow_at,
+				       v.promoted_to_production_at, v.promoted_by, v.retired_at, v.retired_by,
+				       v.retirement_reason, v.rolled_back_at, v.rolled_back_by, v.rollback_reason,
+				       v.failed_at, v.failed_by, v.failed_from_status, v.failure_reason,
+				       v.replaced_version_id, v.created_by, v.created_at, v.updated_at
+				FROM ai_model_versions v
+				JOIN ai_models m ON m.id = v.model_id
+				WHERE v.status = $1 AND m.deleted_at IS NULL`,
+				status,
+			)
+			if err != nil {
+				return fmt.Errorf("list ai model versions by status for tenant %s: %w", tenantID, err)
+			}
+			defer rows.Close()
+			for rows.Next() {
+				item, err := scanVersion(rows)
+				if err != nil {
+					return err
+				}
+				items = append(items, *item)
+			}
+			return rows.Err()
+		})
 		if err != nil {
 			return nil, err
 		}
-		items = append(items, *item)
 	}
-	return items, rows.Err()
+	return items, nil
+}
+
+func (r *ModelRegistryRepository) listAllTenantIDs(ctx context.Context) ([]uuid.UUID, error) {
+	rows, err := r.db.Query(ctx, `
+		SELECT id
+		FROM tenants
+		WHERE status <> 'deprovisioned'
+		ORDER BY created_at ASC`)
+	if err != nil {
+		return nil, fmt.Errorf("list tenants for ai governance: %w", err)
+	}
+	defer rows.Close()
+
+	tenantIDs := make([]uuid.UUID, 0)
+	for rows.Next() {
+		var tenantID uuid.UUID
+		if err := rows.Scan(&tenantID); err != nil {
+			return nil, fmt.Errorf("scan ai governance tenant id: %w", err)
+		}
+		tenantIDs = append(tenantIDs, tenantID)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate ai governance tenant ids: %w", err)
+	}
+	return tenantIDs, nil
 }
 
 func (r *ModelRegistryRepository) UpdateVersionStatus(ctx context.Context, version *aigovmodel.ModelVersion) error {

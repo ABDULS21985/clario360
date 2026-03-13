@@ -27,6 +27,11 @@ import type {
   AIUpdateModelPayload,
   AIValidationPreview,
   AIValidationResult,
+  AIInferenceServer,
+  AIBenchmarkSuite,
+  AIBenchmarkRun,
+  AIBenchmarkComparison,
+  AIComputeCostModel,
 } from '@/types/ai-governance';
 import type {
   ActaActionItem,
@@ -367,6 +372,36 @@ export const enterpriseApi = {
       fetchSuiteData(`/api/v1/ai/models/${id}/versions/${versionId}/validation`),
     validationHistory: (id: string, versionId: string, limit = 10): Promise<AIValidationResult[]> =>
       fetchSuiteData(`/api/v1/ai/models/${id}/versions/${versionId}/validation/history`, { limit }),
+
+    // ── Inference Servers ──────────────────────────
+    createServer: (payload: Omit<AIInferenceServer, 'id' | 'tenant_id' | 'status' | 'created_at' | 'updated_at'>): Promise<AIInferenceServer> =>
+      apiPost<{ data: AIInferenceServer }>('/api/v1/ai/inference-servers', payload).then((res) => res.data),
+    listServers: (params?: FetchParams) => fetchSuitePaginated<AIInferenceServer>('/api/v1/ai/inference-servers', params ?? { page: 1, per_page: 50 }),
+    getServer: (id: string): Promise<AIInferenceServer> => fetchSuiteData(`/api/v1/ai/inference-servers/${id}`),
+    updateServerStatus: (id: string, payload: { status: string }) =>
+      apiPut<{ data: AIInferenceServer }>(`/api/v1/ai/inference-servers/${id}/status`, payload).then((res) => res.data),
+    deleteServer: (id: string) => apiDelete<{ message: string }>(`/api/v1/ai/inference-servers/${id}`),
+
+    // ── Benchmark Suites ───────────────────────────
+    createBenchmarkSuite: (payload: Omit<AIBenchmarkSuite, 'id' | 'tenant_id' | 'created_by' | 'created_at'>): Promise<AIBenchmarkSuite> =>
+      apiPost<{ data: AIBenchmarkSuite }>('/api/v1/ai/benchmarks/suites', payload).then((res) => res.data),
+    listBenchmarkSuites: (params?: FetchParams) => fetchSuitePaginated<AIBenchmarkSuite>('/api/v1/ai/benchmarks/suites', params ?? { page: 1, per_page: 50 }),
+    getBenchmarkSuite: (id: string): Promise<AIBenchmarkSuite> => fetchSuiteData(`/api/v1/ai/benchmarks/suites/${id}`),
+
+    // ── Benchmark Runs ─────────────────────────────
+    runBenchmark: (suiteId: string, payload: { server_id: string }): Promise<AIBenchmarkRun> =>
+      apiPost<{ data: AIBenchmarkRun }>(`/api/v1/ai/benchmarks/suites/${suiteId}/run`, payload).then((res) => res.data),
+    listBenchmarkRuns: (params?: FetchParams) => fetchSuitePaginated<AIBenchmarkRun>('/api/v1/ai/benchmarks/runs', params ?? { page: 1, per_page: 50 }),
+    getBenchmarkRun: (id: string): Promise<AIBenchmarkRun> => fetchSuiteData(`/api/v1/ai/benchmarks/runs/${id}`),
+    compareRuns: (payload: { run_ids: string[] }): Promise<AIBenchmarkComparison> =>
+      apiPost<{ data: AIBenchmarkComparison }>('/api/v1/ai/benchmarks/runs/compare', payload).then((res) => res.data),
+
+    // ── Compute Costs ──────────────────────────────
+    createCostModel: (payload: Omit<AIComputeCostModel, 'id' | 'tenant_id' | 'created_at'>): Promise<AIComputeCostModel> =>
+      apiPost<{ data: AIComputeCostModel }>('/api/v1/ai/compute-costs', payload).then((res) => res.data),
+    listCostModels: (): Promise<AIComputeCostModel[]> => fetchSuiteData('/api/v1/ai/compute-costs'),
+    estimateCostSavings: (payload: { cpu_run_id: string; gpu_run_id: string; monthly_predictions: number }): Promise<{ monthly_savings_usd: number; annual_savings_usd: number; latency_trade_off_ms: number }> =>
+      apiPost<{ data: { monthly_savings_usd: number; annual_savings_usd: number; latency_trade_off_ms: number } }>('/api/v1/ai/compute-costs/estimate', payload).then((res) => res.data),
   },
 };
 

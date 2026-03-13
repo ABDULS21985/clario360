@@ -130,6 +130,18 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("providers.local.max_tokens", 4096)
 	v.SetDefault("providers.local.timeout_seconds", 30)
 
+	v.SetDefault("providers.llamacpp.base_url", "http://localhost:8081/v1")
+	v.SetDefault("providers.llamacpp.model", "llama-3.1-8b-instruct-q4_0")
+	v.SetDefault("providers.llamacpp.temperature", 0.1)
+	v.SetDefault("providers.llamacpp.max_tokens", 4096)
+	v.SetDefault("providers.llamacpp.timeout_seconds", 60)
+
+	v.SetDefault("providers.bitnet.base_url", "http://localhost:8082/v1")
+	v.SetDefault("providers.bitnet.model", "bitnet-3b-1.58bit")
+	v.SetDefault("providers.bitnet.temperature", 0.1)
+	v.SetDefault("providers.bitnet.max_tokens", 2048)
+	v.SetDefault("providers.bitnet.timeout_seconds", 120)
+
 	v.SetDefault("routing.llm_threshold", 0.85)
 	v.SetDefault("routing.multi_intent_detection", true)
 	v.SetDefault("routing.reasoning_detection", true)

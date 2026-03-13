@@ -1684,3 +1684,66 @@ cronjobs:
       limits:
         cpu: "1"
         memory: 512Mi
+
+# ---------------------------------------------------------------------------
+# Inference Servers (CPU / GPU model serving)
+# ---------------------------------------------------------------------------
+inference:
+  llamacpp:
+    enabled: false
+    replicaCount: 1
+    image:
+      repository: clario360-llamacpp
+      tag: latest
+      pullPolicy: IfNotPresent
+    model:
+      # URL to download GGUF model on first boot (init container)
+      downloadUrl: ""
+      # Model file name inside /models volume
+      fileName: model.gguf
+    contextSize: 4096
+    threads: 4
+    parallel: 4
+    batchSize: 512
+    resources:
+      requests:
+        cpu: "4"
+        memory: 8Gi
+      limits:
+        cpu: "8"
+        memory: 16Gi
+    persistence:
+      enabled: false
+      sizeLimit: 10Gi
+    nodeSelector: {}
+    tolerations: []
+    affinity: {}
+
+  bitnet:
+    enabled: false
+    replicaCount: 1
+    image:
+      repository: clario360-llamacpp
+      tag: latest
+      pullPolicy: IfNotPresent
+    model:
+      downloadUrl: ""
+      fileName: model.gguf
+    # BitNet models use 4096 context; fewer threads needed (integer ops only)
+    contextSize: 4096
+    threads: 4
+    parallel: 2
+    batchSize: 256
+    resources:
+      requests:
+        cpu: "2"
+        memory: 4Gi
+      limits:
+        cpu: "4"
+        memory: 8Gi
+    persistence:
+      enabled: false
+      sizeLimit: 5Gi
+    nodeSelector: {}
+    tolerations: []
+    affinity: {}

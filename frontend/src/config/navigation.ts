@@ -38,6 +38,7 @@ import {
   Key,
   Mail,
   Layout,
+  Server,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
@@ -218,6 +219,11 @@ export const navigation: NavSection[] = [
         href: '/admin/ai-governance',
         icon: Bot,
         permission: 'users:read',
+        children: [
+          { id: 'admin-ai-governance-models', label: 'Model Registry', href: '/admin/ai-governance', icon: Bot, permission: 'users:read' },
+          { id: 'admin-ai-governance-compute', label: 'Compute', href: '/admin/ai-governance/compute', icon: Server, permission: 'users:read' },
+          { id: 'admin-ai-governance-benchmarks', label: 'Benchmarks', href: '/admin/ai-governance/benchmarks', icon: BarChart3, permission: 'users:read' },
+        ],
       },
       {
         id: 'admin-settings',

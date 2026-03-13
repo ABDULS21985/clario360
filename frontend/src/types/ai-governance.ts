@@ -14,7 +14,8 @@ export type AIModelType =
   | 'nlp_extractor'
   | 'anomaly_detector'
   | 'scorer'
-  | 'recommender';
+  | 'recommender'
+  | 'llm_agentic';
 
 export type AIModelSuite = 'cyber' | 'data' | 'acta' | 'lex' | 'visus' | 'platform';
 
@@ -42,7 +43,10 @@ export type AIArtifactType =
   | 'rule_set'
   | 'statistical_config'
   | 'template_config'
-  | 'serialized_model';
+  | 'serialized_model'
+  | 'gguf_model'
+  | 'bitnet_model'
+  | 'onnx_model';
 
 export type AIDriftLevel = 'none' | 'low' | 'moderate' | 'significant';
 
@@ -409,4 +413,131 @@ export interface AIValidationPreview {
   positive_count: number;
   negative_count: number;
   warnings: string[];
+}
+
+// ── Compute Infrastructure & Benchmarking ───────────────────────────────
+
+export type ComputeBackendType =
+  | 'inline_go'
+  | 'vllm_gpu'
+  | 'vllm_cpu'
+  | 'llamacpp_cpu'
+  | 'llamacpp_gpu'
+  | 'bitnet_cpu'
+  | 'onnx_cpu'
+  | 'onnx_gpu';
+
+export type InferenceServerStatus =
+  | 'provisioning'
+  | 'healthy'
+  | 'degraded'
+  | 'offline'
+  | 'decommissioned';
+
+export type BenchmarkRunStatus =
+  | 'pending'
+  | 'running'
+  | 'completed'
+  | 'failed'
+  | 'cancelled';
+
+export interface AIInferenceServer {
+  id: string;
+  tenant_id: string;
+  name: string;
+  backend_type: ComputeBackendType;
+  base_url: string;
+  health_endpoint: string;
+  model_name?: string | null;
+  quantization?: string | null;
+  status: InferenceServerStatus;
+  cpu_cores?: number | null;
+  memory_mb?: number | null;
+  gpu_type?: string | null;
+  gpu_count: number;
+  max_concurrent: number;
+  metadata: JsonValue;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AIBenchmarkSuite {
+  id: string;
+  tenant_id: string;
+  name: string;
+  description: string;
+  model_slug: string;
+  prompt_dataset: JsonValue;
+  dataset_size: number;
+  warmup_count: number;
+  iteration_count: number;
+  concurrency: number;
+  timeout_seconds: number;
+  created_by: string;
+  created_at: string;
+}
+
+export interface AIBenchmarkRun {
+  id: string;
+  tenant_id: string;
+  suite_id: string;
+  server_id: string;
+  backend_type: ComputeBackendType;
+  model_name: string;
+  quantization?: string | null;
+  status: BenchmarkRunStatus;
+  p50_latency_ms?: number | null;
+  p95_latency_ms?: number | null;
+  p99_latency_ms?: number | null;
+  avg_latency_ms?: number | null;
+  min_latency_ms?: number | null;
+  max_latency_ms?: number | null;
+  tokens_per_second?: number | null;
+  requests_per_second?: number | null;
+  total_tokens?: number | null;
+  total_requests?: number | null;
+  failed_requests: number;
+  avg_perplexity?: number | null;
+  bleu_score?: number | null;
+  rouge_l_score?: number | null;
+  semantic_similarity?: number | null;
+  factual_accuracy?: number | null;
+  peak_cpu_percent?: number | null;
+  peak_memory_mb?: number | null;
+  avg_cpu_percent?: number | null;
+  avg_memory_mb?: number | null;
+  estimated_hourly_cost_usd?: number | null;
+  cost_per_1k_tokens_usd?: number | null;
+  started_at?: string | null;
+  completed_at?: string | null;
+  duration_seconds?: number | null;
+  error_message?: string | null;
+  raw_results: JsonValue;
+  created_by: string;
+  created_at: string;
+}
+
+export interface AIBenchmarkComparison {
+  runs: AIBenchmarkRun[];
+  cost_delta_monthly_usd: number;
+  latency_delta_percent: number;
+  quality_delta_percent: number;
+  recommendation: 'cpu_viable' | 'gpu_required' | 'needs_more_data';
+  recommendation_reason: string;
+}
+
+export interface AIComputeCostModel {
+  id: string;
+  tenant_id: string;
+  name: string;
+  backend_type: ComputeBackendType;
+  instance_type: string;
+  hourly_cost_usd: number;
+  cpu_cores?: number | null;
+  memory_gb?: number | null;
+  gpu_type?: string | null;
+  gpu_count: number;
+  max_tokens_per_second?: number | null;
+  notes?: string | null;
+  created_at: string;
 }

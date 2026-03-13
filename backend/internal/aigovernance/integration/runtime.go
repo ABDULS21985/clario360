@@ -10,6 +10,7 @@ import (
 	"github.com/rs/zerolog"
 
 	"github.com/clario360/platform/internal/aigovernance"
+	"github.com/clario360/platform/internal/aigovernance/benchmark"
 	aigovmiddleware "github.com/clario360/platform/internal/aigovernance/middleware"
 	"github.com/clario360/platform/internal/aigovernance/repository"
 	aigovservice "github.com/clario360/platform/internal/aigovernance/service"
@@ -24,12 +25,15 @@ type Runtime struct {
 	ShadowRepo       *repository.ShadowComparisonRepository
 	DriftRepo        *repository.DriftReportRepository
 	ValidationRepo   *repository.ValidationResultRepository
+	ServerRepo       *repository.InferenceServerRepository
+	BenchmarkRepo    *repository.BenchmarkRepository
 	Metrics          *aigovservice.Metrics
 	ExplanationSvc   *aigovservice.ExplanationService
 	PredictionLogger *aigovmiddleware.PredictionLogger
 	ComparisonSvc    *aigovservice.ComparisonService
 	DriftSvc         *aigovservice.DriftService
 	ValidationSvc    *aigovservice.ValidationService
+	BenchmarkSvc     *aigovservice.BenchmarkService
 }
 
 func NewRuntime(ctx context.Context, cfg *config.Config, reg prometheus.Registerer, producer *events.Producer, logger zerolog.Logger) (*Runtime, error) {
@@ -62,6 +66,10 @@ func NewRuntime(ctx context.Context, cfg *config.Config, reg prometheus.Register
 	comparisonSvc := aigovservice.NewComparisonService(registryRepo, predictionRepo, shadowRepo, producer, metrics, logger)
 	driftSvc := aigovservice.NewDriftService(registryRepo, predictionRepo, driftRepo, producer, metrics, logger)
 	validationSvc := aigovservice.NewValidationService(registryRepo, predictionRepo, validationRepo, producer, metrics, nil, logger)
+	serverRepo := repository.NewInferenceServerRepository(pool, logger)
+	benchmarkRepo := repository.NewBenchmarkRepository(pool, logger)
+	benchmarkRunner := benchmark.NewRunner(logger)
+	benchmarkSvc := aigovservice.NewBenchmarkService(benchmarkRepo, serverRepo, benchmarkRunner, metrics, logger)
 	return &Runtime{
 		Pool:             pool,
 		RegistryRepo:     registryRepo,
@@ -69,12 +77,15 @@ func NewRuntime(ctx context.Context, cfg *config.Config, reg prometheus.Register
 		ShadowRepo:       shadowRepo,
 		DriftRepo:        driftRepo,
 		ValidationRepo:   validationRepo,
+		ServerRepo:       serverRepo,
+		BenchmarkRepo:    benchmarkRepo,
 		Metrics:          metrics,
 		ExplanationSvc:   explanationSvc,
 		PredictionLogger: predictionLogger,
 		ComparisonSvc:    comparisonSvc,
 		DriftSvc:         driftSvc,
 		ValidationSvc:    validationSvc,
+		BenchmarkSvc:     benchmarkSvc,
 	}, nil
 }
 
