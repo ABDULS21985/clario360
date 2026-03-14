@@ -62,13 +62,13 @@ func (r *DashboardRepository) RecentAlerts(ctx context.Context, tenantID uuid.UU
 }
 
 // ActiveUsersToday counts distinct users who acted on alerts today
-// (assigned_to, acknowledged, or resolved).
+// (assigned_to or escalated_to).
 func (r *DashboardRepository) ActiveUsersToday(ctx context.Context, tenantID uuid.UUID) (int, error) {
 	var count int
 	err := r.db.QueryRow(ctx, `
 		SELECT COUNT(DISTINCT u)::int
 		FROM alerts a, LATERAL (
-			VALUES (a.assigned_to), (a.resolved_by)
+			VALUES (a.assigned_to), (a.escalated_to)
 		) AS t(u)
 		WHERE a.tenant_id = $1
 		  AND a.deleted_at IS NULL

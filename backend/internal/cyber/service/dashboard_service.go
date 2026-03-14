@@ -307,10 +307,11 @@ func (s *DashboardService) GetMetrics(ctx context.Context, tenantID uuid.UUID) (
 		mttaMin := report.Overall.AvgResponseHours * 60
 		resp.MTTAMinutes = &mttaMin
 
+		var mttrMin float64
 		if report.Overall.AvgResolveHours != nil {
-			mttrMin := *report.Overall.AvgResolveHours * 60
-			resp.MTTRMinutes = &mttrMin
+			mttrMin = *report.Overall.AvgResolveHours * 60
 		}
+		resp.MTTRMinutes = &mttrMin
 
 		sla := report.Overall.SLACompliance
 		resp.SLACompliancePct = &sla
