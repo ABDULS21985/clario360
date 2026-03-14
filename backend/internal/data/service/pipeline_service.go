@@ -296,15 +296,23 @@ func validatePipelineConfig(cfg model.PipelineConfig) error {
 }
 
 func translatePipelineExecutionError(err error) error {
+	msg := strings.ToLower(err.Error())
 	switch {
 	case errors.Is(err, pgx.ErrNoRows):
 		return err
-	case strings.Contains(strings.ToLower(err.Error()), "already running"):
+	case strings.Contains(msg, "already running"):
 		return fmt.Errorf("%w: %v", ErrConflict, err)
-	case strings.Contains(strings.ToLower(err.Error()), "maximum concurrent"):
+	case strings.Contains(msg, "maximum concurrent"):
 		return fmt.Errorf("%w: %v", ErrTooManyRequests, err)
-	case strings.Contains(strings.ToLower(err.Error()), "disabled"):
+	case strings.Contains(msg, "disabled"):
 		return fmt.Errorf("%w: %v", ErrForbiddenOperation, err)
+	case strings.Contains(msg, "decrypt source config"),
+		strings.Contains(msg, "create source connector"),
+		strings.Contains(msg, "fetch source batch"),
+		strings.Contains(msg, "does not exist"),
+		strings.Contains(msg, "connection refused"),
+		strings.Contains(msg, "failed to connect"):
+		return fmt.Errorf("%w: %v", ErrPipelineExecution, err)
 	default:
 		return err
 	}

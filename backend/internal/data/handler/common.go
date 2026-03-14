@@ -32,6 +32,8 @@ func (h *baseHandler) writeError(w http.ResponseWriter, r *http.Request, err err
 		suiteapi.WriteError(w, r, http.StatusGatewayTimeout, "TIMEOUT", cleanError(err), nil)
 	case errors.Is(err, service.ErrUnsupportedType):
 		suiteapi.WriteError(w, r, http.StatusBadRequest, "UNSUPPORTED_TYPE", cleanError(err), nil)
+	case errors.Is(err, service.ErrPipelineExecution):
+		suiteapi.WriteError(w, r, http.StatusUnprocessableEntity, "PIPELINE_EXECUTION_FAILED", cleanError(err), nil)
 	case errors.Is(err, pgx.ErrNoRows):
 		suiteapi.WriteError(w, r, http.StatusNotFound, "NOT_FOUND", "resource not found", nil)
 	default:
@@ -52,5 +54,6 @@ func cleanError(err error) string {
 	message = strings.TrimPrefix(message, service.ErrConnectionTestFailed.Error()+": ")
 	message = strings.TrimPrefix(message, service.ErrTimeout.Error()+": ")
 	message = strings.TrimPrefix(message, service.ErrUnsupportedType.Error()+": ")
+	message = strings.TrimPrefix(message, service.ErrPipelineExecution.Error()+": ")
 	return message
 }

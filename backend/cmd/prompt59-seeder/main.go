@@ -643,6 +643,45 @@ func seedData(ctx context.Context, pool *pgxpool.Pool, tenantID, actorID uuid.UU
 		},
 	})
 
+	connectionConfigs := map[uuid.UUID]map[string]any{
+		crmSourceID: {
+			"base_url":        "http://localhost:8080/api/v1",
+			"health_url":      "http://localhost:8080/health",
+			"data_path":       "/customers",
+			"auth_type":       "bearer",
+			"auth_config":     map[string]any{"token": "seed-demo-token"},
+			"timeout_seconds": 30,
+			"rate_limit_rps":  10,
+			"pagination_type": "offset",
+		},
+		warehouseSourceID: {
+			"host":     "localhost",
+			"port":     5432,
+			"database": "data_db",
+			"schema":   "public",
+			"username": "clario",
+			"password": "clario_dev_pass",
+			"ssl_mode": "disable",
+		},
+		martSourceID: {
+			"host":     "localhost",
+			"port":     5432,
+			"database": "data_db",
+			"schema":   "public",
+			"username": "clario",
+			"password": "clario_dev_pass",
+			"ssl_mode": "disable",
+		},
+		shadowCopySourceID: {
+			"endpoint":   "localhost:9000",
+			"bucket":     "clario360-shadow",
+			"prefix":     "finance-export/",
+			"access_key": "clario_minio",
+			"secret_key": "clario_minio_secret",
+			"use_ssl":    false,
+		},
+	}
+
 	dataSources := []struct {
 		id          uuid.UUID
 		name        string
@@ -660,7 +699,7 @@ func seedData(ctx context.Context, pool *pgxpool.Pool, tenantID, actorID uuid.UU
 		{shadowCopySourceID, "Finance Export Shadow", "Unauthorized externalized shadow copy used to exercise shadow-copy detection.", "s3", "error", 1, 240000, 157286400, now.Add(-3 * time.Hour)},
 	}
 	for _, source := range dataSources {
-		configBytes := []byte(`{"seed_key":"prompt59","seeded":true}`)
+		configBytes := mustJSON(connectionConfigs[source.id])
 		_, err = tx.Exec(ctx, `
 			INSERT INTO data_sources (
 				id, tenant_id, name, description, type, connection_config, encryption_key_id, status, last_error,

@@ -27,6 +27,33 @@ func queryable(pool *pgxpool.Pool) dbtx {
 	return pool
 }
 
+func runWithTenantRead(ctx context.Context, pool *pgxpool.Pool, tenantID uuid.UUID, fn func(dbtx) error) error {
+	return runWithTenantTx(ctx, pool, tenantID, pgx.TxOptions{AccessMode: pgx.ReadOnly}, fn)
+}
+
+func runWithTenantWrite(ctx context.Context, pool *pgxpool.Pool, tenantID uuid.UUID, fn func(dbtx) error) error {
+	return runWithTenantTx(ctx, pool, tenantID, pgx.TxOptions{}, fn)
+}
+
+func runWithTenantTx(ctx context.Context, pool *pgxpool.Pool, tenantID uuid.UUID, opts pgx.TxOptions, fn func(dbtx) error) error {
+	tx, err := pool.BeginTx(ctx, opts)
+	if err != nil {
+		return fmt.Errorf("begin tenant transaction: %w", err)
+	}
+	defer tx.Rollback(ctx) //nolint:errcheck
+
+	if _, err := tx.Exec(ctx, "SELECT set_config('app.current_tenant_id', $1, true)", tenantID.String()); err != nil {
+		return fmt.Errorf("set tenant context: %w", err)
+	}
+	if err := fn(tx); err != nil {
+		return err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("commit tenant transaction: %w", err)
+	}
+	return nil
+}
+
 func marshalJSON(value interface{}) ([]byte, error) {
 	if value == nil {
 		return []byte("{}"), nil

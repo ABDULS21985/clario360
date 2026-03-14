@@ -10,4 +10,5 @@ var (
 	ErrTooManyRequests      = errors.New("too many requests")
 	ErrForbiddenOperation   = errors.New("forbidden operation")
 	ErrTimeout              = errors.New("timeout")
+	ErrPipelineExecution    = errors.New("pipeline execution failed")
 )

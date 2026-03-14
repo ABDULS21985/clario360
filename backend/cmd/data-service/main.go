@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -455,5 +456,13 @@ type configDecryptorAdapter struct {
 }
 
 func (a configDecryptorAdapter) Decrypt(ciphertext []byte, _ string) ([]byte, error) {
-	return a.encryptor.Decrypt(ciphertext)
+	plaintext, err := a.encryptor.Decrypt(ciphertext)
+	if err == nil {
+		return plaintext, nil
+	}
+	// Fallback: if the stored bytes are valid JSON (e.g. seeded/legacy data), use them directly.
+	if json.Valid(ciphertext) {
+		return append([]byte(nil), ciphertext...), nil
+	}
+	return nil, err
 }
