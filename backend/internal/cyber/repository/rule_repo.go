@@ -851,3 +851,159 @@ func (r *RuleRepository) ListSecurityEvents(ctx context.Context, tenantID uuid.U
 	}
 	return events, rows.Err()
 }
+
+// eventSelectColumns is the standard column list for security_events queries.
+const eventSelectColumns = `
+	id, tenant_id, timestamp, source, type, severity,
+	source_ip::text, dest_ip::text, dest_port, protocol, username,
+	process, parent_process, command_line, file_path, file_hash,
+	asset_id, raw_event, matched_rules, processed_at`
+
+// eventSortAllowlist is the set of columns that may appear in ORDER BY.
+var eventSortAllowlist = []string{
+	"timestamp", "source", "type", "severity", "source_ip",
+	"dest_ip", "username", "process", "processed_at",
+}
+
+// QuerySecurityEvents returns a paginated, filtered list of security events.
+func (r *RuleRepository) QuerySecurityEvents(ctx context.Context, tenantID uuid.UUID, params *model.EventQueryParams) ([]model.SecurityEvent, int, error) {
+	params.SetDefaults()
+
+	qb := database.NewQueryBuilder("SELECT " + eventSelectColumns + " FROM security_events e")
+	qb.Where("e.tenant_id = ?", tenantID)
+
+	// Time range filters
+	if params.From != nil {
+		qb.Where("e.timestamp >= ?", *params.From)
+	}
+	if params.To != nil {
+		qb.Where("e.timestamp <= ?", *params.To)
+	}
+
+	// Field filters
+	qb.WhereIf(params.Source != "", "e.source = ?", params.Source)
+	qb.WhereIf(params.Type != "", "e.type = ?", params.Type)
+	if len(params.Severities) > 0 {
+		qb.WhereIn("e.severity", params.Severities)
+	}
+	qb.WhereIf(params.SourceIP != "", "host(e.source_ip) = ?", params.SourceIP)
+	qb.WhereIf(params.DestIP != "", "host(e.dest_ip) = ?", params.DestIP)
+	qb.WhereIf(params.Protocol != "", "e.protocol = ?", params.Protocol)
+	qb.WhereIf(params.Username != "", "e.username ILIKE ?", "%"+params.Username+"%")
+	qb.WhereIf(params.Process != "", "e.process ILIKE ?", "%"+params.Process+"%")
+	qb.WhereIf(params.CmdContains != "", "e.command_line ILIKE ?", "%"+params.CmdContains+"%")
+	qb.WhereIf(params.FileHash != "", "e.file_hash = ?", params.FileHash)
+	qb.WhereIf(params.Search != "", "e.raw_event::text ILIKE ?", "%"+params.Search+"%")
+	if params.MatchedRule != "" {
+		ruleID, err := uuid.Parse(params.MatchedRule)
+		if err == nil {
+			qb.Where("? = ANY(e.matched_rules)", ruleID)
+		}
+	}
+
+	qb.OrderBy(params.Sort, params.Order, eventSortAllowlist)
+	qb.Paginate(params.Page, params.PerPage)
+
+	countSQL, countArgs := qb.BuildCount()
+	var total int
+	if err := r.db.QueryRow(ctx, countSQL, countArgs...).Scan(&total); err != nil {
+		return nil, 0, fmt.Errorf("count security events: %w", err)
+	}
+
+	sql, args := qb.Build()
+	rows, err := r.db.Query(ctx, sql, args...)
+	if err != nil {
+		return nil, 0, fmt.Errorf("query security events: %w", err)
+	}
+	defer rows.Close()
+
+	events := make([]model.SecurityEvent, 0)
+	for rows.Next() {
+		event, err := scanSecurityEvent(rows)
+		if err != nil {
+			return nil, 0, err
+		}
+		events = append(events, *event)
+	}
+	return events, total, rows.Err()
+}
+
+// GetSecurityEvent returns a single security event by ID.
+func (r *RuleRepository) GetSecurityEvent(ctx context.Context, tenantID, eventID uuid.UUID) (*model.SecurityEvent, error) {
+	sql := `SELECT ` + eventSelectColumns + `
+		FROM security_events
+		WHERE tenant_id = $1 AND id = $2
+		LIMIT 1`
+	row := r.db.QueryRow(ctx, sql, tenantID, eventID)
+	event, err := scanSecurityEvent(row)
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			return nil, fmt.Errorf("security event not found")
+		}
+		return nil, fmt.Errorf("get security event: %w", err)
+	}
+	return event, nil
+}
+
+// GetSecurityEventStats returns aggregate counts grouped by source, type, and severity.
+func (r *RuleRepository) GetSecurityEventStats(ctx context.Context, tenantID uuid.UUID, from, to *time.Time) (*model.EventStats, error) {
+	args := []interface{}{tenantID}
+	timeFilter := ""
+	if from != nil {
+		args = append(args, *from)
+		timeFilter += fmt.Sprintf(" AND timestamp >= $%d", len(args))
+	}
+	if to != nil {
+		args = append(args, *to)
+		timeFilter += fmt.Sprintf(" AND timestamp <= $%d", len(args))
+	}
+
+	// Total count
+	var stats model.EventStats
+	countSQL := "SELECT COUNT(*) FROM security_events WHERE tenant_id = $1" + timeFilter
+	if err := r.db.QueryRow(ctx, countSQL, args...).Scan(&stats.Total); err != nil {
+		return nil, fmt.Errorf("event stats total: %w", err)
+	}
+
+	// By source (top 20)
+	bySourceSQL := `SELECT source AS name, COUNT(*)::int AS count
+		FROM security_events WHERE tenant_id = $1` + timeFilter + `
+		GROUP BY source ORDER BY count DESC LIMIT 20`
+	stats.BySource = r.queryNamedCounts(ctx, bySourceSQL, args)
+
+	// By type (top 20)
+	byTypeSQL := `SELECT type AS name, COUNT(*)::int AS count
+		FROM security_events WHERE tenant_id = $1` + timeFilter + `
+		GROUP BY type ORDER BY count DESC LIMIT 20`
+	stats.ByType = r.queryNamedCounts(ctx, byTypeSQL, args)
+
+	// By severity
+	bySevSQL := `SELECT severity AS name, COUNT(*)::int AS count
+		FROM security_events WHERE tenant_id = $1` + timeFilter + `
+		GROUP BY severity ORDER BY count DESC`
+	stats.BySeverity = r.queryNamedCounts(ctx, bySevSQL, args)
+
+	return &stats, nil
+}
+
+// queryNamedCounts runs a query returning (name, count) rows and collects them.
+func (r *RuleRepository) queryNamedCounts(ctx context.Context, sql string, args []interface{}) []model.NamedCount {
+	rows, err := r.db.Query(ctx, sql, args...)
+	if err != nil {
+		r.logger.Warn().Err(err).Msg("queryNamedCounts failed")
+		return []model.NamedCount{}
+	}
+	defer rows.Close()
+	var result []model.NamedCount
+	for rows.Next() {
+		var nc model.NamedCount
+		if err := rows.Scan(&nc.Name, &nc.Count); err != nil {
+			continue
+		}
+		result = append(result, nc)
+	}
+	if result == nil {
+		return []model.NamedCount{}
+	}
+	return result
+}

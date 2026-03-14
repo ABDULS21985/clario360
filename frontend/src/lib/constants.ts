@@ -107,6 +107,19 @@ export const API_ENDPOINTS = {
   CYBER_CTEM_ASSESSMENTS: '/api/v1/cyber/ctem/assessments',
   CYBER_CTEM_EXPOSURE_SCORE: '/api/v1/cyber/ctem/exposure-score',
   CYBER_CTEM_EXPOSURE_HISTORY: '/api/v1/cyber/ctem/exposure-score/history',
+  CYBER_CTEM_DASHBOARD: '/api/v1/cyber/ctem/dashboard',
+
+  // Cyber — Security Events
+  CYBER_EVENTS: '/api/v1/cyber/events',
+  CYBER_EVENT_DETAIL: (id: string) => `/api/v1/cyber/events/${id}`,
+  CYBER_EVENT_STATS: '/api/v1/cyber/events/stats',
+
+  // Cyber — Analytics
+  CYBER_ANALYTICS_THREAT_FORECAST: '/api/v1/cyber/analytics/threat-forecast',
+  CYBER_ANALYTICS_ALERT_FORECAST: '/api/v1/cyber/analytics/alert-forecast',
+  CYBER_ANALYTICS_TECHNIQUE_TRENDS: '/api/v1/cyber/analytics/technique-trends',
+  CYBER_ANALYTICS_CAMPAIGNS: '/api/v1/cyber/analytics/campaigns',
+  CYBER_ANALYTICS_LANDSCAPE: '/api/v1/cyber/analytics/landscape',
 
   // Cyber — Remediation
   CYBER_REMEDIATION: '/api/v1/cyber/remediation',

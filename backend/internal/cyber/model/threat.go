@@ -77,3 +77,13 @@ type ThreatStats struct {
 	IndicatorsTotal    int          `json:"indicators_total"`
 	ContainedThisMonth int          `json:"contained_this_month"`
 }
+
+// ThreatLandscape is an aggregated threat landscape response for the analytics dashboard.
+type ThreatLandscape struct {
+	ActiveThreatCount int          `json:"active_threat_count"`
+	TotalThreats      int          `json:"total_threats"`
+	IndicatorsTotal   int          `json:"indicators_total"`
+	TopThreatType     string       `json:"top_threat_type"`
+	ByType            []NamedCount `json:"by_type"`
+	BySeverity        []NamedCount `json:"by_severity"`
+}

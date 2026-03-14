@@ -29,8 +29,11 @@ func RegisterRoutes(
 	remediationHandler *RemediationHandler,
 	dspmHandler *DSPMHandler,
 	uebaHandler *uebahandler.UEBAHandler,
+	eventHandler *EventHandler,
+	analyticsHandler *AnalyticsHandler,
 	jwtMgr *auth.JWTManager,
 	rdb *redis.Client,
+	extraRoutes ...func(chi.Router),
 ) {
 	cyberhealth.Register(r)
 
@@ -207,6 +210,22 @@ func RegisterRoutes(
 
 		uebahandler.RegisterRoutes(r, uebaHandler)
 
+		// ---- Security Events ----
+		if eventHandler != nil {
+			r.Get("/events/stats", eventHandler.GetEventStats)
+			r.Get("/events/{id}", eventHandler.GetEvent)
+			r.Get("/events", eventHandler.ListEvents)
+		}
+
+		// ---- Analytics ----
+		if analyticsHandler != nil {
+			r.Get("/analytics/threat-forecast", analyticsHandler.ThreatForecast)
+			r.Get("/analytics/alert-forecast", analyticsHandler.AlertForecast)
+			r.Get("/analytics/technique-trends", analyticsHandler.TechniqueTrends)
+			r.Get("/analytics/campaigns", analyticsHandler.Campaigns)
+			r.Get("/analytics/landscape", analyticsHandler.Landscape)
+		}
+
 		if ctemHandler != nil && ctemReportHandler != nil {
 			r.Route("/ctem", func(r chi.Router) {
 				r.Post("/assessments", ctemHandler.CreateAssessment)
@@ -243,6 +262,11 @@ func RegisterRoutes(
 				r.Post("/assessments/{id}/report/export", ctemReportHandler.ExportReport)
 				r.Get("/assessments/{id}/compare/{otherId}", ctemHandler.CompareAssessments)
 			})
+		}
+
+		// ---- Extra sub-module routes (DSPM intelligence, access, remediation) ----
+		for _, fn := range extraRoutes {
+			fn(r)
 		}
 	})
 }

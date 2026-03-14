@@ -49,6 +49,7 @@ import {
   Siren,
   CircuitBoard,
   ListChecks,
+  Terminal,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
@@ -118,7 +119,16 @@ export const navigation: NavSection[] = [
       { id: 'cyber-indicators', label: 'IOC Management', href: '/cyber/indicators', icon: Fingerprint, permission: 'cyber:read' },
       { id: 'cyber-feeds', label: 'Threat Feeds', href: '/cyber/threat-feeds', icon: Rss, permission: 'cyber:manage' },
       { id: 'cyber-threats', label: 'Threat Hunting', href: '/cyber/threats', icon: Search },
-      { id: 'cyber-ctem', label: 'CTEM Assessments', href: '/cyber/ctem', icon: Target },
+      {
+        id: 'cyber-ctem',
+        label: 'CTEM',
+        href: '/cyber/ctem',
+        icon: Target,
+        children: [
+          { id: 'cyber-ctem-dashboard', label: 'Dashboard', href: '/cyber/ctem/dashboard', icon: LayoutDashboard },
+          { id: 'cyber-ctem-assessments', label: 'Assessments', href: '/cyber/ctem', icon: Target },
+        ],
+      },
       {
         id: 'cyber-remediation',
         label: 'Remediation',
@@ -162,6 +172,8 @@ export const navigation: NavSection[] = [
       },
       { id: 'cyber-detection', label: 'Detection Rules', href: '/cyber/detection-rules', icon: ShieldCheck, permission: 'cyber:read' },
       { id: 'cyber-mitre', label: 'MITRE ATT&CK', href: '/cyber/mitre-attack', icon: Grid3X3, permission: 'cyber:read' },
+      { id: 'cyber-events', label: 'Event Explorer', href: '/cyber/events', icon: Terminal, permission: 'cyber:read' },
+      { id: 'cyber-analytics', label: 'Analytics', href: '/cyber/analytics', icon: TrendingUp, permission: 'cyber:read' },
     ],
   },
   {

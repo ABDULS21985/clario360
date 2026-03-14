@@ -232,15 +232,15 @@ func buildPatternLibrary() []model.PIIPattern {
 		// ===== Identity =====
 		{
 			Name:               "ssn_us",
-			Regex:              `\b(?!000|666|9\d{2})\d{3}-(?!00)\d{2}-(?!0000)\d{4}\b`,
+			Regex:              `\b\d{3}-\d{2}-\d{4}\b`,
 			Weight:             0.95,
 			Locale:             "US",
 			Category:           "identity",
-			FalsePositiveHints: []string{"phone_number", "date"},
+			FalsePositiveHints: []string{"phone_number", "date", "000", "666"},
 		},
 		{
 			Name:               "ssn_us_no_dash",
-			Regex:              `\b(?!000|666|9\d{2})\d{3}(?!00)\d{2}(?!0000)\d{4}\b`,
+			Regex:              `\b\d{9}\b`,
 			Weight:             0.70,
 			Locale:             "US",
 			Category:           "identity",

@@ -928,6 +928,9 @@ func main() {
 		vcisoLLMHandler = vcisollmhandler.NewLLMHandler(vcisoLLMEngine, vcisoLLMAuditRepo, logger)
 	}
 	vcisoPredictHandler := vcisopredicthandler.NewPredictionHandler(vcisoPredictEngine, logger)
+	eventHandler := handler.NewEventHandler(ruleRepo, logger)
+	analyticsHandler := handler.NewAnalyticsHandler(vcisoPredictEngine, threatRepo, logger)
+
 	handler.RegisterRoutes(
 		svc.Router,
 		assetHandler,
@@ -944,19 +947,21 @@ func main() {
 		remediationHandler,
 		dspmHandler,
 		uebaHTTPHandler,
+		eventHandler,
+		analyticsHandler,
 		jwtMgr,
 		rdb,
+		func(r chi.Router) {
+			accesshandler.RegisterRoutes(r, accessIntelHandler)
+			dspmremhandler.RegisterRoutes(r, dspmRemHandler)
+			intelhandler.RegisterRoutes(r, intelHTTPHandler)
+		},
 	)
 	svc.Router.Group(func(r chi.Router) {
 		r.Use(platformmw.Auth(jwtMgr))
 		r.Use(platformmw.Tenant)
 		rcaHandler.RegisterRoutes(r)
 		handler.RegisterVCISOGovernanceRoutes(r, vcisoGovHandler)
-		r.Route("/api/v1/cyber", func(r chi.Router) {
-			accesshandler.RegisterRoutes(r, accessIntelHandler)
-			dspmremhandler.RegisterRoutes(r, dspmRemHandler)
-			intelhandler.RegisterRoutes(r, intelHTTPHandler)
-		})
 	})
 	vcisochathandler.RegisterRoutes(svc.Router, vcisochathandler.RouteDeps{
 		ChatHandler:          vcisoChatHandler,

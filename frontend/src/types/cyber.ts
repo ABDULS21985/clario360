@@ -2858,3 +2858,74 @@ export interface ExportJob {
   created_at: string;
   completed_at?: string;
 }
+
+// ─── Security Events ─────────────────────────────────────────────────────────
+
+export interface SecurityEvent {
+  id: string;
+  tenant_id: string;
+  timestamp: string;
+  source: string;
+  type: string;
+  severity: CyberSeverity;
+  source_ip?: string;
+  dest_ip?: string;
+  dest_port?: number;
+  protocol?: string;
+  username?: string;
+  process?: string;
+  parent_process?: string;
+  command_line?: string;
+  file_path?: string;
+  file_hash?: string;
+  asset_id?: string;
+  raw_event: Record<string, unknown>;
+  matched_rules: string[];
+  processed_at: string;
+}
+
+export interface EventStats {
+  total: number;
+  by_source: NamedCount[];
+  by_type: NamedCount[];
+  by_severity: NamedCount[];
+}
+
+// ─── Analytics / Predictive ──────────────────────────────────────────────────
+
+export interface ThreatForecastItem {
+  technique_id: string;
+  technique_name: string;
+  trend: 'increasing' | 'stable' | 'decreasing';
+  growth_rate: number;
+  forecast: { lower: number; mid: number; upper: number };
+}
+
+export interface AlertForecastPoint {
+  date: string;
+  predicted: number;
+  lower: number;
+  upper: number;
+  actual?: number;
+}
+
+export interface CampaignCluster {
+  cluster_id: number;
+  alert_ids: string[];
+  alert_titles: string[];
+  start_at: string;
+  end_at: string;
+  stage: string;
+  mitre_techniques: string[];
+  shared_iocs: string[];
+  confidence: { p10: number; p50: number; p90: number };
+}
+
+export interface AnalyticsLandscape {
+  active_threat_count: number;
+  total_threats: number;
+  indicators_total: number;
+  top_threat_type: string;
+  by_type: NamedCount[];
+  by_severity: NamedCount[];
+}
