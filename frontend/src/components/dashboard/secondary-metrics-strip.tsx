@@ -31,10 +31,10 @@ const STATUS_COLORS = {
 type StatusColor = (typeof STATUS_COLORS)[keyof typeof STATUS_COLORS];
 
 function getStatusColor(
-  value: number | undefined,
+  value: number | undefined | null,
   evaluate: (v: number) => StatusColor,
 ): StatusColor {
-  if (value === undefined) return STATUS_COLORS.green;
+  if (value == null) return STATUS_COLORS.green;
   return evaluate(value);
 }
 
@@ -46,6 +46,22 @@ interface MetricConfig {
   suffix: string;
   colorFn: (v: number) => StatusColor;
   permission?: string;
+}
+
+function formatMetricValue(value: number, suffix: string): string {
+  if (suffix === 'min') {
+    if (value >= 1440) {
+      return `${(value / 1440).toFixed(1)}d`;
+    }
+    if (value >= 60) {
+      return `${(value / 60).toFixed(1)}h`;
+    }
+    return `${Math.round(value)}min`;
+  }
+  if (suffix === '%') {
+    return `${Math.round(value)}%`;
+  }
+  return value.toLocaleString();
 }
 
 export function SecondaryMetricsStrip() {
@@ -160,8 +176,8 @@ export function SecondaryMetricsStrip() {
                   className="text-sm font-semibold tabular-nums"
                   style={{ color }}
                 >
-                  {metric.value !== undefined
-                    ? `${metric.value}${metric.suffix}`
+                  {metric.value != null
+                    ? formatMetricValue(metric.value, metric.suffix)
                     : '—'}
                 </span>
               )}

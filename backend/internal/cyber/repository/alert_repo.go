@@ -835,7 +835,7 @@ func (r *AlertRepository) enrichAlerts(ctx context.Context, tenantID uuid.UUID, 
 
 	if ids := uniqueUUIDs(assetIDs); len(ids) > 0 {
 		rows, err := r.db.Query(ctx, `
-			SELECT id, name, ip_address, hostname, os, owner, criticality
+			SELECT id, name, ip_address::text, hostname, os, owner, criticality
 			FROM assets
 			WHERE tenant_id = $1 AND id = ANY($2) AND deleted_at IS NULL`,
 			tenantID, ids,
