@@ -16,6 +16,8 @@ type ThreatListParams struct {
 	Types      []string `form:"type"`
 	Statuses   []string `form:"status"`
 	Severities []string `form:"severity"`
+	Sort       string   `form:"sort"`
+	Order      string   `form:"order"`
 	Page       int      `form:"page"`
 	PerPage    int      `form:"per_page"`
 }
@@ -61,6 +63,44 @@ type ThreatStatusUpdateRequest struct {
 	Status model.ThreatStatus `json:"status" validate:"required"`
 }
 
+// CreateThreatIndicatorRequest captures an IOC created alongside a threat.
+type CreateThreatIndicatorRequest struct {
+	Type        model.IndicatorType `json:"type" validate:"required"`
+	Value       string              `json:"value" validate:"required,min=1,max=2048"`
+	Description string              `json:"description,omitempty" validate:"omitempty,max=2000"`
+	Severity    model.Severity      `json:"severity" validate:"required"`
+	Confidence  float64             `json:"confidence" validate:"gte=0,lte=100"`
+	Source      string              `json:"source,omitempty" validate:"omitempty,oneof=manual stix_feed osint internal vendor"`
+	Tags        []string            `json:"tags,omitempty" validate:"omitempty,max=20,dive,min=1,max=50"`
+}
+
+// CreateThreatRequest creates a new threat record with optional initial IOCs.
+type CreateThreatRequest struct {
+	Name              string                         `json:"name" validate:"required,min=1,max=255"`
+	Type              model.ThreatType               `json:"type" validate:"required"`
+	Severity          model.Severity                 `json:"severity" validate:"required"`
+	Description       string                         `json:"description,omitempty" validate:"omitempty,max=5000"`
+	ThreatActor       string                         `json:"threat_actor,omitempty" validate:"omitempty,max=255"`
+	Campaign          string                         `json:"campaign,omitempty" validate:"omitempty,max=255"`
+	MITRETacticIDs    []string                       `json:"mitre_tactic_ids,omitempty" validate:"omitempty,max=14,dive,min=1,max=20"`
+	MITRETechniqueIDs []string                       `json:"mitre_technique_ids,omitempty" validate:"omitempty,max=100,dive,min=1,max=20"`
+	Tags              []string                       `json:"tags,omitempty" validate:"omitempty,max=20,dive,min=1,max=50"`
+	Indicators        []CreateThreatIndicatorRequest `json:"indicators,omitempty" validate:"omitempty,max=100,dive"`
+}
+
+// UpdateThreatRequest updates the editable fields for a threat.
+type UpdateThreatRequest struct {
+	Name              string           `json:"name" validate:"required,min=1,max=255"`
+	Type              model.ThreatType `json:"type" validate:"required"`
+	Severity          model.Severity   `json:"severity" validate:"required"`
+	Description       string           `json:"description,omitempty" validate:"omitempty,max=5000"`
+	ThreatActor       string           `json:"threat_actor,omitempty" validate:"omitempty,max=255"`
+	Campaign          string           `json:"campaign,omitempty" validate:"omitempty,max=255"`
+	MITRETacticIDs    []string         `json:"mitre_tactic_ids,omitempty" validate:"omitempty,max=14,dive,min=1,max=20"`
+	MITRETechniqueIDs []string         `json:"mitre_technique_ids,omitempty" validate:"omitempty,max=100,dive,min=1,max=20"`
+	Tags              []string         `json:"tags,omitempty" validate:"omitempty,max=20,dive,min=1,max=50"`
+}
+
 // ThreatIndicatorRequest creates or adds an indicator to a threat.
 type ThreatIndicatorRequest struct {
 	Type        model.IndicatorType `json:"type" validate:"required"`
@@ -72,6 +112,25 @@ type ThreatIndicatorRequest struct {
 	ExpiresAt   *time.Time          `json:"expires_at,omitempty"`
 	Tags        []string            `json:"tags,omitempty" validate:"omitempty,max=20,dive,min=1,max=50"`
 	Metadata    json.RawMessage     `json:"metadata,omitempty"`
+}
+
+// StandaloneIndicatorRequest creates or updates an indicator outside a threat detail page.
+type StandaloneIndicatorRequest struct {
+	Type        model.IndicatorType `json:"type" validate:"required"`
+	Value       string              `json:"value" validate:"required,min=1,max=2048"`
+	Description string              `json:"description,omitempty" validate:"omitempty,max=2000"`
+	Severity    model.Severity      `json:"severity" validate:"required"`
+	Source      string              `json:"source" validate:"required,oneof=manual stix_feed osint internal vendor"`
+	Confidence  float64             `json:"confidence" validate:"required,gte=0,lte=1"`
+	ThreatID    *uuid.UUID          `json:"threat_id,omitempty"`
+	ExpiresAt   *time.Time          `json:"expires_at,omitempty"`
+	Tags        []string            `json:"tags,omitempty" validate:"omitempty,max=20,dive,min=1,max=50"`
+	Metadata    json.RawMessage     `json:"metadata,omitempty"`
+}
+
+// ThreatIndicatorStatusUpdateRequest toggles IOC activity without editing the value.
+type ThreatIndicatorStatusUpdateRequest struct {
+	Active bool `json:"active"`
 }
 
 // IndicatorCheckRequest checks arbitrary indicator values against stored IOCs.
@@ -93,12 +152,19 @@ type IndicatorBulkImportRequest struct {
 
 // IndicatorListParams captures filters for GET /cyber/indicators.
 type IndicatorListParams struct {
-	Type     *string    `form:"type"`
-	ThreatID *uuid.UUID `form:"threat_id"`
-	Active   *bool      `form:"active"`
-	Search   *string    `form:"search"`
-	Page     int        `form:"page"`
-	PerPage  int        `form:"per_page"`
+	Types         []string   `form:"type"`
+	Sources       []string   `form:"source"`
+	Severities    []string   `form:"severity"`
+	ThreatID      *uuid.UUID `form:"threat_id"`
+	Active        *bool      `form:"active"`
+	Linked        *bool      `form:"linked"`
+	Search        *string    `form:"search"`
+	MinConfidence *float64   `form:"min_confidence"`
+	MaxConfidence *float64   `form:"max_confidence"`
+	Sort          string     `form:"sort"`
+	Order         string     `form:"order"`
+	Page          int        `form:"page"`
+	PerPage       int        `form:"per_page"`
 }
 
 // SetDefaults applies default paging.
@@ -113,8 +179,28 @@ func (p *IndicatorListParams) SetDefaults() {
 
 // Validate validates indicator filters.
 func (p *IndicatorListParams) Validate() error {
-	if p.Type != nil && !model.IndicatorType(*p.Type).IsValid() {
-		return fmt.Errorf("invalid indicator type: %q", *p.Type)
+	for _, value := range p.Types {
+		if !model.IndicatorType(value).IsValid() {
+			return fmt.Errorf("invalid indicator type: %q", value)
+		}
+	}
+	for _, value := range p.Sources {
+		switch value {
+		case "manual", "stix_feed", "osint", "internal", "vendor":
+		default:
+			return fmt.Errorf("invalid indicator source: %q", value)
+		}
+	}
+	for _, value := range p.Severities {
+		if !model.Severity(value).IsValid() || model.Severity(value) == model.SeverityInfo {
+			return fmt.Errorf("invalid indicator severity: %q", value)
+		}
+	}
+	if p.MinConfidence != nil && (*p.MinConfidence < 0 || *p.MinConfidence > 1) {
+		return fmt.Errorf("invalid min_confidence")
+	}
+	if p.MaxConfidence != nil && (*p.MaxConfidence < 0 || *p.MaxConfidence > 1) {
+		return fmt.Errorf("invalid max_confidence")
 	}
 	return nil
 }
@@ -123,4 +209,27 @@ func (p *IndicatorListParams) Validate() error {
 type IndicatorListResponse struct {
 	Data []*model.ThreatIndicator `json:"data"`
 	Meta PaginationMeta           `json:"meta"`
+}
+
+// IndicatorStatsResponse returns dashboard metrics for standalone IOC management.
+type IndicatorStatsResponse struct {
+	Data *model.IndicatorStats `json:"data"`
+}
+
+// ThreatTrendPoint returns daily trend counts for dashboard visualizations.
+type ThreatTrendPoint struct {
+	Date      time.Time `json:"date"`
+	Total     int       `json:"total"`
+	Active    int       `json:"active"`
+	Contained int       `json:"contained"`
+}
+
+// ThreatTimelineEntry represents a user-facing threat activity event.
+type ThreatTimelineEntry struct {
+	ID          string    `json:"id"`
+	Kind        string    `json:"kind"`
+	Title       string    `json:"title"`
+	Description string    `json:"description,omitempty"`
+	Timestamp   time.Time `json:"timestamp"`
+	Variant     string    `json:"variant,omitempty"`
 }

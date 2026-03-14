@@ -44,9 +44,9 @@ func (t *MITRECoverageTool) Execute(ctx context.Context, tenantID uuid.UUID, use
 		}
 		if len(gaps) < 5 {
 			gaps = append(gaps, map[string]any{
-				"id":     item.Technique.ID,
-				"name":   item.Technique.Name,
-				"tactic": item.Technique.TacticIDs,
+				"id":     item.TechniqueID,
+				"name":   item.TechniqueName,
+				"tactic": item.TacticIDs,
 			})
 		}
 	}

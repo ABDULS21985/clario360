@@ -33,6 +33,12 @@ func (r *ThreatRepository) List(ctx context.Context, tenantID uuid.UUID, params 
 		SELECT
 			a.id, a.tenant_id, a.name, a.description, a.type, a.severity, a.status,
 			a.threat_actor, a.campaign, a.mitre_tactic_ids, a.mitre_technique_ids,
+			COALESCE((
+				SELECT COUNT(*)
+				FROM threat_indicators ti
+				WHERE ti.tenant_id = a.tenant_id
+				  AND ti.threat_id = a.id
+			), 0) AS indicator_count,
 			a.affected_asset_count, a.alert_count, a.first_seen_at, a.last_seen_at,
 			a.contained_at, a.tags, a.metadata, a.created_by, a.created_at, a.updated_at, a.deleted_at
 		FROM threats a`
@@ -52,7 +58,7 @@ func (r *ThreatRepository) List(ctx context.Context, tenantID uuid.UUID, params 
 	if len(params.Severities) > 0 {
 		qb.WhereIn("a.severity", params.Severities)
 	}
-	qb.OrderBy("created_at", "desc", []string{"created_at"})
+	qb.OrderBy(params.Sort, params.Order, []string{"last_seen_at", "created_at", "severity", "status", "affected_asset_count", "alert_count", "name"})
 	qb.Paginate(params.Page, params.PerPage)
 
 	countSQL, countArgs := qb.BuildCount()
@@ -85,6 +91,12 @@ func (r *ThreatRepository) GetByID(ctx context.Context, tenantID, threatID uuid.
 		SELECT
 			id, tenant_id, name, description, type, severity, status,
 			threat_actor, campaign, mitre_tactic_ids, mitre_technique_ids,
+			COALESCE((
+				SELECT COUNT(*)
+				FROM threat_indicators ti
+				WHERE ti.tenant_id = threats.tenant_id
+				  AND ti.threat_id = threats.id
+			), 0) AS indicator_count,
 			affected_asset_count, alert_count, first_seen_at, last_seen_at,
 			contained_at, tags, metadata, created_by, created_at, updated_at, deleted_at
 		FROM threats
@@ -99,6 +111,45 @@ func (r *ThreatRepository) GetByID(ctx context.Context, tenantID, threatID uuid.
 		return nil, fmt.Errorf("get threat: %w", err)
 	}
 	return item, nil
+}
+
+// Update edits a threat record without changing its lifecycle status.
+func (r *ThreatRepository) Update(ctx context.Context, threat *model.Threat) (*model.Threat, error) {
+	tag, err := r.db.Exec(ctx, `
+		UPDATE threats
+		SET
+			name = $3,
+			description = $4,
+			type = $5,
+			severity = $6,
+			threat_actor = $7,
+			campaign = $8,
+			mitre_tactic_ids = $9,
+			mitre_technique_ids = $10,
+			tags = $11,
+			metadata = $12,
+			updated_at = now()
+		WHERE tenant_id = $1 AND id = $2 AND deleted_at IS NULL`,
+		threat.TenantID,
+		threat.ID,
+		threat.Name,
+		threat.Description,
+		threat.Type,
+		threat.Severity,
+		threat.ThreatActor,
+		threat.Campaign,
+		threat.MITRETacticIDs,
+		threat.MITRETechniqueIDs,
+		threat.Tags,
+		ensureRawMessage(threat.Metadata, "{}"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("update threat: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return nil, ErrNotFound
+	}
+	return r.GetByID(ctx, threat.TenantID, threat.ID)
 }
 
 // Create inserts a threat record.
@@ -151,7 +202,11 @@ func (r *ThreatRepository) UpdateStatus(ctx context.Context, tenantID, threatID 
 		UPDATE threats
 		SET
 			status = $3,
-			contained_at = CASE WHEN $3 = 'contained' THEN now() ELSE contained_at END,
+			contained_at = CASE
+				WHEN $3 = 'contained' AND contained_at IS NULL THEN now()
+				WHEN $3 <> 'contained' AND status = 'contained' THEN contained_at
+				ELSE contained_at
+			END,
 			updated_at = now()
 		WHERE tenant_id = $1 AND id = $2 AND deleted_at IS NULL`,
 		tenantID, threatID, status,
@@ -165,12 +220,35 @@ func (r *ThreatRepository) UpdateStatus(ctx context.Context, tenantID, threatID 
 	return r.GetByID(ctx, tenantID, threatID)
 }
 
+// Delete soft-deletes a threat record.
+func (r *ThreatRepository) Delete(ctx context.Context, tenantID, threatID uuid.UUID) error {
+	tag, err := r.db.Exec(ctx, `
+		UPDATE threats
+		SET deleted_at = now(), updated_at = now()
+		WHERE tenant_id = $1 AND id = $2 AND deleted_at IS NULL`,
+		tenantID, threatID,
+	)
+	if err != nil {
+		return fmt.Errorf("delete threat: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
 // UpsertSyntheticThreat ensures there is a threat record associated with an indicator-driven detection.
 func (r *ThreatRepository) UpsertSyntheticThreat(ctx context.Context, tenantID uuid.UUID, name, description string, threatType model.ThreatType, severity model.Severity, tags []string) (*model.Threat, error) {
 	row := r.db.QueryRow(ctx, `
 		SELECT
 			id, tenant_id, name, description, type, severity, status,
 			threat_actor, campaign, mitre_tactic_ids, mitre_technique_ids,
+			COALESCE((
+				SELECT COUNT(*)
+				FROM threat_indicators ti
+				WHERE ti.tenant_id = threats.tenant_id
+				  AND ti.threat_id = threats.id
+			), 0) AS indicator_count,
 			affected_asset_count, alert_count, first_seen_at, last_seen_at,
 			contained_at, tags, metadata, created_by, created_at, updated_at, deleted_at
 		FROM threats
@@ -224,12 +302,24 @@ func (r *ThreatRepository) Stats(ctx context.Context, tenantID uuid.UUID) (*mode
 	if err := r.db.QueryRow(ctx, `
 		SELECT
 			COUNT(*) FILTER (WHERE deleted_at IS NULL),
-			COUNT(*) FILTER (WHERE deleted_at IS NULL AND status = 'active')
+			COUNT(*) FILTER (WHERE deleted_at IS NULL AND status = 'active'),
+			COUNT(*) FILTER (
+				WHERE deleted_at IS NULL
+				  AND contained_at >= date_trunc('month', now())
+			)
 		FROM threats
 		WHERE tenant_id = $1`,
 		tenantID,
-	).Scan(&stats.Total, &stats.Active); err != nil {
+	).Scan(&stats.Total, &stats.Active, &stats.ContainedThisMonth); err != nil {
 		return nil, fmt.Errorf("threat totals: %w", err)
+	}
+	if err := r.db.QueryRow(ctx, `
+		SELECT COUNT(*)
+		FROM threat_indicators
+		WHERE tenant_id = $1`,
+		tenantID,
+	).Scan(&stats.IndicatorsTotal); err != nil {
+		return nil, fmt.Errorf("threat indicator totals: %w", err)
 	}
 
 	queryCounts := func(column string) ([]model.NamedCount, error) {
@@ -265,4 +355,64 @@ func (r *ThreatRepository) Stats(ctx context.Context, tenantID uuid.UUID) (*mode
 		return nil, fmt.Errorf("threat stats by severity: %w", err)
 	}
 	return stats, nil
+}
+
+// Trend returns daily threat metrics for dashboard trend views.
+func (r *ThreatRepository) Trend(ctx context.Context, tenantID uuid.UUID, days int) ([]dto.ThreatTrendPoint, error) {
+	if days <= 0 {
+		days = 30
+	}
+	start := time.Now().UTC().AddDate(0, 0, -(days - 1)).Truncate(24 * time.Hour)
+	rows, err := r.db.Query(ctx, `
+		WITH buckets AS (
+			SELECT generate_series($2::timestamptz, date_trunc('day', now()), interval '1 day') AS bucket
+		)
+		SELECT
+			b.bucket,
+			COALESCE(created.total_count, 0) AS total_count,
+			COALESCE(active.active_count, 0) AS active_count,
+			COALESCE(contained.contained_count, 0) AS contained_count
+		FROM buckets b
+		LEFT JOIN (
+			SELECT date_trunc('day', created_at) AS bucket, COUNT(*)::int AS total_count
+			FROM threats
+			WHERE tenant_id = $1
+			  AND deleted_at IS NULL
+			  AND created_at >= $2
+			GROUP BY 1
+		) created ON created.bucket = b.bucket
+		LEFT JOIN LATERAL (
+			SELECT COUNT(*)::int AS active_count
+			FROM threats
+			WHERE tenant_id = $1
+			  AND deleted_at IS NULL
+			  AND first_seen_at < (b.bucket + interval '1 day')
+			  AND (contained_at IS NULL OR contained_at >= b.bucket)
+		) active ON true
+		LEFT JOIN (
+			SELECT date_trunc('day', contained_at) AS bucket, COUNT(*)::int AS contained_count
+			FROM threats
+			WHERE tenant_id = $1
+			  AND deleted_at IS NULL
+			  AND contained_at IS NOT NULL
+			  AND contained_at >= $2
+			GROUP BY 1
+		) contained ON contained.bucket = b.bucket
+		ORDER BY b.bucket ASC`,
+		tenantID, start,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("threat trend: %w", err)
+	}
+	defer rows.Close()
+
+	series := make([]dto.ThreatTrendPoint, 0, days)
+	for rows.Next() {
+		var point dto.ThreatTrendPoint
+		if err := rows.Scan(&point.Date, &point.Total, &point.Active, &point.Contained); err != nil {
+			return nil, err
+		}
+		series = append(series, point)
+	}
+	return series, rows.Err()
 }

@@ -3,15 +3,12 @@
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { RULE_FIELD_OPTIONS } from '@/lib/cyber-rules';
 import type { AnomalyRuleContent } from '@/types/cyber';
 
 const ANOMALY_METRICS = [
   'event_count', 'unique_ips', 'bytes_transferred', 'login_failures',
   'process_count', 'dns_queries', 'connection_count', 'error_rate',
-];
-
-const GROUP_BY_FIELDS = [
-  'source_ip', 'destination_ip', 'user', 'hostname', 'process_name', 'destination_port',
 ];
 
 interface RuleAnomalyEditorProps {
@@ -46,8 +43,10 @@ export function RuleAnomalyEditor({ value, onChange }: RuleAnomalyEditorProps) {
             <SelectTrigger className="mt-1 h-8 text-xs"><SelectValue placeholder="(none)" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="" className="text-xs">(none)</SelectItem>
-              {GROUP_BY_FIELDS.map((f) => (
-                <SelectItem key={f} value={f} className="text-xs font-mono">{f}</SelectItem>
+              {RULE_FIELD_OPTIONS.map((field) => (
+                <SelectItem key={field.value} value={field.value} className="text-xs">
+                  {field.label}
+                </SelectItem>
               ))}
             </SelectContent>
           </Select>

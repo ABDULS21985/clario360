@@ -9,12 +9,17 @@ interface RulePerformanceCardProps {
 }
 
 export function RulePerformanceCard({ rule }: RulePerformanceCardProps) {
-  const fpPct = rule.false_positive_rate * 100;
+  const fpRate =
+    rule.false_positive_rate ??
+    (rule.true_positive_count + rule.false_positive_count > 0
+      ? rule.false_positive_count / (rule.true_positive_count + rule.false_positive_count)
+      : 0);
+  const fpPct = fpRate * 100;
   const fpColor =
     fpPct > 40 ? 'text-red-600 dark:text-red-400' : fpPct > 20 ? 'text-yellow-600 dark:text-yellow-400' : 'text-green-600 dark:text-green-400';
 
-  const tp = rule.tp_count;
-  const fp = rule.fp_count;
+  const tp = rule.true_positive_count ?? rule.tp_count;
+  const fp = rule.false_positive_count ?? rule.fp_count;
 
   return (
     <TooltipProvider>

@@ -14,6 +14,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { timeAgo } from '@/lib/utils';
 import type { Threat } from '@/types/cyber';
+import { getThreatTypeLabel } from '@/lib/cyber-threats';
 
 interface ThreatColumnOptions {
   onViewDetail?: (threat: Threat) => void;
@@ -37,14 +38,24 @@ export function getThreatColumns(options: ThreatColumnOptions = {}): ColumnDef<T
       cell: ({ row }: { row: Row<Threat> }) => {
         const threat = row.original;
         return (
-          <div>
+          <div className="space-y-1">
             <button
               className="font-medium hover:underline text-left"
-              onClick={() => options.onViewDetail?.(threat)}
+              onClick={(event) => {
+                event.stopPropagation();
+                options.onViewDetail?.(threat);
+              }}
             >
               {threat.name}
             </button>
-            <p className="text-xs text-muted-foreground capitalize">{threat.type}</p>
+            <div className="flex items-center gap-2">
+              <Badge variant="outline" className="text-[11px] font-medium">
+                {getThreatTypeLabel(threat.type)}
+              </Badge>
+              {threat.threat_actor && (
+                <span className="text-xs text-muted-foreground truncate">{threat.threat_actor}</span>
+              )}
+            </div>
           </div>
         );
       },
@@ -94,11 +105,11 @@ export function getThreatColumns(options: ThreatColumnOptions = {}): ColumnDef<T
       ),
     },
     {
-      id: 'last_seen',
-      accessorKey: 'last_seen',
+      id: 'last_seen_at',
+      accessorKey: 'last_seen_at',
       header: 'Last Seen',
       cell: ({ row }: { row: Row<Threat> }) => (
-        <span className="text-sm text-muted-foreground">{timeAgo(row.original.last_seen)}</span>
+        <span className="text-sm text-muted-foreground">{timeAgo(row.original.last_seen_at)}</span>
       ),
       enableSorting: true,
     },

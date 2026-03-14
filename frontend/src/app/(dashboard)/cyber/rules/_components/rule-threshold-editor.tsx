@@ -5,31 +5,11 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { RULE_FIELD_OPTIONS, RULE_OPERATOR_OPTIONS } from '@/lib/cyber-rules';
 import type { ThresholdRuleContent, RuleCondition } from '@/types/cyber';
 
-const SIGMA_OPERATORS = [
-  { value: 'exact', label: 'exact (=)' },
-  { value: '|in', label: '|in' },
-  { value: '|contains', label: '|contains' },
-  { value: '|not contains', label: '|not contains' },
-  { value: '|startswith', label: '|startswith' },
-  { value: '|endswith', label: '|endswith' },
-  { value: '|re', label: '|re (regex)' },
-  { value: '|gt', label: '|gt (>)' },
-  { value: '|lt', label: '|lt (<)' },
-  { value: '|gte', label: '|gte (>=)' },
-  { value: '|lte', label: '|lte (<=)' },
-  { value: '|cidr', label: '|cidr' },
-];
-
-const EVENT_FIELDS = [
-  'event_type', 'process_name', 'command_line', 'user', 'source_ip',
-  'destination_ip', 'destination_port', 'file_path', 'hostname', 'action',
-  'status', 'bytes', 'protocol', 'error_code',
-];
-
 function emptyCondition(): RuleCondition {
-  return { field: 'event_type', operator: 'exact', value: '' };
+  return { field: 'type', operator: 'eq', value: '' };
 }
 
 interface RuleThresholdEditorProps {
@@ -70,10 +50,12 @@ export function RuleThresholdEditor({ value, onChange }: RuleThresholdEditorProp
               value={cond.field}
               onValueChange={(v) => updateCondition(idx, { ...cond, field: v })}
             >
-              <SelectTrigger className="h-7 w-36 text-xs"><SelectValue /></SelectTrigger>
+                <SelectTrigger className="h-7 w-36 text-xs"><SelectValue /></SelectTrigger>
               <SelectContent>
-                {EVENT_FIELDS.map((f) => (
-                  <SelectItem key={f} value={f} className="text-xs font-mono">{f}</SelectItem>
+                {RULE_FIELD_OPTIONS.map((field) => (
+                  <SelectItem key={field.value} value={field.value} className="text-xs">
+                    {field.label}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -81,9 +63,9 @@ export function RuleThresholdEditor({ value, onChange }: RuleThresholdEditorProp
               value={cond.operator}
               onValueChange={(v) => updateCondition(idx, { ...cond, operator: v })}
             >
-              <SelectTrigger className="h-7 w-36 text-xs"><SelectValue /></SelectTrigger>
+                <SelectTrigger className="h-7 w-36 text-xs"><SelectValue /></SelectTrigger>
               <SelectContent>
-                {SIGMA_OPERATORS.map((op) => (
+                {RULE_OPERATOR_OPTIONS.map((op) => (
                   <SelectItem key={op.value} value={op.value} className="text-xs">{op.label}</SelectItem>
                 ))}
               </SelectContent>
@@ -115,11 +97,13 @@ export function RuleThresholdEditor({ value, onChange }: RuleThresholdEditorProp
             value={value.group_by ?? ''}
             onValueChange={(v) => onChange({ ...value, group_by: v || undefined })}
           >
-            <SelectTrigger className="mt-1 h-8 text-xs"><SelectValue placeholder="(none)" /></SelectTrigger>
+              <SelectTrigger className="mt-1 h-8 text-xs"><SelectValue placeholder="(none)" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="" className="text-xs">(none)</SelectItem>
-              {EVENT_FIELDS.map((f) => (
-                <SelectItem key={f} value={f} className="text-xs font-mono">{f}</SelectItem>
+              {RULE_FIELD_OPTIONS.map((field) => (
+                <SelectItem key={field.value} value={field.value} className="text-xs">
+                  {field.label}
+                </SelectItem>
               ))}
             </SelectContent>
           </Select>
@@ -147,8 +131,10 @@ export function RuleThresholdEditor({ value, onChange }: RuleThresholdEditorProp
             >
               <SelectTrigger className="mt-1 h-8 text-xs"><SelectValue placeholder="Select field" /></SelectTrigger>
               <SelectContent>
-                {EVENT_FIELDS.map((f) => (
-                  <SelectItem key={f} value={f} className="text-xs font-mono">{f}</SelectItem>
+                {RULE_FIELD_OPTIONS.map((field) => (
+                  <SelectItem key={field.value} value={field.value} className="text-xs">
+                    {field.label}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>

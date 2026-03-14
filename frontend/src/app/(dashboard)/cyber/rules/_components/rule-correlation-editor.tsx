@@ -6,24 +6,11 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { RULE_FIELD_OPTIONS, RULE_OPERATOR_OPTIONS } from '@/lib/cyber-rules';
 import type { CorrelationRuleContent, CorrelationEventType, RuleCondition } from '@/types/cyber';
 
-const SIGMA_OPERATORS = [
-  { value: 'exact', label: 'exact' }, { value: '|in', label: '|in' },
-  { value: '|contains', label: '|contains' }, { value: '|not contains', label: '|not contains' },
-  { value: '|startswith', label: '|startswith' }, { value: '|endswith', label: '|endswith' },
-  { value: '|re', label: '|re' }, { value: '|gt', label: '|gt' },
-  { value: '|lt', label: '|lt' }, { value: '|gte', label: '|gte' },
-  { value: '|lte', label: '|lte' }, { value: '|cidr', label: '|cidr' },
-];
-const EVENT_FIELDS = [
-  'event_type', 'process_name', 'command_line', 'user', 'source_ip',
-  'destination_ip', 'destination_port', 'file_path', 'hostname', 'action',
-];
-const GROUP_BY_FIELDS = ['source_ip', 'user', 'hostname', 'process_name'];
-
 function emptyCondition(): RuleCondition {
-  return { field: 'event_type', operator: 'exact', value: '' };
+  return { field: 'type', operator: 'eq', value: '' };
 }
 
 function emptyEventType(index: number): CorrelationEventType {
@@ -125,8 +112,10 @@ export function RuleCorrelationEditor({ value, onChange }: RuleCorrelationEditor
                 >
                   <SelectTrigger className="h-7 w-32 text-xs"><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    {EVENT_FIELDS.map((f) => (
-                      <SelectItem key={f} value={f} className="text-xs font-mono">{f}</SelectItem>
+                    {RULE_FIELD_OPTIONS.map((field) => (
+                      <SelectItem key={field.value} value={field.value} className="text-xs">
+                        {field.label}
+                      </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -136,7 +125,7 @@ export function RuleCorrelationEditor({ value, onChange }: RuleCorrelationEditor
                 >
                   <SelectTrigger className="h-7 w-32 text-xs"><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    {SIGMA_OPERATORS.map((op) => (
+                    {RULE_OPERATOR_OPTIONS.map((op) => (
                       <SelectItem key={op.value} value={op.value} className="text-xs">{op.label}</SelectItem>
                     ))}
                   </SelectContent>
@@ -220,8 +209,10 @@ export function RuleCorrelationEditor({ value, onChange }: RuleCorrelationEditor
             <SelectTrigger className="mt-1 h-8 text-xs"><SelectValue placeholder="(none)" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="" className="text-xs">(none)</SelectItem>
-              {GROUP_BY_FIELDS.map((f) => (
-                <SelectItem key={f} value={f} className="text-xs font-mono">{f}</SelectItem>
+              {RULE_FIELD_OPTIONS.map((field) => (
+                <SelectItem key={field.value} value={field.value} className="text-xs">
+                  {field.label}
+                </SelectItem>
               ))}
             </SelectContent>
           </Select>

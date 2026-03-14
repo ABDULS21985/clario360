@@ -1,0 +1,121 @@
+'use client';
+
+import { useState } from 'react';
+import { toast } from 'sonner';
+import { Plus, RotateCw } from 'lucide-react';
+import { PageHeader } from '@/components/common/page-header';
+import { PermissionRedirect } from '@/components/common/permission-redirect';
+import { useDataTable } from '@/hooks/use-data-table';
+import { apiGet, apiPost } from '@/lib/api';
+import { API_ENDPOINTS } from '@/lib/constants';
+import type { PaginatedResponse } from '@/types/api';
+import type { FetchParams } from '@/types/table';
+import type { ThreatFeedConfig, ThreatFeedSyncSummary } from '@/types/cyber';
+import { Button } from '@/components/ui/button';
+
+import { AddFeedDialog } from './_components/add-feed-dialog';
+import { FeedDetail } from './_components/feed-detail';
+import { FeedList } from './_components/feed-list';
+
+async function fetchThreatFeeds(params: FetchParams): Promise<PaginatedResponse<ThreatFeedConfig>> {
+  return apiGet<PaginatedResponse<ThreatFeedConfig>>(API_ENDPOINTS.CYBER_THREAT_FEEDS, {
+    page: params.page,
+    per_page: params.per_page,
+  });
+}
+
+export default function CyberThreatFeedsPage() {
+  const [selectedFeed, setSelectedFeed] = useState<ThreatFeedConfig | null>(null);
+  const [editorFeed, setEditorFeed] = useState<ThreatFeedConfig | null>(null);
+  const [editorOpen, setEditorOpen] = useState(false);
+  const [syncingFeedId, setSyncingFeedId] = useState<string | null>(null);
+
+  const { tableProps, refetch } = useDataTable<ThreatFeedConfig>({
+    fetchFn: fetchThreatFeeds,
+    queryKey: 'cyber-threat-feeds',
+    defaultPageSize: 20,
+    defaultSort: { column: 'updated_at', direction: 'desc' },
+  });
+
+  async function handleSync(feed: ThreatFeedConfig) {
+    try {
+      setSyncingFeedId(feed.id);
+      const response = await apiPost<{ data: ThreatFeedSyncSummary }>(API_ENDPOINTS.CYBER_THREAT_FEED_SYNC(feed.id));
+      toast.success(`${response.data.indicators_imported} indicators imported from ${feed.name}`);
+      await refetch();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Unable to sync feed');
+    } finally {
+      setSyncingFeedId(null);
+    }
+  }
+
+  return (
+    <PermissionRedirect permission="cyber:manage">
+      <div className="space-y-6">
+        <PageHeader
+          title="Threat Intelligence Feeds"
+          description="Configure external IOC sources, control sync cadence, and inspect the last ingest preview before those indicators enter your tenant."
+          actions={(
+            <div className="flex flex-wrap items-center gap-2">
+              {syncingFeedId && (
+                <Button variant="outline" disabled>
+                  <RotateCw className="mr-2 h-4 w-4 animate-spin" />
+                  Syncing…
+                </Button>
+              )}
+              <Button
+                onClick={() => {
+                  setEditorFeed(null);
+                  setEditorOpen(true);
+                }}
+              >
+                <Plus className="mr-2 h-4 w-4" />
+                Add Feed
+              </Button>
+            </div>
+          )}
+        />
+
+        <div className="rounded-[28px] border border-[color:var(--card-border)] bg-[var(--card-bg)] p-2 shadow-[var(--card-shadow)]">
+          <FeedList
+            tableProps={tableProps}
+            onSelect={setSelectedFeed}
+            onEdit={(feed) => {
+              setEditorFeed(feed);
+              setEditorOpen(true);
+            }}
+            onSync={(feed) => void handleSync(feed)}
+          />
+        </div>
+      </div>
+
+      <AddFeedDialog
+        open={editorOpen}
+        onOpenChange={setEditorOpen}
+        feed={editorFeed}
+        onSuccess={(feed) => {
+          setSelectedFeed(feed);
+          void refetch();
+        }}
+      />
+
+      <FeedDetail
+        open={Boolean(selectedFeed)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setSelectedFeed(null);
+          }
+        }}
+        feed={selectedFeed}
+        onEdit={(feed) => {
+          setEditorFeed(feed);
+          setEditorOpen(true);
+        }}
+        onSynced={() => {
+          void refetch();
+        }}
+      />
+    </PermissionRedirect>
+  );
+}

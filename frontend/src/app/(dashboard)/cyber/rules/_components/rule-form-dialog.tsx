@@ -22,6 +22,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { FormField } from '@/components/shared/forms/form-field';
 import { useApiMutation } from '@/hooks/use-api-mutation';
 import { API_ENDPOINTS } from '@/lib/constants';
+import { normalizeRuleContent } from '@/lib/cyber-rules';
 import type {
   DetectionRule,
   SigmaRuleContent,
@@ -60,7 +61,13 @@ function getDefaultContent(
   type: RuleType,
   rule?: DetectionRule | null,
 ): SigmaRuleContent | ThresholdRuleContent | AnomalyRuleContent | CorrelationRuleContent {
-  if (rule?.rule_content) return rule.rule_content;
+  if (rule?.rule_content) {
+    return normalizeRuleContent(type, rule.rule_content) as
+      | SigmaRuleContent
+      | ThresholdRuleContent
+      | AnomalyRuleContent
+      | CorrelationRuleContent;
+  }
   if (type === 'threshold') return defaultThresholdContent();
   if (type === 'anomaly') return defaultAnomalyContent();
   if (type === 'correlation') return defaultCorrelationContent();

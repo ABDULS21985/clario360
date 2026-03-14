@@ -1,92 +1,67 @@
 'use client';
 
 import { AlertTriangle } from 'lucide-react';
+
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { timeAgo } from '@/lib/utils';
 import type { MITRETechniqueCoverage } from '@/types/cyber';
 
-export type CellState = 'active' | 'passive' | 'gap' | 'na';
-
-function getCellState(t: MITRETechniqueCoverage): CellState {
-  if (t.rule_count > 0 && t.alert_count > 0) return 'active';
-  if (t.rule_count > 0 && t.alert_count === 0) return 'passive';
-  if (t.rule_count === 0) return 'gap';
-  return 'na';
-}
+export type CellState = 'covered' | 'noisy' | 'gap' | 'idle';
 
 const STATE_CLASSES: Record<CellState, string> = {
-  active: 'bg-green-100 border-green-400 text-green-800 dark:bg-green-950/30 dark:border-green-700 dark:text-green-300',
-  passive: 'bg-yellow-50 border-yellow-300 text-yellow-800 dark:bg-yellow-950/30 dark:border-yellow-600 dark:text-yellow-300',
-  gap: 'bg-red-50 border-red-200 text-red-700 dark:bg-red-950/30 dark:border-red-800 dark:text-red-400',
-  na: 'bg-gray-50 border-gray-200 text-gray-400 dark:bg-gray-900/30 dark:border-gray-700 dark:text-gray-600',
+  covered: 'border-emerald-300 bg-emerald-50 text-emerald-900',
+  noisy: 'border-amber-300 bg-amber-50 text-amber-900',
+  gap: 'border-red-300 bg-red-50 text-red-900',
+  idle: 'border-slate-200 bg-slate-50 text-slate-500',
 };
 
-const DOT_COLORS: Record<CellState, string> = {
-  active: 'text-green-600',
-  passive: 'text-yellow-600',
-  gap: 'text-transparent',
-  na: 'text-transparent',
-};
-
-interface MitreCellProps {
+export function MitreCell({
+  technique,
+  selected,
+  highlighted,
+  onSelect,
+}: {
   technique: MITRETechniqueCoverage;
   selected: boolean;
   highlighted: boolean;
   onSelect: (technique: MITRETechniqueCoverage) => void;
-}
-
-export function MitreCell({ technique, selected, highlighted, onSelect }: MitreCellProps) {
-  const state = getCellState(technique);
-  const baseClass = STATE_CLASSES[state];
-  const dotColor = DOT_COLORS[state];
-  const maxDots = 3;
-  const dotCount = Math.min(technique.rule_count, maxDots);
-  const hasOverflow = technique.rule_count > maxDots;
+}) {
+  const state = technique.coverage_state;
 
   return (
     <TooltipProvider>
       <Tooltip>
         <TooltipTrigger asChild>
           <button
-            onClick={() => onSelect(technique)}
-            aria-label={`${technique.technique_id} ${technique.technique_name}`}
+            type="button"
             className={[
-              'w-full rounded border p-1.5 text-left transition-all focus:outline-none focus:ring-1 focus:ring-primary',
-              baseClass,
-              selected ? 'ring-1 ring-primary shadow-sm' : 'hover:shadow-sm',
-              highlighted ? 'ring-2 ring-blue-500' : '',
-              state === 'na' ? 'cursor-default opacity-60' : 'cursor-pointer',
+              'w-full rounded-2xl border p-2 text-left transition hover:shadow-sm',
+              STATE_CLASSES[state],
+              selected ? 'ring-2 ring-emerald-600' : '',
+              highlighted ? 'ring-2 ring-sky-500' : '',
             ].join(' ')}
+            onClick={() => onSelect(technique)}
           >
-            <span
-              className={`block font-mono text-[10px] font-bold leading-tight ${state === 'na' ? 'line-through' : ''}`}
-            >
-              {technique.technique_id}
-            </span>
-            {state === 'gap' ? (
-              <AlertTriangle className="mt-0.5 h-2.5 w-2.5 text-red-400" aria-hidden />
-            ) : state !== 'na' && technique.rule_count > 0 ? (
-              <span className={`text-[10px] ${dotColor}`} aria-label={`${technique.rule_count} rules`}>
-                {hasOverflow ? `●${dotCount}+` : '●'.repeat(dotCount)}
-              </span>
-            ) : null}
+            <div className="flex items-start justify-between gap-2">
+              <span className="font-mono text-[11px] font-semibold">{technique.technique_id}</span>
+              {state === 'gap' ? <AlertTriangle className="h-3.5 w-3.5 text-red-600" /> : null}
+            </div>
+            <p className="mt-1 line-clamp-2 text-[11px] leading-4">{technique.technique_name}</p>
           </button>
         </TooltipTrigger>
-        <TooltipContent side="top" className="max-w-xs">
-          <p className="font-semibold">{technique.technique_name}</p>
+        <TooltipContent className="max-w-xs">
+          <p className="font-medium">{technique.technique_name}</p>
           <p className="text-xs text-muted-foreground">
-            {technique.rule_count} detection rule{technique.rule_count !== 1 ? 's' : ''}
+            {technique.rule_count} rule{technique.rule_count === 1 ? '' : 's'} · {technique.alert_count} alert{technique.alert_count === 1 ? '' : 's'}
           </p>
           <p className="text-xs text-muted-foreground">
-            {technique.alert_count} alert{technique.alert_count !== 1 ? 's' : ''} in last 90 days
+            {technique.active_threat_count} active threat{technique.active_threat_count === 1 ? '' : 's'}
           </p>
           <p className="text-xs text-muted-foreground">
-            {technique.last_alert ? `Last alert: ${timeAgo(technique.last_alert)}` : 'No alerts detected'}
+            {technique.last_alert_at ? `Last alert ${timeAgo(technique.last_alert_at)}` : 'No recent alerts'}
           </p>
         </TooltipContent>
       </Tooltip>
     </TooltipProvider>
   );
 }
-
-export { getCellState };

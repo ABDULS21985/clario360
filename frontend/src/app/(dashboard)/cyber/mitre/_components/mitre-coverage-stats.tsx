@@ -1,82 +1,44 @@
 'use client';
 
+import { GaugeChart } from '@/components/shared/charts/gauge-chart';
+import { BarChart } from '@/components/shared/charts/bar-chart';
+import { KpiCard } from '@/components/shared/kpi-card';
 import type { MITRECoverage } from '@/types/cyber';
 
-interface MitreCoverageStatsProps {
-  coverage: MITRECoverage;
-}
-
-export function MitreCoverageStats({ coverage }: MitreCoverageStatsProps) {
-  const total = coverage.total_techniques ?? 0;
-  const covered = coverage.covered_techniques ?? 0;
-  const active = coverage.active_techniques ?? 0;
-  const passive = coverage.passive_techniques ?? Math.max(0, covered - active);
-  const gaps = Math.max(0, total - covered);
-
-  const activePct = total > 0 ? (active / total) * 100 : 0;
-  const passivePct = total > 0 ? (passive / total) * 100 : 0;
-
-  const topTactic = (coverage.tactics ?? []).reduce<{ name: string; covered: number } | null>(
-    (best, t) => (!best || t.covered_count > best.covered ? { name: t.name, covered: t.covered_count } : best),
-    null,
-  );
+export function MitreCoverageStats({ coverage }: { coverage: MITRECoverage }) {
+  const tacticData = coverage.tactics.map((tactic) => ({
+    tactic: tactic.short_name ?? tactic.name,
+    covered: tactic.covered_count,
+    total: tactic.technique_count,
+  }));
 
   return (
-    <div className="rounded-xl border bg-card p-5">
-      <div className="mb-3 flex items-center justify-between">
-        <span className="text-sm font-semibold">Overall Coverage</span>
-        <span className="text-lg font-bold tabular-nums">
-          {(coverage.coverage_percent ?? 0).toFixed(0)}%
-          <span className="ml-1.5 text-xs font-normal text-muted-foreground">
-            ({covered} of {total} techniques)
-          </span>
-        </span>
+    <div className="space-y-6">
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <KpiCard title="Coverage" value={`${coverage.covered_techniques}/${coverage.total_techniques}`} description={`${coverage.coverage_percent.toFixed(1)}% of techniques covered`} />
+        <KpiCard title="Active Techniques" value={coverage.active_techniques} description="Covered techniques with recent alert activity" />
+        <KpiCard title="Passive Techniques" value={coverage.passive_techniques} description="Covered techniques without recent alert activity" />
+        <KpiCard title="Critical Gaps" value={coverage.critical_gap_count} description="Active threat techniques with no rule coverage" />
       </div>
 
-      {/* Three-segment progress bar */}
-      <div className="mb-4 h-3 w-full overflow-hidden rounded-full bg-red-100 dark:bg-red-950/30">
-        <div className="flex h-full">
-          <div
-            className="h-full bg-green-500 transition-all"
-            style={{ width: `${activePct}%` }}
-            title={`Active: ${active}`}
-          />
-          <div
-            className="h-full bg-yellow-400 transition-all"
-            style={{ width: `${passivePct}%` }}
-            title={`Passive: ${passive}`}
-          />
+      <div className="grid gap-6 xl:grid-cols-[280px_1fr]">
+        <div className="rounded-[26px] border border-[color:var(--card-border)] bg-[var(--card-bg)] p-5 shadow-[var(--card-shadow)]">
+          <p className="text-sm font-medium text-slate-900">Overall Coverage</p>
+          <p className="mt-1 text-sm text-muted-foreground">Percentage of ATT&CK techniques currently covered by active detection content.</p>
+          <div className="mt-4">
+            <GaugeChart value={coverage.coverage_percent} label="Coverage" max={100} />
+          </div>
         </div>
-      </div>
-
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <div className="rounded-lg border bg-green-50 p-3 dark:bg-green-950/20">
-          <p className="text-lg font-bold tabular-nums text-green-700 dark:text-green-400">{active}</p>
-          <p className="text-xs text-muted-foreground">Active Detections</p>
-        </div>
-        <div className="rounded-lg border bg-yellow-50 p-3 dark:bg-yellow-950/20">
-          <p className="text-lg font-bold tabular-nums text-yellow-700 dark:text-yellow-400">{passive}</p>
-          <p className="text-xs text-muted-foreground">Passive Rules</p>
-        </div>
-        <div className="rounded-lg border bg-red-50 p-3 dark:bg-red-950/20">
-          <p className="text-lg font-bold tabular-nums text-red-700 dark:text-red-400">{gaps}</p>
-          <p className="text-xs text-muted-foreground">Coverage Gaps</p>
-        </div>
-        <div className="rounded-lg border p-3">
-          <p className="text-lg font-bold tabular-nums">
-            {coverage.total_alerts_90d !== undefined
-              ? coverage.total_alerts_90d.toLocaleString()
-              : '—'}
-          </p>
-          <p className="text-xs text-muted-foreground">
-            Alerts (90d)
-            {topTactic && (
-              <span className="ml-1 block truncate" title={`Top: ${topTactic.name}`}>
-                Top: {topTactic.name}
-              </span>
-            )}
-          </p>
-        </div>
+        <BarChart
+          data={tacticData}
+          xKey="tactic"
+          yKeys={[
+            { key: 'covered', label: 'Covered', color: '#0f766e' },
+            { key: 'total', label: 'Total', color: '#cbd5e1' },
+          ]}
+          title="Coverage By Tactic"
+          height={280}
+        />
       </div>
     </div>
   );

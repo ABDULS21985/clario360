@@ -535,7 +535,8 @@ func startCrossSuiteEnv() (*crossSuiteEnv, error) {
 	cyberAlertRepo := cyberrepo.NewAlertRepository(env.cyberDB, env.logger)
 	env.cyberAlerts = cyberAlertRepo
 	cyberCommentRepo := cyberrepo.NewCommentRepository(env.cyberDB, env.logger)
-	cyberAlertSvc := cyberservice.NewAlertService(cyberAlertRepo, cyberCommentRepo, env.cyberDB, env.producer, env.logger)
+	cyberRuleRepo := cyberrepo.NewRuleRepository(env.cyberDB, env.logger)
+	cyberAlertSvc := cyberservice.NewAlertService(cyberAlertRepo, cyberCommentRepo, cyberRuleRepo, env.cyberDB, env.producer, env.logger)
 
 	cyberGuard := events.NewIdempotencyGuard(env.rdb, 24*time.Hour)
 	cyberConsumer, err := events.NewConsumer(appconfig.KafkaConfig{

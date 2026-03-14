@@ -41,8 +41,16 @@ export function useBadgeCounts(configs: BadgeConfig[]): BadgeMap {
 
     const results = await Promise.allSettled(
       entries.map(async ([endpoint, cfg]) => {
-        const resp = await apiGet<Record<string, number>>(endpoint);
-        return { endpoint, value: resp[cfg.key] } as const;
+        const resp = await apiGet<Record<string, unknown>>(endpoint);
+        const payload =
+          resp.data && typeof resp.data === 'object'
+            ? (resp.data as Record<string, unknown>)
+            : resp;
+        const value = payload[cfg.key];
+        return {
+          endpoint,
+          value: typeof value === 'number' ? value : undefined,
+        } as const;
       }),
     );
 

@@ -133,7 +133,7 @@ const capabilityCategories: CapabilityCategory[] = [
         title: 'Control Mapping Engine',
         description: 'Maps controls against target frameworks.',
         delivery: 'Represented through compliance status and linked ATT&CK/control coverage views.',
-        links: [{ href: '/cyber/mitre', label: 'MITRE coverage' }],
+        links: [{ href: '/cyber/mitre-attack', label: 'MITRE ATT&CK' }],
       },
       {
         id: 7,

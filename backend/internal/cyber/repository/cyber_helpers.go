@@ -200,6 +200,7 @@ func scanThreat(row scanner) (*model.Threat, error) {
 		&item.Campaign,
 		&item.MITRETacticIDs,
 		&item.MITRETechniqueIDs,
+		&item.IndicatorCount,
 		&item.AffectedAssetCount,
 		&item.AlertCount,
 		&item.FirstSeenAt,
@@ -256,6 +257,56 @@ func scanIndicator(row scanner) (*model.ThreatIndicator, error) {
 		item.Tags = []string{}
 	}
 	return &item, nil
+}
+
+func scanIndicatorWithThreat(row scanner) (*model.ThreatIndicator, error) {
+	var item model.ThreatIndicator
+	if err := row.Scan(
+		&item.ID,
+		&item.TenantID,
+		&item.ThreatID,
+		&item.ThreatName,
+		&item.ThreatType,
+		&item.ThreatStatus,
+		&item.Type,
+		&item.Value,
+		&item.Description,
+		&item.Severity,
+		&item.Source,
+		&item.Confidence,
+		&item.Active,
+		&item.FirstSeenAt,
+		&item.LastSeenAt,
+		&item.ExpiresAt,
+		&item.Tags,
+		&item.Metadata,
+		&item.CreatedBy,
+		&item.CreatedAt,
+		&item.UpdatedAt,
+	); err != nil {
+		return nil, err
+	}
+	item.Metadata = ensureRawMessage(item.Metadata, "{}")
+	if item.Tags == nil {
+		item.Tags = []string{}
+	}
+	return &item, nil
+}
+
+func uniqueUUIDs(ids []uuid.UUID) []uuid.UUID {
+	seen := make(map[uuid.UUID]struct{}, len(ids))
+	result := make([]uuid.UUID, 0, len(ids))
+	for _, id := range ids {
+		if id == uuid.Nil {
+			continue
+		}
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		result = append(result, id)
+	}
+	return result
 }
 
 func scanSecurityEvent(row scanner) (*model.SecurityEvent, error) {

@@ -7,6 +7,7 @@ import { timeAgo, cn } from '@/lib/utils';
 import { X, Shield } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import type { Threat } from '@/types/cyber';
+import { getIndicatorTypeLabel, getThreatTypeLabel } from '@/lib/cyber-threats';
 
 const INDICATOR_TYPE_COLORS: Record<string, string> = {
   ip: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300',
@@ -32,7 +33,7 @@ export function ThreatDetailPanel({ threat, onClose }: ThreatDetailPanelProps) {
             <SeverityIndicator severity={threat.severity} showLabel />
           </div>
           <h3 className="font-semibold truncate">{threat.name}</h3>
-          <p className="text-xs text-muted-foreground capitalize mt-0.5">{threat.type}</p>
+          <p className="text-xs text-muted-foreground mt-0.5">{getThreatTypeLabel(threat.type)}</p>
         </div>
         <Button variant="ghost" size="sm" className="h-7 w-7 p-0 shrink-0" onClick={onClose}>
           <X className="h-4 w-4" />
@@ -59,11 +60,11 @@ export function ThreatDetailPanel({ threat, onClose }: ThreatDetailPanelProps) {
         <div className="grid grid-cols-2 gap-3">
           <div className="rounded-lg border p-3">
             <p className="text-xs text-muted-foreground">First Seen</p>
-            <p className="text-sm font-medium mt-0.5">{timeAgo(threat.first_seen)}</p>
+            <p className="text-sm font-medium mt-0.5">{timeAgo(threat.first_seen_at)}</p>
           </div>
           <div className="rounded-lg border p-3">
             <p className="text-xs text-muted-foreground">Last Seen</p>
-            <p className="text-sm font-medium mt-0.5">{timeAgo(threat.last_seen)}</p>
+            <p className="text-sm font-medium mt-0.5">{timeAgo(threat.last_seen_at)}</p>
           </div>
         </div>
 
@@ -89,7 +90,7 @@ export function ThreatDetailPanel({ threat, onClose }: ThreatDetailPanelProps) {
               {threat.indicators!.map((ind) => (
                 <div key={ind.id} className="flex items-center gap-2 rounded-lg border p-2">
                   <span className={cn('rounded px-1.5 py-0.5 text-xs font-medium', INDICATOR_TYPE_COLORS[ind.type] ?? 'bg-muted text-muted-foreground')}>
-                    {ind.type}
+                    {getIndicatorTypeLabel(ind.type)}
                   </span>
                   <span className="font-mono text-xs flex-1 truncate">{ind.value}</span>
                   <SeverityIndicator severity={ind.severity} />

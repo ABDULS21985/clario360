@@ -1,12 +1,14 @@
 package handler
 
 import (
+	"errors"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
 
 	"github.com/clario360/platform/internal/cyber/dto"
 	"github.com/clario360/platform/internal/cyber/mitre"
+	"github.com/clario360/platform/internal/cyber/repository"
 	"github.com/clario360/platform/internal/cyber/service"
 )
 
@@ -57,19 +59,20 @@ func (h *MITREHandler) ListTechniques(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *MITREHandler) GetTechnique(w http.ResponseWriter, r *http.Request) {
-	technique, ok := mitre.TechniqueByID(chi.URLParam(r, "id"))
+	tenantID, _, ok := requireTenantAndUser(w, r)
 	if !ok {
-		writeError(w, http.StatusNotFound, "NOT_FOUND", "technique not found", nil)
 		return
 	}
-	writeJSON(w, http.StatusOK, envelope{"data": dto.MITRETechniqueDTO{
-		ID:          technique.ID,
-		Name:        technique.Name,
-		Description: technique.Description,
-		TacticIDs:   technique.TacticIDs,
-		Platforms:   technique.Platforms,
-		DataSources: technique.DataSources,
-	}})
+	item, err := h.ruleSvc.TechniqueDetail(r.Context(), tenantID, chi.URLParam(r, "id"), actorFromRequest(r))
+	if err != nil {
+		status := http.StatusBadRequest
+		if errors.Is(err, repository.ErrNotFound) {
+			status = http.StatusNotFound
+		}
+		writeError(w, status, "NOT_FOUND", err.Error(), nil)
+		return
+	}
+	writeJSON(w, http.StatusOK, envelope{"data": item})
 }
 
 func (h *MITREHandler) Coverage(w http.ResponseWriter, r *http.Request) {
@@ -83,29 +86,20 @@ func (h *MITREHandler) Coverage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Build flat technique list
-	techniques := make([]dto.MITRECoverageDTO, 0, len(items))
-	for _, item := range items {
-		techniques = append(techniques, dto.MITRECoverageDTO{
-			TechniqueID:   item.Technique.ID,
-			TechniqueName: item.Technique.Name,
-			TacticIDs:     item.Technique.TacticIDs,
-			HasDetection:  item.HasDetection,
-			RuleCount:     item.RuleCount,
-			RuleNames:     item.RuleNames,
-		})
-	}
-
 	// Aggregate statistics
 	totalTechniques := len(items)
 	coveredTechniques := 0
 	activeTechniques := 0
+	criticalGapCount := 0
 	for _, item := range items {
 		if item.HasDetection {
 			coveredTechniques++
-			if item.RuleCount > 1 {
+			if item.AlertCount > 0 {
 				activeTechniques++
 			}
+		}
+		if item.CoverageState == "gap" {
+			criticalGapCount++
 		}
 	}
 	passiveTechniques := coveredTechniques - activeTechniques
@@ -122,7 +116,7 @@ func (h *MITREHandler) Coverage(w http.ResponseWriter, r *http.Request) {
 		techCount := 0
 		covCount := 0
 		for _, item := range items {
-			for _, tid := range item.Technique.TacticIDs {
+			for _, tid := range item.TacticIDs {
 				if tid == tactic.ID {
 					techCount++
 					if item.HasDetection {
@@ -143,12 +137,13 @@ func (h *MITREHandler) Coverage(w http.ResponseWriter, r *http.Request) {
 
 	resp := dto.MITRECoverageResponseDTO{
 		Tactics:           tacticCoverage,
-		Techniques:        techniques,
+		Techniques:        items,
 		TotalTechniques:   totalTechniques,
 		CoveredTechniques: coveredTechniques,
 		CoveragePercent:   coveragePercent,
 		ActiveTechniques:  activeTechniques,
 		PassiveTechniques: passiveTechniques,
+		CriticalGapCount:  criticalGapCount,
 	}
 
 	writeJSON(w, http.StatusOK, envelope{"data": resp})

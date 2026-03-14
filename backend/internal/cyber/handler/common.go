@@ -73,12 +73,22 @@ func parseAlertListParams(r *http.Request) (*dto.AlertListParams, error) {
 	if v := q.Get("mitre_tactic_id"); v != "" {
 		params.MITRETacticID = &v
 	}
+	if v := q.Get("rule_type"); v != "" {
+		params.RuleType = &v
+	}
 	if v := q.Get("min_confidence"); v != "" {
 		value, err := strconv.ParseFloat(v, 64)
 		if err != nil {
 			return nil, fmt.Errorf("invalid min_confidence: %w", err)
 		}
 		params.MinConfidence = &value
+	}
+	if v := q.Get("max_confidence"); v != "" {
+		value, err := strconv.ParseFloat(v, 64)
+		if err != nil {
+			return nil, fmt.Errorf("invalid max_confidence: %w", err)
+		}
+		params.MaxConfidence = &value
 	}
 	params.Tags = splitQueryValues(q, "tag")
 	if v := q.Get("date_from"); v != "" {
@@ -109,10 +119,12 @@ func parseAlertListParams(r *http.Request) (*dto.AlertListParams, error) {
 func parseRuleListParams(r *http.Request) *dto.RuleListParams {
 	q := r.URL.Query()
 	params := &dto.RuleListParams{
-		Search:     stringValue(q.Get("search")),
-		Types:      splitQueryValues(q, "type"),
-		Severities: splitQueryValues(q, "severity"),
-		Tag:        stringValue(q.Get("tag")),
+		Search:           stringValue(q.Get("search")),
+		Types:            splitQueryValues(q, "type"),
+		Severities:       splitQueryValues(q, "severity"),
+		Tag:              stringValue(q.Get("tag")),
+		MITRETacticID:    stringValue(q.Get("mitre_tactic_id")),
+		MITRETechniqueID: stringValue(q.Get("mitre_technique_id")),
 	}
 	if v := q.Get("enabled"); v != "" {
 		b, _ := strconv.ParseBool(v)
@@ -134,6 +146,8 @@ func parseThreatListParams(r *http.Request) *dto.ThreatListParams {
 		Types:      splitQueryValues(q, "type"),
 		Statuses:   splitQueryValues(q, "status"),
 		Severities: splitQueryValues(q, "severity"),
+		Sort:       q.Get("sort"),
+		Order:      q.Get("order"),
 	}
 	if v := q.Get("page"); v != "" {
 		params.Page, _ = strconv.Atoi(v)
@@ -147,8 +161,12 @@ func parseThreatListParams(r *http.Request) *dto.ThreatListParams {
 func parseIndicatorListParams(r *http.Request) (*dto.IndicatorListParams, error) {
 	q := r.URL.Query()
 	params := &dto.IndicatorListParams{
-		Type:   stringValue(q.Get("type")),
-		Search: stringValue(q.Get("search")),
+		Types:      splitQueryValues(q, "type"),
+		Sources:    splitQueryValues(q, "source"),
+		Severities: splitQueryValues(q, "severity"),
+		Search:     stringValue(q.Get("search")),
+		Sort:       q.Get("sort"),
+		Order:      q.Get("order"),
 	}
 	if v := q.Get("threat_id"); v != "" {
 		id, err := uuid.Parse(v)
@@ -163,6 +181,27 @@ func parseIndicatorListParams(r *http.Request) (*dto.IndicatorListParams, error)
 			return nil, fmt.Errorf("invalid active: %w", err)
 		}
 		params.Active = &b
+	}
+	if v := q.Get("linked"); v != "" {
+		b, err := strconv.ParseBool(v)
+		if err != nil {
+			return nil, fmt.Errorf("invalid linked: %w", err)
+		}
+		params.Linked = &b
+	}
+	if v := q.Get("min_confidence"); v != "" {
+		value, err := strconv.ParseFloat(v, 64)
+		if err != nil {
+			return nil, fmt.Errorf("invalid min_confidence: %w", err)
+		}
+		params.MinConfidence = &value
+	}
+	if v := q.Get("max_confidence"); v != "" {
+		value, err := strconv.ParseFloat(v, 64)
+		if err != nil {
+			return nil, fmt.Errorf("invalid max_confidence: %w", err)
+		}
+		params.MaxConfidence = &value
 	}
 	if v := q.Get("page"); v != "" {
 		params.Page, _ = strconv.Atoi(v)

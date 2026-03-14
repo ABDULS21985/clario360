@@ -18,6 +18,7 @@ import { SeverityIndicator } from '@/components/shared/severity-indicator';
 import { CheckCircle, XCircle, Search, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import type { IndicatorCheckResult } from '@/types/cyber';
+import { getIndicatorTypeLabel } from '@/lib/cyber-threats';
 
 interface IndicatorCheckDialogProps {
   open: boolean;
@@ -42,7 +43,7 @@ export function IndicatorCheckDialog({ open, onOpenChange }: IndicatorCheckDialo
     try {
       const res = await apiPost<{ data: IndicatorCheckResult[] }>(
         API_ENDPOINTS.CYBER_INDICATORS_CHECK,
-        { indicators },
+        { values: indicators },
       );
       setResults(res.data);
     } catch {
@@ -58,8 +59,8 @@ export function IndicatorCheckDialog({ open, onOpenChange }: IndicatorCheckDialo
     onOpenChange(false);
   };
 
-  const matched = results?.filter((r) => r.matched) ?? [];
-  const clean = results?.filter((r) => !r.matched) ?? [];
+  const matched = results?.filter((r) => (r.indicators?.length ?? 0) > 0) ?? [];
+  const clean = results?.filter((r) => (r.indicators?.length ?? 0) === 0) ?? [];
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
@@ -100,8 +101,14 @@ export function IndicatorCheckDialog({ open, onOpenChange }: IndicatorCheckDialo
                       <div key={i} className="flex items-center gap-3 text-sm">
                         <XCircle className="h-4 w-4 shrink-0 text-red-600" />
                         <span className="font-mono text-xs flex-1 truncate">{r.value}</span>
-                        {r.severity && <SeverityIndicator severity={r.severity} />}
-                        <span className="text-xs text-muted-foreground truncate">{r.threat_name}</span>
+                        <div className="flex flex-wrap items-center gap-2">
+                          {r.indicators.slice(0, 2).map((indicator) => (
+                            <div key={indicator.id} className="flex items-center gap-1.5 rounded-full bg-background px-2 py-1">
+                              <span className="text-[11px] text-muted-foreground">{getIndicatorTypeLabel(indicator.type)}</span>
+                              <SeverityIndicator severity={indicator.severity} />
+                            </div>
+                          ))}
+                        </div>
                       </div>
                     ))}
                   </div>

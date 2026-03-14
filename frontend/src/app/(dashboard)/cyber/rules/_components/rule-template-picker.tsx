@@ -34,6 +34,10 @@ interface ActivatePayload {
 
 const CATEGORY_ALL = 'All';
 
+function getTemplateCategory(template: RuleTemplate): string {
+  return template.rule_type ?? template.type ?? 'sigma';
+}
+
 export function RuleTemplatePicker({
   open,
   onOpenChange,
@@ -56,20 +60,21 @@ export function RuleTemplatePicker({
   const templates = envelope?.data ?? [];
 
   const categories = useMemo(() => {
-    const unique = Array.from(new Set(templates.map((t) => t.category))).sort();
+    const unique = Array.from(new Set(templates.map(getTemplateCategory))).sort();
     return [CATEGORY_ALL, ...unique];
   }, [templates]);
 
   const filtered = useMemo(() => {
     const query = search.trim().toLowerCase();
     return templates.filter((t) => {
+      const category = getTemplateCategory(t);
       const matchesCategory =
-        activeCategory === CATEGORY_ALL || t.category === activeCategory;
+        activeCategory === CATEGORY_ALL || category === activeCategory;
       const matchesSearch =
         !query ||
         t.name.toLowerCase().includes(query) ||
         t.description.toLowerCase().includes(query) ||
-        t.category.toLowerCase().includes(query);
+        category.toLowerCase().includes(query);
       return matchesCategory && matchesSearch;
     });
   }, [templates, search, activeCategory]);
@@ -173,6 +178,7 @@ export function RuleTemplatePicker({
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               {filtered.map((template) => {
                 const isActivating = activatingId === template.id;
+                const category = getTemplateCategory(template);
                 const mitreIds = template.mitre_technique_ids ?? [];
                 const visibleMitre = mitreIds.slice(0, 3);
                 const extraMitre = mitreIds.length - visibleMitre.length;
@@ -187,7 +193,7 @@ export function RuleTemplatePicker({
                       <div className="flex items-start justify-between gap-2">
                         <p className="font-semibold leading-snug">{template.name}</p>
                         <Badge variant="outline" className="shrink-0 text-xs capitalize">
-                          {template.category}
+                          {category}
                         </Badge>
                       </div>
 

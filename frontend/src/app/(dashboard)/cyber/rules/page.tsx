@@ -1,26 +1,34 @@
 'use client';
 
-import { useState } from 'react';
-import { Plus, ShieldCheck, LayoutGrid } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
+import { useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
+import { useQuery } from '@tanstack/react-query';
+import { LayoutGrid, Plus, ShieldCheck } from 'lucide-react';
+
 import { PageHeader } from '@/components/common/page-header';
 import { PermissionRedirect } from '@/components/common/permission-redirect';
-import { DataTable } from '@/components/shared/data-table/data-table';
-import { useDataTable } from '@/hooks/use-data-table';
-import { useApiMutation } from '@/hooks/use-api-mutation';
-import { useQuery } from '@tanstack/react-query';
-import { apiGet } from '@/lib/api';
-import { API_ENDPOINTS } from '@/lib/constants';
 import { ExportMenu } from '@/components/cyber/export-menu';
+import { DataTable } from '@/components/shared/data-table/data-table';
+import { Button } from '@/components/ui/button';
+import { useApiMutation } from '@/hooks/use-api-mutation';
+import { useDataTable } from '@/hooks/use-data-table';
+import { apiGet } from '@/lib/api';
+import {
+  buildRuleQueryParams,
+  normalizeRule,
+  normalizeRuleList,
+  normalizeRuleTemplate,
+} from '@/lib/cyber-rules';
+import { API_ENDPOINTS } from '@/lib/constants';
 import type { PaginatedResponse } from '@/types/api';
+import type { DetectionRule, DetectionRuleStats, RuleTemplate } from '@/types/cyber';
 import type { FetchParams, FilterConfig } from '@/types/table';
-import type { DetectionRule, RuleTemplate } from '@/types/cyber';
 
 import { getRuleColumns } from './_components/rule-columns';
-import { RuleFormDialog } from './_components/rule-form-dialog';
-import { RuleTestDialog } from './_components/rule-test-dialog';
+import { RuleStats } from './_components/rule-stats';
 import { RuleTemplateGallery } from './_components/rule-template-gallery';
+import { RuleTestDialog } from './_components/rule-test-dialog';
+import { RuleWizard } from './_components/rule-wizard';
 
 const RULE_FILTERS: FilterConfig[] = [
   {
@@ -43,7 +51,13 @@ const RULE_FILTERS: FilterConfig[] = [
       { label: 'High', value: 'high' },
       { label: 'Medium', value: 'medium' },
       { label: 'Low', value: 'low' },
+      { label: 'Info', value: 'info' },
     ],
+  },
+  {
+    key: 'mitre_tactic_id',
+    label: 'MITRE Tactic',
+    type: 'select',
   },
   {
     key: 'enabled',
@@ -56,98 +70,127 @@ const RULE_FILTERS: FilterConfig[] = [
   },
 ];
 
-function fetchRules(params: FetchParams): Promise<PaginatedResponse<DetectionRule>> {
-  return apiGet<PaginatedResponse<DetectionRule>>(
-    API_ENDPOINTS.CYBER_RULES,
-    params as unknown as Record<string, unknown>,
-  );
+async function fetchRules(params: FetchParams): Promise<PaginatedResponse<DetectionRule>> {
+  const response = await apiGet<PaginatedResponse<DetectionRule>>(API_ENDPOINTS.CYBER_RULES, buildRuleQueryParams(params));
+  return {
+    ...response,
+    data: normalizeRuleList(response.data),
+  };
 }
 
 export default function DetectionRulesPage() {
-  const [createOpen, setCreateOpen] = useState(false);
-  const [editTarget, setEditTarget] = useState<DetectionRule | null>(null);
-  const [testTarget, setTestTarget] = useState<DetectionRule | null>(null);
-  const [galleryOpen, setGalleryOpen] = useState(false);
+  const searchParams = useSearchParams();
+  const [wizardOpen, setWizardOpen] = useState(false);
+  const [editingRule, setEditingRule] = useState<DetectionRule | null>(null);
+  const [testRule, setTestRule] = useState<DetectionRule | null>(null);
+  const [templateGalleryOpen, setTemplateGalleryOpen] = useState(false);
   const [activatedTemplateIds, setActivatedTemplateIds] = useState<string[]>([]);
+  const initialTechniqueId = searchParams?.get('mitre_technique_id');
+  const createRequested = searchParams?.get('create') === '1';
 
   const { tableProps, refetch, totalRows, activeFilters } = useDataTable<DetectionRule>({
     fetchFn: fetchRules,
     queryKey: 'cyber-rules',
     defaultPageSize: 25,
-    defaultSort: { column: 'trigger_count', direction: 'desc' },
-    wsTopics: ['rule.created', 'rule.updated', 'rule.deleted'],
+    defaultSort: { column: 'last_triggered_at', direction: 'desc' },
+    wsTopics: ['cyber.rule.created', 'cyber.rule.updated', 'cyber.rule.toggled'],
   });
 
-  // Stats
-  const { data: statsEnvelope } = useQuery({
+  const { data: statsEnvelope, isLoading: statsLoading } = useQuery({
     queryKey: ['cyber-rules-stats'],
-    queryFn: () =>
-      apiGet<{ data: { total: number; active: number } }>(
-        `${API_ENDPOINTS.CYBER_RULES}/stats`,
-      ),
+    queryFn: () => apiGet<{ data: DetectionRuleStats }>(API_ENDPOINTS.CYBER_RULE_STATS),
   });
 
-  const stats = statsEnvelope?.data;
+  const { data: tacticsEnvelope } = useQuery({
+    queryKey: ['cyber-rule-filter-tactics'],
+    queryFn: () => apiGet<{ data: Array<{ id: string; name: string }> }>(API_ENDPOINTS.CYBER_MITRE_TACTICS),
+    staleTime: 300_000,
+  });
 
-  const { mutate: toggleRule } = useApiMutation<DetectionRule, void>(
+  const filterConfig = useMemo(() => {
+    return RULE_FILTERS.map((filter) =>
+      filter.key === 'mitre_tactic_id'
+        ? {
+            ...filter,
+            options: (tacticsEnvelope?.data ?? []).map((tactic) => ({
+              label: tactic.name,
+              value: tactic.id,
+            })),
+          }
+        : filter,
+    );
+  }, [tacticsEnvelope?.data]);
+
+  const toggleMutation = useApiMutation<{ data: DetectionRule }, Record<string, unknown>>(
     'put',
-    (rule: unknown) => `${API_ENDPOINTS.CYBER_RULES}/${(rule as DetectionRule).id}/toggle`,
+    (variables) => API_ENDPOINTS.CYBER_RULE_TOGGLE(String(variables.id)),
     {
-      invalidateKeys: ['cyber-rules'],
+      successMessage: 'Rule status updated',
+      invalidateKeys: ['cyber-rules', 'cyber-rules-stats', 'cyber-mitre-coverage'],
+      onSuccess: () => refetch(),
     },
   );
 
-  const { mutate: duplicateRule } = useApiMutation<DetectionRule, { source_id: string; name: string }>(
-    'post',
-    `${API_ENDPOINTS.CYBER_RULES}/duplicate`,
-    {
-      successMessage: 'Rule duplicated',
-      invalidateKeys: ['cyber-rules'],
-    },
-  );
-
-  const { mutate: deleteRule } = useApiMutation<void, { id: string }>(
-    'delete',
-    (v: unknown) => `${API_ENDPOINTS.CYBER_RULES}/${(v as { id: string }).id}`,
-    {
-      successMessage: 'Rule deleted',
-      invalidateKeys: ['cyber-rules'],
-    },
-  );
+  const deleteMutation = useApiMutation<void, { id: string }>('delete', (variables) => API_ENDPOINTS.CYBER_RULE_DETAIL(variables.id), {
+    successMessage: 'Detection rule deleted',
+    invalidateKeys: ['cyber-rules', 'cyber-rules-stats', 'cyber-mitre-coverage'],
+    onSuccess: () => refetch(),
+  });
 
   const columns = getRuleColumns({
-    onToggle: (rule) => toggleRule(rule as unknown as void),
-    onEdit: setEditTarget,
-    onTest: setTestTarget,
-    onDuplicate: (rule) =>
-      duplicateRule({ source_id: rule.id, name: `Copy of ${rule.name}` }),
-    onDelete: (rule) => deleteRule({ id: rule.id } as unknown as { id: string }),
-    onViewAlerts: (rule) => {
-      window.location.href = `/cyber/alerts?rule_id=${rule.id}`;
+    onToggle: (rule) =>
+      toggleMutation.mutate({
+        id: rule.id,
+        enabled: !rule.enabled,
+      }),
+    onEdit: (rule) => {
+      setEditingRule(normalizeRule(rule));
+      setWizardOpen(true);
     },
+    onDuplicate: (rule) => {
+      setEditingRule({
+        ...normalizeRule(rule),
+        id: '',
+        name: `Copy of ${rule.name}`,
+      });
+      setWizardOpen(true);
+    },
+    onDelete: (rule) => deleteMutation.mutate({ id: rule.id }),
+    onTest: (rule) => setTestRule(normalizeRule(rule)),
   });
 
-  function handleTemplateActivate(template: RuleTemplate) {
-    setActivatedTemplateIds((ids) => [...ids, template.id]);
-    setGalleryOpen(false);
-    setEditTarget({
+  useEffect(() => {
+    if (createRequested && !wizardOpen) {
+      setEditingRule(null);
+      setWizardOpen(true);
+    }
+  }, [createRequested, wizardOpen]);
+
+  function handleCreateFromTemplate(template: RuleTemplate) {
+    const normalized = normalizeRuleTemplate(template);
+    setActivatedTemplateIds((current) => [...current, template.id]);
+    setEditingRule({
       id: '',
-      tenant_id: '',
-      name: template.name,
-      description: template.description,
-      type: template.type as DetectionRule['type'],
-      severity: template.severity,
-      enabled: false,
-      mitre_technique_ids: template.mitre_technique_ids,
-      mitre_tactic_ids: [],
+      name: normalized.name,
+      description: normalized.description,
+      rule_type: normalized.rule_type,
+      type: normalized.rule_type,
+      severity: normalized.severity,
+      enabled: true,
+      mitre_tactic_ids: normalized.mitre_tactic_ids ?? [],
+      mitre_technique_ids: normalized.mitre_technique_ids,
       trigger_count: 0,
-      false_positive_rate: 0,
+      false_positive_count: 0,
+      true_positive_count: 0,
+      rule_content: normalized.rule_content ?? {},
+      base_confidence: 0.7,
       is_template: false,
-      tags: [],
+      tags: normalized.tags ?? [],
       created_at: '',
       updated_at: '',
     });
-    setCreateOpen(true);
+    setTemplateGalleryOpen(false);
+    setWizardOpen(true);
   }
 
   return (
@@ -155,9 +198,9 @@ export default function DetectionRulesPage() {
       <div className="space-y-6">
         <PageHeader
           title="Detection Rules"
-          description="Manage threat detection logic and monitor rule performance"
+          description="Manage Sigma, threshold, correlation, and anomaly rules against the live MITRE coverage model."
           actions={
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <ExportMenu
                 entityType="rules"
                 baseUrl={API_ENDPOINTS.CYBER_RULES}
@@ -165,77 +208,78 @@ export default function DetectionRulesPage() {
                 totalCount={totalRows}
                 enabledFormats={['csv', 'json']}
               />
-              <Button size="sm" variant="outline" onClick={() => setGalleryOpen(true)}>
-                <LayoutGrid className="mr-1.5 h-3.5 w-3.5" />
+              <Button variant="outline" onClick={() => setTemplateGalleryOpen(true)}>
+                <LayoutGrid className="mr-2 h-4 w-4" />
                 Templates
               </Button>
-              <Button size="sm" onClick={() => setCreateOpen(true)}>
-                <Plus className="mr-1.5 h-3.5 w-3.5" />
+              <Button
+                onClick={() => {
+                  setEditingRule(null);
+                  setWizardOpen(true);
+                }}
+              >
+                <Plus className="mr-2 h-4 w-4" />
                 Create Rule
               </Button>
             </div>
           }
         />
 
-        {/* Stats bar */}
-        {stats && (
-          <div className="flex flex-wrap gap-3">
-            <Badge variant="secondary" className="text-xs">Total: {stats.total}</Badge>
-            <Badge className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300 text-xs">
-              Active: {stats.active}
-            </Badge>
-          </div>
-        )}
+        <RuleStats stats={statsEnvelope?.data} loading={statsLoading} />
 
         <DataTable
           columns={columns}
-          filters={RULE_FILTERS}
-          searchPlaceholder="Search rules…"
+          filters={filterConfig}
+          searchPlaceholder="Search rules by name or description"
           emptyState={{
             icon: ShieldCheck,
             title: 'No detection rules',
-            description: 'Create your first detection rule to start monitoring for threats.',
-            action: { label: 'Create Rule', onClick: () => setCreateOpen(true) },
+            description: 'Create a rule or activate a template to start detecting activity.',
+            action: {
+              label: 'Create Rule',
+              onClick: () => {
+                setEditingRule(null);
+                setWizardOpen(true);
+              },
+            },
           }}
-          getRowId={(row) => row.id}
+          getRowId={(row) => row.id || row.name}
           enableColumnToggle
           {...tableProps}
         />
       </div>
 
-      <RuleFormDialog
-        open={createOpen}
-        onOpenChange={setCreateOpen}
-        onSuccess={() => { setCreateOpen(false); refetch(); }}
+      <RuleWizard
+        open={wizardOpen}
+        onOpenChange={(open) => {
+          setWizardOpen(open);
+          if (!open) {
+            setEditingRule(null);
+          }
+        }}
+        rule={editingRule}
+        initialTechniqueId={editingRule ? null : initialTechniqueId}
+        onSuccess={() => {
+          setEditingRule(null);
+          refetch();
+        }}
       />
-      {editTarget && (
-        <RuleFormDialog
-          open={!!editTarget}
-          onOpenChange={(o) => {
-            if (!o) setEditTarget(null);
-          }}
-          rule={editTarget.id ? editTarget : null}
-          initialTechniqueId={null}
-          onSuccess={() => {
-            setEditTarget(null);
-            refetch();
-          }}
-        />
-      )}
-      {testTarget && (
-        <RuleTestDialog
-          open={!!testTarget}
-          onOpenChange={(o) => {
-            if (!o) setTestTarget(null);
-          }}
-          rule={testTarget}
-        />
-      )}
+
+      <RuleTestDialog
+        open={Boolean(testRule)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setTestRule(null);
+          }
+        }}
+        rule={testRule}
+      />
+
       <RuleTemplateGallery
-        open={galleryOpen}
-        onOpenChange={setGalleryOpen}
+        open={templateGalleryOpen}
+        onOpenChange={setTemplateGalleryOpen}
         activatedTemplateIds={activatedTemplateIds}
-        onActivate={handleTemplateActivate}
+        onActivate={handleCreateFromTemplate}
       />
     </PermissionRedirect>
   );

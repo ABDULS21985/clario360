@@ -12,13 +12,15 @@ import (
 
 // RuleListParams captures filters for GET /cyber/rules.
 type RuleListParams struct {
-	Search     *string  `form:"search"`
-	Types      []string `form:"type"`
-	Severities []string `form:"severity"`
-	Enabled    *bool    `form:"enabled"`
-	Tag        *string  `form:"tag"`
-	Page       int      `form:"page"`
-	PerPage    int      `form:"per_page"`
+	Search           *string  `form:"search"`
+	Types            []string `form:"type"`
+	Severities       []string `form:"severity"`
+	Enabled          *bool    `form:"enabled"`
+	Tag              *string  `form:"tag"`
+	MITRETacticID    *string  `form:"mitre_tactic_id"`
+	MITRETechniqueID *string  `form:"mitre_technique_id"`
+	Page             int      `form:"page"`
+	PerPage          int      `form:"per_page"`
 }
 
 // SetDefaults applies default paging.
@@ -44,6 +46,16 @@ func (p *RuleListParams) Validate() error {
 		}
 	}
 	return nil
+}
+
+// RuleStatsResponse returns aggregate rule metrics for dashboard cards.
+type RuleStatsResponse struct {
+	Total            int                `json:"total"`
+	Active           int                `json:"active"`
+	ByType           []model.NamedCount `json:"by_type"`
+	BySeverity       []model.NamedCount `json:"by_severity"`
+	TruePositiveRate float64            `json:"true_positive_rate"`
+	AlertsLast30Days int                `json:"alerts_last_30_days"`
 }
 
 // RuleListResponse returns paginated rules.
@@ -101,4 +113,28 @@ type RuleTestResponse struct {
 type RuleFeedbackRequest struct {
 	AlertID  uuid.UUID `json:"alert_id" validate:"required"`
 	Feedback string    `json:"feedback" validate:"required,oneof=true_positive false_positive"`
+}
+
+// RuleAlertTrendPoint is a single bucket in the rule alert history series.
+type RuleAlertTrendPoint struct {
+	Date  time.Time `json:"date"`
+	Count int       `json:"count"`
+}
+
+// RuleTopAsset captures which assets trigger a rule most often.
+type RuleTopAsset struct {
+	AssetID    *uuid.UUID `json:"asset_id,omitempty"`
+	AssetName  string     `json:"asset_name"`
+	AlertCount int        `json:"alert_count"`
+}
+
+// RulePerformanceResponse returns operational metrics for a single rule.
+type RulePerformanceResponse struct {
+	AlertsLast30Days     int                   `json:"alerts_last_30_days"`
+	AlertsLast90Days     int                   `json:"alerts_last_90_days"`
+	SeverityDistribution []model.NamedCount    `json:"severity_distribution"`
+	AlertTrend           []RuleAlertTrendPoint `json:"alert_trend"`
+	TopAssets            []RuleTopAsset        `json:"top_assets"`
+	TruePositiveRate     float64               `json:"true_positive_rate"`
+	FalsePositiveRate    float64               `json:"false_positive_rate"`
 }

@@ -267,7 +267,7 @@ export interface AlertEvidence {
 }
 
 export interface IndicatorEvidence {
-  type: string;
+  type: IndicatorType;
   value: string;
   source: string;
   confidence: number;
@@ -301,11 +301,23 @@ export interface CyberAlert {
   status: AlertStatus;
   source: string;
   rule_id?: string;
+  rule_name?: string;
+  rule_type?: 'sigma' | 'threshold' | 'correlation' | 'anomaly';
   asset_id?: string;
   asset_ids: string[];
+  asset_name?: string;
+  asset_ip_address?: string;
+  asset_hostname?: string;
+  asset_os?: string;
+  asset_owner?: string;
+  asset_criticality?: Criticality;
   assigned_to?: string;
+  assigned_to_name?: string;
+  assigned_to_email?: string;
   assigned_at?: string;
   escalated_to?: string;
+  escalated_to_name?: string;
+  escalated_to_email?: string;
   escalated_at?: string;
   explanation: AlertExplanation;
   confidence_score: number;
@@ -323,19 +335,20 @@ export interface CyberAlert {
   metadata?: Record<string, unknown>;
   created_at: string;
   updated_at: string;
-  // enriched fields
-  asset_name?: string;
-  assigned_to_name?: string;
-  rule_name?: string;
 }
 
 export interface AlertStats {
-  by_severity: Array<{ name: string; count: number }>;
-  by_status: Array<{ name: string; count: number }>;
-  by_rule: Array<{ name: string; count: number }>;
-  by_technique: Array<{ name: string; count: number }>;
+  total: number;
+  by_severity: NamedCount[];
+  by_status: NamedCount[];
+  by_rule: NamedCount[];
+  by_rule_type: NamedCount[];
+  by_technique: NamedCount[];
   open_count: number;
   resolved_count: number;
+  mttr_hours: number;
+  mtta_hours: number;
+  false_positive_rate: number;
 }
 
 export interface AlertComment {
@@ -394,71 +407,285 @@ export interface Vulnerability {
 
 // ─── Threat ───────────────────────────────────────────────────────────────────
 
+export type ThreatStatus = 'active' | 'contained' | 'eradicated' | 'monitoring' | 'closed';
+export type ThreatSeverity = Exclude<CyberSeverity, 'info'>;
+export type ThreatType =
+  | 'malware'
+  | 'phishing'
+  | 'apt'
+  | 'ransomware'
+  | 'ddos'
+  | 'insider_threat'
+  | 'supply_chain'
+  | 'zero_day'
+  | 'brute_force'
+  | 'other';
+
+export type IndicatorType =
+  | 'ip'
+  | 'domain'
+  | 'url'
+  | 'email'
+  | 'file_hash_md5'
+  | 'file_hash_sha1'
+  | 'file_hash_sha256'
+  | 'certificate'
+  | 'registry_key'
+  | 'user_agent'
+  | 'cidr';
+
+export type IndicatorSource = 'manual' | 'stix_feed' | 'osint' | 'internal' | 'vendor';
+
+export interface NamedCount {
+  name: string;
+  count: number;
+}
+
 export interface ThreatIndicator {
   id: string;
-  type: string;
+  tenant_id: string;
+  threat_id?: string;
+  threat_name?: string;
+  threat_type?: ThreatType;
+  threat_status?: ThreatStatus;
+  type: IndicatorType;
   value: string;
-  severity: CyberSeverity;
-  source: string;
+  description: string;
+  severity: ThreatSeverity;
+  source: IndicatorSource | string;
   confidence: number;
-  first_seen: string;
-  last_seen: string;
+  active: boolean;
+  first_seen_at: string;
+  last_seen_at: string;
+  expires_at?: string;
   tags: string[];
+  metadata?: Record<string, unknown>;
+  created_by?: string;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface Threat {
   id: string;
   tenant_id: string;
   name: string;
-  type: string;
-  severity: CyberSeverity;
-  status: 'active' | 'contained' | 'eradicated' | 'monitoring' | 'closed';
   description: string;
-  first_seen: string;
-  last_seen: string;
+  type: ThreatType;
+  severity: ThreatSeverity;
+  status: ThreatStatus;
+  threat_actor?: string;
+  campaign?: string;
+  mitre_tactic_ids: string[];
+  mitre_technique_ids: string[];
   indicator_count: number;
   affected_asset_count: number;
+  alert_count: number;
+  first_seen_at: string;
+  last_seen_at: string;
+  contained_at?: string;
   indicators?: ThreatIndicator[];
   tags: string[];
   metadata?: Record<string, unknown>;
+  created_by?: string;
   created_at: string;
   updated_at: string;
 }
 
+export interface ThreatStats {
+  total: number;
+  active: number;
+  indicators_total: number;
+  contained_this_month: number;
+  by_type: NamedCount[];
+  by_status: NamedCount[];
+  by_severity: NamedCount[];
+}
+
+export interface ThreatTrendPoint {
+  date: string;
+  total: number;
+  active: number;
+  contained: number;
+}
+
+export interface ThreatTimelineEntry {
+  id: string;
+  kind: string;
+  title: string;
+  description?: string;
+  timestamp: string;
+  variant?: 'default' | 'success' | 'warning' | 'error';
+}
+
+export interface CreateIndicatorInput {
+  type: IndicatorType;
+  value: string;
+  severity: ThreatSeverity;
+  confidence: number;
+  source?: string;
+  description?: string;
+  tags?: string[];
+}
+
+export interface CreateThreatInput {
+  name: string;
+  type: ThreatType;
+  severity: ThreatSeverity;
+  description?: string;
+  threat_actor?: string;
+  campaign?: string;
+  mitre_tactic_ids?: string[];
+  mitre_technique_ids?: string[];
+  tags?: string[];
+  indicators?: CreateIndicatorInput[];
+}
+
 export interface IndicatorCheckResult {
   value: string;
-  type: string;
-  matched: boolean;
-  threat_name?: string;
-  severity?: CyberSeverity;
-  source?: string;
-  confidence?: number;
+  indicators: ThreatIndicator[];
+}
+
+export interface StandaloneIndicatorInput {
+  type: IndicatorType;
+  value: string;
+  severity: ThreatSeverity;
+  source: IndicatorSource;
+  confidence: number;
+  description?: string;
+  threat_id?: string;
+  expires_at?: string;
+  tags?: string[];
+  metadata?: Record<string, unknown>;
+}
+
+export interface IndicatorStats {
+  total: number;
+  active: number;
+  expiring_soon: number;
+  by_source: NamedCount[];
+}
+
+export interface IndicatorEnrichment {
+  dns?: Record<string, unknown>;
+  geolocation?: Record<string, unknown>;
+  cves?: string[];
+  whois?: Record<string, unknown>;
+  reputation_score?: number;
+  metadata?: Record<string, unknown>;
+}
+
+export interface IndicatorDetectionMatch {
+  id: string;
+  kind: string;
+  title: string;
+  description?: string;
+  severity?: ThreatSeverity;
+  status?: string;
+  asset_id?: string;
+  asset_name?: string;
+  match_field?: string;
+  match_value?: string;
+  timestamp: string;
+}
+
+export type ThreatFeedType = 'stix' | 'taxii' | 'misp' | 'csv_url' | 'manual';
+export type ThreatFeedAuthType = 'none' | 'api_key' | 'basic' | 'certificate';
+export type ThreatFeedInterval = 'hourly' | 'every_6h' | 'daily' | 'weekly' | 'manual';
+export type ThreatFeedStatus = 'active' | 'paused' | 'error';
+
+export interface ThreatFeedConfig {
+  id: string;
+  tenant_id: string;
+  name: string;
+  type: ThreatFeedType;
+  url?: string;
+  auth_type: ThreatFeedAuthType;
+  auth_config?: Record<string, unknown>;
+  sync_interval: ThreatFeedInterval;
+  default_severity: ThreatSeverity;
+  default_confidence: number;
+  default_tags: string[];
+  indicator_types: string[];
+  enabled: boolean;
+  status: ThreatFeedStatus;
+  last_sync_at?: string;
+  last_sync_status?: string;
+  last_error?: string;
+  next_sync_at?: string;
+  created_by?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ThreatFeedSyncHistory {
+  id: string;
+  tenant_id: string;
+  feed_id: string;
+  status: string;
+  indicators_parsed: number;
+  indicators_imported: number;
+  indicators_skipped: number;
+  indicators_failed: number;
+  duration_ms: number;
+  error_message?: string;
+  metadata?: Record<string, unknown>;
+  started_at: string;
+  completed_at?: string;
+}
+
+export interface ThreatFeedSyncSummary {
+  feed_id: string;
+  feed_name: string;
+  indicators_parsed: number;
+  indicators_imported: number;
+  indicators_skipped: number;
+  indicators_failed: number;
+}
+
+export interface ThreatFeedConfigInput {
+  name: string;
+  type: ThreatFeedType;
+  url?: string;
+  auth_type: ThreatFeedAuthType;
+  auth_config?: Record<string, unknown>;
+  sync_interval: ThreatFeedInterval;
+  default_severity: ThreatSeverity;
+  default_confidence: number;
+  default_tags?: string[];
+  indicator_types?: string[];
+  enabled: boolean;
 }
 
 // ─── Detection Rule ───────────────────────────────────────────────────────────
 
+export type DetectionRuleType = 'sigma' | 'threshold' | 'correlation' | 'anomaly';
+
 export interface DetectionRule {
   id: string;
-  tenant_id: string;
+  tenant_id?: string | null;
   name: string;
   description: string;
-  type: 'sigma' | 'threshold' | 'correlation' | 'anomaly';
+  rule_type: DetectionRuleType;
+  type?: DetectionRuleType;
   severity: CyberSeverity;
   enabled: boolean;
-  mitre_technique_ids: string[];
   mitre_tactic_ids: string[];
+  mitre_technique_ids: string[];
   trigger_count: number;
-  false_positive_rate: number;
+  false_positive_count: number;
+  true_positive_count: number;
+  false_positive_rate?: number;
+  true_positive_rate?: number;
+  last_triggered_at?: string;
   last_triggered?: string;
-  condition?: string;
-  rule_content?: SigmaRuleContent | ThresholdRuleContent | AnomalyRuleContent | CorrelationRuleContent;
-  base_confidence?: number;
-  is_auto_disabled?: boolean;
+  rule_content: SigmaRuleContent | ThresholdRuleContent | AnomalyRuleContent | CorrelationRuleContent | Record<string, unknown>;
+  base_confidence: number;
   tp_count?: number;
   fp_count?: number;
-  metadata?: Record<string, unknown>;
   is_template: boolean;
   tags: string[];
+  template_id?: string | null;
+  created_by?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -467,10 +694,56 @@ export interface RuleTemplate {
   id: string;
   name: string;
   description: string;
-  type: string;
+  rule_type: DetectionRuleType;
+  type?: DetectionRuleType;
   severity: CyberSeverity;
+  mitre_tactic_ids?: string[];
   mitre_technique_ids: string[];
-  category: string;
+  rule_content?: Record<string, unknown>;
+  tags?: string[];
+  template_id?: string | null;
+}
+
+export interface DetectionRuleStats {
+  total: number;
+  active: number;
+  by_type: NamedCount[];
+  by_severity: NamedCount[];
+  true_positive_rate: number;
+  alerts_last_30_days: number;
+}
+
+export interface DetectionRuleAlertTrendPoint {
+  date: string;
+  count: number;
+}
+
+export interface DetectionRuleTopAsset {
+  asset_id?: string | null;
+  asset_name: string;
+  alert_count: number;
+}
+
+export interface DetectionRulePerformance {
+  alerts_last_30_days: number;
+  alerts_last_90_days: number;
+  severity_distribution: NamedCount[];
+  alert_trend: DetectionRuleAlertTrendPoint[];
+  top_assets: DetectionRuleTopAsset[];
+  true_positive_rate: number;
+  false_positive_rate: number;
+}
+
+export interface DetectionRuleTestMatch {
+  rule_id: string;
+  events: Array<Record<string, unknown>>;
+  match_details: Record<string, unknown>;
+  timestamp: string;
+}
+
+export interface DetectionRuleTestResult {
+  matches: DetectionRuleTestMatch[];
+  count: number;
 }
 
 // ─── CTEM ─────────────────────────────────────────────────────────────────────
@@ -1138,17 +1411,38 @@ export interface VCISOLLMPromptVersionRequest {
 
 // ─── MITRE ────────────────────────────────────────────────────────────────────
 
+export interface MITRETacticItem {
+  id: string;
+  name: string;
+  short_name: string;
+  description: string;
+}
+
+export interface MITRETechniqueItem {
+  id: string;
+  name: string;
+  description: string;
+  tactic_ids: string[];
+  platforms: string[];
+  data_sources: string[];
+}
+
 export interface MITRETechniqueCoverage {
   technique_id: string;
   technique_name: string;
-  tactic_id: string;
-  tactic_name: string;
+  tactic_ids: string[];
+  tactic_id?: string;
+  tactic_name?: string;
   rule_count: number;
   alert_count: number;
+  threat_count: number;
+  active_threat_count: number;
   has_detection: boolean;
-  last_alert?: string;
-  description?: string;
-  platforms?: string[];
+  coverage_state: 'covered' | 'noisy' | 'gap' | 'idle';
+  high_fp_rule_count: number;
+  last_alert_at?: string;
+  description: string;
+  platforms: string[];
 }
 
 export interface MITRETactic {
@@ -1172,9 +1466,59 @@ export interface MITRECoverage {
   total_techniques: number;
   covered_techniques: number;
   coverage_percent: number;
-  active_techniques?: number;
-  passive_techniques?: number;
-  total_alerts_90d?: number;
+  active_techniques: number;
+  passive_techniques: number;
+  critical_gap_count: number;
+}
+
+export interface MITRERuleReference {
+  id: string;
+  name: string;
+  rule_type: DetectionRuleType;
+  severity: CyberSeverity;
+  enabled: boolean;
+  trigger_count: number;
+  true_positive_count: number;
+  false_positive_count: number;
+  last_triggered_at?: string;
+}
+
+export interface MITREThreatReference {
+  id: string;
+  name: string;
+  type: ThreatType;
+  severity: ThreatSeverity;
+  status: ThreatStatus;
+  last_seen_at: string;
+}
+
+export interface MITREAlertReference {
+  id: string;
+  title: string;
+  severity: CyberSeverity;
+  status: AlertStatus;
+  confidence_score: number;
+  asset_name?: string;
+  created_at: string;
+}
+
+export interface MITRETechniqueDetail {
+  id: string;
+  name: string;
+  description: string;
+  tactic_ids: string[];
+  platforms: string[];
+  data_sources: string[];
+  coverage_state: 'covered' | 'noisy' | 'gap' | 'idle';
+  rule_count: number;
+  alert_count: number;
+  threat_count: number;
+  active_threat_count: number;
+  high_fp_rule_count: number;
+  last_alert_at?: string;
+  linked_rules: MITRERuleReference[];
+  linked_threats: MITREThreatReference[];
+  recent_alerts: MITREAlertReference[];
 }
 
 // ─── Risk Heatmap ─────────────────────────────────────────────────────────────
@@ -1244,6 +1588,7 @@ export interface CorrelationRuleContent {
   group_by?: string;
   window: string;
   min_count?: Record<string, number>;
+  min_failed_count?: number;
 }
 
 // ─── vCISO Governance — Risk Register ────────────────────────────────────────
@@ -1737,6 +2082,769 @@ export interface VCISOApprovalRequest {
   linked_entity_id: string;
   created_at: string;
   updated_at: string;
+}
+
+// ─── DSPM Access Intelligence ─────────────────────────────────────────────────
+
+export type IdentityType = 'user' | 'service_account' | 'role' | 'group' | 'api_key' | 'application';
+export type DataClassification = 'public' | 'internal' | 'confidential' | 'restricted';
+export type PermissionType = 'read' | 'write' | 'admin' | 'delete' | 'create' | 'alter' | 'execute' | 'full_control';
+export type PermissionSource = 'direct_grant' | 'role_inherited' | 'group_inherited' | 'policy_inherited' | 'wildcard_grant';
+export type AccessMappingStatus = 'active' | 'revoked' | 'expired' | 'pending_review';
+export type RiskLevel = 'low' | 'medium' | 'high' | 'critical';
+export type IdentityProfileStatus = 'active' | 'inactive' | 'under_review' | 'remediated';
+export type AccessPolicyType = 'max_idle_days' | 'classification_restrict' | 'separation_of_duties' | 'time_bound_access' | 'blast_radius_limit' | 'periodic_review';
+export type PolicyEnforcement = 'alert' | 'block' | 'auto_remediate';
+export type RecommendationType = 'revoke' | 'downgrade' | 'time_bound' | 'review';
+
+export interface AccessMapping {
+  id: string;
+  tenant_id: string;
+  identity_type: IdentityType;
+  identity_id: string;
+  identity_name: string;
+  identity_source: string;
+  data_asset_id: string;
+  data_asset_name: string;
+  data_classification: DataClassification;
+  permission_type: PermissionType;
+  permission_source: PermissionSource;
+  permission_path: string[];
+  is_wildcard: boolean;
+  last_used_at: string | null;
+  usage_count_30d: number;
+  usage_count_90d: number;
+  is_stale: boolean;
+  sensitivity_weight: number;
+  access_risk_score: number;
+  status: AccessMappingStatus;
+  expires_at: string | null;
+  discovered_at: string;
+  last_verified_at: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface IdentityProfile {
+  id: string;
+  tenant_id: string;
+  identity_type: IdentityType;
+  identity_id: string;
+  identity_name: string;
+  identity_email: string;
+  identity_source: string;
+  total_assets_accessible: number;
+  sensitive_assets_count: number;
+  permission_count: number;
+  overprivileged_count: number;
+  stale_permission_count: number;
+  blast_radius_score: number;
+  blast_radius_level: RiskLevel;
+  access_risk_score: number;
+  access_risk_level: RiskLevel;
+  risk_factors: Record<string, unknown>[];
+  last_activity_at: string | null;
+  avg_daily_access_count: number;
+  access_pattern_summary: Record<string, unknown> | null;
+  recommendations: Record<string, unknown>[];
+  status: IdentityProfileStatus;
+  last_review_at: string | null;
+  next_review_due: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AccessAuditEntry {
+  id: string;
+  tenant_id: string;
+  identity_type: string;
+  identity_id: string;
+  data_asset_id: string;
+  action: string;
+  source_ip: string;
+  query_hash: string;
+  rows_affected: number | null;
+  duration_ms: number | null;
+  success: boolean;
+  access_mapping_id: string | null;
+  table_name: string;
+  database_name: string;
+  event_timestamp: string;
+  created_at: string;
+}
+
+export interface AccessPolicy {
+  id: string;
+  tenant_id: string;
+  name: string;
+  description: string;
+  policy_type: AccessPolicyType;
+  rule_config: Record<string, unknown>;
+  enforcement: PolicyEnforcement;
+  severity: CyberSeverity;
+  enabled: boolean;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AssetExposure {
+  data_asset_id: string;
+  data_asset_name: string;
+  data_classification: DataClassification;
+  permission_type: PermissionType;
+  sensitivity_weight: number;
+  permission_breadth: number;
+  weighted_score: number;
+}
+
+export interface EscalationPath {
+  identity_id: string;
+  identity_name: string;
+  pattern: string;
+  from_permission: string;
+  to_permission: string;
+  asset_id: string;
+  asset_name: string;
+  data_classification: DataClassification;
+  mitre_technique: string;
+  severity: CyberSeverity;
+}
+
+export interface BlastRadius {
+  identity_id: string;
+  identity_name: string;
+  identity_type: IdentityType;
+  total_assets_exposed: number;
+  sensitive_assets: number;
+  weighted_score: number;
+  level: RiskLevel;
+  exposed_classifications: Record<string, number>;
+  top_risky_assets: AssetExposure[];
+  escalation_paths: EscalationPath[];
+  recommended_actions: string[];
+}
+
+export interface OverprivilegeResult {
+  identity_id: string;
+  identity_name: string;
+  identity_type: IdentityType;
+  data_asset_id: string;
+  data_asset_name: string;
+  data_classification: DataClassification;
+  permission_type: PermissionType;
+  last_used_at: string | null;
+  usage_count_90d: number;
+  sensitivity_weight: number;
+  severity: CyberSeverity;
+  confidence: number;
+  recommendation: string;
+  mitre_technique: string;
+}
+
+export interface StaleAccessResult {
+  identity_id: string;
+  identity_name: string;
+  identity_type: IdentityType;
+  stale_count: number;
+  total_sensitivity_risk: number;
+  mappings: AccessMapping[];
+}
+
+export interface CrossAssetResult {
+  identity_id: string;
+  identity_name: string;
+  identity_type: IdentityType;
+  distinct_assets: number;
+  distinct_classifications: number;
+  distinct_asset_types: number;
+  breadth_score: number;
+  classifications: string[];
+  asset_types: string[];
+}
+
+export interface AccessRecommendation {
+  type: RecommendationType;
+  permission_id: string;
+  asset_name: string;
+  permission_type: PermissionType;
+  data_classification: DataClassification;
+  reason: string;
+  impact: string;
+  risk_reduction_estimate: number;
+}
+
+export interface PolicyViolation {
+  policy_id: string;
+  policy_name: string;
+  policy_type: AccessPolicyType;
+  identity_id: string;
+  identity_name: string;
+  identity_type: IdentityType;
+  violation_type: string;
+  severity: CyberSeverity;
+  details: string;
+  enforcement: PolicyEnforcement;
+  action_taken: string;
+}
+
+export interface AccessDashboard {
+  total_identities: number;
+  high_risk_identities: number;
+  overprivileged_mappings: number;
+  stale_permissions: number;
+  avg_blast_radius: number;
+  policy_violations: number;
+  total_mappings: number;
+  active_mappings: number;
+  risk_distribution: Record<string, number>;
+  classification_access: Record<string, number>;
+  top_risky_identities: IdentityProfile[];
+}
+
+// ─── DSPM Remediation Engine ─────────────────────────────────────────────────
+
+export type DSPMFindingType =
+  | 'posture_gap'
+  | 'overprivileged_access'
+  | 'stale_access'
+  | 'classification_drift'
+  | 'shadow_copy'
+  | 'policy_violation'
+  | 'encryption_missing'
+  | 'exposure_risk'
+  | 'pii_unprotected'
+  | 'retention_expired'
+  | 'blast_radius_excessive';
+
+export type DSPMRemediationStatus =
+  | 'open'
+  | 'in_progress'
+  | 'awaiting_approval'
+  | 'completed'
+  | 'failed'
+  | 'cancelled'
+  | 'rolled_back'
+  | 'exception_granted';
+
+export interface DSPMRemediation {
+  id: string;
+  tenant_id: string;
+  finding_type: DSPMFindingType;
+  finding_id?: string;
+  data_asset_id?: string;
+  data_asset_name?: string;
+  identity_id?: string;
+  playbook_id: string;
+  title: string;
+  description: string;
+  severity: CyberSeverity;
+  steps: DSPMRemediationStep[];
+  current_step: number;
+  total_steps: number;
+  assigned_to?: string;
+  assigned_team?: string;
+  sla_due_at?: string;
+  sla_breached: boolean;
+  risk_score_before?: number;
+  risk_score_after?: number;
+  risk_reduction?: number;
+  pre_action_state?: Record<string, unknown>;
+  rollback_available: boolean;
+  rolled_back: boolean;
+  status: DSPMRemediationStatus;
+  cyber_alert_id?: string;
+  created_by?: string;
+  created_at: string;
+  updated_at: string;
+  completed_at?: string;
+  compliance_tags: string[];
+}
+
+export interface DSPMRemediationStep {
+  step_id: string;
+  order: number;
+  action: string;
+  description: string;
+  params?: Record<string, unknown>;
+  status: 'pending' | 'running' | 'completed' | 'failed' | 'skipped';
+  started_at?: string;
+  completed_at?: string;
+  result?: Record<string, unknown>;
+  error?: string;
+}
+
+export interface DSPMRemediationStats {
+  total_open: number;
+  total_critical_open: number;
+  total_in_progress: number;
+  completed_last_7_days: number;
+  sla_breaches: number;
+  avg_resolution_hours: number;
+  by_status: Record<string, number>;
+  by_severity: Record<string, number>;
+  by_finding_type: Record<string, number>;
+  total_risk_reduction: number;
+}
+
+export interface DSPMRemediationDashboard {
+  stats: DSPMRemediationStats;
+  recent_remediations: DSPMRemediation[];
+  burndown_data: { date: string; open: number; closed: number }[];
+}
+
+export interface DSPMRemediationHistory {
+  id: string;
+  tenant_id: string;
+  remediation_id: string;
+  action: string;
+  actor_id?: string;
+  actor_type: 'user' | 'system' | 'policy_engine' | 'scheduler';
+  details: Record<string, unknown>;
+  entry_hash: string;
+  prev_hash?: string;
+  created_at: string;
+}
+
+export interface DSPMStepResult {
+  step_id: string;
+  action: string;
+  status: 'completed' | 'failed';
+  started_at: string;
+  completed_at?: string;
+  duration_ms: number;
+  result?: Record<string, unknown>;
+  error?: string;
+}
+
+// ─── DSPM Data Policies ─────────────────────────────────────────────────────
+
+export type DSPMPolicyCategory =
+  | 'encryption'
+  | 'classification'
+  | 'retention'
+  | 'exposure'
+  | 'pii_protection'
+  | 'access_review'
+  | 'backup'
+  | 'audit_logging';
+
+export type DSPMPolicyEnforcement = 'alert' | 'auto_remediate' | 'block';
+
+export interface DSPMDataPolicy {
+  id: string;
+  tenant_id: string;
+  name: string;
+  description?: string;
+  category: DSPMPolicyCategory;
+  rule: Record<string, unknown>;
+  enforcement: DSPMPolicyEnforcement;
+  auto_playbook_id?: string;
+  severity: CyberSeverity;
+  scope_classification?: string[];
+  scope_asset_types?: string[];
+  enabled: boolean;
+  last_evaluated_at?: string;
+  violation_count: number;
+  compliance_frameworks?: string[];
+  created_by?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface DSPMPolicyViolation {
+  policy_id: string;
+  policy_name: string;
+  category: string;
+  asset_id: string;
+  asset_name: string;
+  asset_type: string;
+  classification: string;
+  severity: string;
+  description: string;
+  enforcement: string;
+  compliance_frameworks?: string[];
+}
+
+export interface DSPMPolicyImpact {
+  total_assets_evaluated: number;
+  violations_found: number;
+  affected_assets: DSPMPolicyViolation[];
+}
+
+// ─── DSPM Risk Exceptions ───────────────────────────────────────────────────
+
+export type DSPMExceptionType =
+  | 'posture_finding'
+  | 'policy_violation'
+  | 'overprivileged_access'
+  | 'exposure_risk'
+  | 'encryption_gap';
+
+export type DSPMApprovalStatus = 'pending' | 'approved' | 'rejected' | 'expired';
+
+export interface DSPMRiskException {
+  id: string;
+  tenant_id: string;
+  exception_type: DSPMExceptionType;
+  remediation_id?: string;
+  data_asset_id?: string;
+  policy_id?: string;
+  justification: string;
+  business_reason?: string;
+  compensating_controls?: string;
+  risk_score: number;
+  risk_level: string;
+  requested_by: string;
+  approved_by?: string;
+  approval_status: DSPMApprovalStatus;
+  approved_at?: string;
+  rejection_reason?: string;
+  expires_at: string;
+  review_interval_days: number;
+  next_review_at?: string;
+  last_reviewed_at?: string;
+  review_count: number;
+  status: 'active' | 'expired' | 'revoked' | 'superseded';
+  created_at: string;
+  updated_at: string;
+}
+
+// ─── DSPM Advanced Intelligence ──────────────────────────────────────────────
+
+export type LineageEdgeType =
+  | 'etl_pipeline'
+  | 'replication'
+  | 'api_transfer'
+  | 'manual_copy'
+  | 'query_derived'
+  | 'stream'
+  | 'export'
+  | 'inferred';
+
+export type LineageEdgeStatus = 'active' | 'inactive' | 'broken' | 'deprecated';
+
+export interface LineageEdge {
+  id: string;
+  tenant_id: string;
+  source_asset_id: string;
+  source_asset_name?: string;
+  source_table?: string;
+  target_asset_id: string;
+  target_asset_name?: string;
+  target_table?: string;
+  edge_type: LineageEdgeType;
+  transformation?: string;
+  pipeline_id?: string;
+  pipeline_name?: string;
+  source_classification?: string;
+  target_classification?: string;
+  classification_changed: boolean;
+  pii_types_transferred: string[];
+  confidence: number;
+  evidence: Record<string, unknown>;
+  status: LineageEdgeStatus;
+  last_transfer_at?: string;
+  transfer_count_30d: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface LineageNode {
+  asset_id: string;
+  asset_name: string;
+  classification: string;
+  pii_types: string[];
+  upstream_count: number;
+  downstream_count: number;
+}
+
+export interface LineageGraph {
+  nodes: LineageNode[];
+  edges: LineageEdge[];
+  total_nodes: number;
+  total_edges: number;
+  pii_flow_count: number;
+}
+
+export interface ImpactResult {
+  asset_id: string;
+  asset_name: string;
+  depth: number;
+  classification: string;
+  pii_types: string[];
+  edge_type: string;
+}
+
+export type AIUsageType =
+  | 'training_data'
+  | 'evaluation_data'
+  | 'inference_input'
+  | 'rag_knowledge_base'
+  | 'prompt_context'
+  | 'feature_store'
+  | 'embedding_source';
+
+export type AIRiskLevel = 'low' | 'medium' | 'high' | 'critical';
+export type AnonymizationLevel = 'none' | 'pseudonymized' | 'anonymized' | 'differential_privacy';
+export type AIUsageStatus = 'active' | 'inactive' | 'blocked' | 'under_review';
+
+export interface AIRiskFactor {
+  factor: string;
+  weight: number;
+  score: number;
+  description: string;
+}
+
+export interface AIDataUsage {
+  id: string;
+  tenant_id: string;
+  data_asset_id: string;
+  data_asset_name?: string;
+  data_classification?: string;
+  contains_pii: boolean;
+  pii_types: string[];
+  usage_type: AIUsageType;
+  model_id?: string;
+  model_name?: string;
+  model_slug?: string;
+  pipeline_id?: string;
+  pipeline_name?: string;
+  ai_risk_score: number;
+  ai_risk_level: AIRiskLevel;
+  risk_factors: AIRiskFactor[];
+  consent_verified: boolean;
+  data_minimization: boolean;
+  anonymization_level?: AnonymizationLevel;
+  retention_compliant: boolean;
+  status: AIUsageStatus;
+  first_detected_at: string;
+  last_detected_at: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AISecurityDashboard {
+  total_ai_data_usages: number;
+  high_risk_count: number;
+  pii_in_ai_count: number;
+  consent_gap_count: number;
+  risk_distribution: Record<string, number>;
+  usage_type_distribution: Record<string, number>;
+  top_risky_usages: AIDataUsage[];
+}
+
+export interface ModelDataAssessment {
+  model_slug: string;
+  model_name: string;
+  data_usages: AIDataUsage[];
+  total_risk_score: number;
+  consent_coverage: number;
+  anonymization_coverage: number;
+  recommendations: string[];
+}
+
+export type CostMethodology = 'ibm_ponemon' | 'custom';
+
+export interface CostBreakdown {
+  detection_and_escalation: number;
+  notification: number;
+  post_breach_response: number;
+  lost_business: number;
+  regulatory_fines: number;
+}
+
+export interface FinancialImpact {
+  id: string;
+  tenant_id: string;
+  data_asset_id: string;
+  estimated_breach_cost: number;
+  cost_per_record: number;
+  record_count: number;
+  cost_breakdown: CostBreakdown;
+  methodology: CostMethodology;
+  methodology_details: Record<string, unknown>;
+  applicable_regulations: string[];
+  max_regulatory_fine: number;
+  breach_probability_annual: number;
+  annual_expected_loss: number;
+  calculated_at: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PortfolioRisk {
+  tenant_id: string;
+  total_breach_cost: number;
+  total_expected_loss: number;
+  max_single_breach: number;
+  avg_breach_probability: number;
+  asset_count: number;
+  top_risks: FinancialImpact[];
+}
+
+export type DSPMComplianceFramework = 'gdpr' | 'hipaa' | 'soc2' | 'pci_dss' | 'saudi_pdpl' | 'iso27001';
+export type ControlStatus = 'compliant' | 'partial' | 'non_compliant' | 'not_applicable';
+export type TrendDirection = 'improving' | 'stable' | 'declining';
+
+export interface ControlDetail {
+  control_id: string;
+  control_name: string;
+  description: string;
+  status: ControlStatus;
+  evidence: string[];
+  gaps: string[];
+}
+
+export interface CompliancePosture {
+  id: string;
+  tenant_id: string;
+  framework: DSPMComplianceFramework;
+  overall_score: number;
+  controls_total: number;
+  controls_compliant: number;
+  controls_partial: number;
+  controls_non_compliant: number;
+  controls_not_applicable: number;
+  control_details: ControlDetail[];
+  score_7d_ago?: number;
+  score_30d_ago?: number;
+  score_90d_ago?: number;
+  trend_direction?: TrendDirection;
+  estimated_fine_exposure: number;
+  fine_currency: string;
+  evaluated_at: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ComplianceGap {
+  framework: string;
+  control_id: string;
+  control_name: string;
+  status: ControlStatus;
+  description: string;
+  gaps: string[];
+}
+
+export interface ResidencyViolation {
+  asset_id: string;
+  asset_name: string;
+  regulation: string;
+  requirement: string;
+  location: string;
+  allowed_locations: string[];
+}
+
+export interface AuditReport {
+  tenant_id: string;
+  framework: string;
+  generated_at: string;
+  overall_score: number;
+  total_controls: number;
+  compliant_controls: number;
+  partial_controls: number;
+  non_compliant_controls: number;
+  asset_count: number;
+  assets: AuditAssetEntry[];
+  exceptions: AuditException[];
+  score_history: AuditScorePoint[];
+}
+
+export interface AuditAssetEntry {
+  asset_id: string;
+  asset_name: string;
+  classification: string;
+  pii_types: string[];
+  encryption_at_rest: boolean;
+  encryption_in_transit: boolean;
+}
+
+export interface AuditException {
+  control_id: string;
+  control_name: string;
+  reason: string;
+  approved_by: string;
+  expires_at: string;
+}
+
+export interface AuditScorePoint {
+  date: string;
+  score: number;
+}
+
+export type ProliferationStatus = 'contained' | 'spreading' | 'uncontrolled';
+
+export interface DataProliferation {
+  asset_id: string;
+  asset_name: string;
+  classification: string;
+  total_copies: number;
+  authorized_copies: number;
+  unauthorized_copies: number;
+  spread_events: SpreadEvent[];
+  status: ProliferationStatus;
+}
+
+export interface SpreadEvent {
+  target_asset_id: string;
+  target_asset_name: string;
+  edge_type: string;
+  classification_changed: boolean;
+  authorized: boolean;
+  detected_at: string;
+}
+
+export interface ProliferationOverview {
+  total_tracked_assets: number;
+  spreading_count: number;
+  uncontrolled_count: number;
+  total_unauthorized_copies: number;
+  proliferations: DataProliferation[];
+}
+
+export interface ClassificationDrift {
+  asset_id: string;
+  asset_name: string;
+  events: DriftEvent[];
+  drift_count: number;
+  current_classification: string;
+}
+
+export interface DriftEvent {
+  old_classification?: string;
+  new_classification: string;
+  change_type: string;
+  detected_by: string;
+  created_at: string;
+}
+
+export interface ClassificationHistory {
+  id: string;
+  tenant_id: string;
+  data_asset_id: string;
+  old_classification?: string;
+  new_classification: string;
+  old_pii_types: string[];
+  new_pii_types: string[];
+  change_type: string;
+  detected_by: string;
+  confidence: number;
+  evidence: Record<string, unknown>;
+  actor_id?: string;
+  actor_type: string;
+  created_at: string;
+}
+
+export interface EnhancedClassification {
+  asset_id: string;
+  asset_name: string;
+  classification: string;
+  confidence: number;
+  pii_types: string[];
+  method: string;
+  needs_human_review: boolean;
+  evidence: Record<string, unknown>;
 }
 
 // ─── Export ───────────────────────────────────────────────────────────────────

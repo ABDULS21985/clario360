@@ -25,12 +25,12 @@ func (h *RuleHandler) Stats(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	total, active, err := h.svc.Stats(r.Context(), tenantID, actorFromRequest(r))
+	stats, err := h.svc.Stats(r.Context(), tenantID, actorFromRequest(r))
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "STATS_FAILED", err.Error(), nil)
 		return
 	}
-	writeJSON(w, http.StatusOK, envelope{"data": map[string]int{"total": total, "active": active}})
+	writeJSON(w, http.StatusOK, envelope{"data": stats})
 }
 
 func (h *RuleHandler) ListRules(w http.ResponseWriter, r *http.Request) {
@@ -79,6 +79,23 @@ func (h *RuleHandler) GetRule(w http.ResponseWriter, r *http.Request) {
 	item, err := h.svc.GetRule(r.Context(), tenantID, ruleID, actorFromRequest(r))
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "GET_FAILED", err.Error(), nil)
+		return
+	}
+	writeJSON(w, http.StatusOK, envelope{"data": item})
+}
+
+func (h *RuleHandler) Performance(w http.ResponseWriter, r *http.Request) {
+	tenantID, _, ok := requireTenantAndUser(w, r)
+	if !ok {
+		return
+	}
+	ruleID, ok := parseUUID(w, chi.URLParam(r, "id"))
+	if !ok {
+		return
+	}
+	item, err := h.svc.RulePerformance(r.Context(), tenantID, ruleID, actorFromRequest(r))
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "PERFORMANCE_FAILED", err.Error(), nil)
 		return
 	}
 	writeJSON(w, http.StatusOK, envelope{"data": item})

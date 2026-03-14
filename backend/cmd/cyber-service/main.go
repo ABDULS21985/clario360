@@ -36,8 +36,30 @@ import (
 	cyberdashboard "github.com/clario360/platform/internal/cyber/dashboard"
 	"github.com/clario360/platform/internal/cyber/detection"
 	cyberdspm "github.com/clario360/platform/internal/cyber/dspm"
+	accessanalyzer "github.com/clario360/platform/internal/cyber/dspm/access/analyzer"
+	accesscollector "github.com/clario360/platform/internal/cyber/dspm/access/collector"
+	accessgovernance "github.com/clario360/platform/internal/cyber/dspm/access/governance"
+	accesshandler "github.com/clario360/platform/internal/cyber/dspm/access/handler"
+	accessmapper "github.com/clario360/platform/internal/cyber/dspm/access/mapper"
 	cybercompliance "github.com/clario360/platform/internal/cyber/dspm/compliance"
 	cybercontinuous "github.com/clario360/platform/internal/cyber/dspm/continuous"
+	dspmremengine "github.com/clario360/platform/internal/cyber/dspm/remediation/engine"
+	dspmremexception "github.com/clario360/platform/internal/cyber/dspm/remediation/exception"
+	dspmremhandler "github.com/clario360/platform/internal/cyber/dspm/remediation/handler"
+	dspmremintegration "github.com/clario360/platform/internal/cyber/dspm/remediation/integration"
+	dspmremlifecycle "github.com/clario360/platform/internal/cyber/dspm/remediation/lifecycle"
+	dspmremplaybook "github.com/clario360/platform/internal/cyber/dspm/remediation/playbook"
+	dspmrempolicy "github.com/clario360/platform/internal/cyber/dspm/remediation/policy"
+	dspmremrepo "github.com/clario360/platform/internal/cyber/dspm/remediation/repository"
+	intelaisecurity "github.com/clario360/platform/internal/cyber/dspm/intelligence/ai_security"
+	intelclassifier "github.com/clario360/platform/internal/cyber/dspm/intelligence/classifier"
+	intelcompliance "github.com/clario360/platform/internal/cyber/dspm/intelligence/compliance"
+	intelfinancial "github.com/clario360/platform/internal/cyber/dspm/intelligence/financial"
+	intelhandler "github.com/clario360/platform/internal/cyber/dspm/intelligence/handler"
+	intellineage "github.com/clario360/platform/internal/cyber/dspm/intelligence/lineage"
+	intelprolif "github.com/clario360/platform/internal/cyber/dspm/intelligence/proliferation"
+	intelrepo "github.com/clario360/platform/internal/cyber/dspm/intelligence/repository"
+	intelservice "github.com/clario360/platform/internal/cyber/dspm/intelligence/service"
 	cybershadow "github.com/clario360/platform/internal/cyber/dspm/shadow"
 	"github.com/clario360/platform/internal/cyber/enrichment"
 	"github.com/clario360/platform/internal/cyber/handler"
@@ -233,6 +255,7 @@ func main() {
 	ruleRepo := repository.NewRuleRepository(db, logger)
 	threatRepo := repository.NewThreatRepository(db, logger)
 	indicatorRepo := repository.NewIndicatorRepository(db, logger)
+	threatFeedRepo := repository.NewThreatFeedRepository(db, logger)
 	dashboardRepo := repository.NewDashboardRepository(db, logger)
 	riskHistoryRepo := repository.NewRiskHistoryRepository(db, logger)
 	ctemAssessmentRepo := repository.NewCTEMAssessmentRepository(db, logger)
@@ -289,7 +312,7 @@ func main() {
 		scanRegistry, cls, enrichSvc,
 		producer, m, cyberCfg, db, logger,
 	)
-	alertSvc := service.NewAlertService(alertRepo, commentRepo, db, producer, logger)
+	alertSvc := service.NewAlertService(alertRepo, commentRepo, ruleRepo, db, producer, logger)
 	if err := uebaEventRepo.EnsurePartitions(ctx); err != nil {
 		logger.Warn().Err(err).Msg("failed to ensure ueba event partitions")
 	}
@@ -352,7 +375,8 @@ func main() {
 	)
 	detectionSvc := service.NewDetectionService(detectionEngine, logger)
 	detectionSvc.Start(ctx, time.Duration(cyberCfg.DetectionRuleRefreshSec)*time.Second)
-	threatSvc := service.NewThreatService(threatRepo, indicatorRepo, producer, logger)
+	threatSvc := service.NewThreatService(threatRepo, indicatorRepo, alertRepo, producer, logger)
+	threatFeedSvc := service.NewThreatFeedService(threatFeedRepo, indicatorRepo, threatRepo, producer, logger)
 	workflowLauncher := service.NewWorkflowRemediationLauncher(workflowDefRepo, workflowInstRepo, workflowTaskRepo, logger)
 	scoringEngine := cyberctem.NewScoringEngine(db, ctemSnapshotRepo, logger)
 	ctemEngine := cyberctem.NewEngine(
@@ -445,6 +469,153 @@ func main() {
 		logger,
 	)
 	dspmSvc := service.NewDSPMService(dspmRepo, dspmScanner, dspmDependency, dspmTagger, dspmShadowDetector, producer, logger)
+
+	// ── DSPM Access Intelligence ─────────────────────────────────────────────
+	accessMappingRepo := repository.NewAccessMappingRepository(db, logger)
+	accessAuditRepo := repository.NewAccessAuditRepository(db, logger)
+	accessPolicyRepo := repository.NewAccessPolicyRepository(db, logger)
+
+	var accessPermCollector *accesscollector.PermissionCollector
+	{
+		var sources []accesscollector.PermissionSource
+		if db != nil {
+			sources = append(sources, accesscollector.NewDatabaseCollector(db, logger))
+		}
+		sources = append(sources, accesscollector.NewCloudCollector(logger))
+		if platformPool != nil {
+			sources = append(sources, accesscollector.NewApplicationCollector(platformPool, logger))
+		}
+		if len(sources) > 0 {
+			accessPermCollector = accesscollector.NewPermissionCollector(dspmRepo, logger, sources...)
+		}
+	}
+
+	accessIdentityMapper := accessmapper.NewIdentityMapper(accessMappingRepo, logger)
+	accessPermGraph := accessmapper.NewPermissionGraph(accessMappingRepo, logger)
+	accessEffective := accessmapper.NewEffectiveAccessResolver(accessMappingRepo, logger)
+	accessSensitivity := accessmapper.NewSensitivityScorer()
+
+	accessOverprivAnalyzer := accessanalyzer.NewOverprivilegeAnalyzer(accessMappingRepo, logger)
+	accessStaleAnalyzer := accessanalyzer.NewStaleAccessAnalyzer(accessMappingRepo, logger)
+	accessBlastRadiusAnalyzer := accessanalyzer.NewBlastRadiusAnalyzer(accessEffective, accessSensitivity, accessMappingRepo, logger)
+	accessPrivEscAnalyzer := accessanalyzer.NewPrivEscAnalyzer(accessMappingRepo, logger)
+	accessCrossAssetAnalyzer := accessanalyzer.NewCrossAssetAnalyzer(accessMappingRepo, logger)
+	accessAnomalyDetector := accessanalyzer.NewAccessAnomalyDetector(accessAuditRepo, accessMappingRepo, logger)
+
+	accessPolicyEngine := accessgovernance.NewPolicyEngine(accessPolicyRepo, accessMappingRepo, accessMappingRepo, accessMappingRepo, logger)
+	accessRecommendEngine := accessgovernance.NewRecommendationEngine(accessMappingRepo, logger)
+	accessTimeBoundMgr := accessgovernance.NewTimeBoundManager(accessMappingRepo, logger)
+
+	accessIntelSvc := service.NewAccessIntelligenceService(
+		accessMappingRepo,
+		accessAuditRepo,
+		accessPolicyRepo,
+		accessPermCollector,
+		accessIdentityMapper,
+		accessPermGraph,
+		accessEffective,
+		accessSensitivity,
+		accessOverprivAnalyzer,
+		accessStaleAnalyzer,
+		accessBlastRadiusAnalyzer,
+		accessPrivEscAnalyzer,
+		accessCrossAssetAnalyzer,
+		accessAnomalyDetector,
+		accessPolicyEngine,
+		accessRecommendEngine,
+		accessTimeBoundMgr,
+		producer,
+		logger,
+	)
+
+	// ── DSPM Remediation Engine ─────────────────────────────────────────────
+	dspmRemRepo := dspmremrepo.NewRemediationRepository(db, logger)
+	dspmHistRepo := dspmremrepo.NewHistoryRepository(db, logger)
+	dspmDataPolicyRepo := dspmremrepo.NewPolicyRepository(db, logger)
+	dspmExceptionRepo := dspmremrepo.NewExceptionRepository(db, logger)
+
+	dspmPlaybookRegistry := dspmremplaybook.NewRegistry()
+	dspmPlaybookExecutor := dspmremplaybook.NewPlaybookExecutor(dspmPlaybookRegistry, logger)
+	dspmPlaybookValidator := dspmremplaybook.NewValidator(dspmPlaybookRegistry, logger)
+
+	dspmPolicyEngine := dspmrempolicy.NewPolicyEngine(dspmRepo, dspmExceptionRepo, logger)
+	dspmPolicyEnforcer := dspmrempolicy.NewEnforcer(logger)
+
+	dspmRetentionEnforcer := dspmremlifecycle.NewRetentionEnforcer(dspmRepo, logger)
+	dspmStaleDetector := dspmremlifecycle.NewStaleDataDetector(dspmRepo, logger)
+
+	dspmExceptionMgr := dspmremexception.NewExceptionManager(dspmExceptionRepo, dspmRemRepo, logger)
+	dspmExpiryChecker := dspmremexception.NewExpiryChecker(dspmExceptionRepo, dspmRemRepo, logger)
+
+	dspmSIEMExporter := dspmremintegration.NewSIEMExporter(logger)
+	dspmITSMConnector := dspmremintegration.NewITSMConnector(logger)
+	dspmDLPGenerator := dspmremintegration.NewDLPPolicyGenerator(logger)
+
+	dspmRemEngine := dspmremengine.NewRemediationEngine(
+		dspmremengine.DefaultConfig(),
+		dspmRemRepo,
+		dspmHistRepo,
+		dspmDataPolicyRepo,
+		dspmExceptionRepo,
+		dspmPlaybookRegistry,
+		dspmPlaybookExecutor,
+		dspmPlaybookValidator,
+		dspmPolicyEngine,
+		dspmPolicyEnforcer,
+		dspmRetentionEnforcer,
+		dspmStaleDetector,
+		dspmExceptionMgr,
+		dspmExpiryChecker,
+		dspmSIEMExporter,
+		dspmITSMConnector,
+		dspmDLPGenerator,
+		producer,
+		logger,
+	)
+
+	// ── DSPM Advanced Intelligence ──────────────────────────────────────────
+	intelLineageRepo := intelrepo.NewLineageRepository(db, logger)
+	intelClassRepo := intelrepo.NewClassificationRepository(db, logger)
+	intelAIUsageRepo := intelrepo.NewAIUsageRepository(db, logger)
+	intelFinancialRepo := intelrepo.NewFinancialRepository(db, logger)
+	intelComplianceRepo := intelrepo.NewComplianceRepository(db, logger)
+
+	intelMLClassifier := intelclassifier.NewMLClassifier(logger)
+	intelLineageEngine := intellineage.NewLineageEngine(dspmRepo, intelLineageRepo, logger)
+	intelAIScanner := intelaisecurity.NewAIDataScanner(dspmRepo, intelAIUsageRepo, logger)
+	intelAIGovernance := intelaisecurity.NewModelDataGovernance(intelAIUsageRepo, logger)
+	intelImpactCalc := intelfinancial.NewImpactCalculator(dspmRepo, intelFinancialRepo, logger)
+	intelPostureEngine := intelcompliance.NewPostureEngine(dspmRepo, intelComplianceRepo, logger)
+	intelGapAnalyzer := intelcompliance.NewGapAnalyzer(logger)
+	intelResidencyTracker := intelcompliance.NewResidencyTracker(logger)
+	intelAuditEvidence := intelcompliance.NewAuditEvidenceGenerator(dspmRepo, logger)
+	intelProlifTracker := intelprolif.NewProliferationTracker(intelLineageRepo, logger)
+	intelDriftAnalyzer := intelprolif.NewDriftAnalyzer(logger)
+	intelSpreadViz := intelprolif.NewSpreadVisualizer(logger)
+
+	intelSvc := intelservice.NewIntelligenceService(
+		intelMLClassifier,
+		intelLineageEngine,
+		intelAIScanner,
+		intelAIGovernance,
+		intelImpactCalc,
+		intelPostureEngine,
+		intelGapAnalyzer,
+		intelResidencyTracker,
+		intelAuditEvidence,
+		intelProlifTracker,
+		intelDriftAnalyzer,
+		intelSpreadViz,
+		intelLineageRepo,
+		intelClassRepo,
+		intelAIUsageRepo,
+		intelFinancialRepo,
+		intelComplianceRepo,
+		dspmRepo,
+		producer,
+		logger,
+	)
+
 	rcaEngine := rca.NewEngine(db, dataPool, logger)
 	vcisoRecommender := cybervciso.NewRecommendationAggregator(db, recommendationEngine, logger)
 	vcisoBriefing := cybervciso.NewBriefingGenerator(db, riskScorer, mttrCalc, vcisoRecommender, logger)
@@ -736,6 +907,7 @@ func main() {
 	alertHandler := handler.NewAlertHandler(alertSvc)
 	ruleHandler := handler.NewRuleHandler(ruleSvc)
 	threatHandler := handler.NewThreatHandler(threatSvc)
+	threatFeedHandler := handler.NewThreatFeedHandler(threatFeedSvc)
 	mitreHandler := handler.NewMITREHandler(ruleSvc)
 	riskHandler := handler.NewRiskHandler(riskSvc)
 	dashboardHandler := handler.NewDashboardHandler(dashboardSvc)
@@ -745,6 +917,9 @@ func main() {
 	vcisoHandler := handler.NewVCISOHandler(vcisoSvc)
 	vcisoGovHandler := handler.NewVCISOGovernanceHandler(vcisoGovSvc, logger)
 	uebaHTTPHandler := uebahandler.NewUEBAHandler(uebaSvc)
+	accessIntelHandler := accesshandler.NewAccessIntelligenceHandler(accessIntelSvc)
+	dspmRemHandler := dspmremhandler.NewDSPMRemediationHandler(dspmRemEngine, dspmDataPolicyRepo, dspmExceptionRepo)
+	intelHTTPHandler := intelhandler.NewIntelligenceHandler(intelSvc, logger)
 	rcaHandler := rca.NewHandler(rcaEngine, logger)
 	vcisoChatHandler := vcisochathandler.NewChatHandler(vcisoUnifiedEngine, vcisoConversationRepo, logger)
 	vcisoWSHandler := vcisochathandler.NewWebSocketHandler(vcisoUnifiedEngine, jwtMgr, logger)
@@ -759,6 +934,7 @@ func main() {
 		alertHandler,
 		ruleHandler,
 		threatHandler,
+		threatFeedHandler,
 		mitreHandler,
 		ctemHandler,
 		ctemReportHandler,
@@ -776,6 +952,11 @@ func main() {
 		r.Use(platformmw.Tenant)
 		rcaHandler.RegisterRoutes(r)
 		handler.RegisterVCISOGovernanceRoutes(r, vcisoGovHandler)
+		r.Route("/api/v1/cyber", func(r chi.Router) {
+			accesshandler.RegisterRoutes(r, accessIntelHandler)
+			dspmremhandler.RegisterRoutes(r, dspmRemHandler)
+			intelhandler.RegisterRoutes(r, intelHTTPHandler)
+		})
 	})
 	vcisochathandler.RegisterRoutes(svc.Router, vcisochathandler.RouteDeps{
 		ChatHandler:          vcisoChatHandler,

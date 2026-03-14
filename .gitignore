@@ -11,7 +11,7 @@
 *.out
 coverage.html
 coverage.txt
-
+.next.prev.1773501525/
 # Go
 /vendor/
 backend/vendor/

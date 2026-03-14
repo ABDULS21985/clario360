@@ -1,190 +1,136 @@
 'use client';
 
-import { useState } from 'react';
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-} from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Badge } from '@/components/ui/badge';
-import { Progress } from '@/components/ui/progress';
+import { useMemo, useState } from 'react';
+import { formatISO, subDays } from 'date-fns';
+import { FlaskConical } from 'lucide-react';
+
 import { apiPost } from '@/lib/api';
 import { API_ENDPOINTS } from '@/lib/constants';
-import { FlaskConical, CheckCircle, XCircle, AlertTriangle } from 'lucide-react';
-import { SeverityIndicator } from '@/components/shared/severity-indicator';
-import { toast } from 'sonner';
-import type { DetectionRule, CyberSeverity } from '@/types/cyber';
+import type { DetectionRule, DetectionRuleTestResult } from '@/types/cyber';
+import { parseApiError } from '@/lib/format';
 
-interface SampleMatch {
-  severity: CyberSeverity;
-  title: string;
-  event_details?: Record<string, unknown>;
-  matched_at?: string;
-}
-
-interface TestResult {
-  match_count: number;
-  hours_tested: number;
-  sample_matches: SampleMatch[];
-  error?: string;
-}
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { ScrollArea } from '@/components/ui/scroll-area';
 
 interface RuleTestDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  rule: DetectionRule;
+  rule: DetectionRule | null;
 }
 
 export function RuleTestDialog({ open, onOpenChange, rule }: RuleTestDialogProps) {
-  const [hours, setHours] = useState(24);
-  const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState<TestResult | null>(null);
+  const [limit, setLimit] = useState(1000);
+  const [running, setRunning] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [result, setResult] = useState<DetectionRuleTestResult | null>(null);
 
-  const handleTest = async () => {
-    setLoading(true);
+  const requestBody = useMemo(
+    () => ({
+      date_from: formatISO(subDays(new Date(), 14)),
+      limit,
+    }),
+    [limit],
+  );
+
+  async function handleRun() {
+    if (!rule) {
+      return;
+    }
+    setRunning(true);
+    setError(null);
     setResult(null);
     try {
-      const res = await apiPost<{ data: TestResult }>(
-        `${API_ENDPOINTS.CYBER_RULES}/${rule.id}/test`,
-        { hours },
-      );
-      setResult(res.data);
-    } catch {
-      toast.error('Test failed');
+      const response = await apiPost<{ data: DetectionRuleTestResult }>(API_ENDPOINTS.CYBER_RULE_TEST(rule.id), requestBody);
+      setResult(response.data);
+    } catch (caughtError) {
+      setError(parseApiError(caughtError));
     } finally {
-      setLoading(false);
+      setRunning(false);
     }
-  };
-
-  const matchCount = result?.match_count ?? 0;
-  const highMatch = matchCount > 100;
+  }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-xl">
+      <DialogContent className="sm:max-w-4xl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <FlaskConical className="h-5 w-5 text-blue-500" />
-            Test Rule: {rule.name}
+            <FlaskConical className="h-5 w-5 text-emerald-700" />
+            Test Rule
           </DialogTitle>
           <DialogDescription>
-            Dry-run this rule against historical events to preview matches.
+            Dry-run {rule?.name ?? 'this rule'} against recent security events.
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4">
-          <div className="flex items-center gap-3">
-            <Label htmlFor="test-hours" className="shrink-0 text-sm">
-              Test against last
-            </Label>
-            <Input
-              id="test-hours"
-              type="number"
-              min={1}
-              max={168}
-              value={hours}
-              onChange={(e) => setHours(parseInt(e.target.value) || 24)}
-              className="w-24"
-            />
-            <span className="text-sm text-muted-foreground">hours of events</span>
+        <div className="grid gap-4 md:grid-cols-[220px_1fr]">
+          <div className="space-y-4 rounded-[22px] border p-4">
+            <div className="space-y-2">
+              <Label htmlFor="rule-test-limit">Event limit</Label>
+              <Input
+                id="rule-test-limit"
+                type="number"
+                min={100}
+                max={5000}
+                step={100}
+                value={limit}
+                onChange={(event) => setLimit(Number(event.target.value) || 1000)}
+              />
+            </div>
+            <p className="text-sm text-muted-foreground">
+              The backend evaluates the rule against the latest events since {requestBody.date_from}.
+            </p>
+            <Button className="w-full" onClick={() => void handleRun()} disabled={running || !rule}>
+              {running ? 'Running…' : 'Run Test'}
+            </Button>
+            {error ? (
+              <div className="rounded-2xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                {error}
+              </div>
+            ) : null}
           </div>
 
-          {loading && (
-            <div className="space-y-1.5">
-              <Progress value={undefined} className="h-1.5" />
-              <p className="text-xs text-muted-foreground">
-                Testing against {hours}h of historical events…
-              </p>
+          <div className="rounded-[22px] border p-4">
+            <div className="mb-4 flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium">Results</p>
+                <p className="text-sm text-muted-foreground">
+                  {result ? `${result.count} match${result.count === 1 ? '' : 'es'} found` : 'Run the test to preview matches.'}
+                </p>
+              </div>
+              {result ? <Badge variant="outline">{result.count} matches</Badge> : null}
             </div>
-          )}
 
-          {result && (
-            <div className="space-y-3">
-              {/* Summary */}
-              <div
-                className={`rounded-xl border p-4 ${
-                  result.error
-                    ? 'border-destructive/30 bg-destructive/5'
-                    : matchCount === 0
-                    ? 'border-green-200 bg-green-50/50 dark:border-green-900 dark:bg-green-950/20'
-                    : 'border-orange-200 bg-orange-50/50 dark:border-orange-900 dark:bg-orange-950/20'
-                }`}
-              >
-                {result.error ? (
-                  <div className="flex items-center gap-2">
-                    <XCircle className="h-5 w-5 text-destructive" />
-                    <span className="text-sm text-destructive">{result.error}</span>
-                  </div>
-                ) : matchCount === 0 ? (
-                  <div className="flex items-center gap-2">
-                    <CheckCircle className="h-5 w-5 text-green-600" />
-                    <span className="text-sm text-green-700 dark:text-green-400">
-                      No matches found. Consider adjusting your rule conditions.
-                    </span>
-                  </div>
-                ) : (
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <FlaskConical className="h-5 w-5 text-orange-600" />
-                      <span className="font-semibold text-sm">
-                        Would have generated{' '}
-                        <strong>{matchCount.toLocaleString()}</strong> alert
-                        {matchCount !== 1 ? 's' : ''} in the last {result.hours_tested} hours.
-                      </span>
-                    </div>
-                    {highMatch && (
-                      <div className="mt-2 flex items-center gap-1.5 text-xs text-orange-700 dark:text-orange-400">
-                        <AlertTriangle className="h-3.5 w-3.5" />
-                        This rule may generate excessive alerts. Consider adding filters.
+            <ScrollArea className="h-[420px] pr-3">
+              <div className="space-y-3">
+                {result?.matches?.length ? (
+                  result.matches.map((match, index) => (
+                    <div key={`${match.timestamp}-${index}`} className="rounded-2xl border bg-slate-950/95 p-4 text-slate-100">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <span className="text-sm font-medium">Match #{index + 1}</span>
+                        <span className="font-mono text-xs text-slate-300">{new Date(match.timestamp).toLocaleString()}</span>
                       </div>
-                    )}
+                      <pre className="mt-3 overflow-x-auto text-xs">
+                        {JSON.stringify(match.match_details, null, 2)}
+                      </pre>
+                    </div>
+                  ))
+                ) : (
+                  <div className="rounded-2xl border border-dashed p-6 text-center text-sm text-muted-foreground">
+                    No matches to preview.
                   </div>
                 )}
               </div>
-
-              {/* Sample matches */}
-              {result.sample_matches && result.sample_matches.length > 0 && (
-                <div>
-                  <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                    Sample Matches (first {result.sample_matches.length})
-                  </p>
-                  <div className="space-y-1.5 max-h-48 overflow-y-auto rounded-lg border p-2">
-                    {result.sample_matches.map((m, i) => (
-                      <div
-                        key={i}
-                        className="flex items-start justify-between gap-2 rounded-md bg-muted/30 px-2 py-1.5"
-                      >
-                        <div className="flex items-center gap-2 min-w-0">
-                          <SeverityIndicator severity={m.severity} />
-                          <span className="truncate text-xs font-medium">{m.title}</span>
-                        </div>
-                        {m.matched_at && (
-                          <span className="shrink-0 text-[10px] text-muted-foreground">
-                            {new Date(m.matched_at).toLocaleTimeString()}
-                          </span>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
+            </ScrollArea>
+          </div>
         </div>
 
         <DialogFooter>
-          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
             Close
-          </Button>
-          <Button type="button" onClick={() => void handleTest()} disabled={loading}>
-            <FlaskConical className="mr-1.5 h-3.5 w-3.5" />
-            {loading ? 'Testing…' : 'Run Test'}
           </Button>
         </DialogFooter>
       </DialogContent>

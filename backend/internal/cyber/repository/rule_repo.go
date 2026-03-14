@@ -58,6 +58,12 @@ func (r *RuleRepository) List(ctx context.Context, tenantID uuid.UUID, params *d
 	if params.Tag != nil && *params.Tag != "" {
 		qb.WhereArrayContains("a.tags", *params.Tag)
 	}
+	if params.MITRETacticID != nil && strings.TrimSpace(*params.MITRETacticID) != "" {
+		qb.Where("? = ANY(a.mitre_tactic_ids)", strings.TrimSpace(*params.MITRETacticID))
+	}
+	if params.MITRETechniqueID != nil && strings.TrimSpace(*params.MITRETechniqueID) != "" {
+		qb.Where("? = ANY(a.mitre_technique_ids)", strings.TrimSpace(*params.MITRETechniqueID))
+	}
 	qb.OrderBy("created_at", "desc", []string{"created_at"})
 	qb.Paginate(params.Page, params.PerPage)
 
@@ -252,18 +258,375 @@ func (r *RuleRepository) Update(ctx context.Context, tenantID, ruleID uuid.UUID,
 	return r.GetByID(ctx, tenantID, ruleID)
 }
 
-// Stats returns total and active rule counts for the tenant.
-func (r *RuleRepository) Stats(ctx context.Context, tenantID uuid.UUID) (total, active int, err error) {
-	row := r.db.QueryRow(ctx, `
+// Stats returns aggregate rule metrics for a tenant.
+func (r *RuleRepository) Stats(ctx context.Context, tenantID uuid.UUID) (*dto.RuleStatsResponse, error) {
+	stats := &dto.RuleStatsResponse{}
+	if err := r.db.QueryRow(ctx, `
 		SELECT
 			COUNT(*) AS total,
 			COUNT(*) FILTER (WHERE enabled = true) AS active
 		FROM detection_rules
 		WHERE tenant_id = $1 AND is_template = false AND deleted_at IS NULL`,
 		tenantID,
+	).Scan(&stats.Total, &stats.Active); err != nil {
+		return nil, fmt.Errorf("rule totals: %w", err)
+	}
+
+	buildCounts := func(query string) ([]model.NamedCount, error) {
+		rows, err := r.db.Query(ctx, query, tenantID)
+		if err != nil {
+			return nil, err
+		}
+		defer rows.Close()
+
+		items := make([]model.NamedCount, 0)
+		for rows.Next() {
+			var item model.NamedCount
+			if err := rows.Scan(&item.Name, &item.Count); err != nil {
+				return nil, err
+			}
+			items = append(items, item)
+		}
+		return items, rows.Err()
+	}
+
+	var err error
+	if stats.ByType, err = buildCounts(`
+		SELECT rule_type::text, COUNT(*)
+		FROM detection_rules
+		WHERE tenant_id = $1 AND is_template = false AND deleted_at IS NULL
+		GROUP BY rule_type
+		ORDER BY COUNT(*) DESC, rule_type ASC`); err != nil {
+		return nil, fmt.Errorf("rule stats by type: %w", err)
+	}
+	if stats.BySeverity, err = buildCounts(`
+		SELECT severity::text, COUNT(*)
+		FROM detection_rules
+		WHERE tenant_id = $1 AND is_template = false AND deleted_at IS NULL
+		GROUP BY severity
+		ORDER BY COUNT(*) DESC, severity ASC`); err != nil {
+		return nil, fmt.Errorf("rule stats by severity: %w", err)
+	}
+
+	var tpTotal int
+	var fpTotal int
+	if err := r.db.QueryRow(ctx, `
+		SELECT
+			COALESCE(SUM(true_positive_count), 0),
+			COALESCE(SUM(false_positive_count), 0)
+		FROM detection_rules
+		WHERE tenant_id = $1 AND is_template = false AND deleted_at IS NULL`,
+		tenantID,
+	).Scan(&tpTotal, &fpTotal); err != nil {
+		return nil, fmt.Errorf("rule feedback stats: %w", err)
+	}
+	if totalFeedback := tpTotal + fpTotal; totalFeedback > 0 {
+		stats.TruePositiveRate = float64(tpTotal) / float64(totalFeedback)
+	}
+	if err := r.db.QueryRow(ctx, `
+		SELECT COUNT(*)
+		FROM alerts
+		WHERE tenant_id = $1
+		  AND rule_id IS NOT NULL
+		  AND deleted_at IS NULL
+		  AND created_at >= now() - interval '30 days'`,
+		tenantID,
+	).Scan(&stats.AlertsLast30Days); err != nil {
+		return nil, fmt.Errorf("rule alerts last 30 days: %w", err)
+	}
+	return stats, nil
+}
+
+// RulePerformance returns operational metrics for a single rule.
+func (r *RuleRepository) RulePerformance(ctx context.Context, tenantID, ruleID uuid.UUID) (*dto.RulePerformanceResponse, error) {
+	perf := &dto.RulePerformanceResponse{
+		SeverityDistribution: []model.NamedCount{},
+		AlertTrend:           []dto.RuleAlertTrendPoint{},
+		TopAssets:            []dto.RuleTopAsset{},
+	}
+	if err := r.db.QueryRow(ctx, `
+		SELECT
+			COUNT(*) FILTER (WHERE created_at >= now() - interval '30 days') AS alerts_last_30_days,
+			COUNT(*) FILTER (WHERE created_at >= now() - interval '90 days') AS alerts_last_90_days
+		FROM alerts
+		WHERE tenant_id = $1
+		  AND rule_id = $2
+		  AND deleted_at IS NULL`,
+		tenantID, ruleID,
+	).Scan(&perf.AlertsLast30Days, &perf.AlertsLast90Days); err != nil {
+		return nil, fmt.Errorf("rule performance totals: %w", err)
+	}
+
+	rows, err := r.db.Query(ctx, `
+		SELECT severity::text, COUNT(*)
+		FROM alerts
+		WHERE tenant_id = $1
+		  AND rule_id = $2
+		  AND deleted_at IS NULL
+		  AND created_at >= now() - interval '90 days'
+		GROUP BY severity
+		ORDER BY COUNT(*) DESC, severity ASC`,
+		tenantID, ruleID,
 	)
-	err = row.Scan(&total, &active)
-	return
+	if err != nil {
+		return nil, fmt.Errorf("rule severity distribution: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var item model.NamedCount
+		if err := rows.Scan(&item.Name, &item.Count); err != nil {
+			return nil, err
+		}
+		perf.SeverityDistribution = append(perf.SeverityDistribution, item)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	trendRows, err := r.db.Query(ctx, `
+		WITH buckets AS (
+			SELECT generate_series(
+				date_trunc('day', now() - interval '89 days'),
+				date_trunc('day', now()),
+				interval '1 day'
+			) AS bucket
+		)
+		SELECT
+			b.bucket,
+			COALESCE(alerts.count, 0) AS count
+		FROM buckets b
+		LEFT JOIN (
+			SELECT date_trunc('day', created_at) AS bucket, COUNT(*)::int AS count
+			FROM alerts
+			WHERE tenant_id = $1
+			  AND rule_id = $2
+			  AND deleted_at IS NULL
+			  AND created_at >= now() - interval '90 days'
+			GROUP BY 1
+		) alerts ON alerts.bucket = b.bucket
+		ORDER BY b.bucket ASC`,
+		tenantID, ruleID,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("rule alert trend: %w", err)
+	}
+	defer trendRows.Close()
+	for trendRows.Next() {
+		var point dto.RuleAlertTrendPoint
+		if err := trendRows.Scan(&point.Date, &point.Count); err != nil {
+			return nil, err
+		}
+		perf.AlertTrend = append(perf.AlertTrend, point)
+	}
+	if err := trendRows.Err(); err != nil {
+		return nil, err
+	}
+
+	assetRows, err := r.db.Query(ctx, `
+		SELECT
+			a.asset_id,
+			COALESCE(assets.name, CASE WHEN a.asset_id IS NOT NULL THEN a.asset_id::text ELSE 'Unknown asset' END) AS asset_name,
+			COUNT(*)::int AS alert_count
+		FROM alerts a
+		LEFT JOIN assets ON assets.tenant_id = a.tenant_id AND assets.id = a.asset_id AND assets.deleted_at IS NULL
+		WHERE a.tenant_id = $1
+		  AND a.rule_id = $2
+		  AND a.deleted_at IS NULL
+		  AND a.created_at >= now() - interval '90 days'
+		GROUP BY a.asset_id, asset_name
+		ORDER BY alert_count DESC, asset_name ASC
+		LIMIT 5`,
+		tenantID, ruleID,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("rule top assets: %w", err)
+	}
+	defer assetRows.Close()
+	for assetRows.Next() {
+		var item dto.RuleTopAsset
+		if err := assetRows.Scan(&item.AssetID, &item.AssetName, &item.AlertCount); err != nil {
+			return nil, err
+		}
+		perf.TopAssets = append(perf.TopAssets, item)
+	}
+	if err := assetRows.Err(); err != nil {
+		return nil, err
+	}
+	return perf, nil
+}
+
+// ListByTechnique returns tenant rules mapped to a MITRE technique.
+func (r *RuleRepository) ListByTechnique(ctx context.Context, tenantID uuid.UUID, techniqueID string) ([]*model.DetectionRule, error) {
+	rows, err := r.db.Query(ctx, `
+		SELECT
+			id, tenant_id, name, description, rule_type, severity,
+			enabled, rule_content, mitre_tactic_ids, mitre_technique_ids,
+			base_confidence, false_positive_count, true_positive_count,
+			last_triggered_at, trigger_count, tags, is_template,
+			template_id, created_by, created_at, updated_at, deleted_at
+		FROM detection_rules
+		WHERE tenant_id = $1
+		  AND is_template = false
+		  AND deleted_at IS NULL
+		  AND $2 = ANY(mitre_technique_ids)
+		ORDER BY enabled DESC, trigger_count DESC, name ASC`,
+		tenantID, techniqueID,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("list rules by technique: %w", err)
+	}
+	defer rows.Close()
+
+	items := make([]*model.DetectionRule, 0)
+	for rows.Next() {
+		item, err := scanRule(rows)
+		if err != nil {
+			return nil, err
+		}
+		items = append(items, item)
+	}
+	return items, rows.Err()
+}
+
+// TechniqueCoverageContext captures tenant-specific threat and alert activity for a technique.
+type TechniqueCoverageContext struct {
+	AlertCount        int
+	ThreatCount       int
+	ActiveThreatCount int
+	LastAlertAt       *time.Time
+	Threats           []dto.MITREThreatReferenceDTO
+}
+
+// TechniqueCoverageContextMap returns alert and threat context for every MITRE technique seen by the tenant.
+func (r *RuleRepository) TechniqueCoverageContextMap(ctx context.Context, tenantID uuid.UUID) (map[string]*TechniqueCoverageContext, error) {
+	contextMap := make(map[string]*TechniqueCoverageContext)
+
+	alertRows, err := r.db.Query(ctx, `
+		SELECT
+			mitre_technique_id,
+			COUNT(*)::int AS alert_count,
+			MAX(created_at) AS last_alert_at
+		FROM alerts
+		WHERE tenant_id = $1
+		  AND deleted_at IS NULL
+		  AND mitre_technique_id IS NOT NULL
+		  AND created_at >= now() - interval '90 days'
+		GROUP BY mitre_technique_id`,
+		tenantID,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("mitre alert context: %w", err)
+	}
+	defer alertRows.Close()
+	for alertRows.Next() {
+		var (
+			techniqueID string
+			alertCount  int
+			lastAlertAt *time.Time
+		)
+		if err := alertRows.Scan(&techniqueID, &alertCount, &lastAlertAt); err != nil {
+			return nil, err
+		}
+		contextMap[techniqueID] = &TechniqueCoverageContext{
+			AlertCount:  alertCount,
+			LastAlertAt: lastAlertAt,
+			Threats:     []dto.MITREThreatReferenceDTO{},
+		}
+	}
+	if err := alertRows.Err(); err != nil {
+		return nil, err
+	}
+
+	threatRows, err := r.db.Query(ctx, `
+		SELECT
+			t.id,
+			t.name,
+			t.type,
+			t.severity,
+			t.status,
+			t.last_seen_at,
+			technique_id
+		FROM threats t
+		CROSS JOIN LATERAL unnest(COALESCE(t.mitre_technique_ids, ARRAY[]::text[])) AS technique_id
+		WHERE t.tenant_id = $1
+		  AND t.deleted_at IS NULL`,
+		tenantID,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("mitre threat context: %w", err)
+	}
+	defer threatRows.Close()
+	for threatRows.Next() {
+		var (
+			item        dto.MITREThreatReferenceDTO
+			techniqueID string
+		)
+		if err := threatRows.Scan(
+			&item.ID,
+			&item.Name,
+			&item.Type,
+			&item.Severity,
+			&item.Status,
+			&item.LastSeenAt,
+			&techniqueID,
+		); err != nil {
+			return nil, err
+		}
+		entry, ok := contextMap[techniqueID]
+		if !ok {
+			entry = &TechniqueCoverageContext{Threats: []dto.MITREThreatReferenceDTO{}}
+			contextMap[techniqueID] = entry
+		}
+		entry.ThreatCount++
+		if item.Status != model.ThreatStatusClosed && item.Status != model.ThreatStatusEradicated {
+			entry.ActiveThreatCount++
+		}
+		entry.Threats = append(entry.Threats, item)
+	}
+	if err := threatRows.Err(); err != nil {
+		return nil, err
+	}
+
+	return contextMap, nil
+}
+
+// TechniqueRecentAlerts returns a compact alert list for a MITRE technique.
+func (r *RuleRepository) TechniqueRecentAlerts(ctx context.Context, tenantID uuid.UUID, techniqueID string, limit int) ([]dto.MITREAlertReferenceDTO, error) {
+	if limit <= 0 {
+		limit = 10
+	}
+	rows, err := r.db.Query(ctx, `
+		SELECT
+			a.id,
+			a.title,
+			a.severity,
+			a.status,
+			a.confidence_score,
+			COALESCE(assets.name, NULL) AS asset_name,
+			a.created_at
+		FROM alerts a
+		LEFT JOIN assets ON assets.tenant_id = a.tenant_id AND assets.id = a.asset_id AND assets.deleted_at IS NULL
+		WHERE a.tenant_id = $1
+		  AND a.deleted_at IS NULL
+		  AND a.mitre_technique_id = $2
+		ORDER BY a.created_at DESC
+		LIMIT $3`,
+		tenantID, techniqueID, limit,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("technique recent alerts: %w", err)
+	}
+	defer rows.Close()
+
+	items := make([]dto.MITREAlertReferenceDTO, 0, limit)
+	for rows.Next() {
+		var item dto.MITREAlertReferenceDTO
+		if err := rows.Scan(&item.ID, &item.Title, &item.Severity, &item.Status, &item.ConfidenceScore, &item.AssetName, &item.CreatedAt); err != nil {
+			return nil, err
+		}
+		items = append(items, item)
+	}
+	return items, rows.Err()
 }
 
 // SoftDelete marks a rule as deleted.

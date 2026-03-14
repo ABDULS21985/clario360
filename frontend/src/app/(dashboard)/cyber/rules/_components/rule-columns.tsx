@@ -1,93 +1,36 @@
 'use client';
 
+import Link from 'next/link';
 import { useState } from 'react';
-import { ColumnDef, Row } from '@tanstack/react-table';
-import { Switch } from '@/components/ui/switch';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import {
-  MoreHorizontal,
-  Pencil,
-  FlaskConical,
-  Copy,
-  Trash2,
-  Bell,
-  AlertTriangle,
-} from 'lucide-react';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
+import type { ColumnDef, Row } from '@tanstack/react-table';
+import { Copy, Eye, FlaskConical, MoreHorizontal, Pencil, Trash2 } from 'lucide-react';
+
 import { ConfirmDialog } from '@/components/shared/confirm-dialog';
 import { SeverityIndicator } from '@/components/shared/severity-indicator';
-import { RulePerformanceCard } from './rule-performance-card';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { Switch } from '@/components/ui/switch';
+import { getRuleTypeColor, getRuleTypeLabel } from '@/lib/cyber-rules';
 import { timeAgo } from '@/lib/utils';
 import type { DetectionRule } from '@/types/cyber';
 
-const RULE_TYPE_COLORS: Record<string, string> = {
-  sigma: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300',
-  threshold: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300',
-  correlation: 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300',
-  anomaly: 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300',
-};
+import { RulePerformanceCard } from './rule-performance-card';
 
 interface RuleColumnOptions {
-  onToggle?: (rule: DetectionRule) => void;
-  onEdit?: (rule: DetectionRule) => void;
-  onTest?: (rule: DetectionRule) => void;
-  onDuplicate?: (rule: DetectionRule) => void;
-  onDelete?: (rule: DetectionRule) => void;
-  onViewAlerts?: (rule: DetectionRule) => void;
-}
-
-function RuleToggleCell({
-  rule,
-  onToggle,
-}: {
-  rule: DetectionRule;
-  onToggle?: (rule: DetectionRule) => void;
-}) {
-  const [optimisticEnabled, setOptimisticEnabled] = useState(rule.enabled);
-  const fpHigh = rule.false_positive_rate * 100 > 50;
-
-  const handleChange = () => {
-    setOptimisticEnabled((prev) => !prev);
-    onToggle?.(rule);
-  };
-
-  return (
-    <div className="flex items-center gap-1.5">
-      <Switch
-        checked={optimisticEnabled}
-        onCheckedChange={handleChange}
-        aria-label={`Toggle ${rule.name}`}
-      />
-      {fpHigh && !optimisticEnabled && (
-        <span title="High FP rate — auto-disable risk">
-          <AlertTriangle className="h-3.5 w-3.5 text-red-500" aria-hidden />
-        </span>
-      )}
-    </div>
-  );
+  onToggle: (rule: DetectionRule) => void;
+  onEdit: (rule: DetectionRule) => void;
+  onDuplicate: (rule: DetectionRule) => void;
+  onDelete: (rule: DetectionRule) => void;
+  onTest: (rule: DetectionRule) => void;
 }
 
 function ActionsCell({
   rule,
-  onEdit,
-  onTest,
-  onDuplicate,
-  onDelete,
-  onViewAlerts,
+  options,
 }: {
   rule: DetectionRule;
-  onEdit?: (rule: DetectionRule) => void;
-  onTest?: (rule: DetectionRule) => void;
-  onDuplicate?: (rule: DetectionRule) => void;
-  onDelete?: (rule: DetectionRule) => void;
-  onViewAlerts?: (rule: DetectionRule) => void;
+  options: RuleColumnOptions;
 }) {
   const [deleteOpen, setDeleteOpen] = useState(false);
 
@@ -95,85 +38,75 @@ function ActionsCell({
     <>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant="ghost" size="sm" className="h-7 w-7 p-0">
+          <Button variant="ghost" size="icon" className="h-8 w-8">
             <MoreHorizontal className="h-4 w-4" />
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
-          <DropdownMenuItem onClick={() => onEdit?.(rule)}>
-            <Pencil className="mr-2 h-3.5 w-3.5" />
-            {rule.is_template ? 'Customize' : 'Edit'}
+          <DropdownMenuItem asChild>
+            <Link href={`/cyber/detection-rules/${rule.id}`}>
+              <Eye className="mr-2 h-4 w-4" />
+              View Details
+            </Link>
           </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => onTest?.(rule)}>
-            <FlaskConical className="mr-2 h-3.5 w-3.5" /> Test Rule
+          <DropdownMenuItem onClick={() => options.onEdit(rule)}>
+            <Pencil className="mr-2 h-4 w-4" />
+            Edit
           </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => onDuplicate?.(rule)}>
-            <Copy className="mr-2 h-3.5 w-3.5" /> Duplicate
+          <DropdownMenuItem onClick={() => options.onDuplicate(rule)}>
+            <Copy className="mr-2 h-4 w-4" />
+            Duplicate
           </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => onViewAlerts?.(rule)}>
-            <Bell className="mr-2 h-3.5 w-3.5" /> View Alerts
+          <DropdownMenuItem onClick={() => options.onTest(rule)}>
+            <FlaskConical className="mr-2 h-4 w-4" />
+            Test Rule
           </DropdownMenuItem>
           <DropdownMenuSeparator />
-          <DropdownMenuItem
-            onClick={() => setDeleteOpen(true)}
-            className="text-destructive focus:text-destructive"
-          >
-            <Trash2 className="mr-2 h-3.5 w-3.5" /> Delete
+          <DropdownMenuItem className="text-red-600 focus:text-red-600" onClick={() => setDeleteOpen(true)}>
+            <Trash2 className="mr-2 h-4 w-4" />
+            Delete
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
+
       <ConfirmDialog
         open={deleteOpen}
         onOpenChange={setDeleteOpen}
-        title="Delete Detection Rule"
-        description={`Are you sure you want to delete "${rule.name}"? This action cannot be undone.`}
+        title="Delete detection rule"
+        description={`Delete "${rule.name}"? The rule will be soft-deleted and no longer available in the detection engine.`}
         confirmLabel="Delete"
         variant="destructive"
-        onConfirm={() => {
-          setDeleteOpen(false);
-          onDelete?.(rule);
-        }}
+        onConfirm={() => options.onDelete(rule)}
       />
     </>
   );
 }
 
-export function getRuleColumns(options: RuleColumnOptions = {}): ColumnDef<DetectionRule>[] {
+export function getRuleColumns(options: RuleColumnOptions): ColumnDef<DetectionRule>[] {
   return [
-    {
-      id: 'enabled',
-      header: 'Active',
-      cell: ({ row }: { row: Row<DetectionRule> }) => (
-        <RuleToggleCell rule={row.original} onToggle={options.onToggle} />
-      ),
-    },
     {
       id: 'name',
       accessorKey: 'name',
-      header: 'Rule',
-      cell: ({ row }: { row: Row<DetectionRule> }) => {
-        const rule = row.original;
-        return (
-          <div>
-            <p className="font-medium">{rule.name}</p>
-            <p className="line-clamp-1 max-w-xs text-xs text-muted-foreground">{rule.description}</p>
-          </div>
-        );
-      },
+      header: 'Rule Name',
       enableSorting: true,
+      cell: ({ row }: { row: Row<DetectionRule> }) => (
+        <div className="space-y-1">
+          <Link href={`/cyber/detection-rules/${row.original.id}`} className="font-medium text-slate-950 hover:text-emerald-700 hover:underline">
+            {row.original.name}
+          </Link>
+          <p className="max-w-md truncate text-xs text-muted-foreground">{row.original.description || 'No description provided.'}</p>
+        </div>
+      ),
     },
     {
       id: 'type',
-      accessorKey: 'type',
+      accessorKey: 'rule_type',
       header: 'Type',
       cell: ({ row }: { row: Row<DetectionRule> }) => (
-        <span
-          className={`rounded-full px-2 py-0.5 text-xs font-medium capitalize ${RULE_TYPE_COLORS[row.original.type] ?? ''}`}
-        >
-          {row.original.type}
-        </span>
+        <Badge className={getRuleTypeColor(row.original.rule_type)}>
+          {getRuleTypeLabel(row.original.rule_type)}
+        </Badge>
       ),
-      enableSorting: true,
     },
     {
       id: 'severity',
@@ -182,60 +115,69 @@ export function getRuleColumns(options: RuleColumnOptions = {}): ColumnDef<Detec
       cell: ({ row }: { row: Row<DetectionRule> }) => (
         <SeverityIndicator severity={row.original.severity} showLabel />
       ),
-      enableSorting: true,
     },
     {
       id: 'mitre',
-      header: 'MITRE',
+      header: 'MITRE Technique',
       cell: ({ row }: { row: Row<DetectionRule> }) => {
-        const ids = row.original.mitre_technique_ids ?? [];
-        if (ids.length === 0) return <span className="text-muted-foreground">—</span>;
+        const techniques = row.original.mitre_technique_ids ?? [];
+        if (techniques.length === 0) {
+          return <span className="text-sm text-muted-foreground">Unmapped</span>;
+        }
         return (
           <div className="flex flex-wrap gap-1">
-            {ids.slice(0, 2).map((id) => (
-              <Badge key={id} variant="outline" className="font-mono text-xs">
-                {id}
+            {techniques.slice(0, 2).map((techniqueId) => (
+              <Badge key={techniqueId} variant="outline" className="font-mono text-xs">
+                {techniqueId}
               </Badge>
             ))}
-            {ids.length > 2 && (
-              <span className="text-xs text-muted-foreground">+{ids.length - 2}</span>
-            )}
+            {techniques.length > 2 ? (
+              <span className="text-xs text-muted-foreground">+{techniques.length - 2}</span>
+            ) : null}
           </div>
         );
       },
     },
     {
-      id: 'performance',
-      header: 'Performance',
+      id: 'enabled',
+      accessorKey: 'enabled',
+      header: 'Status',
       cell: ({ row }: { row: Row<DetectionRule> }) => (
-        <RulePerformanceCard rule={row.original} />
+        <div className="flex items-center gap-3">
+          <Switch checked={row.original.enabled} onCheckedChange={() => options.onToggle(row.original)} />
+          <span className="text-sm text-muted-foreground">{row.original.enabled ? 'Enabled' : 'Disabled'}</span>
+        </div>
+      ),
+    },
+    {
+      id: 'performance',
+      header: 'TP / FP',
+      cell: ({ row }: { row: Row<DetectionRule> }) => <RulePerformanceCard rule={row.original} />,
+    },
+    {
+      id: 'alerts',
+      accessorKey: 'trigger_count',
+      header: 'Alerts Generated',
+      enableSorting: true,
+      cell: ({ row }: { row: Row<DetectionRule> }) => (
+        <span className="tabular-nums text-sm">{row.original.trigger_count.toLocaleString()}</span>
       ),
     },
     {
       id: 'last_triggered',
-      accessorKey: 'last_triggered',
+      accessorKey: 'last_triggered_at',
       header: 'Last Triggered',
+      enableSorting: true,
       cell: ({ row }: { row: Row<DetectionRule> }) => (
         <span className="text-sm text-muted-foreground">
-          {row.original.last_triggered ? timeAgo(row.original.last_triggered) : 'Never'}
+          {row.original.last_triggered_at ? timeAgo(row.original.last_triggered_at) : 'Never'}
         </span>
       ),
-      enableSorting: true,
     },
     {
       id: 'actions',
       header: '',
-      cell: ({ row }: { row: Row<DetectionRule> }) => (
-        <ActionsCell
-          rule={row.original}
-          onEdit={options.onEdit}
-          onTest={options.onTest}
-          onDuplicate={options.onDuplicate}
-          onDelete={options.onDelete}
-          onViewAlerts={options.onViewAlerts}
-        />
-      ),
-      enableSorting: false,
+      cell: ({ row }: { row: Row<DetectionRule> }) => <ActionsCell rule={row.original} options={options} />,
     },
   ];
 }

@@ -19,6 +19,7 @@ func RegisterRoutes(
 	alertHandler *AlertHandler,
 	ruleHandler *RuleHandler,
 	threatHandler *ThreatHandler,
+	threatFeedHandler *ThreatFeedHandler,
 	mitreHandler *MITREHandler,
 	ctemHandler *CTEMHandler,
 	ctemReportHandler *CTEMReportHandler,
@@ -80,14 +81,17 @@ func RegisterRoutes(
 		r.Get("/alerts/{id}", alertHandler.GetAlert)
 		r.Get("/alerts", alertHandler.ListAlerts)
 		r.Put("/alerts/{id}/status", alertHandler.UpdateStatus)
+		r.Put("/alerts/{id}/false-positive", alertHandler.MarkFalsePositive)
 		r.Put("/alerts/{id}/assign", alertHandler.Assign)
 		r.Post("/alerts/{id}/escalate", alertHandler.Escalate)
 		r.Post("/alerts/{id}/comment", alertHandler.AddComment)
+		r.Post("/alerts/{id}/comments", alertHandler.AddComment)
 		r.Post("/alerts/{id}/merge", alertHandler.Merge)
 
 		// ---- Detection Rules ----
 		r.Get("/rules/stats", ruleHandler.Stats)
 		r.Get("/rules/templates", ruleHandler.ListTemplates)
+		r.Get("/rules/{id}/performance", ruleHandler.Performance)
 		r.Get("/rules/{id}", ruleHandler.GetRule)
 		r.Get("/rules", ruleHandler.ListRules)
 		r.Post("/rules", ruleHandler.CreateRule)
@@ -99,14 +103,37 @@ func RegisterRoutes(
 
 		// ---- Threats & Indicators ----
 		r.Get("/threats/stats", threatHandler.Stats)
+		r.Get("/threats/stats/trend", threatHandler.Trend)
+		r.Post("/threats", threatHandler.CreateThreat)
 		r.Get("/threats/{id}/indicators", threatHandler.ListIndicatorsForThreat)
 		r.Post("/threats/{id}/indicators", threatHandler.AddIndicatorToThreat)
+		r.Put("/indicators/{indicatorId}/status", threatHandler.UpdateIndicatorStatus)
+		r.Get("/threats/{id}/alerts", threatHandler.RelatedAlerts)
+		r.Get("/threats/{id}/timeline", threatHandler.Timeline)
 		r.Get("/threats/{id}", threatHandler.GetThreat)
+		r.Put("/threats/{id}", threatHandler.UpdateThreat)
+		r.Delete("/threats/{id}", threatHandler.DeleteThreat)
 		r.Get("/threats", threatHandler.ListThreats)
 		r.Put("/threats/{id}/status", threatHandler.UpdateStatus)
 		r.Post("/indicators/check", threatHandler.CheckIndicators)
 		r.Post("/indicators/bulk", threatHandler.BulkImportIndicators)
+		r.Get("/indicators/stats", threatHandler.IndicatorStats)
+		r.Post("/indicators", threatHandler.CreateIndicator)
 		r.Get("/indicators", threatHandler.ListIndicators)
+		r.Get("/indicators/{indicatorId}", threatHandler.GetIndicator)
+		r.Put("/indicators/{indicatorId}", threatHandler.UpdateIndicator)
+		r.Delete("/indicators/{indicatorId}", threatHandler.DeleteIndicator)
+		r.Get("/indicators/{indicatorId}/enrichment", threatHandler.IndicatorEnrichment)
+		r.Get("/indicators/{indicatorId}/matches", threatHandler.IndicatorMatches)
+
+		// ---- Threat Feeds ----
+		if threatFeedHandler != nil {
+			r.Get("/threat-feeds", threatFeedHandler.List)
+			r.Post("/threat-feeds", threatFeedHandler.Create)
+			r.Put("/threat-feeds/{feedId}", threatFeedHandler.Update)
+			r.Post("/threat-feeds/{feedId}/sync", threatFeedHandler.Sync)
+			r.Get("/threat-feeds/{feedId}/history", threatFeedHandler.History)
+		}
 
 		// ---- MITRE ATT&CK ----
 		r.Get("/mitre/tactics", mitreHandler.ListTactics)

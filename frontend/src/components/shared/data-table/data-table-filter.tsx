@@ -1,8 +1,9 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Check, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DateRangePicker } from "@/components/shared/forms/date-range-picker";
+import { Slider } from "@/components/ui/slider";
 import {
   Popover,
   PopoverContent,
@@ -126,5 +127,119 @@ export function DataTableFilter({
     );
   }
 
+  if (config.type === "range") {
+    return (
+      <RangeFilterControl
+        config={config}
+        isActive={isActive}
+        open={open}
+        setOpen={setOpen}
+        value={value}
+        onChange={onChange}
+      />
+    );
+  }
+
   return null;
+}
+
+interface RangeFilterControlProps {
+  config: FilterConfig;
+  isActive: boolean;
+  open: boolean;
+  setOpen: (open: boolean) => void;
+  value: string | string[] | undefined;
+  onChange: (key: string, value: string | string[] | undefined) => void;
+}
+
+function RangeFilterControl({
+  config,
+  isActive,
+  open,
+  setOpen,
+  value,
+  onChange,
+}: RangeFilterControlProps) {
+  const min = config.min ?? 0;
+  const max = config.max ?? 100;
+  const step = config.step ?? 1;
+  const suffix = config.valueSuffix ?? "";
+  const parsed = typeof value === "string"
+    ? value.split(",").map((part) => Number(part))
+    : [min, max];
+  const initialRange: [number, number] = [
+    Number.isFinite(parsed[0]) ? parsed[0] : min,
+    Number.isFinite(parsed[1]) ? parsed[1] : max,
+  ];
+  const [range, setRange] = useState<[number, number]>(initialRange);
+
+  useEffect(() => {
+    setRange(initialRange);
+  }, [initialRange[0], initialRange[1]]);
+
+  const displayValue = `${range[0]}${suffix} - ${range[1]}${suffix}`;
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          variant="outline"
+          size="sm"
+          className={cn("h-8 border-dashed", isActive && "border-primary")}
+        >
+          {config.label}
+          {isActive && (
+            <span className="ml-2 text-xs text-muted-foreground">
+              {displayValue}
+            </span>
+          )}
+          <ChevronDown className="ml-2 h-4 w-4 opacity-50" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-72 space-y-4 p-4" align="start">
+        <div className="flex items-center justify-between text-sm">
+          <span>{range[0]}{suffix}</span>
+          <span>{range[1]}{suffix}</span>
+        </div>
+        <Slider
+          value={range}
+          min={min}
+          max={max}
+          step={step}
+          onValueChange={(next) => {
+            if (next.length === 2) {
+              setRange([next[0] ?? min, next[1] ?? max]);
+            }
+          }}
+        />
+        <div className="flex items-center justify-between">
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              setRange([min, max]);
+              onChange(config.key, undefined);
+              setOpen(false);
+            }}
+          >
+            Reset
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            onClick={() => {
+              const nextValue = range[0] <= min && range[1] >= max
+                ? undefined
+                : `${range[0]},${range[1]}`;
+              onChange(config.key, nextValue);
+              setOpen(false);
+            }}
+          >
+            Apply
+          </Button>
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
 }

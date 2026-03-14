@@ -15,6 +15,7 @@ import { SeverityIndicator } from '@/components/shared/severity-indicator';
 import { LoadingSkeleton } from '@/components/common/loading-skeleton';
 import { ErrorState } from '@/components/common/error-state';
 import { apiGet } from '@/lib/api';
+import { normalizeRuleTemplate } from '@/lib/cyber-rules';
 import { API_ENDPOINTS } from '@/lib/constants';
 import type { RuleTemplate } from '@/types/cyber';
 
@@ -44,7 +45,7 @@ export function RuleTemplateGallery({
     enabled: open,
   });
 
-  const templates = envelope?.data ?? [];
+  const templates = (envelope?.data ?? []).map(normalizeRuleTemplate);
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -77,9 +78,9 @@ export function RuleTemplateGallery({
                       </div>
                       <div className="mb-2 flex flex-wrap gap-1">
                         <span
-                          className={`rounded-full px-2 py-0.5 text-xs font-medium capitalize ${RULE_TYPE_COLORS[template.type] ?? ''}`}
+                          className={`rounded-full px-2 py-0.5 text-xs font-medium capitalize ${RULE_TYPE_COLORS[template.rule_type] ?? ''}`}
                         >
-                          {template.type}
+                          {template.rule_type}
                         </span>
                         {template.mitre_technique_ids.slice(0, 2).map((id) => (
                           <Badge key={id} variant="outline" className="font-mono text-xs">

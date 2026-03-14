@@ -38,7 +38,8 @@ func (r *AlertRepository) List(ctx context.Context, tenantID uuid.UUID, params *
 			a.event_count, a.first_event_at, a.last_event_at, a.resolved_at,
 			a.resolution_notes, a.false_positive_reason, a.tags, a.metadata,
 			a.created_at, a.updated_at, a.deleted_at
-		FROM alerts a`
+		FROM alerts a
+		LEFT JOIN detection_rules dr ON dr.tenant_id = a.tenant_id AND dr.id = a.rule_id`
 	qb := database.NewQueryBuilder(baseSelect)
 	qb.Where("a.tenant_id = ?", tenantID)
 	qb.Where("a.deleted_at IS NULL")
@@ -69,6 +70,9 @@ func (r *AlertRepository) List(ctx context.Context, tenantID uuid.UUID, params *
 	if params.RuleID != nil {
 		qb.Where("a.rule_id = ?", *params.RuleID)
 	}
+	if params.RuleType != nil {
+		qb.Where("dr.rule_type = ?", *params.RuleType)
+	}
 	if params.MITRETechniqueID != nil {
 		qb.Where("a.mitre_technique_id = ?", *params.MITRETechniqueID)
 	}
@@ -77,6 +81,9 @@ func (r *AlertRepository) List(ctx context.Context, tenantID uuid.UUID, params *
 	}
 	if params.MinConfidence != nil {
 		qb.Where("a.confidence_score >= ?", *params.MinConfidence)
+	}
+	if params.MaxConfidence != nil {
+		qb.Where("a.confidence_score <= ?", *params.MaxConfidence)
 	}
 	if len(params.Tags) > 0 {
 		qb.WhereArrayContainsAll("a.tags", params.Tags)
@@ -110,7 +117,13 @@ func (r *AlertRepository) List(ctx context.Context, tenantID uuid.UUID, params *
 		}
 		alerts = append(alerts, alert)
 	}
-	return alerts, total, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, 0, err
+	}
+	if err := r.enrichAlerts(ctx, tenantID, alerts); err != nil {
+		return nil, 0, err
+	}
+	return alerts, total, nil
 }
 
 // Count returns a simple count with the provided filters.
@@ -140,6 +153,9 @@ func (r *AlertRepository) GetByID(ctx context.Context, tenantID, alertID uuid.UU
 			return nil, ErrNotFound
 		}
 		return nil, fmt.Errorf("get alert: %w", err)
+	}
+	if err := r.enrichAlerts(ctx, tenantID, []*model.Alert{alert}); err != nil {
+		return nil, err
 	}
 	return alert, nil
 }
@@ -171,7 +187,13 @@ func (r *AlertRepository) GetByIDs(ctx context.Context, tenantID uuid.UUID, aler
 		}
 		alerts = append(alerts, alert)
 	}
-	return alerts, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	if err := r.enrichAlerts(ctx, tenantID, alerts); err != nil {
+		return nil, err
+	}
+	return alerts, nil
 }
 
 // Create inserts an alert.
@@ -351,6 +373,9 @@ func (r *AlertRepository) FindOpenByRuleAndAsset(ctx context.Context, tenantID, 
 		}
 		return nil, fmt.Errorf("find open alert by rule and asset: %w", err)
 	}
+	if err := r.enrichAlerts(ctx, tenantID, []*model.Alert{alert}); err != nil {
+		return nil, err
+	}
 	return alert, nil
 }
 
@@ -386,6 +411,7 @@ func (r *AlertRepository) FindRelated(ctx context.Context, tenantID, alertID uui
 	if err != nil {
 		return nil, err
 	}
+	indicatorValues := indicatorMatchValues(alert.Explanation.IndicatorMatches)
 	rows, err := r.db.Query(ctx, `
 		SELECT
 			id, tenant_id, title, description, severity, status,
@@ -402,11 +428,16 @@ func (r *AlertRepository) FindRelated(ctx context.Context, tenantID, alertID uui
 		  AND (
 			(asset_id IS NOT NULL AND $3::uuid IS NOT NULL AND asset_id = $3::uuid) OR
 			(rule_id IS NOT NULL AND $4::uuid IS NOT NULL AND rule_id = $4::uuid) OR
-			(mitre_technique_id IS NOT NULL AND $5::text IS NOT NULL AND mitre_technique_id = $5::text)
+			(mitre_technique_id IS NOT NULL AND $5::text IS NOT NULL AND mitre_technique_id = $5::text) OR
+			(cardinality($6::text[]) > 0 AND EXISTS (
+				SELECT 1
+				FROM jsonb_array_elements(COALESCE(explanation->'indicator_matches', '[]'::jsonb)) AS elem
+				WHERE LOWER(elem->>'value') = ANY($6)
+			))
 		  )
 		ORDER BY created_at DESC
 		LIMIT 25`,
-		tenantID, alertID, alert.AssetID, alert.RuleID, alert.MITRETechniqueID,
+		tenantID, alertID, alert.AssetID, alert.RuleID, alert.MITRETechniqueID, indicatorValues,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("find related alerts: %w", err)
@@ -420,7 +451,71 @@ func (r *AlertRepository) FindRelated(ctx context.Context, tenantID, alertID uui
 		}
 		results = append(results, related)
 	}
-	return results, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	if err := r.enrichAlerts(ctx, tenantID, results); err != nil {
+		return nil, err
+	}
+	return results, nil
+}
+
+// FindByThreatContext returns alerts correlated to a threat's indicators or ATT&CK techniques.
+func (r *AlertRepository) FindByThreatContext(ctx context.Context, tenantID uuid.UUID, indicatorValues, techniqueIDs []string, limit int) ([]*model.Alert, error) {
+	if len(indicatorValues) == 0 && len(techniqueIDs) == 0 {
+		return []*model.Alert{}, nil
+	}
+	if limit <= 0 {
+		limit = 25
+	}
+
+	rows, err := r.db.Query(ctx, `
+		SELECT DISTINCT
+			a.id, a.tenant_id, a.title, a.description, a.severity, a.status,
+			a.source, a.rule_id, a.asset_id, a.asset_ids, a.assigned_to, a.assigned_at,
+			a.escalated_to, a.escalated_at, a.explanation, a.confidence_score,
+			a.mitre_tactic_id, a.mitre_tactic_name, a.mitre_technique_id, a.mitre_technique_name,
+			a.event_count, a.first_event_at, a.last_event_at, a.resolved_at,
+			a.resolution_notes, a.false_positive_reason, a.tags, a.metadata,
+			a.created_at, a.updated_at, a.deleted_at
+		FROM alerts a
+		WHERE a.tenant_id = $1
+		  AND a.deleted_at IS NULL
+		  AND (
+			(cardinality($2::text[]) > 0 AND a.mitre_technique_id = ANY($2)) OR
+			(cardinality($3::text[]) > 0 AND EXISTS (
+				SELECT 1
+				FROM jsonb_array_elements(COALESCE(a.explanation->'indicator_matches', '[]'::jsonb)) AS elem
+				WHERE LOWER(elem->>'value') = ANY($3)
+			))
+		  )
+		ORDER BY a.created_at DESC
+		LIMIT $4`,
+		tenantID,
+		techniqueIDs,
+		indicatorValues,
+		limit,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("find alerts by threat context: %w", err)
+	}
+	defer rows.Close()
+
+	items := make([]*model.Alert, 0)
+	for rows.Next() {
+		item, err := scanAlert(rows)
+		if err != nil {
+			return nil, err
+		}
+		items = append(items, item)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	if err := r.enrichAlerts(ctx, tenantID, items); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 // FindRecentOpenBySourceAndMetadataValue finds an open event-driven alert by source
@@ -452,6 +547,9 @@ func (r *AlertRepository) FindRecentOpenBySourceAndMetadataValue(ctx context.Con
 			return nil, ErrNotFound
 		}
 		return nil, fmt.Errorf("find recent open alert by metadata: %w", err)
+	}
+	if err := r.enrichAlerts(ctx, tenantID, []*model.Alert{alert}); err != nil {
+		return nil, err
 	}
 	return alert, nil
 }
@@ -572,12 +670,13 @@ func (r *AlertRepository) Stats(ctx context.Context, tenantID uuid.UUID) (*model
 	stats := &model.AlertStats{}
 	if err := r.db.QueryRow(ctx, `
 		SELECT
+			COUNT(*) FILTER (WHERE deleted_at IS NULL),
 			COUNT(*) FILTER (WHERE deleted_at IS NULL AND status IN ('new', 'acknowledged', 'investigating', 'in_progress', 'escalated')),
 			COUNT(*) FILTER (WHERE deleted_at IS NULL AND status IN ('resolved', 'closed'))
 		FROM alerts
 		WHERE tenant_id = $1`,
 		tenantID,
-	).Scan(&stats.OpenCount, &stats.ResolvedCount); err != nil {
+	).Scan(&stats.Total, &stats.OpenCount, &stats.ResolvedCount); err != nil {
 		return nil, fmt.Errorf("alert totals: %w", err)
 	}
 
@@ -623,6 +722,15 @@ func (r *AlertRepository) Stats(ctx context.Context, tenantID uuid.UUID) (*model
 		ORDER BY COUNT(*) DESC, source ASC`); err != nil {
 		return nil, fmt.Errorf("stats by rule: %w", err)
 	}
+	if stats.ByRuleType, err = buildCounts(`
+		SELECT COALESCE(dr.rule_type::text, 'unknown'), COUNT(*)
+		FROM alerts a
+		LEFT JOIN detection_rules dr ON dr.tenant_id = a.tenant_id AND dr.id = a.rule_id
+		WHERE a.tenant_id = $1 AND a.deleted_at IS NULL
+		GROUP BY COALESCE(dr.rule_type::text, 'unknown')
+		ORDER BY COUNT(*) DESC, COALESCE(dr.rule_type::text, 'unknown') ASC`); err != nil {
+		return nil, fmt.Errorf("stats by rule type: %w", err)
+	}
 	if stats.ByTechnique, err = buildCounts(`
 		SELECT COALESCE(mitre_technique_id, 'unmapped'), COUNT(*)
 		FROM alerts
@@ -631,5 +739,257 @@ func (r *AlertRepository) Stats(ctx context.Context, tenantID uuid.UUID) (*model
 		ORDER BY COUNT(*) DESC, mitre_technique_id ASC`); err != nil {
 		return nil, fmt.Errorf("stats by technique: %w", err)
 	}
+	if err := r.db.QueryRow(ctx, `
+		SELECT COALESCE(
+			AVG(EXTRACT(EPOCH FROM (resolved_at - created_at)) / 3600.0),
+			0
+		)
+		FROM alerts
+		WHERE tenant_id = $1
+		  AND deleted_at IS NULL
+		  AND status IN ('resolved', 'closed')
+		  AND resolved_at IS NOT NULL`,
+		tenantID,
+	).Scan(&stats.MTTRHours); err != nil {
+		return nil, fmt.Errorf("stats mttr: %w", err)
+	}
+	if err := r.db.QueryRow(ctx, `
+		SELECT COALESCE(
+			AVG(EXTRACT(EPOCH FROM (timeline.ack_at - a.created_at)) / 3600.0),
+			0
+		)
+		FROM alerts a
+		JOIN LATERAL (
+			SELECT MIN(created_at) AS ack_at
+			FROM alert_timeline t
+			WHERE t.tenant_id = a.tenant_id
+			  AND t.alert_id = a.id
+			  AND t.action = 'status_changed'
+			  AND t.new_value IN ('acknowledged', 'investigating', 'in_progress', 'resolved', 'closed', 'false_positive', 'escalated')
+		) AS timeline ON timeline.ack_at IS NOT NULL
+		WHERE a.tenant_id = $1
+		  AND a.deleted_at IS NULL`,
+		tenantID,
+	).Scan(&stats.MTTAHours); err != nil {
+		return nil, fmt.Errorf("stats mtta: %w", err)
+	}
+	if stats.Total > 0 {
+		falsePositiveCount := 0
+		for _, item := range stats.ByStatus {
+			if item.Name == string(model.AlertStatusFalsePositive) {
+				falsePositiveCount = item.Count
+				break
+			}
+		}
+		stats.FalsePositiveRate = float64(falsePositiveCount) / float64(stats.Total)
+	}
 	return stats, nil
+}
+
+func (r *AlertRepository) enrichAlerts(ctx context.Context, tenantID uuid.UUID, alerts []*model.Alert) error {
+	if len(alerts) == 0 {
+		return nil
+	}
+
+	type assetRecord struct {
+		Name        *string
+		IPAddress   *string
+		Hostname    *string
+		OS          *string
+		Owner       *string
+		Criticality *model.Criticality
+	}
+	type ruleRecord struct {
+		Name     *string
+		RuleType *model.DetectionRuleType
+	}
+	type userRecord struct {
+		Name  *string
+		Email *string
+	}
+
+	assetIDs := make([]uuid.UUID, 0, len(alerts))
+	ruleIDs := make([]uuid.UUID, 0, len(alerts))
+	userIDs := make([]uuid.UUID, 0, len(alerts)*2)
+	for _, alert := range alerts {
+		if alert == nil {
+			continue
+		}
+		if alert.AssetID != nil {
+			assetIDs = append(assetIDs, *alert.AssetID)
+		}
+		if alert.RuleID != nil {
+			ruleIDs = append(ruleIDs, *alert.RuleID)
+		}
+		if alert.AssignedTo != nil {
+			userIDs = append(userIDs, *alert.AssignedTo)
+		}
+		if alert.EscalatedTo != nil {
+			userIDs = append(userIDs, *alert.EscalatedTo)
+		}
+	}
+
+	assetMap := make(map[uuid.UUID]assetRecord)
+	ruleMap := make(map[uuid.UUID]ruleRecord)
+	userMap := make(map[uuid.UUID]userRecord)
+
+	if ids := uniqueUUIDs(assetIDs); len(ids) > 0 {
+		rows, err := r.db.Query(ctx, `
+			SELECT id, name, ip_address, hostname, os, owner, criticality
+			FROM assets
+			WHERE tenant_id = $1 AND id = ANY($2) AND deleted_at IS NULL`,
+			tenantID, ids,
+		)
+		if err != nil {
+			return fmt.Errorf("enrich alert assets: %w", err)
+		}
+		defer rows.Close()
+		for rows.Next() {
+			var (
+				id          uuid.UUID
+				name        *string
+				ipAddress   *string
+				hostname    *string
+				osValue     *string
+				owner       *string
+				criticality *model.Criticality
+			)
+			if err := rows.Scan(&id, &name, &ipAddress, &hostname, &osValue, &owner, &criticality); err != nil {
+				return fmt.Errorf("scan alert asset enrichment: %w", err)
+			}
+			assetMap[id] = assetRecord{
+				Name:        name,
+				IPAddress:   ipAddress,
+				Hostname:    hostname,
+				OS:          osValue,
+				Owner:       owner,
+				Criticality: criticality,
+			}
+		}
+		if err := rows.Err(); err != nil {
+			return fmt.Errorf("iterate alert asset enrichment: %w", err)
+		}
+	}
+
+	if ids := uniqueUUIDs(ruleIDs); len(ids) > 0 {
+		rows, err := r.db.Query(ctx, `
+			SELECT id, name, rule_type
+			FROM detection_rules
+			WHERE tenant_id = $1 AND id = ANY($2) AND deleted_at IS NULL`,
+			tenantID, ids,
+		)
+		if err != nil {
+			return fmt.Errorf("enrich alert rules: %w", err)
+		}
+		defer rows.Close()
+		for rows.Next() {
+			var (
+				id       uuid.UUID
+				name     *string
+				ruleType *model.DetectionRuleType
+			)
+			if err := rows.Scan(&id, &name, &ruleType); err != nil {
+				return fmt.Errorf("scan alert rule enrichment: %w", err)
+			}
+			ruleMap[id] = ruleRecord{Name: name, RuleType: ruleType}
+		}
+		if err := rows.Err(); err != nil {
+			return fmt.Errorf("iterate alert rule enrichment: %w", err)
+		}
+	}
+
+	if ids := uniqueUUIDs(userIDs); len(ids) > 0 {
+		rows, err := r.db.Query(ctx, `
+			SELECT id, first_name, last_name, email
+			FROM users
+			WHERE tenant_id = $1 AND id = ANY($2) AND deleted_at IS NULL`,
+			tenantID, ids,
+		)
+		if err != nil {
+			return fmt.Errorf("enrich alert users: %w", err)
+		}
+		defer rows.Close()
+		for rows.Next() {
+			var (
+				id        uuid.UUID
+				firstName string
+				lastName  string
+				email     string
+			)
+			if err := rows.Scan(&id, &firstName, &lastName, &email); err != nil {
+				return fmt.Errorf("scan alert user enrichment: %w", err)
+			}
+			displayName := strings.TrimSpace(strings.TrimSpace(firstName + " " + lastName))
+			if displayName == "" {
+				displayName = email
+			}
+			userMap[id] = userRecord{
+				Name:  stringPtr(displayName),
+				Email: stringPtr(email),
+			}
+		}
+		if err := rows.Err(); err != nil {
+			return fmt.Errorf("iterate alert user enrichment: %w", err)
+		}
+	}
+
+	for _, alert := range alerts {
+		if alert == nil {
+			continue
+		}
+		if alert.AssetID != nil {
+			if asset, ok := assetMap[*alert.AssetID]; ok {
+				alert.AssetName = asset.Name
+				alert.AssetIPAddress = asset.IPAddress
+				alert.AssetHostname = asset.Hostname
+				alert.AssetOS = asset.OS
+				alert.AssetOwner = asset.Owner
+				alert.AssetCriticality = asset.Criticality
+			}
+		}
+		if alert.RuleID != nil {
+			if rule, ok := ruleMap[*alert.RuleID]; ok {
+				alert.RuleName = rule.Name
+				alert.RuleType = rule.RuleType
+			}
+		}
+		if alert.RuleName == nil && strings.TrimSpace(alert.Source) != "" {
+			alert.RuleName = stringPtr(alert.Source)
+		}
+		if alert.AssignedTo != nil {
+			if user, ok := userMap[*alert.AssignedTo]; ok {
+				alert.AssignedToName = user.Name
+				alert.AssignedToEmail = user.Email
+			}
+		}
+		if alert.EscalatedTo != nil {
+			if user, ok := userMap[*alert.EscalatedTo]; ok {
+				alert.EscalatedToName = user.Name
+				alert.EscalatedToEmail = user.Email
+			}
+		}
+	}
+
+	return nil
+}
+
+func indicatorMatchValues(matches []model.IndicatorEvidence) []string {
+	values := make([]string, 0, len(matches))
+	seen := make(map[string]struct{}, len(matches))
+	for _, match := range matches {
+		value := strings.ToLower(strings.TrimSpace(match.Value))
+		if value == "" {
+			continue
+		}
+		if _, ok := seen[value]; ok {
+			continue
+		}
+		seen[value] = struct{}{}
+		values = append(values, value)
+	}
+	return values
+}
+
+func stringPtr(value string) *string {
+	return &value
 }

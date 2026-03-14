@@ -14,8 +14,8 @@ interface MitreMatrixProps {
 }
 
 function applyFilter(technique: MITRETechniqueCoverage, filter: MitreFilter): boolean {
-  if (filter === 'covered') return technique.rule_count > 0;
-  if (filter === 'gaps') return technique.rule_count === 0;
+  if (filter === 'covered') return technique.coverage_state === 'covered' || technique.coverage_state === 'noisy';
+  if (filter === 'gaps') return technique.coverage_state === 'gap';
   if (filter === 'alerts') return technique.alert_count > 0;
   return true;
 }
@@ -36,8 +36,15 @@ export function MitreMatrix({
   selectedTechnique,
   onSelectTechnique,
 }: MitreMatrixProps) {
+  const expandedTechniques = (coverage.techniques ?? []).filter(
+    (
+      technique,
+    ): technique is MITRETechniqueCoverage & { tactic_id: string; tactic_name: string } =>
+      Boolean(technique.tactic_id && technique.tactic_name),
+  );
+
   // Group techniques by tactic
-  const byTactic = (coverage.techniques ?? []).reduce<Record<string, MITRETechniqueCoverage[]>>(
+  const byTactic = expandedTechniques.reduce<Record<string, MITRETechniqueCoverage[]>>(
     (acc, t) => {
       if (!acc[t.tactic_id]) acc[t.tactic_id] = [];
       acc[t.tactic_id].push(t);

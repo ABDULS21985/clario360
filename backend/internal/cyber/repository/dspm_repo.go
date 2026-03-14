@@ -226,6 +226,37 @@ func (r *DSPMRepository) ListDataAssets(ctx context.Context, tenantID uuid.UUID,
 	return assets, total, rows.Err()
 }
 
+// ListAllActive returns all DSPM data assets for a tenant (used by access intelligence collectors).
+func (r *DSPMRepository) ListAllActive(ctx context.Context, tenantID uuid.UUID) ([]*model.DSPMDataAsset, error) {
+	rows, err := r.db.Query(ctx, `
+		SELECT da.id, da.tenant_id, da.asset_id, a.name, a.type, da.scan_id,
+		       da.data_classification, da.sensitivity_score, da.contains_pii, da.pii_types,
+		       da.pii_column_count, da.estimated_record_count, da.encrypted_at_rest, da.encrypted_in_transit,
+		       da.access_control_type, da.network_exposure, da.backup_configured, da.audit_logging, da.last_access_review,
+		       da.risk_score, da.risk_factors, da.posture_score, da.posture_findings,
+		       da.consumer_count, da.producer_count, da.database_type, da.schema_info, da.metadata,
+		       da.last_scanned_at, da.created_at, da.updated_at
+		FROM dspm_data_assets da
+		LEFT JOIN assets a ON a.id = da.asset_id
+		WHERE da.tenant_id = $1
+		ORDER BY da.created_at DESC
+	`, tenantID)
+	if err != nil {
+		return nil, fmt.Errorf("list all active dspm assets: %w", err)
+	}
+	defer rows.Close()
+
+	var assets []*model.DSPMDataAsset
+	for rows.Next() {
+		a, err := scanDSPMAsset(rows)
+		if err != nil {
+			return nil, err
+		}
+		assets = append(assets, a)
+	}
+	return assets, rows.Err()
+}
+
 // CreateScan inserts a new DSPM scan record.
 func (r *DSPMRepository) CreateScan(ctx context.Context, tenantID, createdBy uuid.UUID) (*model.DSPMScan, error) {
 	id := uuid.New()
