@@ -41,11 +41,10 @@ CREATE TABLE IF NOT EXISTS dspm_data_lineage (
     transfer_count_30d  INT             NOT NULL DEFAULT 0,
     -- Metadata
     created_at          TIMESTAMPTZ     NOT NULL DEFAULT now(),
-    updated_at          TIMESTAMPTZ     NOT NULL DEFAULT now(),
-
-    UNIQUE (tenant_id, source_asset_id, target_asset_id, COALESCE(source_table, ''), COALESCE(target_table, ''), edge_type)
+    updated_at          TIMESTAMPTZ     NOT NULL DEFAULT now()
 );
 
+CREATE UNIQUE INDEX idx_dspm_lineage_unique ON dspm_data_lineage (tenant_id, source_asset_id, target_asset_id, COALESCE(source_table, ''), COALESCE(target_table, ''), edge_type);
 CREATE INDEX idx_dspm_lineage_source    ON dspm_data_lineage (tenant_id, source_asset_id);
 CREATE INDEX idx_dspm_lineage_target    ON dspm_data_lineage (tenant_id, target_asset_id);
 CREATE INDEX idx_dspm_lineage_pii       ON dspm_data_lineage (tenant_id) WHERE array_length(pii_types_transferred, 1) > 0;
@@ -93,11 +92,10 @@ CREATE TABLE IF NOT EXISTS dspm_ai_data_usage (
     last_detected_at    TIMESTAMPTZ     NOT NULL DEFAULT now(),
     -- Metadata
     created_at          TIMESTAMPTZ     NOT NULL DEFAULT now(),
-    updated_at          TIMESTAMPTZ     NOT NULL DEFAULT now(),
-
-    UNIQUE (tenant_id, data_asset_id, usage_type, COALESCE(model_slug, ''))
+    updated_at          TIMESTAMPTZ     NOT NULL DEFAULT now()
 );
 
+CREATE UNIQUE INDEX idx_dspm_ai_usage_unique ON dspm_ai_data_usage (tenant_id, data_asset_id, usage_type, COALESCE(model_slug, ''));
 CREATE INDEX idx_dspm_ai_usage_asset    ON dspm_ai_data_usage (tenant_id, data_asset_id);
 CREATE INDEX idx_dspm_ai_usage_model    ON dspm_ai_data_usage (tenant_id, model_slug);
 CREATE INDEX idx_dspm_ai_usage_risk     ON dspm_ai_data_usage (tenant_id, ai_risk_score DESC) WHERE status = 'active';

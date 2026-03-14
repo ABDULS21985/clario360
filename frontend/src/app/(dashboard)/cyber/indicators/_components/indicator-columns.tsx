@@ -175,7 +175,9 @@ export function getIndicatorColumns(options: IndicatorColumnOptions): ColumnDef<
       enableSorting: true,
       cell: ({ row }: { row: Row<ThreatIndicator> }) => {
         const expiresAt = row.original.expires_at;
-        const isExpiringSoon = Boolean(expiresAt) && new Date(expiresAt).getTime() - Date.now() < 7 * 24 * 60 * 60 * 1000;
+        const isExpiringSoon = expiresAt
+          ? new Date(expiresAt).getTime() - Date.now() < 7 * 24 * 60 * 60 * 1000
+          : false;
         return (
           <span
             className={cn(
