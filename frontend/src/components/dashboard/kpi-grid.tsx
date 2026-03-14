@@ -8,33 +8,36 @@ import { KpiCard } from './kpi-card';
 import { SparkLine } from './spark-line';
 import { useRealtimeData } from '@/hooks/use-realtime-data';
 
-interface AlertCount { count: number; trend?: number; history?: number[] }
-interface PipelineCount { count: number; history?: number[] }
+/** Backend wraps responses in {"data": ...} envelope */
+interface AlertCountEnvelope { data: { count: number; trend?: number; history?: number[] } }
+interface PipelineCountEnvelope { data: { count: number; history?: number[] } }
 interface TaskCount { pending: number; overdue: number; history?: number[] }
-interface QualityScore { score: number; trend?: number; history?: number[] }
+interface QualityScoreEnvelope { data: { overall_score: number; trend?: string; pass_rate?: number; history?: number[] } }
 
 export function KpiGrid() {
   const { hasPermission } = useAuth();
   const hasCyber = hasPermission('cyber:read');
   const hasData = hasPermission('data:read');
 
-  const { data: alertData, isLoading: alertLoading, error: alertError, lastUpdate: alertUpdate } =
-    useRealtimeData<AlertCount>(API_ENDPOINTS.CYBER_ALERTS_COUNT, {
+  const { data: alertEnvelope, isLoading: alertLoading, error: alertError, lastUpdate: alertUpdate } =
+    useRealtimeData<AlertCountEnvelope>(API_ENDPOINTS.CYBER_ALERTS_COUNT, {
       params: { status: 'new,acknowledged' },
       wsTopics: ['alert.created', 'alert.escalated', 'alert.resolved'],
       enabled: hasCyber,
     });
+  const alertData = alertEnvelope?.data;
 
   const {
-    data: pipelineData,
+    data: pipelineEnvelope,
     isLoading: pipelineLoading,
     error: pipelineError,
     lastUpdate: pipelineUpdate,
-  } = useRealtimeData<PipelineCount>('/api/v1/data/pipelines/count', {
+  } = useRealtimeData<PipelineCountEnvelope>('/api/v1/data/pipelines/count', {
     params: { status: 'failed' },
     wsTopics: ['pipeline.failed', 'pipeline.completed'],
     enabled: hasData,
   });
+  const pipelineData = pipelineEnvelope?.data;
 
   const { data: taskData, isLoading: taskLoading, error: taskError, lastUpdate: taskUpdate } =
     useRealtimeData<TaskCount>(API_ENDPOINTS.WORKFLOWS_TASKS_COUNT, {
@@ -49,25 +52,26 @@ export function KpiGrid() {
     });
 
   const {
-    data: qualityData,
+    data: qualityEnvelope,
     isLoading: qualityLoading,
     error: qualityError,
     lastUpdate: qualityUpdate,
-  } = useRealtimeData<QualityScore>(API_ENDPOINTS.DATA_QUALITY_SCORE, {
+  } = useRealtimeData<QualityScoreEnvelope>(API_ENDPOINTS.DATA_QUALITY_SCORE, {
     wsTopics: ['data_quality.issue_detected'],
     enabled: hasData,
   });
+  const qualityData = qualityEnvelope?.data;
 
   const alertDelta = useLiveDelta(alertData?.count);
   const pipelineDelta = useLiveDelta(pipelineData?.count);
   const taskDelta = useLiveDelta(taskData?.pending);
-  const qualityDelta = useLiveDelta(qualityData?.score);
+  const qualityDelta = useLiveDelta(qualityData?.overall_score);
 
   // Build sparkline history from data (use provided history or build from live deltas)
   const alertHistory = useSparkHistory(alertData?.count, alertData?.history);
   const pipelineHistory = useSparkHistory(pipelineData?.count, pipelineData?.history);
   const taskHistory = useSparkHistory(taskData?.pending, taskData?.history);
-  const qualityHistory = useSparkHistory(qualityData?.score, qualityData?.history);
+  const qualityHistory = useSparkHistory(qualityData?.overall_score, qualityData?.history);
 
   let cardIndex = 0;
 
@@ -138,7 +142,7 @@ export function KpiGrid() {
       {hasData && (
         <KpiCard
           title="Data Quality"
-          value={qualityData?.score !== undefined ? qualityData.score.toFixed(1) : undefined}
+          value={qualityData?.overall_score !== undefined ? qualityData.overall_score.toFixed(1) : undefined}
           unit="%"
           icon={BarChart3}
           iconColor="text-green-600"
@@ -149,8 +153,8 @@ export function KpiGrid() {
           liveDelta={qualityDelta}
           index={cardIndex++}
           trend={
-            qualityData?.trend !== undefined
-              ? { value: qualityData.trend, label: '7d', direction: qualityData.trend > 0 ? 'up' : qualityData.trend < 0 ? 'down' : 'neutral', sentiment: qualityData.trend >= 0 ? 'good' : 'bad' }
+            qualityData?.pass_rate !== undefined
+              ? { value: Math.round(qualityData.pass_rate), label: '% pass', direction: qualityData.pass_rate >= 90 ? 'up' : 'down', sentiment: qualityData.pass_rate >= 80 ? 'good' : 'bad' }
               : undefined
           }
         >

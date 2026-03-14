@@ -27,3 +27,23 @@ type MITRECoverageDTO struct {
 	RuleCount     int      `json:"rule_count"`
 	RuleNames     []string `json:"rule_names"`
 }
+
+// MITRETacticCoverageDTO is a tactic with its coverage count.
+type MITRETacticCoverageDTO struct {
+	ID             string `json:"id"`
+	Name           string `json:"name"`
+	ShortName      string `json:"short_name,omitempty"`
+	TechniqueCount int    `json:"technique_count"`
+	CoveredCount   int    `json:"covered_count"`
+}
+
+// MITRECoverageResponseDTO is the full aggregated coverage response.
+type MITRECoverageResponseDTO struct {
+	Tactics            []MITRETacticCoverageDTO `json:"tactics"`
+	Techniques         []MITRECoverageDTO       `json:"techniques"`
+	TotalTechniques    int                      `json:"total_techniques"`
+	CoveredTechniques  int                      `json:"covered_techniques"`
+	CoveragePercent    float64                  `json:"coverage_percent"`
+	ActiveTechniques   int                      `json:"active_techniques"`
+	PassiveTechniques  int                      `json:"passive_techniques"`
+}

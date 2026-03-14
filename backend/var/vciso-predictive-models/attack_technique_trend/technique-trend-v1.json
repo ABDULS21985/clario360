@@ -1,0 +1,1 @@
+{"model_version":"technique-trend-v1","weights":{"campaign_correlation":0.15,"industry_count":0.25,"internal_count":0.55,"seasonality":0.05},"states":{},"residuals":null,"last_samples":{}}

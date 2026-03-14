@@ -450,6 +450,8 @@ func main() {
 	vcisoBriefing := cybervciso.NewBriefingGenerator(db, riskScorer, mttrCalc, vcisoRecommender, logger)
 	vcisoReporter := cybervciso.NewReportGenerator(vcisoBriefing, logger)
 	vcisoSvc := service.NewVCISOService(vcisoRepo, vcisoBriefing, vcisoRecommender, vcisoReporter, riskScorer, producer, logger)
+	vcisoGovRepo := repository.NewVCISOGovernanceRepository(db, logger)
+	vcisoGovSvc := service.NewVCISOGovernanceService(vcisoGovRepo, producer, logger)
 	remediationAuditTrail := cyberremediation.NewAuditTrail(remediationAuditRepo, logger)
 	remediationStrategies := map[model.RemediationType]remediationstrategy.RemediationStrategy{
 		model.RemediationTypePatch:        remediationstrategy.NewPatchStrategy(db, logger),
@@ -741,6 +743,7 @@ func main() {
 	remediationHandler := handler.NewRemediationHandler(remediationSvc)
 	dspmHandler := handler.NewDSPMHandler(dspmSvc)
 	vcisoHandler := handler.NewVCISOHandler(vcisoSvc)
+	vcisoGovHandler := handler.NewVCISOGovernanceHandler(vcisoGovSvc, logger)
 	uebaHTTPHandler := uebahandler.NewUEBAHandler(uebaSvc)
 	rcaHandler := rca.NewHandler(rcaEngine, logger)
 	vcisoChatHandler := vcisochathandler.NewChatHandler(vcisoUnifiedEngine, vcisoConversationRepo, logger)
@@ -772,6 +775,7 @@ func main() {
 		r.Use(platformmw.Auth(jwtMgr))
 		r.Use(platformmw.Tenant)
 		rcaHandler.RegisterRoutes(r)
+		handler.RegisterVCISOGovernanceRoutes(r, vcisoGovHandler)
 	})
 	vcisochathandler.RegisterRoutes(svc.Router, vcisochathandler.RouteDeps{
 		ChatHandler:          vcisoChatHandler,

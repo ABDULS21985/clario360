@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { useAuthStore } from './auth-store';
+import { useAuthStore, _resetPermissionsCache } from './auth-store';
 import * as authLib from '@/lib/auth';
 
 // We test hasPermission in isolation by mocking getAccessToken + getTokenPayload
@@ -25,6 +25,7 @@ vi.mock('@/lib/auth', async (importOriginal) => {
 });
 
 function setPermissions(permissions: string[]) {
+  _resetPermissionsCache(); // clear cached perms so the new mock takes effect
   vi.mocked(authLib.getTokenPayload).mockReturnValue({
     sub: 'u1',
     email: 'u@example.com',
@@ -39,6 +40,7 @@ function setPermissions(permissions: string[]) {
 
 describe('auth-store permissions', () => {
   beforeEach(() => {
+    _resetPermissionsCache();
     useAuthStore.setState({
       user: {
         id: 'u1',

@@ -7,10 +7,11 @@ interface MitreCoverageStatsProps {
 }
 
 export function MitreCoverageStats({ coverage }: MitreCoverageStatsProps) {
-  const total = coverage.total_techniques;
+  const total = coverage.total_techniques ?? 0;
+  const covered = coverage.covered_techniques ?? 0;
   const active = coverage.active_techniques ?? 0;
-  const passive = coverage.passive_techniques ?? (coverage.covered_techniques - active);
-  const gaps = total - coverage.covered_techniques;
+  const passive = coverage.passive_techniques ?? Math.max(0, covered - active);
+  const gaps = Math.max(0, total - covered);
 
   const activePct = total > 0 ? (active / total) * 100 : 0;
   const passivePct = total > 0 ? (passive / total) * 100 : 0;
@@ -27,7 +28,7 @@ export function MitreCoverageStats({ coverage }: MitreCoverageStatsProps) {
         <span className="text-lg font-bold tabular-nums">
           {(coverage.coverage_percent ?? 0).toFixed(0)}%
           <span className="ml-1.5 text-xs font-normal text-muted-foreground">
-            ({coverage.covered_techniques} of {total} techniques)
+            ({covered} of {total} techniques)
           </span>
         </span>
       </div>

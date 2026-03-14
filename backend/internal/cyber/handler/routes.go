@@ -135,6 +135,7 @@ func RegisterRoutes(
 		if dashboardHandler != nil {
 			r.Get("/dashboard", dashboardHandler.GetDashboard)
 			r.Get("/dashboard/kpis", dashboardHandler.GetKPIs)
+			r.Get("/dashboard/metrics", dashboardHandler.GetMetrics)
 			r.Get("/dashboard/alerts-timeline", dashboardHandler.GetAlertsTimeline)
 			r.Get("/dashboard/severity-distribution", dashboardHandler.GetSeverityDistribution)
 			r.Get("/dashboard/mttr", dashboardHandler.GetMTTR)

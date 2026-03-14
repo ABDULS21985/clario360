@@ -1,5 +1,6 @@
 'use client';
 
+import { memo, useMemo } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
@@ -25,11 +26,32 @@ function collectBadgeConfigs(): BadgeConfig[] {
 
 const ALL_BADGE_CONFIGS = collectBadgeConfigs();
 
-export function Sidebar() {
+export const Sidebar = memo(function Sidebar() {
   const { collapsed, toggleCollapsed } = useSidebar();
   const { hasPermission } = useAuth();
   const isMobile = useIsMobile();
   const badgeCounts = useBadgeCounts(ALL_BADGE_CONFIGS);
+
+  // Memoize the navigation tree to avoid re-filtering on every badge tick
+  const visibleSections = useMemo(
+    () =>
+      navigation
+        .filter(
+          (section) =>
+            section.permission === '*:read' || hasPermission(section.permission),
+        )
+        .map((section) => ({
+          ...section,
+          visibleItems: section.items.filter(
+            (item) =>
+              !item.permission ||
+              item.permission === '*:read' ||
+              hasPermission(item.permission),
+          ),
+        }))
+        .filter((s) => s.visibleItems.length > 0),
+    [hasPermission],
+  );
 
   if (isMobile) return null;
 
@@ -71,36 +93,21 @@ export function Sidebar() {
         </div>
 
         <nav className="sidebar-scroll flex-1 overflow-y-auto px-3 py-4">
-          {navigation.map((section) => {
-            if (section.permission !== '*:read' && !hasPermission(section.permission)) {
-              return null;
-            }
-
-            const visibleItems = section.items.filter(
-              (item) =>
-                !item.permission ||
-                item.permission === '*:read' ||
-                hasPermission(item.permission),
-            );
-
-            if (visibleItems.length === 0) return null;
-
-            return (
-              <SidebarSection key={section.id} label={section.label} collapsed={collapsed}>
-                {visibleItems.map((item) => {
-                  const count = item.badge ? badgeCounts.get(item.badge.endpoint) : undefined;
-                  return (
-                    <SidebarNavItem
-                      key={item.id}
-                      item={item}
-                      collapsed={collapsed}
-                      badgeCount={count}
-                    />
-                  );
-                })}
-              </SidebarSection>
-            );
-          })}
+          {visibleSections.map((section) => (
+            <SidebarSection key={section.id} label={section.label} collapsed={collapsed}>
+              {section.visibleItems.map((item) => {
+                const count = item.badge ? badgeCounts.get(item.badge.endpoint) : undefined;
+                return (
+                  <SidebarNavItem
+                    key={item.id}
+                    item={item}
+                    collapsed={collapsed}
+                    badgeCount={count}
+                  />
+                );
+              })}
+            </SidebarSection>
+          ))}
         </nav>
 
         <div className="border-t border-white/10 px-3 py-3">
@@ -126,4 +133,4 @@ export function Sidebar() {
       </aside>
     </TooltipProvider>
   );
-}
+});

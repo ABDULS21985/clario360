@@ -20,6 +20,7 @@ import { LLMOpsPanel } from './_components/llm-ops-panel';
 import { RecommendationsList } from './_components/recommendations-list';
 import { RiskPostureSummary } from './_components/risk-posture-summary';
 import { ThreatLandscapeSection } from './_components/threat-landscape-section';
+import { VCISOCapabilityCatalog } from './_components/vciso-capability-catalog';
 
 export default function CyberVcisoPage() {
   const {
@@ -149,6 +150,8 @@ export default function CyberVcisoPage() {
             </div>
 
             <LLMOpsPanel />
+
+            <VCISOCapabilityCatalog />
           </div>
         )}
       </div>

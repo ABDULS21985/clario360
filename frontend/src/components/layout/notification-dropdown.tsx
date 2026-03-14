@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, memo, useCallback } from 'react';
 import { Bell, Shield, Database, Workflow, Settings, Gavel, AlertTriangle } from 'lucide-react';
 import Link from 'next/link';
 import { useNotificationStore } from '@/stores/notification-store';
@@ -34,7 +34,7 @@ function getPriorityColor(priority: string): string {
   return colors[priority] ?? 'text-muted-foreground';
 }
 
-function NotificationItem({
+const NotificationItem = memo(function NotificationItem({
   notification,
   onRead,
 }: {
@@ -71,20 +71,20 @@ function NotificationItem({
       </div>
     </button>
   );
-}
+});
 
 export function NotificationDropdown() {
   const [open, setOpen] = useState(false);
   const [markingAll, setMarkingAll] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
-  const {
-    unreadCount,
-    recentNotifications,
-    isInitialized,
-    connectionStatus,
-    reconnectAttempt,
-    requestReconnect,
-  } = useNotificationStore();
+  // Granular selectors: each property subscribes independently,
+  // so a change in e.g. connectionStatus doesn't re-render the whole list.
+  const unreadCount = useNotificationStore((s) => s.unreadCount);
+  const recentNotifications = useNotificationStore((s) => s.recentNotifications);
+  const isInitialized = useNotificationStore((s) => s.isInitialized);
+  const connectionStatus = useNotificationStore((s) => s.connectionStatus);
+  const reconnectAttempt = useNotificationStore((s) => s.reconnectAttempt);
+  const requestReconnect = useNotificationStore((s) => s.requestReconnect);
   const { markAsRead, markAllAsRead } = useNotificationActions();
 
   useEffect(() => {
@@ -105,13 +105,13 @@ export function NotificationDropdown() {
     };
   }, [open]);
 
-  const handleRead = async (id: string, url?: string | null) => {
+  const handleRead = useCallback(async (id: string, url?: string | null) => {
     await markAsRead(id);
     setOpen(false);
     if (url) {
       window.location.href = url;
     }
-  };
+  }, [markAsRead]);
 
   const handleMarkAllRead = async () => {
     setMarkingAll(true);

@@ -1246,6 +1246,499 @@ export interface CorrelationRuleContent {
   min_count?: Record<string, number>;
 }
 
+// ─── vCISO Governance — Risk Register ────────────────────────────────────────
+
+export type RiskLikelihood = 'rare' | 'unlikely' | 'possible' | 'likely' | 'almost_certain';
+export type RiskImpact = 'negligible' | 'minor' | 'moderate' | 'major' | 'catastrophic';
+export type RiskStatus = 'identified' | 'assessed' | 'mitigating' | 'accepted' | 'closed';
+export type RiskTreatment = 'mitigate' | 'transfer' | 'accept' | 'avoid';
+
+export interface VCISORiskEntry {
+  id: string;
+  tenant_id: string;
+  title: string;
+  description: string;
+  category: string;
+  inherent_score: number;
+  residual_score: number;
+  likelihood: RiskLikelihood;
+  impact: RiskImpact;
+  status: RiskStatus;
+  treatment: RiskTreatment;
+  owner_id: string;
+  owner_name: string;
+  review_date: string;
+  business_services: string[];
+  department: string;
+  treatment_plan: string;
+  controls: string[];
+  acceptance_rationale?: string;
+  acceptance_approved_by?: string;
+  acceptance_approved_by_name?: string;
+  acceptance_expiry?: string;
+  tags: string[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface VCISORiskStats {
+  total: number;
+  by_status: Record<string, number>;
+  by_treatment: Record<string, number>;
+  by_likelihood: Record<string, number>;
+  by_impact: Record<string, number>;
+  avg_inherent_score: number;
+  avg_residual_score: number;
+  overdue_reviews: number;
+  accepted_count: number;
+}
+
+// ─── vCISO Governance — Policies ─────────────────────────────────────────────
+
+export type PolicyStatus = 'draft' | 'review' | 'approved' | 'published' | 'retired';
+export type PolicyDomain =
+  | 'access_control'
+  | 'incident_response'
+  | 'data_protection'
+  | 'acceptable_use'
+  | 'business_continuity'
+  | 'risk_management'
+  | 'vendor_management'
+  | 'change_management'
+  | 'security_awareness'
+  | 'network_security'
+  | 'encryption'
+  | 'physical_security'
+  | 'other';
+
+export interface VCISOPolicy {
+  id: string;
+  tenant_id: string;
+  title: string;
+  domain: PolicyDomain;
+  version: string;
+  status: PolicyStatus;
+  content: string;
+  owner_id: string;
+  owner_name: string;
+  reviewer_id?: string;
+  reviewer_name?: string;
+  approved_by?: string;
+  approved_by_name?: string;
+  approved_at?: string;
+  review_due: string;
+  last_reviewed_at?: string;
+  tags: string[];
+  exceptions_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export type PolicyExceptionStatus = 'pending' | 'approved' | 'rejected' | 'expired';
+
+export interface VCISOPolicyException {
+  id: string;
+  tenant_id: string;
+  policy_id: string;
+  policy_title: string;
+  title: string;
+  description: string;
+  justification: string;
+  compensating_controls: string;
+  status: PolicyExceptionStatus;
+  requested_by: string;
+  requested_by_name: string;
+  approved_by?: string;
+  approved_by_name?: string;
+  decision_notes?: string;
+  expires_at: string;
+  created_at: string;
+  updated_at: string;
+}
+
+// ─── vCISO Governance — Third-Party Risk ─────────────────────────────────────
+
+export type VendorRiskTier = 'critical' | 'high' | 'medium' | 'low';
+export type VendorStatus = 'active' | 'onboarding' | 'under_review' | 'offboarding' | 'terminated';
+
+export interface VCISOVendor {
+  id: string;
+  tenant_id: string;
+  name: string;
+  category: string;
+  risk_tier: VendorRiskTier;
+  status: VendorStatus;
+  risk_score: number;
+  last_assessment_date?: string;
+  next_review_date: string;
+  contact_name?: string;
+  contact_email?: string;
+  services_provided: string[];
+  data_shared: string[];
+  compliance_frameworks: string[];
+  controls_met: number;
+  controls_total: number;
+  open_findings: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export type QuestionnaireStatus = 'draft' | 'sent' | 'in_progress' | 'completed' | 'expired';
+export type QuestionnaireType = 'vendor' | 'customer' | 'audit' | 'internal';
+
+export interface VCISOQuestionnaire {
+  id: string;
+  tenant_id: string;
+  title: string;
+  type: QuestionnaireType;
+  status: QuestionnaireStatus;
+  vendor_id?: string;
+  vendor_name?: string;
+  total_questions: number;
+  answered_questions: number;
+  due_date: string;
+  completed_at?: string;
+  score?: number;
+  assigned_to?: string;
+  assigned_to_name?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+// ─── vCISO Governance — Evidence ─────────────────────────────────────────────
+
+export type EvidenceType = 'screenshot' | 'log' | 'config' | 'report' | 'policy' | 'certificate' | 'other';
+export type EvidenceSource = 'manual' | 'automated';
+export type EvidenceStatus = 'current' | 'stale' | 'expired';
+
+export interface VCISOEvidence {
+  id: string;
+  tenant_id: string;
+  title: string;
+  description: string;
+  type: EvidenceType;
+  source: EvidenceSource;
+  status: EvidenceStatus;
+  frameworks: string[];
+  control_ids: string[];
+  file_name?: string;
+  file_size?: number;
+  file_url?: string;
+  collected_at: string;
+  expires_at?: string;
+  collector_name?: string;
+  last_verified_at?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface VCISOEvidenceStats {
+  total: number;
+  by_status: Record<string, number>;
+  by_type: Record<string, number>;
+  by_source: Record<string, number>;
+  stale_count: number;
+  expired_count: number;
+  frameworks_covered: number;
+  controls_with_evidence: number;
+  controls_without_evidence: number;
+}
+
+// ─── vCISO Governance — Maturity & Benchmarking ──────────────────────────────
+
+export type MaturityCategory = 'people' | 'process' | 'technology' | 'governance' | 'security' | 'operations';
+
+export interface VCISOMaturityDimension {
+  name: string;
+  category: MaturityCategory;
+  current_level: number;
+  target_level: number;
+  score: number;
+  findings: string[];
+  recommendations: string[];
+}
+
+export interface VCISOMaturityAssessment {
+  id: string;
+  tenant_id: string;
+  framework: string;
+  status: 'draft' | 'in_progress' | 'completed';
+  overall_score: number;
+  overall_level: number;
+  dimensions: VCISOMaturityDimension[];
+  assessor_name?: string;
+  assessed_at: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface VCISOBenchmark {
+  dimension: string;
+  category: MaturityCategory;
+  organization_score: number;
+  industry_average: number;
+  industry_top_quartile: number;
+  peer_average: number;
+  gap: number;
+}
+
+export type BudgetItemStatus = 'proposed' | 'approved' | 'in_progress' | 'completed' | 'deferred';
+export type BudgetItemType = 'capex' | 'opex';
+
+export interface VCISOBudgetItem {
+  id: string;
+  tenant_id: string;
+  title: string;
+  category: string;
+  type: BudgetItemType;
+  amount: number;
+  currency: string;
+  status: BudgetItemStatus;
+  risk_reduction_estimate: number;
+  priority: number;
+  justification: string;
+  linked_risk_ids: string[];
+  linked_recommendation_ids: string[];
+  fiscal_year: string;
+  quarter?: string;
+  owner_name?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface VCISOBudgetSummary {
+  total_proposed: number;
+  total_approved: number;
+  total_spent: number;
+  total_risk_reduction: number;
+  by_category: Record<string, number>;
+  by_status: Record<string, number>;
+  currency: string;
+}
+
+// ─── vCISO Governance — Awareness & IAM ──────────────────────────────────────
+
+export type AwarenessProgramType = 'training' | 'phishing_simulation' | 'policy_attestation';
+export type AwarenessProgramStatus = 'scheduled' | 'active' | 'completed';
+
+export interface VCISOAwarenessProgram {
+  id: string;
+  tenant_id: string;
+  name: string;
+  type: AwarenessProgramType;
+  status: AwarenessProgramStatus;
+  total_users: number;
+  completed_users: number;
+  passed_users: number;
+  failed_users: number;
+  completion_rate: number;
+  pass_rate: number;
+  start_date: string;
+  end_date: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export type IAMFindingType = 'mfa_gap' | 'orphaned_account' | 'privileged_access' | 'sod_violation' | 'stale_access' | 'excessive_permissions';
+export type IAMFindingStatus = 'open' | 'in_progress' | 'resolved' | 'accepted';
+
+export interface VCISOIAMFinding {
+  id: string;
+  tenant_id: string;
+  type: IAMFindingType;
+  severity: CyberSeverity;
+  title: string;
+  description: string;
+  affected_users: number;
+  status: IAMFindingStatus;
+  remediation?: string;
+  discovered_at: string;
+  resolved_at?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface VCISOIAMSummary {
+  total_findings: number;
+  by_type: Record<string, number>;
+  by_severity: Record<string, number>;
+  mfa_coverage_percent: number;
+  privileged_accounts: number;
+  orphaned_accounts: number;
+  stale_access_count: number;
+}
+
+// ─── vCISO Governance — Incident Readiness ───────────────────────────────────
+
+export type EscalationTriggerType = 'severity' | 'time' | 'count' | 'custom';
+export type EscalationTarget = 'management' | 'legal' | 'regulator' | 'board' | 'custom';
+
+export interface VCISOEscalationRule {
+  id: string;
+  tenant_id: string;
+  name: string;
+  description: string;
+  trigger_type: EscalationTriggerType;
+  trigger_condition: string;
+  escalation_target: EscalationTarget;
+  target_contacts: string[];
+  notification_channels: string[];
+  enabled: boolean;
+  last_triggered_at?: string;
+  trigger_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export type PlaybookStatus = 'draft' | 'approved' | 'tested' | 'retired';
+export type SimulationResult = 'pass' | 'partial' | 'fail';
+
+export interface VCISOPlaybook {
+  id: string;
+  tenant_id: string;
+  name: string;
+  scenario: string;
+  status: PlaybookStatus;
+  last_tested_at?: string;
+  next_test_date: string;
+  owner_id: string;
+  owner_name: string;
+  steps_count: number;
+  dependencies: string[];
+  rto_hours?: number;
+  rpo_hours?: number;
+  last_simulation_result?: SimulationResult;
+  created_at: string;
+  updated_at: string;
+}
+
+// ─── vCISO Governance — Compliance Deep Dive ─────────────────────────────────
+
+export type ObligationType = 'legal' | 'regulatory' | 'contractual' | 'industry_standard';
+export type ObligationStatus = 'compliant' | 'partially_compliant' | 'non_compliant' | 'not_assessed';
+
+export interface VCISORegulatoryObligation {
+  id: string;
+  tenant_id: string;
+  name: string;
+  type: ObligationType;
+  jurisdiction: string;
+  description: string;
+  requirements: string[];
+  status: ObligationStatus;
+  mapped_controls: number;
+  total_requirements: number;
+  met_requirements: number;
+  owner_id?: string;
+  owner_name?: string;
+  effective_date: string;
+  review_date: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export type ControlTestResult = 'effective' | 'partially_effective' | 'ineffective' | 'not_tested';
+export type ControlTestType = 'design' | 'operating_effectiveness';
+
+export interface VCISOControlTest {
+  id: string;
+  tenant_id: string;
+  control_id: string;
+  control_name: string;
+  framework: string;
+  test_type: ControlTestType;
+  result: ControlTestResult;
+  tester_name: string;
+  test_date: string;
+  next_test_date: string;
+  findings: string;
+  evidence_ids: string[];
+  created_at: string;
+  updated_at: string;
+}
+
+export type ControlFailureImpact = 'critical' | 'high' | 'medium' | 'low';
+
+export interface VCISOControlDependency {
+  control_id: string;
+  control_name: string;
+  framework: string;
+  depends_on: string[];
+  depended_by: string[];
+  risk_domains: string[];
+  compliance_domains: string[];
+  failure_impact: ControlFailureImpact;
+}
+
+// ─── vCISO Governance — Integrations ─────────────────────────────────────────
+
+export type IntegrationType = 'ticketing' | 'cloud_security' | 'asset_management' | 'data_protection' | 'siem' | 'iam';
+export type IntegrationStatus = 'connected' | 'disconnected' | 'error' | 'pending';
+export type IntegrationHealth = 'healthy' | 'degraded' | 'unavailable';
+
+export interface VCISOIntegration {
+  id: string;
+  tenant_id: string;
+  name: string;
+  type: IntegrationType;
+  provider: string;
+  status: IntegrationStatus;
+  last_sync_at?: string;
+  sync_frequency: string;
+  items_synced: number;
+  config: Record<string, unknown>;
+  health_status: IntegrationHealth;
+  error_message?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+// ─── vCISO Governance — Workflows ────────────────────────────────────────────
+
+export type OwnershipStatus = 'assigned' | 'pending_review' | 'reviewed';
+
+export interface VCISOControlOwnership {
+  id: string;
+  tenant_id: string;
+  control_id: string;
+  control_name: string;
+  framework: string;
+  owner_id: string;
+  owner_name: string;
+  delegate_id?: string;
+  delegate_name?: string;
+  status: OwnershipStatus;
+  last_reviewed_at?: string;
+  next_review_date: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export type ApprovalRequestType = 'risk_acceptance' | 'policy_exception' | 'remediation' | 'budget' | 'vendor_onboarding';
+export type ApprovalRequestStatus = 'pending' | 'approved' | 'rejected' | 'escalated';
+export type ApprovalPriority = 'critical' | 'high' | 'medium' | 'low';
+
+export interface VCISOApprovalRequest {
+  id: string;
+  tenant_id: string;
+  type: ApprovalRequestType;
+  title: string;
+  description: string;
+  status: ApprovalRequestStatus;
+  requested_by: string;
+  requested_by_name: string;
+  approver_id: string;
+  approver_name: string;
+  priority: ApprovalPriority;
+  decision_notes?: string;
+  decided_at?: string;
+  deadline: string;
+  linked_entity_type: string;
+  linked_entity_id: string;
+  created_at: string;
+  updated_at: string;
+}
+
 // ─── Export ───────────────────────────────────────────────────────────────────
 
 export interface ExportJob {

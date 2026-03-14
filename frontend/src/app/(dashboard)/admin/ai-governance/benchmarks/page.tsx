@@ -112,10 +112,13 @@ export default function BenchmarksPage() {
         description: suiteDesc,
         model_slug: modelSlug,
         prompt_dataset: [],
+        dataset_size: 0,
         warmup_count: Number(warmupCount),
         iteration_count: Number(iterationCount),
         concurrency: Number(concurrency),
         timeout_seconds: Number(timeoutSeconds),
+        stream_enabled: false,
+        max_retries: 3,
       });
       showSuccess('Benchmark suite created.');
       setSuiteFormOpen(false);

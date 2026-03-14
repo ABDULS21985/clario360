@@ -54,7 +54,7 @@ export function useRealtimeData<T>(
     queryKey,
     queryFn: () => apiGet<T>(url, params),
     refetchInterval: pollInterval > 0 ? pollInterval : undefined,
-    refetchOnWindowFocus: options.refreshOnFocus !== false,
+    refetchOnWindowFocus: options.refreshOnFocus === true, // opt-in, not opt-out
     enabled,
   });
 

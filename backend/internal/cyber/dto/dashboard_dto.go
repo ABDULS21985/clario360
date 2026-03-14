@@ -24,3 +24,13 @@ type DashboardTrendsResponse struct {
 	VulnTrend   []model.DailyMetric `json:"vulnerability_trend"`
 	ThreatTrend []model.DailyMetric `json:"threat_trend"`
 }
+
+// DashboardMetricsResponse is the aggregated metrics strip for the main dashboard.
+type DashboardMetricsResponse struct {
+	MTTRMinutes      *float64 `json:"mttr_minutes"`
+	MTTAMinutes      *float64 `json:"mtta_minutes"`
+	SLACompliancePct *float64 `json:"sla_compliance_pct"`
+	ActiveIncidents  *int     `json:"active_incidents"`
+	ActiveUsersToday *int     `json:"active_users_today"`
+	PendingReviews   *int     `json:"pending_reviews"`
+}

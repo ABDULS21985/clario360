@@ -68,11 +68,29 @@ function checkPermission(userPermissions: string[], required: string): boolean {
   return false;
 }
 
+// Cached permission extraction — avoids re-parsing JWT on every hasPermission call.
+// Cache is keyed by the token string itself; invalidated when token changes.
+let _cachedPermToken: string | null = null;
+let _cachedPerms: string[] = [];
+
+/** Reset the permission cache. Exported for tests that mock getTokenPayload. */
+export function _resetPermissionsCache(): void {
+  _cachedPermToken = null;
+  _cachedPerms = [];
+}
+
 function getPermissionsFromToken(): string[] {
   const token = getAccessToken();
-  if (!token) return [];
+  if (!token) {
+    _cachedPermToken = null;
+    _cachedPerms = [];
+    return [];
+  }
+  if (token === _cachedPermToken) return _cachedPerms;
   const payload = getTokenPayload(token);
-  return payload?.permissions ?? [];
+  _cachedPerms = payload?.permissions ?? [];
+  _cachedPermToken = token;
+  return _cachedPerms;
 }
 
 async function hydrateSessionFromBFF(): Promise<{

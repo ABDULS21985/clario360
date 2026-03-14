@@ -52,12 +52,19 @@ export function SecondaryMetricsStrip() {
   const { hasPermission } = useAuth();
   const hasCyber = hasPermission('cyber:read');
 
-  const { data, isLoading } = useRealtimeData<DashboardMetrics>(
-    '/api/v1/dashboard/metrics',
+  const { data: envelope, isLoading, error } = useRealtimeData<{ data: DashboardMetrics }>(
+    '/api/v1/cyber/dashboard/metrics',
     {
       wsTopics: ['dashboard.metrics.updated'],
+      enabled: hasCyber,
     },
   );
+  const data = envelope?.data;
+
+  // Hide entire strip if the endpoint doesn't exist or returned an error
+  if (error && !isLoading) return null;
+  // Also hide if we got a response but all values are undefined (no data)
+  if (!isLoading && data && Object.values(data).every((v) => v === undefined || v === null)) return null;
 
   const metrics: MetricConfig[] = [
     {

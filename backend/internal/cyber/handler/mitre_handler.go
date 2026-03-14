@@ -82,9 +82,11 @@ func (h *MITREHandler) Coverage(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "COVERAGE_FAILED", err.Error(), nil)
 		return
 	}
-	out := make([]dto.MITRECoverageDTO, 0, len(items))
+
+	// Build flat technique list
+	techniques := make([]dto.MITRECoverageDTO, 0, len(items))
 	for _, item := range items {
-		out = append(out, dto.MITRECoverageDTO{
+		techniques = append(techniques, dto.MITRECoverageDTO{
 			TechniqueID:   item.Technique.ID,
 			TechniqueName: item.Technique.Name,
 			TacticIDs:     item.Technique.TacticIDs,
@@ -93,5 +95,61 @@ func (h *MITREHandler) Coverage(w http.ResponseWriter, r *http.Request) {
 			RuleNames:     item.RuleNames,
 		})
 	}
-	writeJSON(w, http.StatusOK, envelope{"data": out})
+
+	// Aggregate statistics
+	totalTechniques := len(items)
+	coveredTechniques := 0
+	activeTechniques := 0
+	for _, item := range items {
+		if item.HasDetection {
+			coveredTechniques++
+			if item.RuleCount > 1 {
+				activeTechniques++
+			}
+		}
+	}
+	passiveTechniques := coveredTechniques - activeTechniques
+
+	coveragePercent := 0.0
+	if totalTechniques > 0 {
+		coveragePercent = float64(coveredTechniques) / float64(totalTechniques) * 100
+	}
+
+	// Build per-tactic coverage
+	allTactics := mitre.AllTactics()
+	tacticCoverage := make([]dto.MITRETacticCoverageDTO, 0, len(allTactics))
+	for _, tactic := range allTactics {
+		techCount := 0
+		covCount := 0
+		for _, item := range items {
+			for _, tid := range item.Technique.TacticIDs {
+				if tid == tactic.ID {
+					techCount++
+					if item.HasDetection {
+						covCount++
+					}
+					break
+				}
+			}
+		}
+		tacticCoverage = append(tacticCoverage, dto.MITRETacticCoverageDTO{
+			ID:             tactic.ID,
+			Name:           tactic.Name,
+			ShortName:      tactic.ShortName,
+			TechniqueCount: techCount,
+			CoveredCount:   covCount,
+		})
+	}
+
+	resp := dto.MITRECoverageResponseDTO{
+		Tactics:           tacticCoverage,
+		Techniques:        techniques,
+		TotalTechniques:   totalTechniques,
+		CoveredTechniques: coveredTechniques,
+		CoveragePercent:   coveragePercent,
+		ActiveTechniques:  activeTechniques,
+		PassiveTechniques: passiveTechniques,
+	}
+
+	writeJSON(w, http.StatusOK, envelope{"data": resp})
 }

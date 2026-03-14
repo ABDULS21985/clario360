@@ -215,6 +215,138 @@ export const visusAlertStatusConfig: StatusConfig = {
   escalated: { label: 'Escalated', color: 'purple', icon: ArrowUpCircle },
 };
 
+export const riskStatusConfig: StatusConfig = {
+  identified: { label: 'Identified', color: 'yellow', icon: AlertCircle },
+  assessed: { label: 'Assessed', color: 'blue', icon: Eye },
+  mitigating: { label: 'Mitigating', color: 'orange', icon: Play },
+  accepted: { label: 'Accepted', color: 'green', icon: CheckCircle },
+  closed: { label: 'Closed', color: 'gray', icon: XCircle },
+};
+
+export const riskTreatmentConfig: StatusConfig = {
+  mitigate: { label: 'Mitigate', color: 'blue', icon: Shield },
+  transfer: { label: 'Transfer', color: 'purple', icon: ArrowUpCircle },
+  accept: { label: 'Accept', color: 'green', icon: CheckCircle },
+  avoid: { label: 'Avoid', color: 'orange', icon: Ban },
+};
+
+export const policyStatusConfig: StatusConfig = {
+  draft: { label: 'Draft', color: 'gray', icon: FileEdit },
+  review: { label: 'In Review', color: 'yellow', icon: Eye },
+  approved: { label: 'Approved', color: 'green', icon: CheckCircle },
+  published: { label: 'Published', color: 'blue', icon: CheckCheck },
+  retired: { label: 'Retired', color: 'gray', icon: Ban },
+};
+
+export const policyExceptionStatusConfig: StatusConfig = {
+  pending: { label: 'Pending', color: 'yellow', icon: Clock },
+  approved: { label: 'Approved', color: 'green', icon: CheckCircle },
+  rejected: { label: 'Rejected', color: 'red', icon: XCircle },
+  expired: { label: 'Expired', color: 'gray', icon: Clock },
+};
+
+export const vendorStatusConfig: StatusConfig = {
+  active: { label: 'Active', color: 'green', icon: CheckCircle },
+  onboarding: { label: 'Onboarding', color: 'blue', icon: Play },
+  under_review: { label: 'Under Review', color: 'yellow', icon: Eye },
+  offboarding: { label: 'Offboarding', color: 'orange', icon: Clock },
+  terminated: { label: 'Terminated', color: 'gray', icon: XCircle },
+};
+
+export const questionnaireStatusConfig: StatusConfig = {
+  draft: { label: 'Draft', color: 'gray', icon: FileEdit },
+  sent: { label: 'Sent', color: 'blue', icon: ArrowUpCircle },
+  in_progress: { label: 'In Progress', color: 'yellow', icon: Play },
+  completed: { label: 'Completed', color: 'green', icon: CheckCircle },
+  expired: { label: 'Expired', color: 'red', icon: Clock },
+};
+
+export const evidenceStatusConfig: StatusConfig = {
+  current: { label: 'Current', color: 'green', icon: CheckCircle },
+  stale: { label: 'Stale', color: 'yellow', icon: AlertTriangle },
+  expired: { label: 'Expired', color: 'red', icon: XCircle },
+};
+
+export const budgetItemStatusConfig: StatusConfig = {
+  proposed: { label: 'Proposed', color: 'yellow', icon: Clock },
+  approved: { label: 'Approved', color: 'green', icon: CheckCircle },
+  in_progress: { label: 'In Progress', color: 'blue', icon: Play },
+  completed: { label: 'Completed', color: 'green', icon: CheckCheck },
+  deferred: { label: 'Deferred', color: 'gray', icon: Pause },
+};
+
+export const maturityAssessmentStatusConfig: StatusConfig = {
+  draft: { label: 'Draft', color: 'gray', icon: FileEdit },
+  in_progress: { label: 'In Progress', color: 'blue', icon: Play },
+  completed: { label: 'Completed', color: 'green', icon: CheckCircle },
+};
+
+export const awarenessStatusConfig: StatusConfig = {
+  scheduled: { label: 'Scheduled', color: 'gray', icon: Clock },
+  active: { label: 'Active', color: 'blue', icon: Play },
+  completed: { label: 'Completed', color: 'green', icon: CheckCircle },
+};
+
+export const iamFindingStatusConfig: StatusConfig = {
+  open: { label: 'Open', color: 'red', icon: AlertCircle },
+  in_progress: { label: 'In Progress', color: 'blue', icon: Play },
+  resolved: { label: 'Resolved', color: 'green', icon: CheckCircle },
+  accepted: { label: 'Accepted', color: 'gray', icon: CheckCheck },
+};
+
+export const playbookStatusConfig: StatusConfig = {
+  draft: { label: 'Draft', color: 'gray', icon: FileEdit },
+  approved: { label: 'Approved', color: 'green', icon: CheckCircle },
+  tested: { label: 'Tested', color: 'blue', icon: CheckCheck },
+  retired: { label: 'Retired', color: 'red', icon: Ban },
+};
+
+export const simulationResultConfig: StatusConfig = {
+  pass: { label: 'Pass', color: 'green', icon: CheckCircle },
+  partial: { label: 'Partial', color: 'orange', icon: AlertTriangle },
+  fail: { label: 'Fail', color: 'red', icon: XCircle },
+};
+
+export const integrationStatusConfig: StatusConfig = {
+  connected: { label: 'Connected', color: 'green', icon: CheckCircle },
+  disconnected: { label: 'Disconnected', color: 'gray', icon: XCircle },
+  error: { label: 'Error', color: 'red', icon: AlertCircle },
+  pending: { label: 'Pending', color: 'yellow', icon: Clock },
+};
+
+export const integrationHealthConfig: StatusConfig = {
+  healthy: { label: 'Healthy', color: 'green', icon: CheckCircle },
+  degraded: { label: 'Degraded', color: 'yellow', icon: AlertTriangle },
+  unavailable: { label: 'Unavailable', color: 'red', icon: XCircle },
+};
+
+export const ownershipStatusConfig: StatusConfig = {
+  assigned: { label: 'Assigned', color: 'blue', icon: UserCheck },
+  pending_review: { label: 'Pending Review', color: 'yellow', icon: Clock },
+  reviewed: { label: 'Reviewed', color: 'green', icon: CheckCircle },
+};
+
+export const approvalStatusConfig: StatusConfig = {
+  pending: { label: 'Pending', color: 'yellow', icon: Clock },
+  approved: { label: 'Approved', color: 'green', icon: CheckCircle },
+  rejected: { label: 'Rejected', color: 'red', icon: XCircle },
+  escalated: { label: 'Escalated', color: 'purple', icon: ArrowUpCircle },
+};
+
+export const obligationStatusConfig: StatusConfig = {
+  compliant: { label: 'Compliant', color: 'green', icon: CheckCircle },
+  partially_compliant: { label: 'Partially Compliant', color: 'orange', icon: AlertTriangle },
+  non_compliant: { label: 'Non-Compliant', color: 'red', icon: XCircle },
+  not_assessed: { label: 'Not Assessed', color: 'gray', icon: MinusCircle },
+};
+
+export const controlTestResultConfig: StatusConfig = {
+  effective: { label: 'Effective', color: 'green', icon: CheckCircle },
+  partially_effective: { label: 'Partially Effective', color: 'orange', icon: AlertTriangle },
+  ineffective: { label: 'Ineffective', color: 'red', icon: XCircle },
+  not_tested: { label: 'Not Tested', color: 'gray', icon: MinusCircle },
+};
+
 // Re-export icons that are referenced in status configs for convenience
 export {
   Shield,

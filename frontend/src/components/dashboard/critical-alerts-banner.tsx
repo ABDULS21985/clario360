@@ -8,9 +8,9 @@ import { useAuth } from '@/hooks/use-auth';
 import { API_ENDPOINTS } from '@/lib/constants';
 import { useRealtimeData } from '@/hooks/use-realtime-data';
 
-interface CriticalCount {
-  critical: number;
-  high: number;
+interface AlertStats {
+  by_severity: Array<{ name: string; count: number }>;
+  open_count: number;
 }
 
 export function CriticalAlertsBanner() {
@@ -18,17 +18,20 @@ export function CriticalAlertsBanner() {
   const { hasPermission } = useAuth();
   const hasCyber = hasPermission('cyber:read');
 
-  const { data, isLoading } = useRealtimeData<CriticalCount>(
-    API_ENDPOINTS.CYBER_ALERTS_COUNT,
+  const { data: envelope, isLoading } = useRealtimeData<{ data: AlertStats }>(
+    API_ENDPOINTS.CYBER_ALERTS_STATS,
     {
-      params: { severity: 'critical,high', status: 'new,acknowledged' },
       wsTopics: ['alert.created', 'alert.escalated', 'alert.resolved'],
       enabled: hasCyber,
     },
   );
 
-  const criticalCount = data?.critical ?? 0;
-  const highCount = data?.high ?? 0;
+  const stats = envelope?.data;
+  const severityMap = Object.fromEntries(
+    (stats?.by_severity ?? []).map((s) => [s.name, s.count]),
+  );
+  const criticalCount = severityMap['critical'] ?? 0;
+  const highCount = severityMap['high'] ?? 0;
   const totalCritical = criticalCount + highCount;
   const isVisible = hasCyber && !isLoading && totalCritical > 0 && !dismissed;
 

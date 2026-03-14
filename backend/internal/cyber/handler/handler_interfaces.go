@@ -11,6 +11,20 @@ import (
 	"github.com/clario360/platform/internal/cyber/service"
 )
 
+// dashboardService abstracts the dashboard service layer for testability.
+type dashboardService interface {
+	GetSOCDashboard(ctx context.Context, tenantID uuid.UUID) (*model.SOCDashboard, error)
+	GetKPIs(ctx context.Context, tenantID uuid.UUID) (model.KPICards, error)
+	GetAlertTimeline(ctx context.Context, tenantID uuid.UUID) (model.AlertTimelineData, error)
+	GetSeverityDistribution(ctx context.Context, tenantID uuid.UUID) (model.SeverityDistribution, error)
+	GetMTTR(ctx context.Context, tenantID uuid.UUID) (*model.MTTRReport, error)
+	GetAnalystWorkload(ctx context.Context, tenantID uuid.UUID) ([]model.AnalystWorkloadEntry, error)
+	GetTopAttackedAssets(ctx context.Context, tenantID uuid.UUID) ([]model.AssetAlertSummary, error)
+	GetMITREHeatmap(ctx context.Context, tenantID uuid.UUID) (model.MITREHeatmapData, error)
+	GetMetrics(ctx context.Context, tenantID uuid.UUID) (*dto.DashboardMetricsResponse, error)
+	GetTrends(ctx context.Context, tenantID uuid.UUID, days int) (*dto.DashboardTrendsResponse, error)
+}
+
 // remediationService abstracts the remediation service layer for testability.
 type remediationService interface {
 	Create(ctx context.Context, tenantID, userID uuid.UUID, actor *service.Actor, req *dto.CreateRemediationRequest) (*model.RemediationAction, error)

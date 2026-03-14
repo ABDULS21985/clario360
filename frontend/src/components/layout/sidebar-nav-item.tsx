@@ -1,5 +1,6 @@
 'use client';
 
+import { memo } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
@@ -12,7 +13,7 @@ interface SidebarNavItemProps {
   badgeCount?: number;
 }
 
-export function SidebarNavItem({ item, collapsed, badgeCount }: SidebarNavItemProps) {
+export const SidebarNavItem = memo(function SidebarNavItem({ item, collapsed, badgeCount }: SidebarNavItemProps) {
   const pathname = usePathname();
   const currentPath = pathname ?? '';
   const isActive =
@@ -80,4 +81,4 @@ export function SidebarNavItem({ item, collapsed, badgeCount }: SidebarNavItemPr
   }
 
   return content;
-}
+});

@@ -1,5 +1,6 @@
 'use client';
 
+import { memo } from 'react';
 import { Menu, Search } from 'lucide-react';
 import { useSidebar } from '@/hooks/use-sidebar';
 import { useIsMobile } from '@/hooks/use-media-query';
@@ -9,7 +10,7 @@ import { NotificationDropdown } from './notification-dropdown';
 import { UserMenu } from './user-menu';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
-export function Header() {
+export const Header = memo(function Header() {
   const { toggleMobileOpen } = useSidebar();
   const isMobile = useIsMobile();
   const { setOpen } = useCommandPalette();
@@ -73,4 +74,4 @@ export function Header() {
       </header>
     </TooltipProvider>
   );
-}
+});

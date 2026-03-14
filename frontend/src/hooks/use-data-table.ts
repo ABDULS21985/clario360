@@ -216,7 +216,7 @@ export function useDataTable<TData>(
     queryKey: [queryKey, fetchParams],
     queryFn: () => fetchFn(fetchParams),
     placeholderData: (prev) => prev, // keepPreviousData equivalent in RQ v5
-    staleTime: 30_000,
+    staleTime: 5 * 60_000, // 5 min — matches global default; WS handles freshness
   });
 
   const realtimeQueryKey = JSON.stringify([queryKey, fetchParams]);

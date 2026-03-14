@@ -473,6 +473,8 @@ export interface AIBenchmarkSuite {
   iteration_count: number;
   concurrency: number;
   timeout_seconds: number;
+  stream_enabled: boolean;
+  max_retries: number;
   created_by: string;
   created_at: string;
 }
