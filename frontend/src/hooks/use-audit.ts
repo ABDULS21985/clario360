@@ -18,7 +18,6 @@ import type {
   AuditVerificationRequest,
   AuditVerificationResult,
   AuditPartition,
-  CreatePartitionRequest,
 } from "@/types/audit";
 
 // ── Statistics ───────────────────────────────────────────────────────────────
@@ -85,7 +84,7 @@ export function useAuditExport() {
         params,
         responseType: "blob",
       });
-      const ext = params.format === "csv" ? "csv" : "json";
+      const ext = params.format === "csv" ? "csv" : "ndjson";
       const filename = `audit-logs-export.${ext}`;
       downloadBlob(response.data as Blob, filename);
     },
@@ -132,17 +131,16 @@ export function useAuditPartitions() {
 
 export function useCreateAuditPartition() {
   const queryClient = useQueryClient();
-  return useMutation<AuditPartition, AxiosError<ApiError>, CreatePartitionRequest>({
-    mutationFn: async (body) => {
-      const { data } = await api.post<AuditPartition>(
-        "/api/v1/audit/partitions/create",
-        body
+  return useMutation<AuditPartition[], AxiosError<ApiError>, void>({
+    mutationFn: async () => {
+      const { data } = await api.post<AuditPartition[]>(
+        "/api/v1/audit/partitions"
       );
       return data;
     },
-    onSuccess: () => {
-      toast.success("Partition created successfully");
-      queryClient.invalidateQueries({ queryKey: ["audit-partitions"] });
+    onSuccess: (data) => {
+      toast.success("Partition maintenance completed");
+      queryClient.setQueryData(["audit-partitions"], data);
     },
     onError: (error) => {
       toast.error(parseApiError(error));

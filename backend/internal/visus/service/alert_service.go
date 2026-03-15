@@ -35,8 +35,8 @@ func NewAlertService(alerts *repository.AlertRepository, generator *visusalert.G
 	}
 }
 
-func (s *AlertService) List(ctx context.Context, tenantID uuid.UUID, filters repository.AlertListFilters, page, perPage int) ([]model.ExecutiveAlert, int, error) {
-	items, total, err := s.alerts.List(ctx, tenantID, filters, page, perPage)
+func (s *AlertService) List(ctx context.Context, tenantID uuid.UUID, filters repository.AlertListFilters, page, perPage int, sortCol, sortDir string) ([]model.ExecutiveAlert, int, error) {
+	items, total, err := s.alerts.List(ctx, tenantID, filters, page, perPage, sortCol, sortDir)
 	if err == nil {
 		s.syncMetrics(ctx, tenantID)
 	}

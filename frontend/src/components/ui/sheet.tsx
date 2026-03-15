@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { createPortal } from "react-dom";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { cva, type VariantProps } from "class-variance-authority";
 import { X } from "lucide-react";
@@ -13,6 +14,14 @@ const SheetTrigger = DialogPrimitive.Trigger;
 const SheetClose = DialogPrimitive.Close;
 
 const SheetPortal = DialogPrimitive.Portal;
+
+// Same NativePortal workaround as dialog.tsx — see that file for full explanation.
+function NativePortal({ children }: { children: React.ReactNode }) {
+  const [container, setContainer] = React.useState<HTMLElement | null>(null);
+  React.useLayoutEffect(() => { setContainer(document.body); }, []);
+  if (!container) return null;
+  return createPortal(children, container);
+}
 
 const SheetOverlay = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Overlay>,
@@ -37,9 +46,9 @@ const sheetVariants = cva(
         top: "inset-x-0 top-0 border-b data-[state=closed]:slide-out-to-top data-[state=open]:slide-in-from-top",
         bottom:
           "inset-x-0 bottom-0 border-t data-[state=closed]:slide-out-to-bottom data-[state=open]:slide-in-from-bottom",
-        left: "inset-y-0 left-0 h-full w-3/4 border-r data-[state=closed]:slide-out-to-left data-[state=open]:slide-in-from-left sm:max-w-sm",
+        left: "inset-y-0 left-0 h-full w-[calc(100vw-1rem)] border-r data-[state=closed]:slide-out-to-left data-[state=open]:slide-in-from-left sm:w-3/4 sm:max-w-sm",
         right:
-          "inset-y-0 right-0 h-full w-3/4 border-l data-[state=closed]:slide-out-to-right data-[state=open]:slide-in-from-right sm:max-w-sm",
+          "inset-y-0 right-0 h-full w-[calc(100vw-1rem)] border-l data-[state=closed]:slide-out-to-right data-[state=open]:slide-in-from-right sm:w-3/4 sm:max-w-sm",
       },
     },
     defaultVariants: {
@@ -56,7 +65,7 @@ const SheetContent = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Content>,
   SheetContentProps
 >(({ side = "right", className, children, ...props }, ref) => (
-  <SheetPortal>
+  <NativePortal>
     <SheetOverlay />
     <DialogPrimitive.Content
       ref={ref}
@@ -69,7 +78,7 @@ const SheetContent = React.forwardRef<
         <span className="sr-only">Close</span>
       </DialogPrimitive.Close>
     </DialogPrimitive.Content>
-  </SheetPortal>
+  </NativePortal>
 ));
 SheetContent.displayName = DialogPrimitive.Content.displayName;
 

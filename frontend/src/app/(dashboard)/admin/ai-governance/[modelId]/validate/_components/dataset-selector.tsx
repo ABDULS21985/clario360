@@ -50,7 +50,7 @@ export function DatasetSelector({
         <CardTitle>Dataset Selection</CardTitle>
       </CardHeader>
       <CardContent className="space-y-5">
-        <div className="grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1.1fr_0.9fr]">
           <div className="space-y-2">
             <Label>Source</Label>
             <Select value={datasetType} onValueChange={(value) => onDatasetTypeChange(value as AIValidationDatasetType)}>
@@ -97,7 +97,7 @@ export function DatasetSelector({
 
         {datasetType === 'custom' ? (
           <div className="space-y-4 rounded-2xl border border-dashed border-border/80 bg-slate-50/70 p-4">
-            <div className="grid gap-4 lg:grid-cols-[0.45fr_0.55fr]">
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-[0.45fr_0.55fr]">
               <div className="space-y-2">
                 <Label htmlFor="validation-file">Upload JSON</Label>
                 <Input id="validation-file" type="file" accept=".json,application/json" onChange={onCustomFileLoad} />

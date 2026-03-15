@@ -21,7 +21,7 @@ export function MinutesEditor({
   const [content, setContent] = useState(initialValue);
 
   return (
-    <div className="grid gap-4 xl:grid-cols-2">
+    <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
       <div className="space-y-3">
         <Textarea value={content} onChange={(event) => setContent(event.target.value)} rows={24} />
         <div className="flex justify-end gap-2">

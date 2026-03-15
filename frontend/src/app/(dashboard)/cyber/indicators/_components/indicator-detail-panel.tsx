@@ -120,7 +120,7 @@ export function IndicatorDetailPanel({
             </div>
           </div>
 
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <InfoCard title="Lifecycle">
               <dl className="space-y-2 text-sm">
                 <InfoRow label="First Seen">
@@ -165,7 +165,7 @@ export function IndicatorDetailPanel({
             {enrichmentQuery.isLoading ? (
               <p className="text-sm text-muted-foreground">Loading enrichment…</p>
             ) : (
-              <div className="grid gap-4 md:grid-cols-2">
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 <EnrichmentBlock
                   title="DNS"
                   icon={Globe2}

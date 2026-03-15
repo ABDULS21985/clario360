@@ -125,7 +125,11 @@ func (s *QualityService) UpdateRule(ctx context.Context, tenantID, id uuid.UUID,
 		item.Severity = severity
 	}
 	if req.ColumnName != nil {
-		item.ColumnName = req.ColumnName
+		if strings.TrimSpace(*req.ColumnName) == "" {
+			item.ColumnName = nil
+		} else {
+			item.ColumnName = req.ColumnName
+		}
 	}
 	if len(req.Config) > 0 {
 		if item.RuleType == model.QualityRuleTypeCustomSQL {
@@ -136,7 +140,11 @@ func (s *QualityService) UpdateRule(ctx context.Context, tenantID, id uuid.UUID,
 		item.Config = req.Config
 	}
 	if req.Schedule != nil {
-		item.Schedule = req.Schedule
+		if strings.TrimSpace(*req.Schedule) == "" {
+			item.Schedule = nil
+		} else {
+			item.Schedule = req.Schedule
+		}
 	}
 	if req.Enabled != nil {
 		item.Enabled = *req.Enabled

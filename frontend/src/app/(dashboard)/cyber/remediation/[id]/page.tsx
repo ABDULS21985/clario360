@@ -235,7 +235,7 @@ export default function RemediationDetailPage({ params }: Props) {
                         <Badge variant="destructive">Failed</Badge>
                       )}
                     </h3>
-                    <div className="grid grid-cols-3 gap-4 text-center">
+                    <div className="grid grid-cols-1 gap-4 text-center sm:grid-cols-3">
                       <div className="rounded-lg border bg-muted/20 p-3">
                         <p className="text-2xl font-bold">{action.execution_result.steps_executed}</p>
                         <p className="text-xs text-muted-foreground">Steps Executed</p>
@@ -261,7 +261,7 @@ export default function RemediationDetailPage({ params }: Props) {
                               </div>
                               <p className="mt-0.5 text-xs text-muted-foreground">{change.description}</p>
                               {change.old_value && change.new_value && (
-                                <div className="mt-2 grid grid-cols-2 gap-2">
+                                <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
                                   <div className="rounded bg-red-50 p-2 text-xs text-red-700 dark:bg-red-950/30 dark:text-red-400">
                                     Before: {change.old_value}
                                   </div>

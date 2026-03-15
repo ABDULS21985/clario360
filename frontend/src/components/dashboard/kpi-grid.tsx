@@ -76,7 +76,7 @@ export function KpiGrid() {
   let cardIndex = 0;
 
   return (
-    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
       {hasCyber && (
         <KpiCard
           title="Open Alerts"

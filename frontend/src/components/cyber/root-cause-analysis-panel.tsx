@@ -102,7 +102,7 @@ export function RootCauseAnalysisPanel({
         ) : null}
       </div>
 
-      <div className="grid gap-4 xl:grid-cols-[1.5fr_1fr]">
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1.5fr_1fr]">
         <div className="space-y-4">
           <div className="rounded-xl border bg-card p-5">
             <h3 className="text-sm font-semibold">Causal Chain</h3>

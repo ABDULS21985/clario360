@@ -136,7 +136,7 @@ function getBudgetColumns(): ColumnDef<VCISOBudgetItem>[] {
       header: 'Title',
       enableSorting: true,
       cell: ({ row }) => (
-        <span className="font-medium text-foreground max-w-[200px] truncate block">
+        <span className="font-medium text-foreground max-w-[120px] sm:max-w-[200px] truncate block">
           {row.original.title}
         </span>
       ),
@@ -918,7 +918,7 @@ export default function MaturityBudgetPage() {
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
                       {Object.entries(budgetSummary.by_category)
                         .sort(([, a], [, b]) => b - a)
                         .map(([category, amount]) => (

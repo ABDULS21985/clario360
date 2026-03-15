@@ -291,7 +291,7 @@ export default function BenchmarksPage() {
           }
         />
 
-        <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
           <ModelCard
             label="Benchmark Suites"
             value={suiteTableProps.totalRows ?? 0}
@@ -396,7 +396,7 @@ export default function BenchmarksPage() {
               <Label htmlFor="model-slug">Model Slug</Label>
               <Input id="model-slug" placeholder="threat-scorer" value={modelSlug} onChange={(e) => setModelSlug(e.target.value)} />
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div className="grid gap-2">
                 <Label htmlFor="warmup">Warmup Iterations</Label>
                 <Input id="warmup" type="number" value={warmupCount} onChange={(e) => setWarmupCount(e.target.value)} />
@@ -406,7 +406,7 @@ export default function BenchmarksPage() {
                 <Input id="iterations" type="number" value={iterationCount} onChange={(e) => setIterationCount(e.target.value)} />
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div className="grid gap-2">
                 <Label htmlFor="concurrency">Concurrency</Label>
                 <Input id="concurrency" type="number" value={concurrency} onChange={(e) => setConcurrency(e.target.value)} />

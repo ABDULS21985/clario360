@@ -160,6 +160,8 @@ func handleServiceError(w http.ResponseWriter, err error) {
 		writeError(w, http.StatusGone, err.Error())
 	case errors.Is(err, onboardingmodel.ErrInvitationUsed):
 		writeError(w, http.StatusConflict, err.Error())
+	case errors.Is(err, onboardingmodel.ErrDuplicatePendingInvitation):
+		writeError(w, http.StatusConflict, err.Error())
 	default:
 		writeError(w, http.StatusInternalServerError, "internal server error")
 	}

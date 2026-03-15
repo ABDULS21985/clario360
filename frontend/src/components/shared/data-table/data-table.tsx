@@ -184,7 +184,7 @@ export function DataTable<TData, TValue = unknown>({
         getSelectedIds={() => selectedIds}
       />
 
-      <div className="overflow-hidden rounded-[26px] border border-[color:var(--card-border)] bg-[var(--card-bg)] shadow-[var(--card-shadow)] backdrop-blur-md">
+      <div className="w-full overflow-auto rounded-[26px] border border-[color:var(--card-border)] bg-[var(--card-bg)] shadow-[var(--card-shadow)] backdrop-blur-md">
         <div className="overflow-x-auto">
           <Table>
             <TableHeader

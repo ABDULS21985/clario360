@@ -53,7 +53,7 @@ export function VerificationResultsPanel({ result }: { result: VerificationResul
                 <span className="text-sm font-medium">{check.name}</span>
               </div>
 
-              <div className="grid grid-cols-2 gap-2 pl-6">
+              <div className="grid grid-cols-1 gap-2 pl-6 sm:grid-cols-2">
                 <div>
                   <p className="mb-0.5 text-xs text-muted-foreground">Expected</p>
                   <p className="rounded bg-muted px-2 py-1 text-xs font-mono">{check.expected}</p>

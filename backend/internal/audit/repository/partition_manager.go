@@ -72,14 +72,14 @@ func (pm *PartitionManager) EnsurePartitions(ctx context.Context) ([]string, err
 	return created, nil
 }
 
-// ListPartitions returns metadata about all existing partitions.
+// ListPartitions returns metadata about all existing partitions with derived status fields.
+// The returned PartitionInfo structs are aligned with the frontend AuditPartition interface.
 func (pm *PartitionManager) ListPartitions(ctx context.Context) ([]model.PartitionInfo, error) {
 	query := `
 		SELECT
 			c.relname AS name,
 			pg_get_expr(c.relpartbound, c.oid) AS bound_expr,
-			pg_total_relation_size(c.oid) AS size_bytes,
-			(SELECT COUNT(*) FROM pg_catalog.pg_stat_user_tables WHERE relname = c.relname) AS approx_rows
+			pg_total_relation_size(c.oid) AS size_bytes
 		FROM pg_catalog.pg_inherits i
 		JOIN pg_catalog.pg_class c ON c.oid = i.inhrelid
 		JOIN pg_catalog.pg_class p ON p.oid = i.inhparent
@@ -92,16 +92,17 @@ func (pm *PartitionManager) ListPartitions(ctx context.Context) ([]model.Partiti
 	}
 	defer rows.Close()
 
+	now := time.Now().UTC()
 	var partitions []model.PartitionInfo
 	for rows.Next() {
 		var name, boundExpr string
 		var sizeBytes int64
-		var approxRows int64
-		if err := rows.Scan(&name, &boundExpr, &sizeBytes, &approxRows); err != nil {
+		if err := rows.Scan(&name, &boundExpr, &sizeBytes); err != nil {
 			return nil, fmt.Errorf("scan partition info: %w", err)
 		}
 
 		pi := model.PartitionInfo{
+			ID:        name, // use table name as stable ID
 			Name:      name,
 			SizeBytes: sizeBytes,
 		}
@@ -109,35 +110,123 @@ func (pm *PartitionManager) ListPartitions(ctx context.Context) ([]model.Partiti
 		// Parse range bounds from the partition expression
 		rangeStart, rangeEnd, parseErr := parsePartitionBounds(boundExpr)
 		if parseErr == nil {
-			pi.RangeStart = rangeStart
-			pi.RangeEnd = rangeEnd
+			pi.DateRangeStart = rangeStart
+			pi.DateRangeEnd = rangeEnd
+			pi.CreatedAt = rangeStart // approximate: partition was created at range start
+			pi.Status = derivePartitionStatus(rangeStart, rangeEnd, now)
+		} else {
+			pi.Status = "active"
+			pi.CreatedAt = now
 		}
 
 		// Get accurate record count
 		var count int64
-		countErr := pm.db.QueryRow(ctx, fmt.Sprintf("SELECT COUNT(*) FROM %s", name)).Scan(&count)
-		if countErr == nil {
+		if countErr := pm.db.QueryRow(ctx, fmt.Sprintf("SELECT COUNT(*) FROM %s", name)).Scan(&count); countErr == nil {
 			pi.RecordCount = count
 		}
 
 		partitions = append(partitions, pi)
 	}
 
+	if partitions == nil {
+		partitions = []model.PartitionInfo{}
+	}
+
 	return partitions, rows.Err()
 }
 
-// partitionExists checks if a partition table exists.
+// ArchivePartition detaches the named partition from the parent audit_logs table.
+// The partition table still exists and can be queried directly, but is excluded
+// from normal audit_logs queries. Returns the archived partition's current info.
+func (pm *PartitionManager) ArchivePartition(ctx context.Context, partitionName string) error {
+	// Validate the partition name to prevent SQL injection
+	if !isValidPartitionName(partitionName) {
+		return fmt.Errorf("invalid partition name: %q", partitionName)
+	}
+
+	exists, err := pm.partitionExists(ctx, partitionName)
+	if err != nil {
+		return fmt.Errorf("checking partition %s: %w", partitionName, err)
+	}
+	if !exists {
+		return fmt.Errorf("partition %s not found", partitionName)
+	}
+
+	ddl := fmt.Sprintf("ALTER TABLE audit_logs DETACH PARTITION %s", partitionName)
+	if _, err := pm.db.Exec(ctx, ddl); err != nil {
+		return fmt.Errorf("detaching partition %s: %w", partitionName, err)
+	}
+
+	pm.logger.Info().Str("partition", partitionName).Msg("partition archived (detached)")
+	return nil
+}
+
+// DeletePartition drops the named partition table entirely.
+// The partition must already be detached (archived) before it can be deleted.
+func (pm *PartitionManager) DeletePartition(ctx context.Context, partitionName string) error {
+	if !isValidPartitionName(partitionName) {
+		return fmt.Errorf("invalid partition name: %q", partitionName)
+	}
+
+	ddl := fmt.Sprintf("DROP TABLE IF EXISTS %s", partitionName)
+	if _, err := pm.db.Exec(ctx, ddl); err != nil {
+		return fmt.Errorf("dropping partition %s: %w", partitionName, err)
+	}
+
+	pm.logger.Info().Str("partition", partitionName).Msg("partition deleted (dropped)")
+	return nil
+}
+
+// partitionExists checks if a partition table exists (either attached or detached).
 func (pm *PartitionManager) partitionExists(ctx context.Context, name string) (bool, error) {
 	var exists bool
 	err := pm.db.QueryRow(ctx,
 		`SELECT EXISTS(
-			SELECT 1 FROM pg_catalog.pg_class c
-			JOIN pg_catalog.pg_inherits i ON c.oid = i.inhrelid
-			JOIN pg_catalog.pg_class p ON p.oid = i.inhparent
-			WHERE c.relname = $1 AND p.relname = 'audit_logs'
+			SELECT 1 FROM pg_catalog.pg_class
+			WHERE relname = $1 AND relkind = 'r'
 		)`, name,
 	).Scan(&exists)
 	return exists, err
+}
+
+// derivePartitionStatus determines the status of a partition based on its date range.
+// A partition is "pending" if it starts in the future, "active" if it covers the current
+// period, and "archived" if its end date has passed.
+func derivePartitionStatus(rangeStart, rangeEnd, now time.Time) string {
+	if rangeStart.After(now) {
+		return "pending"
+	}
+	if rangeEnd.Before(now) || rangeEnd.Equal(now) {
+		return "archived"
+	}
+	return "active"
+}
+
+// isValidPartitionName checks that a partition name matches the expected pattern
+// audit_logs_YYYY_MM to prevent SQL injection.
+func isValidPartitionName(name string) bool {
+	if len(name) < 15 || len(name) > 20 {
+		return false
+	}
+	if name[:11] != "audit_logs_" {
+		return false
+	}
+	rest := name[11:]
+	if len(rest) != 7 {
+		return false
+	}
+	for i, c := range rest {
+		if i == 4 {
+			if c != '_' {
+				return false
+			}
+		} else {
+			if c < '0' || c > '9' {
+				return false
+			}
+		}
+	}
+	return true
 }
 
 // parsePartitionBounds extracts start and end times from a partition bound expression.

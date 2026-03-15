@@ -105,7 +105,7 @@ export function WizardStepSource({
           </div>
         ) : null}
 
-        <div className="grid gap-4 md:grid-cols-2">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <FormField name="read_mode" label="Read mode" required>
             <Select
               value={form.watch('read_mode')}
@@ -163,7 +163,7 @@ export function WizardStepSource({
             Enable incremental extraction
           </label>
           {form.watch('incremental_enabled') ? (
-            <div className="mt-4 grid gap-4 md:grid-cols-2">
+            <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
               <FormField name="incremental_field" label="Incremental field" required>
                 <Select
                   value={form.watch('incremental_field')}

@@ -66,7 +66,7 @@ export function RuleTestDialog({ open, onOpenChange, rule }: RuleTestDialogProps
           </DialogDescription>
         </DialogHeader>
 
-        <div className="grid gap-4 md:grid-cols-[220px_1fr]">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-[220px_1fr]">
           <div className="space-y-4 rounded-[22px] border p-4">
             <div className="space-y-2">
               <Label htmlFor="rule-test-limit">Event limit</Label>

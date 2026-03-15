@@ -80,7 +80,14 @@ export interface ProvisionTenantRequest {
   subscription_tier: SubscriptionTier;
   owner_email: string;
   owner_name: string;
+  /** Optional. If omitted the backend generates a random password returned in the response. */
+  owner_password?: string;
   settings?: Partial<TenantSettings>;
+}
+
+/** Returned by POST /api/v1/tenants/provision — includes the one-time temp_password. */
+export interface ProvisionTenantResponse extends Tenant {
+  temp_password: string;
 }
 
 export interface TenantUsage {

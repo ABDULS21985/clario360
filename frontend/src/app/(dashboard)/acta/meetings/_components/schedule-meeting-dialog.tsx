@@ -112,7 +112,7 @@ export function ScheduleMeetingDialog({
               </Select>
             </FormField>
 
-            <div className="grid gap-4 md:grid-cols-2">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <FormField name="title" label="Meeting title" required>
                 <Input {...form.register('title')} placeholder="Q2 Board Meeting" />
               </FormField>
@@ -139,7 +139,7 @@ export function ScheduleMeetingDialog({
               <Textarea {...form.register('description')} rows={3} />
             </FormField>
 
-            <div className="grid gap-4 md:grid-cols-3">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
               <FormField name="scheduled_at" label="Start" required>
                 <Input type="datetime-local" {...form.register('scheduled_at')} />
               </FormField>
@@ -159,7 +159,7 @@ export function ScheduleMeetingDialog({
               </FormField>
             </div>
 
-            <div className="grid gap-4 md:grid-cols-2">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <FormField name="location" label="Location">
                 <Input {...form.register('location')} placeholder="Boardroom 4A or Teams Room" />
               </FormField>

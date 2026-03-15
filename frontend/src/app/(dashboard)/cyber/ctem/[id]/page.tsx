@@ -77,7 +77,7 @@ export default function CTEMAssessmentDetailPage({ params }: Props) {
 
             {/* Summary KPIs */}
             {summary && (
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
                 {[
                   { label: 'Critical', value: summary.critical, color: 'text-red-600' },
                   { label: 'High', value: summary.high, color: 'text-orange-600' },

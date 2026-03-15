@@ -39,7 +39,7 @@ export function APIForm({ form }: APIFormProps) {
 
   return (
     <div className="space-y-4">
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <FormField name="base_url" label="Base URL" required>
           <Input {...form.register('base_url')} placeholder="https://api.example.com" />
         </FormField>
@@ -83,7 +83,7 @@ export function APIForm({ form }: APIFormProps) {
       </div>
 
       {authType === 'basic' ? (
-        <div className="grid gap-4 md:grid-cols-2">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <FormField name="auth_config.username" label="Username" required>
             <Input value={(form.watch('auth_config') as { username?: string }).username ?? ''} onChange={(event) => form.setValue('auth_config', { username: event.target.value, password: (form.watch('auth_config') as { password?: string }).password ?? '' }, { shouldValidate: true })} />
           </FormField>
@@ -105,7 +105,7 @@ export function APIForm({ form }: APIFormProps) {
       ) : null}
 
       {authType === 'api_key' ? (
-        <div className="grid gap-4 md:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
           <FormField name="auth_config.key_name" label="Key name" required>
             <Input
               value={(form.watch('auth_config') as { key_name?: string }).key_name ?? ''}
@@ -168,7 +168,7 @@ export function APIForm({ form }: APIFormProps) {
       ) : null}
 
       {authType === 'oauth2' ? (
-        <div className="grid gap-4 md:grid-cols-2">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <FormField name="auth_config.token_url" label="Token URL" required>
             <Input value={(form.watch('auth_config') as { token_url?: string }).token_url ?? ''} onChange={(event) => form.setValue('auth_config', { ...(form.watch('auth_config') as object), token_url: event.target.value }, { shouldValidate: true })} />
           </FormField>
@@ -196,7 +196,7 @@ export function APIForm({ form }: APIFormProps) {
           <p className="text-sm text-muted-foreground">No custom headers configured.</p>
         ) : (
           headerRows.map((row) => (
-            <div key={row.id} className="grid gap-3 md:grid-cols-[1fr_1fr_auto]">
+            <div key={row.id} className="grid grid-cols-1 gap-3 md:grid-cols-[1fr_1fr_auto]">
               <Input value={row.key} onChange={(event) => setHeaderRows((rows) => rows.map((item) => (item.id === row.id ? { ...item, key: event.target.value } : item)))} placeholder="Header name" />
               <Input value={row.value} onChange={(event) => setHeaderRows((rows) => rows.map((item) => (item.id === row.id ? { ...item, value: event.target.value } : item)))} placeholder="Header value" />
               <Button type="button" variant="ghost" size="icon" onClick={() => setHeaderRows((rows) => rows.filter((item) => item.id !== row.id))}>

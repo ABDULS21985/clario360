@@ -241,7 +241,7 @@ export default function RemediationsPage() {
         ) : statsError ? (
           <ErrorState message="Failed to load remediation stats" onRetry={() => void refetchStats()} />
         ) : (
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6">
             {kpis.map((kpi) => {
               const Icon = kpi.icon;
               return (

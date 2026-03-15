@@ -138,14 +138,14 @@ func (h *AuditHandler) GetTimeline(w http.ResponseWriter, r *http.Request) {
 
 	roles := getRoles(r)
 
-	result, err := h.querySvc.GetTimeline(r.Context(), tenantID, resourceID, page, perPage, roles)
+	timeline, err := h.querySvc.GetTimeline(r.Context(), tenantID, resourceID, page, perPage, roles)
 	if err != nil {
 		h.logger.Error().Err(err).Msg("failed to get timeline")
 		writeErrorResponse(w, http.StatusInternalServerError, "INTERNAL_ERROR", "failed to get timeline", r)
 		return
 	}
 
-	writeJSON(w, http.StatusOK, result)
+	writeJSON(w, http.StatusOK, timeline)
 }
 
 // helper functions

@@ -209,7 +209,8 @@ func (s *ModelService) DeriveFromSource(ctx context.Context, tenantID, userID uu
 		return nil, fmt.Errorf("table %q not found in source schema", req.TableName)
 	}
 
-	return s.createDerivedModel(ctx, tenantID, userID, record.Source, *table, req.Name, true)
+	autoGenRules := req.AutoGenerateQualityRules == nil || *req.AutoGenerateQualityRules
+	return s.createDerivedModel(ctx, tenantID, userID, record.Source, *table, req.Name, autoGenRules)
 }
 
 func (s *ModelService) CreateDerivedModelFromTable(ctx context.Context, tenantID, userID uuid.UUID, source *model.DataSource, table model.DiscoveredTable, name string, assignQualityRules bool) (*model.DataModel, error) {

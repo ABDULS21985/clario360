@@ -195,7 +195,7 @@ export function ContractFormDialog({
             className="space-y-5"
             onSubmit={form.handleSubmit((values) => saveMutation.mutate(values))}
           >
-            <div className="grid gap-4 md:grid-cols-2">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <FormField name="title" label="Title" required>
                 <Input id="title" {...form.register('title')} placeholder="Master Services Agreement" />
               </FormField>
@@ -205,7 +205,7 @@ export function ContractFormDialog({
               </FormField>
             </div>
 
-            <div className="grid gap-4 md:grid-cols-2">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <FormField name="type" label="Contract type" required>
                 <Select
                   value={form.watch('type')}
@@ -248,7 +248,7 @@ export function ContractFormDialog({
               />
             </FormField>
 
-            <div className="grid gap-4 md:grid-cols-2">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <FormField name="party_a_name" label="Party A" required>
                 <Input id="party_a_name" {...form.register('party_a_name')} placeholder="Clario 360 Ltd." />
               </FormField>
@@ -258,7 +258,7 @@ export function ContractFormDialog({
               </FormField>
             </div>
 
-            <div className="grid gap-4 md:grid-cols-3">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
               <FormField name="party_a_entity" label="Party A entity">
                 <Input id="party_a_entity" {...form.register('party_a_entity')} placeholder="Legal entity name" />
               </FormField>
@@ -272,7 +272,7 @@ export function ContractFormDialog({
               </FormField>
             </div>
 
-            <div className="grid gap-4 md:grid-cols-2">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <FormField name="owner_user_id" label="Contract owner" required>
                 <Select value={ownerValue} onValueChange={applyOwner}>
                   <SelectTrigger id="owner_user_id">
@@ -308,7 +308,7 @@ export function ContractFormDialog({
               </FormField>
             </div>
 
-            <div className="grid gap-4 md:grid-cols-3">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
               <FormField name="total_value" label="Total value">
                 <Input
                   id="total_value"
@@ -332,7 +332,7 @@ export function ContractFormDialog({
               </FormField>
             </div>
 
-            <div className="grid gap-4 md:grid-cols-3">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
               <FormField name="renewal_date" label="Renewal date">
                 <Input id="renewal_date" type="date" {...form.register('renewal_date')} />
               </FormField>
@@ -354,7 +354,7 @@ export function ContractFormDialog({
               </FormField>
             </div>
 
-            <div className="grid gap-4 md:grid-cols-2">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <FormField name="payment_terms" label="Payment terms">
                 <Input id="payment_terms" {...form.register('payment_terms')} placeholder="Net 30" />
               </FormField>

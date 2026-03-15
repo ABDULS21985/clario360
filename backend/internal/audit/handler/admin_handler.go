@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/rs/zerolog"
 
 	"github.com/clario360/platform/internal/audit/repository"
@@ -82,6 +83,7 @@ func (h *AdminHandler) VerifyChain(w http.ResponseWriter, r *http.Request) {
 }
 
 // ListPartitions handles GET /api/v1/audit/partitions — list partition info.
+// Returns a bare JSON array of partition objects (not wrapped in an object).
 func (h *AdminHandler) ListPartitions(w http.ResponseWriter, r *http.Request) {
 	partitions, err := h.partitionMgr.ListPartitions(r.Context())
 	if err != nil {
@@ -90,22 +92,61 @@ func (h *AdminHandler) ListPartitions(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusOK, map[string]interface{}{
-		"partitions": partitions,
-	})
+	writeJSON(w, http.StatusOK, partitions)
 }
 
-// CreatePartition handles POST /api/v1/audit/partitions/create — manually trigger partition creation.
+// CreatePartition handles POST /api/v1/audit/partitions — manually trigger partition maintenance.
+// Runs EnsurePartitions for the current month and the next 2 months, then returns the
+// updated full partition list so the frontend can refresh its state in one round-trip.
 func (h *AdminHandler) CreatePartition(w http.ResponseWriter, r *http.Request) {
-	created, err := h.partitionMgr.EnsurePartitions(r.Context())
-	if err != nil {
+	if _, err := h.partitionMgr.EnsurePartitions(r.Context()); err != nil {
 		h.logger.Error().Err(err).Msg("failed to create partitions")
 		writeErrorResponse(w, http.StatusInternalServerError, "INTERNAL_ERROR", "partition creation failed", r)
 		return
 	}
 
-	writeJSON(w, http.StatusOK, map[string]interface{}{
-		"created": created,
-		"message": "partition maintenance completed",
-	})
+	// Return the refreshed partition list so the frontend has up-to-date info.
+	partitions, err := h.partitionMgr.ListPartitions(r.Context())
+	if err != nil {
+		h.logger.Error().Err(err).Msg("failed to list partitions after create")
+		writeErrorResponse(w, http.StatusInternalServerError, "INTERNAL_ERROR", "failed to list partitions", r)
+		return
+	}
+
+	writeJSON(w, http.StatusCreated, partitions)
+}
+
+// ArchivePartition handles POST /api/v1/audit/partitions/{name}/archive — detach a partition.
+// The partition table remains intact but is excluded from normal audit_logs queries.
+func (h *AdminHandler) ArchivePartition(w http.ResponseWriter, r *http.Request) {
+	name := chi.URLParam(r, "name")
+	if name == "" {
+		writeErrorResponse(w, http.StatusBadRequest, "VALIDATION_ERROR", "partition name is required", r)
+		return
+	}
+
+	if err := h.partitionMgr.ArchivePartition(r.Context(), name); err != nil {
+		h.logger.Error().Err(err).Str("partition", name).Msg("failed to archive partition")
+		writeErrorResponse(w, http.StatusInternalServerError, "INTERNAL_ERROR", err.Error(), r)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// DeletePartition handles DELETE /api/v1/audit/partitions/{name} — drop a detached partition table.
+func (h *AdminHandler) DeletePartition(w http.ResponseWriter, r *http.Request) {
+	name := chi.URLParam(r, "name")
+	if name == "" {
+		writeErrorResponse(w, http.StatusBadRequest, "VALIDATION_ERROR", "partition name is required", r)
+		return
+	}
+
+	if err := h.partitionMgr.DeletePartition(r.Context(), name); err != nil {
+		h.logger.Error().Err(err).Str("partition", name).Msg("failed to delete partition")
+		writeErrorResponse(w, http.StatusInternalServerError, "INTERNAL_ERROR", err.Error(), r)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
 }

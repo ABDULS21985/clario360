@@ -65,7 +65,7 @@ export function WizardStepQuality({
                 </Button>
               </div>
 
-              <div className="grid gap-4 md:grid-cols-2">
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 <Input
                   value={gate.name}
                   onChange={(event) =>
@@ -108,7 +108,7 @@ export function WizardStepQuality({
                 </Select>
               </div>
 
-              <div className="mt-4 grid gap-4 md:grid-cols-2">
+              <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
                 <Select
                   value={gate.column || '__none__'}
                   onValueChange={(next) =>
@@ -158,7 +158,7 @@ export function WizardStepQuality({
                 </Select>
               </div>
 
-              <div className="mt-4 grid gap-4 md:grid-cols-3">
+              <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-3">
                 <Input
                   value={gate.operator || ''}
                   onChange={(event) =>

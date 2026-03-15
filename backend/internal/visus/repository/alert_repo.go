@@ -87,7 +87,7 @@ func (r *AlertRepository) Get(ctx context.Context, tenantID, id uuid.UUID) (*mod
 	return item, nil
 }
 
-func (r *AlertRepository) List(ctx context.Context, tenantID uuid.UUID, filters AlertListFilters, page, perPage int) ([]model.ExecutiveAlert, int, error) {
+func (r *AlertRepository) List(ctx context.Context, tenantID uuid.UUID, filters AlertListFilters, page, perPage int, sortCol, sortDir string) ([]model.ExecutiveAlert, int, error) {
 	meta := normalizePagination(page, perPage)
 	conditions := []string{"tenant_id = $1"}
 	args := []any{tenantID}
@@ -112,6 +112,7 @@ func (r *AlertRepository) List(ctx context.Context, tenantID uuid.UUID, filters 
 		conditions = append(conditions, "(title ILIKE "+placeholder+" OR description ILIKE "+placeholder+")")
 	}
 	where := strings.Join(conditions, " AND ")
+	orderClause := fmt.Sprintf("%s %s", sortCol, sortDir)
 	listQuery := fmt.Sprintf(`
 		SELECT id, tenant_id, title, description, category, severity, source_suite, source_type, source_entity_id,
 		       source_event_type, status, viewed_at, viewed_by, actioned_at, actioned_by, action_notes, dismissed_at,
@@ -119,8 +120,8 @@ func (r *AlertRepository) List(ctx context.Context, tenantID uuid.UUID, filters 
 		       linked_dashboard_id, metadata, created_at, updated_at
 		FROM visus_executive_alerts
 		WHERE %s
-		ORDER BY created_at DESC
-		LIMIT %s OFFSET %s`, where, next(meta.Limit), next(meta.Offset))
+		ORDER BY %s
+		LIMIT %s OFFSET %s`, where, orderClause, next(meta.Limit), next(meta.Offset))
 	rows, err := r.db.Query(ctx, listQuery, args...)
 	if err != nil {
 		return nil, 0, wrapErr("list alerts", err)

@@ -290,7 +290,7 @@ export default function IntegrationsPage() {
         />
 
         {/* KPI Summary Row */}
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <KpiCard
             title="Total Integrations"
             value={integrations.length}
@@ -327,7 +327,7 @@ export default function IntegrationsPage() {
         </div>
 
         {/* Category Summary Cards */}
-        <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6">
           {ALL_TYPES.map((type) => {
             const meta = CATEGORY_META[type];
             const stats = categorySummary[type];
@@ -424,7 +424,7 @@ export default function IntegrationsPage() {
 
         {/* Integration Cards Grid */}
         {isLoading ? (
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             <LoadingSkeleton variant="card" count={6} />
           </div>
         ) : error ? (
@@ -457,7 +457,7 @@ export default function IntegrationsPage() {
             )}
           </div>
         ) : (
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {filteredIntegrations.map((integration) => (
               <IntegrationCard
                 key={integration.id}

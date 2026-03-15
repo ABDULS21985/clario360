@@ -164,7 +164,7 @@ export function ApprovalDetailPanel({
           <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
             Request Details
           </h3>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="space-y-1">
               <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
                 Type

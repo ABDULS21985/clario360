@@ -74,7 +74,7 @@ export function CreateAssetDialog({ open, onOpenChange, onSuccess }: CreateAsset
               <Input placeholder="web-prod-01" {...methods.register('name')} />
             </FormField>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <FormField name="type" label="Type" required>
                 <Select
                   value={methods.watch('type')}
@@ -104,7 +104,7 @@ export function CreateAssetDialog({ open, onOpenChange, onSuccess }: CreateAsset
               </FormField>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <FormField name="ip_address" label="IP Address">
                 <Input placeholder="192.168.1.1" {...methods.register('ip_address')} />
               </FormField>
@@ -113,7 +113,7 @@ export function CreateAssetDialog({ open, onOpenChange, onSuccess }: CreateAsset
               </FormField>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <FormField name="os" label="Operating System">
                 <Input placeholder="Ubuntu 22.04" {...methods.register('os')} />
               </FormField>

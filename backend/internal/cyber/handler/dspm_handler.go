@@ -212,6 +212,16 @@ func parseDSPMAssetListParams(r *http.Request) (*dto.DSPMAssetListParams, error)
 	if v := q.Get("network_exposure"); v != "" {
 		params.NetworkExposure = &v
 	}
+	if v := q.Get("asset_type"); v != "" {
+		params.AssetType = &v
+	}
+	if v := q.Get("encrypted"); v != "" {
+		parsed, err := strconv.ParseBool(v)
+		if err != nil {
+			return nil, err
+		}
+		params.EncryptedAtRest = &parsed
+	}
 	if v := q.Get("asset_id"); v != "" {
 		id, err := parseUUIDValue(v)
 		if err != nil {

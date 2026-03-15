@@ -4,8 +4,6 @@ import { useState } from "react";
 import { Plus, Archive, Trash2, HardDrive } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Label } from "@/components/ui/label";
-import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Dialog,
@@ -57,26 +55,10 @@ export function AuditPartitions() {
   const [createOpen, setCreateOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<AuditPartition | null>(null);
 
-  const [newName, setNewName] = useState("");
-  const [newStart, setNewStart] = useState("");
-  const [newEnd, setNewEnd] = useState("");
-
   const handleCreate = () => {
-    createMutation.mutate(
-      {
-        name: newName,
-        date_range_start: new Date(newStart).toISOString(),
-        date_range_end: new Date(newEnd + "T23:59:59").toISOString(),
-      },
-      {
-        onSuccess: () => {
-          setCreateOpen(false);
-          setNewName("");
-          setNewStart("");
-          setNewEnd("");
-        },
-      }
-    );
+    createMutation.mutate(undefined, {
+      onSuccess: () => setCreateOpen(false),
+    });
   };
 
   if (error) {
@@ -124,7 +106,7 @@ export function AuditPartitions() {
       <div className="flex justify-end">
         <Button onClick={() => setCreateOpen(true)}>
           <Plus className="mr-2 h-4 w-4" />
-          Create Partition
+          Run Maintenance
         </Button>
       </div>
 
@@ -167,7 +149,7 @@ export function AuditPartitions() {
                       onClick={() => setCreateOpen(true)}
                     >
                       <Plus className="mr-2 h-4 w-4" />
-                      Create Partition
+                      Run Maintenance
                     </Button>
                   </div>
                 </TableCell>
@@ -230,59 +212,22 @@ export function AuditPartitions() {
         </Table>
       </div>
 
-      {/* Create Dialog */}
+      {/* Create / Maintenance Dialog */}
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Create Partition</DialogTitle>
+            <DialogTitle>Run Partition Maintenance</DialogTitle>
             <DialogDescription>
-              Create a new audit log partition for a specific date range.
+              Ensures partitions exist for the current month and the next 2
+              months. Existing partitions are not affected.
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="partition-name">Name</Label>
-              <Input
-                id="partition-name"
-                placeholder="e.g., Q1 2026"
-                value={newName}
-                onChange={(e) => setNewName(e.target.value)}
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="partition-start">Start Date</Label>
-                <Input
-                  id="partition-start"
-                  type="date"
-                  value={newStart}
-                  onChange={(e) => setNewStart(e.target.value)}
-                  max={newEnd || undefined}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="partition-end">End Date</Label>
-                <Input
-                  id="partition-end"
-                  type="date"
-                  value={newEnd}
-                  onChange={(e) => setNewEnd(e.target.value)}
-                  min={newStart || undefined}
-                />
-              </div>
-            </div>
-          </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setCreateOpen(false)}>
               Cancel
             </Button>
-            <Button
-              onClick={handleCreate}
-              disabled={
-                createMutation.isPending || !newName || !newStart || !newEnd
-              }
-            >
-              {createMutation.isPending ? "Creating..." : "Create"}
+            <Button onClick={handleCreate} disabled={createMutation.isPending}>
+              {createMutation.isPending ? "Running..." : "Run Maintenance"}
             </Button>
           </DialogFooter>
         </DialogContent>

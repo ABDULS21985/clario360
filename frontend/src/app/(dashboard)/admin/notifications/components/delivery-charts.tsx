@@ -71,14 +71,14 @@ export function DeliveryCharts({ stats }: DeliveryChartsProps) {
   );
 
   return (
-    <div className="grid gap-6 lg:grid-cols-2">
+    <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
       {/* Delivery Trend - Area Chart */}
       <Card className="lg:col-span-2">
         <CardHeader>
           <CardTitle className="text-base">Delivery Trend</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="h-[300px]">
+          <div className="h-[220px] sm:h-[300px]">
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={trendData}>
                 <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
@@ -132,7 +132,7 @@ export function DeliveryCharts({ stats }: DeliveryChartsProps) {
           <CardTitle className="text-base">Delivery by Channel</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="h-[250px]">
+          <div className="h-[220px] sm:h-[250px]">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={channelData} layout="vertical">
                 <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
@@ -161,7 +161,7 @@ export function DeliveryCharts({ stats }: DeliveryChartsProps) {
           <CardTitle className="text-base">Delivery by Type</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="h-[250px]">
+          <div className="h-[220px] sm:h-[250px]">
             {typeData.length === 0 ? (
               <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
                 No data available

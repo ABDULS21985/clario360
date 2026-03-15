@@ -240,7 +240,7 @@ export interface AuditLog {
   user_agent: string;
   correlation_id?: string;
   entry_hash?: string;
-  prev_hash?: string;
+  previous_hash?: string;
   metadata: Record<string, unknown>;
   created_at: string;
 }

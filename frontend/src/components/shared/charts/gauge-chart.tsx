@@ -75,7 +75,7 @@ export function GaugeChart({
         </svg>
         {showValue && (
           <div className="absolute bottom-0 flex flex-col items-center">
-            <span className="text-2xl font-bold" style={{ color }}>{displayValue}</span>
+            <span className="text-xl font-bold sm:text-2xl" style={{ color }}>{displayValue}</span>
             {label && <span className="text-xs text-muted-foreground mt-1">{label}</span>}
           </div>
         )}

@@ -27,7 +27,7 @@ type invitationRepository interface {
 	CountPending(ctx context.Context, tenantID uuid.UUID) (int, error)
 	Create(ctx context.Context, invitation *onboardingmodel.Invitation) error
 	ListByTenant(ctx context.Context, tenantID uuid.UUID) ([]onboardingmodel.Invitation, error)
-	ListByTenantPaginated(ctx context.Context, tenantID uuid.UUID, page, perPage int, sort, order, search, status string) ([]onboardingmodel.Invitation, int, error)
+	ListByTenantPaginated(ctx context.Context, tenantID uuid.UUID, page, perPage int, sort, order, search string, statuses []string) ([]onboardingmodel.Invitation, int, error)
 	CountByStatus(ctx context.Context, tenantID uuid.UUID) (map[onboardingmodel.InvitationStatus]int, error)
 	GetByID(ctx context.Context, tenantID, invitationID uuid.UUID) (*onboardingmodel.Invitation, error)
 	ListByPrefix(ctx context.Context, tokenPrefix string) ([]onboardingmodel.Invitation, error)

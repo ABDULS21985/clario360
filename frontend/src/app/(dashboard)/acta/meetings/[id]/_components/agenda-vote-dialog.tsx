@@ -109,7 +109,7 @@ export function AgendaVoteDialog({
               </Select>
             </FormField>
 
-            <div className="grid gap-4 md:grid-cols-3">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
               <FormField name="votes_for" label="In favor" required>
                 <Input
                   type="number"

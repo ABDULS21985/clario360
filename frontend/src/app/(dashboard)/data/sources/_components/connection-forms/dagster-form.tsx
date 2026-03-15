@@ -11,7 +11,7 @@ interface DagsterFormProps {
 
 export function DagsterForm({ form }: DagsterFormProps) {
   return (
-    <div className="grid gap-4 md:grid-cols-2">
+    <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
       <FormField name="graphql_url" label="GraphQL URL" required>
         <Input {...form.register('graphql_url')} placeholder="http://dagster-webserver:3000/graphql" />
       </FormField>

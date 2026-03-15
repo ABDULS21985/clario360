@@ -62,7 +62,7 @@ export default function ActaPage() {
 
         <ActaDashboardKpis kpis={dashboard.kpis} />
 
-        <div className="grid gap-4 xl:grid-cols-[1.4fr_1fr]">
+        <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1.4fr_1fr]">
           <ActaCalendarWidget
             month={month}
             days={calendarQuery.data ?? []}
@@ -71,7 +71,7 @@ export default function ActaPage() {
           <ActaUpcomingMeetings meetings={dashboard.upcoming_meetings} />
         </div>
 
-        <div className="grid gap-4 xl:grid-cols-2">
+        <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
           <ActaOverdueActions items={dashboard.overdue_action_items} />
           <ActaComplianceBars items={dashboard.compliance_by_committee} />
         </div>

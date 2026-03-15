@@ -31,15 +31,15 @@ type UpdateQualityRuleRequest struct {
 }
 
 type ListQualityRulesParams struct {
-	Page      int
-	PerPage   int
-	ModelID   string
-	Severity  string
-	Status    string
-	Enabled   *bool
-	Search    string
-	Sort      string
-	Order     string
+	Page       int
+	PerPage    int
+	ModelID    string
+	Severities []string
+	Statuses   []string
+	Enabled    *bool
+	Search     string
+	Sort       string
+	Order      string
 }
 
 type ListQualityResultsParams struct {

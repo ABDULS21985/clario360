@@ -110,7 +110,7 @@ func parseEventQueryParams(r *http.Request) (*model.EventQueryParams, error) {
 		Severities:  splitQueryValues(q, "severity"),
 		SourceIP:    q.Get("source_ip"),
 		DestIP:      q.Get("dest_ip"),
-		Protocol:    q.Get("protocol"),
+		Protocols:   splitQueryValues(q, "protocol"),
 		Username:    q.Get("username"),
 		Process:     q.Get("process"),
 		CmdContains: q.Get("cmd_contains"),

@@ -49,7 +49,7 @@ func (r *InvitationRepository) Create(ctx context.Context, invitation *onboardin
 		invitation.Message,
 	).Scan(&invitation.ID, &invitation.CreatedAt, &invitation.UpdatedAt)
 	if isUniqueViolation(err) {
-		return fmt.Errorf("pending invitation already exists")
+		return onboardingmodel.ErrDuplicatePendingInvitation
 	}
 	return err
 }
@@ -168,22 +168,6 @@ func (r *InvitationRepository) ExpirePastDue(ctx context.Context) error {
 	return err
 }
 
-func (r *InvitationRepository) HasPendingForEmail(ctx context.Context, tenantID uuid.UUID, email string) (bool, error) {
-	var exists bool
-	err := r.pool.QueryRow(ctx, `
-		SELECT EXISTS(
-			SELECT 1
-			FROM invitations
-			WHERE tenant_id = $1
-			  AND lower(email) = lower($2)
-			  AND status = 'pending'
-		)`,
-		tenantID,
-		email,
-	).Scan(&exists)
-	return exists, err
-}
-
 // allowedSortColumns is a whitelist of column names that can be used for ORDER BY
 // to prevent SQL injection.
 var allowedSortColumns = map[string]string{
@@ -194,7 +178,7 @@ var allowedSortColumns = map[string]string{
 	"created_at": "created_at",
 }
 
-func (r *InvitationRepository) ListByTenantPaginated(ctx context.Context, tenantID uuid.UUID, page, perPage int, sort, order, search, status string) ([]onboardingmodel.Invitation, int, error) {
+func (r *InvitationRepository) ListByTenantPaginated(ctx context.Context, tenantID uuid.UUID, page, perPage int, sort, order, search string, statuses []string) ([]onboardingmodel.Invitation, int, error) {
 	// Validate and sanitize pagination
 	if page < 1 {
 		page = 1
@@ -227,9 +211,9 @@ func (r *InvitationRepository) ListByTenantPaginated(ctx context.Context, tenant
 		args = append(args, "%"+search+"%")
 		argIdx++
 	}
-	if status != "" {
-		where += fmt.Sprintf(" AND status = $%d", argIdx)
-		args = append(args, status)
+	if len(statuses) > 0 {
+		where += fmt.Sprintf(" AND status = ANY($%d)", argIdx)
+		args = append(args, statuses)
 		argIdx++
 	}
 

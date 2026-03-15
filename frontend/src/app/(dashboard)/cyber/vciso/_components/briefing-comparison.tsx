@@ -57,7 +57,7 @@ export function BriefingComparison({
       </div>
 
       {/* Before / After */}
-      <div className="grid grid-cols-2 divide-x rounded-lg border overflow-hidden">
+      <div className="grid grid-cols-1 divide-x rounded-lg border overflow-hidden sm:grid-cols-2">
         <div className="px-4 py-3 space-y-0.5">
           <p className="text-xs text-muted-foreground uppercase tracking-wide font-medium">
             Previous

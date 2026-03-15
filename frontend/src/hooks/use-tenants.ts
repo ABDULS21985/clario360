@@ -11,6 +11,7 @@ import type {
   TenantSettings,
   TenantUsage,
   ProvisionTenantRequest,
+  ProvisionTenantResponse,
 } from "@/types/tenant";
 import type { FetchParams } from "@/types/table";
 
@@ -52,13 +53,12 @@ export function useTenant(tenantId: string, polling = false) {
  */
 export function useProvisionTenant() {
   const queryClient = useQueryClient();
-  return useMutation<Tenant, AxiosError<ApiError>, ProvisionTenantRequest>({
+  return useMutation<ProvisionTenantResponse, AxiosError<ApiError>, ProvisionTenantRequest>({
     mutationFn: async (payload) => {
-      const { data } = await api.post<Tenant>("/api/v1/tenants/provision", payload);
+      const { data } = await api.post<ProvisionTenantResponse>("/api/v1/tenants/provision", payload);
       return data;
     },
     onSuccess: () => {
-      toast.success("Tenant created successfully");
       queryClient.invalidateQueries({ queryKey: ["tenants"] });
     },
     onError: (error) => {

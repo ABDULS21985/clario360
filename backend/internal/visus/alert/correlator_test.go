@@ -16,7 +16,7 @@ type fakeCorrelatorKPIRepo struct {
 	items []model.KPIDefinition
 }
 
-func (f *fakeCorrelatorKPIRepo) List(ctx context.Context, tenantID uuid.UUID, page, perPage int) ([]model.KPIDefinition, int, error) {
+func (f *fakeCorrelatorKPIRepo) List(ctx context.Context, tenantID uuid.UUID, page, perPage int, sortCol, sortDir, search, suite string, enabled *bool) ([]model.KPIDefinition, int, error) {
 	return f.items, len(f.items), nil
 }
 

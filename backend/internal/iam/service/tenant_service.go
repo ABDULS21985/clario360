@@ -111,7 +111,7 @@ func (s *TenantService) Create(ctx context.Context, req *dto.CreateTenantRequest
 }
 
 // Provision creates a tenant with an initial owner user assigned the tenant-admin role.
-func (s *TenantService) Provision(ctx context.Context, req *dto.ProvisionTenantRequest) (*dto.TenantResponse, error) {
+func (s *TenantService) Provision(ctx context.Context, req *dto.ProvisionTenantRequest) (*dto.ProvisionTenantResponse, error) {
 	// Check slug uniqueness
 	_, err := s.tenantRepo.GetBySlug(ctx, req.Slug)
 	if err == nil {
@@ -140,15 +140,21 @@ func (s *TenantService) Provision(ctx context.Context, req *dto.ProvisionTenantR
 		s.logger.Error().Err(err).Str("tenant_id", tenant.ID).Msg("failed to seed system roles")
 	}
 
-	// Create the owner user with a temporary password.
-	tempPassword, err := generateTempPassword()
-	if err != nil {
-		s.logger.Error().Err(err).Msg("failed to generate temp password")
-		// Continue — tenant is created, owner just won't have an account yet.
-	} else {
-		hash, err := bcrypt.GenerateFromPassword([]byte(tempPassword), s.bcryptCost)
+	// Determine the owner password: use caller-supplied value or generate a random one.
+	ownerPassword := req.OwnerPassword
+	if ownerPassword == "" {
+		generated, err := generateTempPassword()
 		if err != nil {
-			s.logger.Error().Err(err).Msg("failed to hash temp password")
+			s.logger.Error().Err(err).Msg("failed to generate temp password")
+		} else {
+			ownerPassword = generated
+		}
+	}
+
+	if ownerPassword != "" {
+		hash, err := bcrypt.GenerateFromPassword([]byte(ownerPassword), s.bcryptCost)
+		if err != nil {
+			s.logger.Error().Err(err).Msg("failed to hash owner password")
 		} else {
 			parts := splitName(req.OwnerName)
 			owner := &model.User{
@@ -180,8 +186,10 @@ func (s *TenantService) Provision(ctx context.Context, req *dto.ProvisionTenantR
 
 	s.publishEvent(ctx, "tenant.created", tenant.ID)
 
-	resp := dto.TenantToResponse(tenant)
-	return &resp, nil
+	return &dto.ProvisionTenantResponse{
+		TenantResponse: dto.TenantToResponse(tenant),
+		TempPassword:   ownerPassword,
+	}, nil
 }
 
 func (s *TenantService) Update(ctx context.Context, tenantID string, req *dto.UpdateTenantRequest) (*dto.TenantResponse, error) {

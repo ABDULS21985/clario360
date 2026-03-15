@@ -73,144 +73,149 @@ const EXCEPTION_TYPES: DSPMExceptionType[] = [
   'posture_finding', 'policy_violation', 'overprivileged_access', 'exposure_risk', 'encryption_gap',
 ];
 
-const exceptionColumns: ColumnDef<DSPMRiskException>[] = [
-  {
-    id: 'exception_type',
-    accessorKey: 'exception_type',
-    header: 'Type',
-    cell: ({ row }: { row: Row<DSPMRiskException> }) => {
-      const t = row.original.exception_type;
-      return (
-        <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium capitalize ${EXCEPTION_TYPE_COLORS[t] ?? 'bg-muted text-muted-foreground'}`}>
-          {t.replace(/_/g, ' ')}
-        </span>
-      );
+function buildExceptionColumns(
+  onApprove: (id: string) => Promise<void>,
+  onReject: (id: string) => Promise<void>,
+): ColumnDef<DSPMRiskException>[] {
+  return [
+    {
+      id: 'exception_type',
+      accessorKey: 'exception_type',
+      header: 'Type',
+      cell: ({ row }: { row: Row<DSPMRiskException> }) => {
+        const t = row.original.exception_type;
+        return (
+          <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium capitalize ${EXCEPTION_TYPE_COLORS[t] ?? 'bg-muted text-muted-foreground'}`}>
+            {t.replace(/_/g, ' ')}
+          </span>
+        );
+      },
+      enableSorting: true,
     },
-    enableSorting: true,
-  },
-  {
-    id: 'justification',
-    accessorKey: 'justification',
-    header: 'Justification',
-    cell: ({ row }: { row: Row<DSPMRiskException> }) => (
-      <div>
-        <p className="text-sm line-clamp-1">{row.original.justification}</p>
-        {row.original.data_asset_id && (
-          <p className="mt-0.5 text-xs text-muted-foreground">Asset: {row.original.data_asset_id.slice(0, 8)}...</p>
-        )}
-        {row.original.policy_id && (
-          <p className="mt-0.5 text-xs text-muted-foreground">Policy: {row.original.policy_id.slice(0, 8)}...</p>
-        )}
-      </div>
-    ),
-  },
-  {
-    id: 'risk_level',
-    accessorKey: 'risk_level',
-    header: 'Risk Level',
-    cell: ({ row }: { row: Row<DSPMRiskException> }) => {
-      const level = row.original.risk_level;
-      const color = level === 'critical' ? 'text-red-600' : level === 'high' ? 'text-orange-600' : level === 'medium' ? 'text-amber-600' : 'text-blue-600';
-      return (
-        <span className={`text-sm font-medium capitalize ${color}`}>{level}</span>
-      );
-    },
-    enableSorting: true,
-  },
-  {
-    id: 'requested_by',
-    accessorKey: 'requested_by',
-    header: 'Requested By',
-    cell: ({ row }: { row: Row<DSPMRiskException> }) => (
-      <span className="text-sm text-muted-foreground">{row.original.requested_by}</span>
-    ),
-  },
-  {
-    id: 'status',
-    accessorKey: 'status',
-    header: 'Status',
-    cell: ({ row }: { row: Row<DSPMRiskException> }) => {
-      const status = row.original.status;
-      return (
-        <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium capitalize ${STATUS_COLORS[status] ?? 'bg-muted text-muted-foreground'}`}>
-          {status}
-        </span>
-      );
-    },
-    enableSorting: true,
-  },
-  {
-    id: 'approval_status',
-    accessorKey: 'approval_status',
-    header: 'Approval',
-    cell: ({ row }: { row: Row<DSPMRiskException> }) => {
-      const approval = row.original.approval_status;
-      return (
-        <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium capitalize ${APPROVAL_STATUS_COLORS[approval] ?? 'bg-muted text-muted-foreground'}`}>
-          {approval}
-        </span>
-      );
-    },
-    enableSorting: true,
-  },
-  {
-    id: 'expires_at',
-    accessorKey: 'expires_at',
-    header: 'Expires',
-    cell: ({ row }: { row: Row<DSPMRiskException> }) => {
-      const dt = row.original.expires_at;
-      const isExpired = new Date(dt) < new Date();
-      return (
-        <span className={`text-xs ${isExpired ? 'text-red-600' : 'text-muted-foreground'}`}>
-          {new Date(dt).toLocaleDateString()}
-        </span>
-      );
-    },
-    enableSorting: true,
-  },
-  {
-    id: 'review_count',
-    accessorKey: 'review_count',
-    header: 'Reviews',
-    cell: ({ row }: { row: Row<DSPMRiskException> }) => (
-      <span className="text-sm tabular-nums">{row.original.review_count}</span>
-    ),
-  },
-  {
-    id: 'actions',
-    header: '',
-    cell: ({ row }: { row: Row<DSPMRiskException> }) => {
-      const exception = row.original;
-      if (exception.approval_status !== 'pending') return null;
-      return (
-        <div className="flex items-center gap-1">
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-7 px-2 text-xs text-green-600 hover:text-green-700"
-            onClick={(e) => {
-              e.stopPropagation();
-              void handleApprove(exception.id);
-            }}
-          >
-            Approve
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-7 px-2 text-xs text-red-600 hover:text-red-700"
-            onClick={(e) => {
-              e.stopPropagation();
-              void handleReject(exception.id);
-            }}
-          >
-            Reject
-          </Button>
+    {
+      id: 'justification',
+      accessorKey: 'justification',
+      header: 'Justification',
+      cell: ({ row }: { row: Row<DSPMRiskException> }) => (
+        <div>
+          <p className="text-sm line-clamp-1">{row.original.justification}</p>
+          {row.original.data_asset_id && (
+            <p className="mt-0.5 text-xs text-muted-foreground">Asset: {row.original.data_asset_id.slice(0, 8)}...</p>
+          )}
+          {row.original.policy_id && (
+            <p className="mt-0.5 text-xs text-muted-foreground">Policy: {row.original.policy_id.slice(0, 8)}...</p>
+          )}
         </div>
-      );
+      ),
     },
-  },
-];
+    {
+      id: 'risk_level',
+      accessorKey: 'risk_level',
+      header: 'Risk Level',
+      cell: ({ row }: { row: Row<DSPMRiskException> }) => {
+        const level = row.original.risk_level;
+        const color = level === 'critical' ? 'text-red-600' : level === 'high' ? 'text-orange-600' : level === 'medium' ? 'text-amber-600' : 'text-blue-600';
+        return (
+          <span className={`text-sm font-medium capitalize ${color}`}>{level}</span>
+        );
+      },
+      enableSorting: true,
+    },
+    {
+      id: 'requested_by',
+      accessorKey: 'requested_by',
+      header: 'Requested By',
+      cell: ({ row }: { row: Row<DSPMRiskException> }) => (
+        <span className="text-sm text-muted-foreground">{row.original.requested_by}</span>
+      ),
+    },
+    {
+      id: 'status',
+      accessorKey: 'status',
+      header: 'Status',
+      cell: ({ row }: { row: Row<DSPMRiskException> }) => {
+        const status = row.original.status;
+        return (
+          <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium capitalize ${STATUS_COLORS[status] ?? 'bg-muted text-muted-foreground'}`}>
+            {status}
+          </span>
+        );
+      },
+      enableSorting: true,
+    },
+    {
+      id: 'approval_status',
+      accessorKey: 'approval_status',
+      header: 'Approval',
+      cell: ({ row }: { row: Row<DSPMRiskException> }) => {
+        const approval = row.original.approval_status;
+        return (
+          <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium capitalize ${APPROVAL_STATUS_COLORS[approval] ?? 'bg-muted text-muted-foreground'}`}>
+            {approval}
+          </span>
+        );
+      },
+      enableSorting: true,
+    },
+    {
+      id: 'expires_at',
+      accessorKey: 'expires_at',
+      header: 'Expires',
+      cell: ({ row }: { row: Row<DSPMRiskException> }) => {
+        const dt = row.original.expires_at;
+        const isExpired = new Date(dt) < new Date();
+        return (
+          <span className={`text-xs ${isExpired ? 'text-red-600' : 'text-muted-foreground'}`}>
+            {new Date(dt).toLocaleDateString()}
+          </span>
+        );
+      },
+      enableSorting: true,
+    },
+    {
+      id: 'review_count',
+      accessorKey: 'review_count',
+      header: 'Reviews',
+      cell: ({ row }: { row: Row<DSPMRiskException> }) => (
+        <span className="text-sm tabular-nums">{row.original.review_count}</span>
+      ),
+    },
+    {
+      id: 'actions',
+      header: '',
+      cell: ({ row }: { row: Row<DSPMRiskException> }) => {
+        const exception = row.original;
+        if (exception.approval_status !== 'pending') return null;
+        return (
+          <div className="flex items-center gap-1">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 px-2 text-xs text-green-600 hover:text-green-700"
+              onClick={(e) => {
+                e.stopPropagation();
+                void onApprove(exception.id);
+              }}
+            >
+              Approve
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 px-2 text-xs text-red-600 hover:text-red-700"
+              onClick={(e) => {
+                e.stopPropagation();
+                void onReject(exception.id);
+              }}
+            >
+              Reject
+            </Button>
+          </div>
+        );
+      },
+    },
+  ];
+}
 
 interface ExceptionForm {
   exception_type: DSPMExceptionType;
@@ -236,28 +241,6 @@ const INITIAL_FORM: ExceptionForm = {
   risk_score: '50',
 };
 
-let refetchFn: (() => void) | null = null;
-
-async function handleApprove(exceptionId: string) {
-  try {
-    await apiPost(API_ENDPOINTS.CYBER_DSPM_EXCEPTIONS + '/' + exceptionId + '/approve');
-    toast.success('Exception approved');
-    refetchFn?.();
-  } catch {
-    toast.error('Failed to approve exception');
-  }
-}
-
-async function handleReject(exceptionId: string) {
-  try {
-    await apiPost(API_ENDPOINTS.CYBER_DSPM_EXCEPTIONS + '/' + exceptionId + '/reject');
-    toast.success('Exception rejected');
-    refetchFn?.();
-  } catch {
-    toast.error('Failed to reject exception');
-  }
-}
-
 export default function RiskExceptionsPage() {
   const [createOpen, setCreateOpen] = useState(false);
   const [form, setForm] = useState<ExceptionForm>(INITIAL_FORM);
@@ -272,7 +255,27 @@ export default function RiskExceptionsPage() {
     defaultSort: { column: 'created_at', direction: 'desc' },
   });
 
-  refetchFn = refetch;
+  async function handleApprove(exceptionId: string) {
+    try {
+      await apiPost(API_ENDPOINTS.CYBER_DSPM_EXCEPTIONS + '/' + exceptionId + '/approve');
+      toast.success('Exception approved');
+      refetch();
+    } catch {
+      toast.error('Failed to approve exception');
+    }
+  }
+
+  async function handleReject(exceptionId: string) {
+    try {
+      await apiPost(API_ENDPOINTS.CYBER_DSPM_EXCEPTIONS + '/' + exceptionId + '/reject');
+      toast.success('Exception rejected');
+      refetch();
+    } catch {
+      toast.error('Failed to reject exception');
+    }
+  }
+
+  const exceptionColumns = buildExceptionColumns(handleApprove, handleReject);
 
   const totalExceptions = tableProps.totalRows;
   const pendingCount = data.filter((e) => e.approval_status === 'pending').length;
@@ -363,7 +366,7 @@ export default function RiskExceptionsPage() {
           }
         />
 
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {kpis.map((kpi) => {
             const Icon = kpi.icon;
             return (
@@ -459,7 +462,7 @@ export default function RiskExceptionsPage() {
                   onChange={(e) => setForm({ ...form, compensating_controls: e.target.value })}
                 />
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
                   <Label htmlFor="exc-asset-id">Data Asset ID</Label>
                   <Input
@@ -479,7 +482,7 @@ export default function RiskExceptionsPage() {
                   />
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
                   <Label htmlFor="exc-remediation-id">Remediation ID</Label>
                   <Input

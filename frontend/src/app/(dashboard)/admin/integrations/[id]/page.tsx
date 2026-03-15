@@ -254,7 +254,7 @@ export default function IntegrationDetailPage({ params }: Props) {
           </Alert>
         ) : null}
 
-        <div className="grid gap-4 md:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
           <Card>
             <CardHeader>
               <CardTitle className="text-base">Usage</CardTitle>
@@ -272,7 +272,7 @@ export default function IntegrationDetailPage({ params }: Props) {
               <CardTitle className="text-base">Configuration Summary</CardTitle>
               <CardDescription>Sanitized, non-secret values currently stored for this integration.</CardDescription>
             </CardHeader>
-            <CardContent className="grid gap-3 md:grid-cols-2">
+            <CardContent className="grid grid-cols-1 gap-3 md:grid-cols-2">
               {summaryDetails.map((entry) => (
                 <KeyValue key={entry.label} label={entry.label} value={entry.value} />
               ))}
@@ -300,7 +300,7 @@ export default function IntegrationDetailPage({ params }: Props) {
                 <CardTitle className="text-base">Integration Notes</CardTitle>
                 <CardDescription>{integration.description || "No description recorded."}</CardDescription>
               </CardHeader>
-              <CardContent className="grid gap-3 md:grid-cols-2">
+              <CardContent className="grid grid-cols-1 gap-3 md:grid-cols-2">
                 <KeyValue label="Type" value={prettyType(integration.type)} />
                 <KeyValue label="Status" value={integration.status} />
                 <KeyValue label="Updated" value={new Date(integration.updated_at).toLocaleString()} />
@@ -315,7 +315,7 @@ export default function IntegrationDetailPage({ params }: Props) {
                 <CardTitle className="text-base">Filters</CardTitle>
                 <CardDescription>Slice the delivery log by status or event type.</CardDescription>
               </CardHeader>
-              <CardContent className="grid gap-4 md:grid-cols-3">
+              <CardContent className="grid grid-cols-1 gap-4 md:grid-cols-3">
                 <div className="space-y-2">
                   <div className="text-sm font-medium">Status</div>
                   <Select

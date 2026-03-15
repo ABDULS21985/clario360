@@ -16,6 +16,7 @@ export const API_ENDPOINTS = {
   USERS_ME_MFA_VERIFY_SETUP: '/api/v1/users/me/mfa/verify-setup',
   USERS_ME_MFA_DISABLE: '/api/v1/users/me/mfa/disable',
   USERS_ME_PASSWORD: '/api/v1/users/me/password',
+  USER_DETAIL: (id: string) => `/api/v1/users/${id}`,
   ROLES: '/api/v1/roles',
 
   // BFF routes (Next.js API routes)

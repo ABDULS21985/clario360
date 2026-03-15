@@ -81,6 +81,7 @@ export default function InvitationsPage() {
         { label: "Accepted", value: "accepted" },
         { label: "Expired", value: "expired" },
         { label: "Cancelled", value: "cancelled" },
+        { label: "Revoked", value: "revoked" },
       ],
     },
   ];
@@ -99,7 +100,7 @@ export default function InvitationsPage() {
       id: "role_name",
       header: "Role",
       accessorKey: "role_name",
-      enableSorting: true,
+      enableSorting: false,
       cell: ({ row }) => (
         <span className="inline-flex items-center rounded-full bg-secondary text-secondary-foreground px-2 py-0.5 text-xs font-medium">
           {row.original.role_name}

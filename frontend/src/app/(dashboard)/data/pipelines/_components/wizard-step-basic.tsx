@@ -35,7 +35,7 @@ export function WizardStepBasic({
   return (
     <FormProvider {...form}>
       <form className="space-y-6" onSubmit={form.handleSubmit(onContinue)}>
-        <div className="grid gap-4 md:grid-cols-2">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <FormField name="name" label="Pipeline name" required>
             <Input {...form.register('name')} placeholder="customer_orders_sync" />
           </FormField>

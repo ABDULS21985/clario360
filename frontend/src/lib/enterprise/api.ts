@@ -501,6 +501,7 @@ export const enterpriseApi = {
       apiPut<{ data: VisusExecutiveAlert }>(`/api/v1/visus/alerts/${id}/status`, payload).then((res) => res.data),
     getAlertCount: (): Promise<{ count: number }> => fetchSuiteData('/api/v1/visus/alerts/count'),
     getAlertStats: (): Promise<VisusAlertStats> => fetchSuiteData('/api/v1/visus/alerts/stats'),
+    getWidgetStats: (): Promise<Record<string, number>> => fetchSuiteData('/api/v1/visus/widgets/stats'),
     getExecutiveView: (): Promise<VisusExecutiveSummary> => fetchSuiteData('/api/v1/visus/executive'),
   },
   ai: {

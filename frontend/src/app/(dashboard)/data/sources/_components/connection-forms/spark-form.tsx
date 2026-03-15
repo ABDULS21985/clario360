@@ -51,7 +51,7 @@ export function SparkForm({ form }: SparkFormProps) {
           <h4 className="font-medium">SQL Access</h4>
           <p className="text-sm text-muted-foreground">Configure Spark Thrift Server for schema discovery and data access.</p>
         </div>
-        <div className="grid gap-4 md:grid-cols-2">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <FormField name="thrift.host" label="Thrift Host" required>
             <Input value={thrift.host ?? ''} onChange={(event) => updateThrift({ host: event.target.value })} placeholder="spark-thrift.example.com" />
           </FormField>
@@ -76,7 +76,7 @@ export function SparkForm({ form }: SparkFormProps) {
         </div>
 
         {thriftAuthType === 'plain' ? (
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <FormField name="thrift.username" label="Username" required>
               <Input value={thrift.username ?? ''} onChange={(event) => updateThrift({ username: event.target.value })} />
             </FormField>
@@ -87,7 +87,7 @@ export function SparkForm({ form }: SparkFormProps) {
         ) : null}
 
         {thriftAuthType === 'kerberos' ? (
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <FormField name="thrift.kerberos.realm" label="Realm" required>
               <Input value={thrift.kerberos?.realm ?? ''} onChange={(event) => updateKerberos({ realm: event.target.value })} />
             </FormField>
@@ -111,7 +111,7 @@ export function SparkForm({ form }: SparkFormProps) {
           <h4 className="font-medium">Monitoring</h4>
           <p className="text-sm text-muted-foreground">Spark REST endpoints provide job telemetry for lineage and UEBA.</p>
         </div>
-        <div className="grid gap-4 md:grid-cols-2">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <FormField name="rest.master_url" label="Master URL" required>
             <Input {...form.register('rest.master_url')} placeholder="http://spark-master:8080" />
           </FormField>

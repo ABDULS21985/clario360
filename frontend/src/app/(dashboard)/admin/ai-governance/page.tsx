@@ -144,7 +144,7 @@ export default function AIGovernancePage() {
           }
         />
 
-        <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+        <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-5">
           <ModelCard label="Total Models" value={kpis?.total_models ?? 0} helper="All registered transparent models." />
           <ModelCard label="In Production" value={kpis?.in_production ?? 0} helper="Active production versions." />
           <ModelCard label="Shadow Testing" value={kpis?.shadow_testing ?? 0} helper="Versions receiving async shadow traffic." />

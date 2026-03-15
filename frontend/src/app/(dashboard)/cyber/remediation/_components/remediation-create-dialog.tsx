@@ -31,9 +31,9 @@ const stepSchema = z.object({
 const schema = z.object({
   title: z.string().min(3, 'Title must be at least 3 characters'),
   description: z.string().min(10, 'Description must be at least 10 characters'),
-  type: z.enum(['patch', 'config_change', 'firewall_rule', 'user_action', 'script', 'manual']),
+  type: z.enum(['patch', 'config_change', 'block_ip', 'isolate_asset', 'firewall_rule', 'access_revoke', 'certificate_renew', 'custom']),
   severity: z.enum(['critical', 'high', 'medium', 'low']),
-  execution_mode: z.enum(['automatic', 'manual', 'semi_automatic']),
+  execution_mode: z.enum(['automated', 'manual', 'semi_automated']),
   steps: z.array(stepSchema).min(1, 'At least one step is required'),
   alert_id: z.string().optional().or(z.literal('')),
   vulnerability_id: z.string().optional().or(z.literal('')),
@@ -61,7 +61,7 @@ export function RemediationCreateDialog({
     defaultValues: {
       type: 'patch',
       severity: 'medium',
-      execution_mode: 'manual',
+      execution_mode: 'manual' as const,
       alert_id: defaultAlertId ?? '',
       vulnerability_id: defaultVulnId ?? '',
       steps: [{ number: 1, action: '', description: '', target: '' }],
@@ -91,7 +91,7 @@ export function RemediationCreateDialog({
       vulnerability_id: data.vulnerability_id || undefined,
       plan: {
         steps: data.steps.map((s, i) => ({ ...s, number: i + 1 })),
-        reversible: data.execution_mode !== 'automatic',
+        reversible: data.execution_mode !== 'automated',
         risk_level: data.severity,
       },
     };
@@ -116,12 +116,12 @@ export function RemediationCreateDialog({
               <Textarea rows={2} placeholder="What will this remediation accomplish?" {...methods.register('description')} />
             </FormField>
 
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
               <FormField name="type" label="Type" required>
                 <Select value={methods.watch('type')} onValueChange={(v) => methods.setValue('type', v as FormValues['type'])}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    {['patch', 'config_change', 'firewall_rule', 'user_action', 'script', 'manual'].map((t) => (
+                    {['patch', 'config_change', 'block_ip', 'isolate_asset', 'firewall_rule', 'access_revoke', 'certificate_renew', 'custom'].map((t) => (
                       <SelectItem key={t} value={t} className="capitalize">{t.replace(/_/g, ' ')}</SelectItem>
                     ))}
                   </SelectContent>
@@ -144,14 +144,14 @@ export function RemediationCreateDialog({
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="manual">Manual</SelectItem>
-                    <SelectItem value="semi_automatic">Semi-Auto</SelectItem>
-                    <SelectItem value="automatic">Automatic</SelectItem>
+                    <SelectItem value="semi_automated">Semi-Automated</SelectItem>
+                    <SelectItem value="automated">Automated</SelectItem>
                   </SelectContent>
                 </Select>
               </FormField>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <FormField name="alert_id" label="Linked Alert ID">
                 <Input placeholder="Optional alert UUID" {...methods.register('alert_id')} />
               </FormField>

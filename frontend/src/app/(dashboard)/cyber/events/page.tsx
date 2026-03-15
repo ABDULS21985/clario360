@@ -1,8 +1,9 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Activity } from 'lucide-react';
+import { Activity, Copy, FileJson } from 'lucide-react';
+import { useState } from 'react';
 import { PageHeader } from '@/components/common/page-header';
 import { PermissionRedirect } from '@/components/common/permission-redirect';
 import { DataTable } from '@/components/shared/data-table/data-table';
@@ -12,8 +13,9 @@ import { BarChart } from '@/components/shared/charts/bar-chart';
 import { useDataTable } from '@/hooks/use-data-table';
 import { apiGet } from '@/lib/api';
 import { API_ENDPOINTS } from '@/lib/constants';
+import { showSuccess } from '@/lib/toast';
 import type { PaginatedResponse } from '@/types/api';
-import type { FetchParams, FilterConfig } from '@/types/table';
+import type { FetchParams, FilterConfig, RowAction } from '@/types/table';
 import type { SecurityEvent, EventStats } from '@/types/cyber';
 
 import { getEventColumns } from './_components/event-columns';
@@ -28,6 +30,11 @@ const SEVERITY_COLORS: Record<string, string> = {
 };
 
 const EVENT_FILTERS: FilterConfig[] = [
+  {
+    key: 'time_range',
+    label: 'Time Range',
+    type: 'date-range',
+  },
   {
     key: 'severity',
     label: 'Severity',
@@ -52,7 +59,82 @@ const EVENT_FILTERS: FilterConfig[] = [
       { label: 'DNS', value: 'DNS' },
     ],
   },
+  {
+    key: 'source',
+    label: 'Source',
+    type: 'text',
+    placeholder: 'e.g. firewall, endpoint…',
+  },
+  {
+    key: 'type',
+    label: 'Event Type',
+    type: 'text',
+    placeholder: 'e.g. connection_attempt…',
+  },
+  {
+    key: 'source_ip',
+    label: 'Source IP',
+    type: 'text',
+    placeholder: 'e.g. 192.168.1.1',
+  },
+  {
+    key: 'dest_ip',
+    label: 'Dest IP',
+    type: 'text',
+    placeholder: 'e.g. 10.0.0.1',
+  },
+  {
+    key: 'username',
+    label: 'Username',
+    type: 'text',
+    placeholder: 'e.g. jsmith',
+  },
+  {
+    key: 'process',
+    label: 'Process',
+    type: 'text',
+    placeholder: 'e.g. powershell.exe',
+  },
+  {
+    key: 'cmd_contains',
+    label: 'Command',
+    type: 'text',
+    placeholder: 'Command line substring…',
+  },
+  {
+    key: 'file_hash',
+    label: 'File Hash',
+    type: 'text',
+    placeholder: 'SHA256 or MD5…',
+  },
+  {
+    key: 'matched_rule',
+    label: 'Rule ID',
+    type: 'text',
+    placeholder: 'Rule UUID…',
+  },
 ];
+
+function flattenParams(params: FetchParams): Record<string, unknown> {
+  const flat: Record<string, unknown> = {
+    page: params.page,
+    per_page: params.per_page,
+    sort: params.sort,
+    order: params.order,
+    search: params.search,
+  };
+  for (const [key, value] of Object.entries(params.filters ?? {})) {
+    if (key === 'time_range' && typeof value === 'string') {
+      // date-range filter stores as "ISO_FROM,ISO_TO"
+      const [from, to] = value.split(',');
+      if (from) flat.from = from;
+      if (to) flat.to = to;
+    } else {
+      flat[key] = value;
+    }
+  }
+  return flat;
+}
 
 function fetchEvents(params: FetchParams): Promise<PaginatedResponse<SecurityEvent>> {
   return apiGet<PaginatedResponse<SecurityEvent>>(API_ENDPOINTS.CYBER_EVENTS, flattenParams(params));
@@ -69,14 +151,76 @@ export default function CyberEventsPage() {
     defaultSort: { column: 'timestamp', direction: 'desc' },
   });
 
+  // Sync stats time range with the active time_range filter
+  const activeTimeRange = tableProps.activeFilters?.['time_range'];
+  const [statsFrom, statsTo] =
+    typeof activeTimeRange === 'string' ? activeTimeRange.split(',') : [];
+
   const statsQuery = useQuery({
-    queryKey: ['cyber-event-stats'],
-    queryFn: () => apiGet<{ data: EventStats }>(API_ENDPOINTS.CYBER_EVENT_STATS),
+    queryKey: ['cyber-event-stats', statsFrom, statsTo],
+    queryFn: () => {
+      const params: Record<string, string> = {};
+      if (statsFrom) params.from = statsFrom;
+      if (statsTo) params.to = statsTo;
+      return apiGet<{ data: EventStats }>(API_ENDPOINTS.CYBER_EVENT_STATS, params);
+    },
     refetchInterval: 60000,
   });
 
   const stats = statsQuery.data?.data;
   const columns = useMemo(() => getEventColumns(), []);
+
+  const rowActions = useMemo<RowAction<SecurityEvent>[]>(
+    () => [
+      {
+        label: 'Copy ID',
+        icon: Copy,
+        onClick: (row) => {
+          navigator.clipboard.writeText(row.id);
+          showSuccess('Event ID copied');
+        },
+      },
+      {
+        label: 'Copy Raw JSON',
+        icon: FileJson,
+        onClick: (row) => {
+          navigator.clipboard.writeText(JSON.stringify(row.raw_event, null, 2));
+          showSuccess('Raw JSON copied');
+        },
+      },
+    ],
+    [],
+  );
+
+  const handleExport = useCallback(
+    (format: 'csv' | 'json') => {
+      const data = tableProps.data;
+      const filename = `cyber-events-${new Date().toISOString().slice(0, 10)}`;
+
+      if (format === 'json') {
+        const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+        downloadBlob(blob, `${filename}.json`);
+      } else {
+        const headers: (keyof SecurityEvent)[] = [
+          'timestamp', 'source', 'type', 'severity',
+          'source_ip', 'dest_ip', 'dest_port', 'protocol',
+          'username', 'process', 'file_hash', 'asset_id', 'processed_at',
+        ];
+        const rows = data.map((evt) =>
+          headers
+            .map((h) => {
+              const val = evt[h];
+              if (val === null || val === undefined) return '';
+              return `"${String(val).replace(/"/g, '""')}"`;
+            })
+            .join(','),
+        );
+        const csv = [headers.join(','), ...rows].join('\n');
+        downloadBlob(new Blob([csv], { type: 'text/csv' }), `${filename}.csv`);
+      }
+    },
+    [tableProps.data],
+  );
 
   const bySeverityChart = (stats?.by_severity ?? []).map((entry) => ({
     name: entry.name.charAt(0).toUpperCase() + entry.name.slice(1),
@@ -86,6 +230,11 @@ export default function CyberEventsPage() {
 
   const bySourceChart = (stats?.by_source ?? []).slice(0, 10).map((entry) => ({
     name: entry.name,
+    count: entry.count,
+  }));
+
+  const byTypeChart = (stats?.by_type ?? []).slice(0, 8).map((entry) => ({
+    name: entry.name.replace(/_/g, ' '),
     count: entry.count,
   }));
 
@@ -127,14 +276,23 @@ export default function CyberEventsPage() {
         </div>
 
         {/* Charts Row */}
-        <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+        <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
           <BarChart
             title="Events by Source"
             data={bySourceChart}
             xKey="name"
             yKeys={[{ key: 'count', label: 'Events', color: '#0F766E' }]}
             loading={statsQuery.isLoading}
-            height={260}
+            height={240}
+            showLegend={false}
+          />
+          <BarChart
+            title="Events by Type"
+            data={byTypeChart}
+            xKey="name"
+            yKeys={[{ key: 'count', label: 'Events', color: '#1B5E20' }]}
+            loading={statsQuery.isLoading}
+            height={240}
             showLegend={false}
           />
           <PieChart
@@ -143,7 +301,7 @@ export default function CyberEventsPage() {
             loading={statsQuery.isLoading}
             centerLabel="events"
             centerValue={String(stats?.total ?? 0)}
-            height={260}
+            height={240}
           />
         </div>
 
@@ -162,6 +320,12 @@ export default function CyberEventsPage() {
             setSelectedEvent(row);
             setDetailOpen(true);
           }}
+          rowActions={rowActions}
+          enableExport
+          onExport={handleExport}
+          enableColumnToggle
+          defaultHiddenColumns={['parent_process', 'command_line', 'file_hash', 'asset_id']}
+          compact
           {...tableProps}
         />
       </div>
@@ -175,16 +339,11 @@ export default function CyberEventsPage() {
   );
 }
 
-function flattenParams(params: FetchParams): Record<string, unknown> {
-  const flat: Record<string, unknown> = {
-    page: params.page,
-    per_page: params.per_page,
-    sort: params.sort,
-    order: params.order,
-    search: params.search,
-  };
-  for (const [key, value] of Object.entries(params.filters ?? {})) {
-    flat[key] = value;
-  }
-  return flat;
+function downloadBlob(blob: Blob, filename: string): void {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
 }

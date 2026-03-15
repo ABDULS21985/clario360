@@ -219,7 +219,7 @@ export function VendorDetailPanel({
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label>Risk Tier</Label>
                 <Select
@@ -258,7 +258,7 @@ export function VendorDetailPanel({
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="edit-contact-name">Contact Name</Label>
                 <Input
@@ -332,7 +332,7 @@ export function VendorDetailPanel({
               <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
                 Risk Assessment
               </h3>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div className="rounded-xl border p-4 text-center">
                   <p className="text-xs text-muted-foreground mb-1">Risk Score</p>
                   <p className={cn('text-2xl font-bold', riskScoreColor(vendor.risk_score))}>

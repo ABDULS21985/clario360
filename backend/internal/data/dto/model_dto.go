@@ -36,9 +36,10 @@ type UpdateModelRequest struct {
 }
 
 type DeriveModelRequest struct {
-	SourceID uuid.UUID `json:"source_id" validate:"required"`
-	TableName string   `json:"table_name" validate:"required"`
-	Name     string    `json:"name,omitempty" validate:"omitempty,min=2,max=255"`
+	SourceID                 uuid.UUID `json:"source_id" validate:"required"`
+	TableName                string    `json:"table_name" validate:"required"`
+	Name                     string    `json:"name,omitempty" validate:"omitempty,min=2,max=255"`
+	AutoGenerateQualityRules *bool     `json:"auto_generate_quality_rules,omitempty"`
 }
 
 type ValidateModelRequest struct {

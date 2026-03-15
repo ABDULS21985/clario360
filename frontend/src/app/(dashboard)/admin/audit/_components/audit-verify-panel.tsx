@@ -62,7 +62,7 @@ export function AuditVerifyPanel() {
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="verify-date-from">From</Label>
               <Input
@@ -126,7 +126,7 @@ export function AuditVerifyPanel() {
                         <CheckCircle className="h-5 w-5" />
                         <span className="font-medium">Integrity Verified</span>
                       </div>
-                      <div className="grid grid-cols-2 gap-3 text-sm">
+                      <div className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
                         <div>
                           <p className="text-xs text-muted-foreground">
                             Records Verified
@@ -162,7 +162,7 @@ export function AuditVerifyPanel() {
                           Integrity Violation Detected
                         </span>
                       </div>
-                      <div className="grid grid-cols-2 gap-3 text-sm">
+                      <div className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
                         <div>
                           <p className="text-xs text-muted-foreground">
                             Verified Before Break

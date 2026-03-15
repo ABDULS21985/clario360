@@ -7,15 +7,17 @@ import { AreaChart } from '@/components/shared/charts/area-chart';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { LoadingSkeleton } from '@/components/common/loading-skeleton';
 
+// Mirrors backend model.ForecastPoint + model.AlertVolumeForecast
 interface AlertForecastData {
   forecast?: {
-    daily_points?: Array<{
-      date: string;
-      predicted: number;
-      lower: number;
-      upper: number;
-      actual?: number;
+    horizon_days?: number;
+    // Backend field is "points", each point has { timestamp, value, bounds }
+    points?: Array<{
+      timestamp: string;
+      value: number;
+      bounds: { p10: number; p50: number; p90: number };
     }>;
+    anomaly_flag?: boolean;
   };
 }
 
@@ -26,7 +28,7 @@ export function AlertVolumeForecast() {
     refetchInterval: 300000,
   });
 
-  const points = data?.data?.forecast?.daily_points ?? [];
+  const points = data?.data?.forecast?.points ?? [];
 
   if (isLoading) {
     return <LoadingSkeleton variant="card" />;
@@ -48,11 +50,10 @@ export function AlertVolumeForecast() {
   }
 
   const chartData = points.map((p) => ({
-    date: new Date(p.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-    predicted: p.predicted,
-    lower: p.lower,
-    upper: p.upper,
-    actual: p.actual ?? null,
+    date: new Date(p.timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+    predicted: p.value,
+    lower: p.bounds.p10,
+    upper: p.bounds.p90,
   }));
 
   return (

@@ -21,7 +21,7 @@ import { QualityResultDialog } from '@/app/(dashboard)/data/quality/_components/
 import { QualityScoreGauge } from '@/app/(dashboard)/data/quality/_components/quality-score-gauge';
 import { QualityTrendChart } from '@/app/(dashboard)/data/quality/_components/quality-trend-chart';
 import { dataSuiteApi, type QualityResult, type QualityRule } from '@/lib/data-suite';
-import { showApiError, showSuccess } from '@/lib/toast';
+import { showApiError, showError, showSuccess } from '@/lib/toast';
 
 const QUALITY_RULE_FILTERS = [
   {
@@ -51,6 +51,7 @@ const QUALITY_RULE_FILTERS = [
 export default function DataQualityPage() {
   const [runningId, setRunningId] = useState<string | null>(null);
   const [togglingId, setTogglingId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [selectedResult, setSelectedResult] = useState<QualityResult | null>(null);
   const [formOpen, setFormOpen] = useState(false);
   const [editingRule, setEditingRule] = useState<QualityRule | null>(null);
@@ -112,6 +113,24 @@ export default function DataQualityPage() {
     }
   };
 
+  const deleteRule = async (rule: QualityRule) => {
+    try {
+      setDeletingId(rule.id);
+      await dataSuiteApi.deleteQualityRule(rule.id);
+      showSuccess('Quality rule deleted.');
+      if (editingRule?.id === rule.id) {
+        setFormOpen(false);
+        setEditingRule(null);
+      }
+      void refetch();
+      void dashboardQuery.refetch();
+    } catch (error) {
+      showApiError(error);
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
   const submitRule = async (values: Parameters<typeof buildQualityRulePayload>[0]) => {
     try {
       setSubmittingRule(true);
@@ -121,9 +140,11 @@ export default function DataQualityPage() {
           name: payload.name,
           description: payload.description,
           severity: payload.severity,
-          column_name: payload.column_name || null,
+          // Send empty string explicitly so backend treats it as "clear this field".
+          // The service will set the field to nil when it receives "".
+          column_name: payload.column_name ?? '',
           config: payload.config,
-          schedule: payload.schedule || null,
+          schedule: payload.schedule ?? '',
           enabled: payload.enabled,
           tags: payload.tags,
         });
@@ -148,7 +169,14 @@ export default function DataQualityPage() {
       void refetch();
       void dashboardQuery.refetch();
     } catch (error) {
-      showApiError(error);
+      if (editingRule && (error as { status?: number }).status === 404) {
+        showError('Rule no longer exists', 'This rule was deleted before the update could be saved.');
+        setFormOpen(false);
+        setEditingRule(null);
+        void refetch();
+      } else {
+        showApiError(error);
+      }
     } finally {
       setSubmittingRule(false);
     }
@@ -194,7 +222,7 @@ export default function DataQualityPage() {
           }
         />
 
-        <div className="grid gap-4 xl:grid-cols-[0.42fr_0.58fr]">
+        <div className="grid grid-cols-1 gap-4 xl:grid-cols-[0.42fr_0.58fr]">
           <QualityScoreGauge score={scoreQuery.data} />
           <div className="rounded-lg border bg-card p-4">
             <div className="mb-4 flex items-center gap-2">
@@ -215,12 +243,14 @@ export default function DataQualityPage() {
           columns={buildQualityRuleColumns({
             runningId,
             togglingId,
+            deletingId,
             onRun: (rule) => void runRule(rule),
             onEdit: (rule) => {
               setEditingRule(rule);
               setFormOpen(true);
             },
             onToggleEnabled: (rule, enabled) => void toggleRule(rule, enabled),
+            onDelete: (rule) => void deleteRule(rule),
           })}
           filters={QUALITY_RULE_FILTERS}
           searchSlot={

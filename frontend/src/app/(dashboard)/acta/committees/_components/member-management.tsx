@@ -153,7 +153,7 @@ export function MemberManagement({ committee }: MemberManagementProps) {
             className="rounded-xl border border-dashed p-4"
             onSubmit={form.handleSubmit((values) => addMutation.mutate(values))}
           >
-            <div className="grid gap-3 md:grid-cols-[1.4fr_0.8fr_auto]">
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-[1.4fr_0.8fr_auto]">
               <FormField name="user_id" label="Add member" required>
                 <Select value={selectedUser || undefined} onValueChange={onUserSelected}>
                   <SelectTrigger>

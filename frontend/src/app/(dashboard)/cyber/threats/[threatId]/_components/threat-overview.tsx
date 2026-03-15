@@ -17,7 +17,7 @@ export function ThreatOverview({ threat }: ThreatOverviewProps) {
 
   return (
     <div className="space-y-6">
-      <div className="grid gap-4 xl:grid-cols-[2fr,1fr]">
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-[2fr,1fr]">
         <section className="rounded-[24px] border bg-card p-5">
           <div className="flex flex-wrap items-center gap-2">
             <Badge variant="outline">{getThreatTypeLabel(threat.type)}</Badge>
@@ -53,7 +53,7 @@ export function ThreatOverview({ threat }: ThreatOverviewProps) {
         </section>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
         <MetricCard label="Indicators" value={String(threat.indicator_count)} />
         <MetricCard label="Affected Assets" value={String(threat.affected_asset_count)} />
         <MetricCard label="Linked Alerts" value={String(threat.alert_count)} />

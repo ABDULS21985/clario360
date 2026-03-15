@@ -272,7 +272,7 @@ export default function ComputePage() {
           }
         />
 
-        <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
           <ModelCard label="Total Servers" value={allServers.length} helper="Registered inference endpoints." />
           <ModelCard label="Healthy" value={healthyCount} helper="Endpoints responding to health checks." />
           <ModelCard label="CPU Backends" value={cpuCount} helper="llama.cpp, BitNet, ONNX, vLLM CPU." />
@@ -337,7 +337,7 @@ export default function ComputePage() {
               <Label htmlFor="health-endpoint">Health Endpoint</Label>
               <Input id="health-endpoint" value={healthEndpoint} onChange={(e) => setHealthEndpoint(e.target.value)} />
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div className="grid gap-2">
                 <Label htmlFor="model-name">Model Name</Label>
                 <Input id="model-name" placeholder="llama-3.1-8b-instruct" value={modelName} onChange={(e) => setModelName(e.target.value)} />
@@ -347,7 +347,7 @@ export default function ComputePage() {
                 <Input id="quantization" placeholder="Q4_0" value={quantization} onChange={(e) => setQuantization(e.target.value)} />
               </div>
             </div>
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
               <div className="grid gap-2">
                 <Label htmlFor="cpu-cores">CPU Cores</Label>
                 <Input id="cpu-cores" type="number" value={cpuCores} onChange={(e) => setCpuCores(e.target.value)} />
@@ -361,7 +361,7 @@ export default function ComputePage() {
                 <Input id="max-concurrent" type="number" value={maxConcurrent} onChange={(e) => setMaxConcurrent(e.target.value)} />
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div className="grid gap-2">
                 <Label htmlFor="gpu-type">GPU Type</Label>
                 <Input id="gpu-type" placeholder="A100" value={gpuType} onChange={(e) => setGpuType(e.target.value)} />

@@ -1,26 +1,85 @@
 'use client';
 
+import { useState } from 'react';
 import { type ColumnDef } from '@tanstack/react-table';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
+import { ConfirmDialog } from '@/components/shared/confirm-dialog';
 import { type QualityRule } from '@/lib/data-suite';
 import { formatMaybeDateTime, qualitySeverityVisuals } from '@/lib/data-suite/utils';
 
 interface QualityRuleColumnOptions {
   runningId: string | null;
   togglingId: string | null;
+  deletingId: string | null;
   onRun: (rule: QualityRule) => void;
   onEdit: (rule: QualityRule) => void;
   onToggleEnabled: (rule: QualityRule, enabled: boolean) => void;
+  onDelete: (rule: QualityRule) => void;
+}
+
+interface QualityRuleActionsCellProps extends QualityRuleColumnOptions {
+  rule: QualityRule;
+}
+
+function QualityRuleActionsCell({
+  rule,
+  runningId,
+  togglingId: _togglingId,
+  deletingId,
+  onRun,
+  onEdit,
+  onToggleEnabled: _onToggleEnabled,
+  onDelete,
+}: QualityRuleActionsCellProps) {
+  const [deleteOpen, setDeleteOpen] = useState(false);
+
+  return (
+    <div className="flex items-center gap-2">
+      <Button type="button" size="sm" variant="outline" onClick={() => onEdit(rule)}>
+        Edit
+      </Button>
+      <Button
+        type="button"
+        size="sm"
+        variant="outline"
+        onClick={() => onRun(rule)}
+        disabled={runningId === rule.id}
+      >
+        {runningId === rule.id ? 'Running…' : 'Run now'}
+      </Button>
+      <Button
+        type="button"
+        size="sm"
+        variant="ghost"
+        className="text-destructive hover:text-destructive"
+        disabled={deletingId === rule.id}
+        onClick={() => setDeleteOpen(true)}
+      >
+        {deletingId === rule.id ? 'Deleting…' : 'Delete'}
+      </Button>
+      <ConfirmDialog
+        open={deleteOpen}
+        onOpenChange={setDeleteOpen}
+        title="Delete quality rule"
+        description={`Permanently delete "${rule.name}"? This will remove all historical results linked to this rule.`}
+        confirmLabel="Delete"
+        variant="destructive"
+        onConfirm={() => onDelete(rule)}
+      />
+    </div>
+  );
 }
 
 export function buildQualityRuleColumns({
   runningId,
   togglingId,
+  deletingId,
   onRun,
   onEdit,
   onToggleEnabled,
+  onDelete,
 }: QualityRuleColumnOptions): ColumnDef<QualityRule>[] {
   return [
     {
@@ -73,14 +132,16 @@ export function buildQualityRuleColumns({
       id: 'actions',
       header: '',
       cell: ({ row }) => (
-        <div className="flex items-center gap-2">
-          <Button type="button" size="sm" variant="outline" onClick={() => onEdit(row.original)}>
-            Edit
-          </Button>
-          <Button type="button" size="sm" variant="outline" onClick={() => onRun(row.original)} disabled={runningId === row.original.id}>
-            {runningId === row.original.id ? 'Running…' : 'Run now'}
-          </Button>
-        </div>
+        <QualityRuleActionsCell
+          rule={row.original}
+          runningId={runningId}
+          togglingId={togglingId}
+          deletingId={deletingId}
+          onRun={onRun}
+          onEdit={onEdit}
+          onToggleEnabled={onToggleEnabled}
+          onDelete={onDelete}
+        />
       ),
     },
   ];

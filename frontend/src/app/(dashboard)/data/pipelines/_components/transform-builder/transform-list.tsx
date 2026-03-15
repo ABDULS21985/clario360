@@ -140,7 +140,7 @@ export function TransformList({
       {previewError ? <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">{previewError}</div> : null}
 
       {previewColumns.length > 0 && !previewError ? (
-        <div className="grid gap-4 xl:grid-cols-2">
+        <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
           <PreviewTable title="Before" columns={previewColumns} rows={previewBeforeRows} />
           <PreviewTable title="After" columns={previewColumns} rows={previewAfterRows} />
         </div>

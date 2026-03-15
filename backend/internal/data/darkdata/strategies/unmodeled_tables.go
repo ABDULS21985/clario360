@@ -26,17 +26,39 @@ func (s *UnmodeledTablesStrategy) Name() string {
 	return "unmodeled_tables"
 }
 
+const scanPageSize = 500
+
 func (s *UnmodeledTablesStrategy) Scan(ctx context.Context, tenantID uuid.UUID) ([]darkdata.RawDarkDataAsset, error) {
-	sources, _, err := s.sourceRepo.List(ctx, tenantID, dto.ListSourcesParams{Page: 1, PerPage: 5000, Status: string(model.DataSourceStatusActive)})
-	if err != nil {
-		return nil, err
+	// Paginate sources so tenants with >scanPageSize active sources are handled.
+	var sources []*repository.SourceRecord
+	for page := 1; ; page++ {
+		batch, _, err := s.sourceRepo.List(ctx, tenantID, dto.ListSourcesParams{
+			Page: page, PerPage: scanPageSize,
+			Statuses: []string{string(model.DataSourceStatusActive)},
+		})
+		if err != nil {
+			return nil, err
+		}
+		sources = append(sources, batch...)
+		if len(batch) < scanPageSize {
+			break
+		}
 	}
-	models, _, err := s.modelRepo.List(ctx, tenantID, dto.ListModelsParams{Page: 1, PerPage: 5000})
-	if err != nil {
-		return nil, err
+
+	// Paginate models for the same reason.
+	var allModels []*model.DataModel
+	for page := 1; ; page++ {
+		batch, _, err := s.modelRepo.List(ctx, tenantID, dto.ListModelsParams{Page: page, PerPage: scanPageSize})
+		if err != nil {
+			return nil, err
+		}
+		allModels = append(allModels, batch...)
+		if len(batch) < scanPageSize {
+			break
+		}
 	}
 	modeledTables := make(map[string]struct{})
-	for _, item := range models {
+	for _, item := range allModels {
 		if item.SourceID == nil || item.SourceTable == nil {
 			continue
 		}

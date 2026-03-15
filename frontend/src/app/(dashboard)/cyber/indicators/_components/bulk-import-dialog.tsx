@@ -236,7 +236,7 @@ export function BulkImportDialog({
         </DialogHeader>
 
         <Tabs value={mode} onValueChange={(value) => setMode(value as typeof mode)} className="space-y-4">
-          <TabsList className="grid w-full grid-cols-3">
+          <TabsList className="grid w-full grid-cols-1 sm:grid-cols-3">
             <TabsTrigger value="stix">
               <FileJson className="mr-2 h-4 w-4" />
               STIX Bundle
@@ -258,7 +258,7 @@ export function BulkImportDialog({
               onTextLoaded={setStixText}
             />
 
-            <div className="grid gap-4 md:grid-cols-[220px_1fr]">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-[220px_1fr]">
               <div className="space-y-2">
                 <Label>Conflict Resolution</Label>
                 <Select value={stixConflictMode} onValueChange={(value) => setStixConflictMode(value as typeof stixConflictMode)}>
@@ -293,7 +293,7 @@ export function BulkImportDialog({
 
             {csvPreview.headers.length > 0 && (
               <>
-                <div className="grid gap-4 md:grid-cols-4">
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
                   <SelectField
                     label="Value Column"
                     value={csvMapping.value}
@@ -320,7 +320,7 @@ export function BulkImportDialog({
                   />
                 </div>
 
-                <div className="grid gap-4 md:grid-cols-3">
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
                   <DefaultSelect
                     label="Default Severity"
                     value={csvDefaultSeverity}
@@ -391,7 +391,7 @@ export function BulkImportDialog({
           </TabsContent>
 
           <TabsContent value="manual" className="space-y-4">
-            <div className="grid gap-4 lg:grid-cols-[1.3fr_1fr]">
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1.3fr_1fr]">
               <div className="space-y-2">
                 <Label htmlFor="manual-indicators">Indicators (one per line)</Label>
                 <Textarea

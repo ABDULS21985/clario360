@@ -94,7 +94,7 @@ func (a *CrossSuiteAggregator) GetExecutiveView(ctx context.Context, tenantID uu
 	group.Go(func() error {
 		alerts, _, err := a.alerts.List(gctx, tenantID, repository.AlertListFilters{
 			Status: []string{"new", "viewed", "acknowledged", "escalated"},
-		}, 1, 10)
+		}, 1, 10, "created_at", "desc")
 		if err == nil {
 			view.Alerts = alerts
 		}

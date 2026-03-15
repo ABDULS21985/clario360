@@ -168,7 +168,7 @@ export function OwnershipFormDialog({
           {/* Control Info */}
           <h4 className="text-sm font-semibold text-muted-foreground">Control Information</h4>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="ownership-control-id">
                 Control ID <span className="text-destructive">*</span>
@@ -213,7 +213,7 @@ export function OwnershipFormDialog({
           {/* Owner Info */}
           <h4 className="text-sm font-semibold text-muted-foreground">Owner Assignment</h4>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="ownership-owner-id">
                 Owner ID <span className="text-destructive">*</span>
@@ -243,7 +243,7 @@ export function OwnershipFormDialog({
           {/* Delegate Info */}
           <h4 className="text-sm font-semibold text-muted-foreground">Delegate (Optional)</h4>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="ownership-delegate-id">Delegate ID</Label>
               <Input

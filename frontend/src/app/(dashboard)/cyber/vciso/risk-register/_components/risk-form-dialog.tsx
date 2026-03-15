@@ -197,7 +197,7 @@ export function RiskFormDialog({ open, onOpenChange, onCreated }: RiskFormDialog
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="risk-category">
                 Category <span className="text-destructive">*</span>
@@ -225,7 +225,7 @@ export function RiskFormDialog({ open, onOpenChange, onCreated }: RiskFormDialog
           {/* Assessment */}
           <h4 className="text-sm font-semibold text-muted-foreground">Risk Assessment</h4>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <Label>Likelihood</Label>
               <Select
@@ -264,7 +264,7 @@ export function RiskFormDialog({ open, onOpenChange, onCreated }: RiskFormDialog
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <Label>Status</Label>
               <Select

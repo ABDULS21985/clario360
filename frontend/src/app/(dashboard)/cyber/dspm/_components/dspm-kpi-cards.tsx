@@ -56,7 +56,7 @@ export function DSPMKpiCards({ dashboard }: DSPMKpiCardsProps) {
   ];
 
   return (
-    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6">
       {cards.map(({ label, value, suffix, icon: Icon, color, bg }) => (
         <div key={label} className={`flex flex-col items-center rounded-xl border p-4 text-center ${bg}`}>
           <div className={`mb-2 flex h-10 w-10 items-center justify-center rounded-full bg-background border ${color}`}>

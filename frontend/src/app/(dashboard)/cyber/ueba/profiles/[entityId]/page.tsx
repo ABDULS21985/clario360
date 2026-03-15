@@ -114,7 +114,7 @@ export default function UebaProfileDetailPage() {
           </TabsList>
 
           <TabsContent value="activity" className="space-y-4">
-            <div className="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
+            <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1.2fr_0.8fr]">
               <Card>
                 <CardHeader><CardTitle className="text-base">Access Heatmap</CardTitle></CardHeader>
                 <CardContent>
@@ -132,7 +132,7 @@ export default function UebaProfileDetailPage() {
               </Card>
             </div>
 
-            <div className="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
+            <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1.2fr_0.8fr]">
               <Card>
                 <CardHeader><CardTitle className="text-base">Volume Timeline</CardTitle></CardHeader>
                 <CardContent>

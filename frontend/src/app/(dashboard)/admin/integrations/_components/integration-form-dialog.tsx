@@ -150,7 +150,7 @@ export function IntegrationFormDialog({
           {!integration ? (
             <section className="space-y-3">
               <Label>Provider</Label>
-              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
                 {providers.map((item) => {
                   const selected = item.type === state.type;
                   return (
@@ -208,7 +208,7 @@ export function IntegrationFormDialog({
             </Alert>
           ) : null}
 
-          <section className="grid gap-4 md:grid-cols-2">
+          <section className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="integration-name">Name</Label>
               <Input
@@ -299,7 +299,7 @@ function ConnectionFields({
       return (
         <section className="space-y-4">
           <SectionTitle title="Slack Connection" description="OAuth can populate the workspace credentials automatically. Manual fields remain available for advanced setup." />
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <Field label="Bot token" hint={secretHint}>
               <Input value={state.config.bot_token} onChange={(event) => updateConfig("bot_token", event.target.value)} placeholder="xoxb-..." />
             </Field>
@@ -323,7 +323,7 @@ function ConnectionFields({
               />
             </Field>
           </div>
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <ToggleField
               label="Thread updates per alert"
               checked={state.config.thread_per_alert}
@@ -341,7 +341,7 @@ function ConnectionFields({
       return (
         <section className="space-y-4">
           <SectionTitle title="Teams Connection" description="Configure the Bot Framework app credentials and the target conversation details." />
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <Field label="Bot app ID">
               <Input value={state.config.bot_app_id} onChange={(event) => updateConfig("bot_app_id", event.target.value)} />
             </Field>
@@ -364,7 +364,7 @@ function ConnectionFields({
       return (
         <section className="space-y-4">
           <SectionTitle title="Jira Connection" description="Project and token fields can be completed after OAuth or entered manually for advanced setup." />
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <Field label="Base URL">
               <Input value={state.config.base_url} onChange={(event) => updateConfig("base_url", event.target.value)} placeholder="https://company.atlassian.net" />
             </Field>
@@ -402,7 +402,7 @@ function ConnectionFields({
       return (
         <section className="space-y-4">
           <SectionTitle title="ServiceNow Connection" description="Choose the auth mode and provide the corresponding credentials, assignment defaults, and inbound webhook secret." />
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <Field label="Instance URL">
               <Input value={state.config.instance_url} onChange={(event) => updateConfig("instance_url", event.target.value)} placeholder="https://company.service-now.com" />
             </Field>
@@ -459,7 +459,7 @@ function ConnectionFields({
       return (
         <section className="space-y-4">
           <SectionTitle title="Webhook Connection" description="Configure the outbound receiver, request method, signed secret, and any static headers." />
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <Field label="URL" className="md:col-span-2">
               <Input value={state.config.url} onChange={(event) => updateConfig("url", event.target.value)} placeholder="https://ops.example.com/hooks/clario" />
             </Field>
@@ -541,7 +541,7 @@ function EventFilterEditor({
             }
           />
 
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <FilterGroup
               title="Severities"
               options={SEVERITY_OPTIONS}
@@ -596,7 +596,7 @@ function FilterGroup({
   return (
     <div className="space-y-3 rounded-lg border p-4">
       <div className="font-medium">{title}</div>
-      <div className="grid gap-2 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
         {options.map((option) => (
           <label key={option} className="flex items-center gap-2 text-sm">
             <Checkbox checked={selected.includes(option)} onCheckedChange={() => onToggle(option)} />

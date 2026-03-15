@@ -128,7 +128,7 @@ export function ExceptionApprovalCard({ exception, onApprove, onReject }: Except
         </div>
 
         {/* Dates */}
-        <div className="grid grid-cols-2 gap-3 text-xs">
+        <div className="grid grid-cols-1 gap-3 text-xs sm:grid-cols-2">
           <div className="flex items-center gap-1.5">
             <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
             <span className="text-muted-foreground">Expires:</span>

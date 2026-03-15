@@ -318,7 +318,7 @@ export default function LexContractDetailPage() {
           }
         />
 
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
           <MetricCard
             label="Status"
             value={
@@ -366,7 +366,7 @@ export default function LexContractDetailPage() {
           </TabsList>
 
           <TabsContent value="overview" className="space-y-4">
-            <div className="grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">
+            <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1.15fr_0.85fr]">
               <SectionCard title="Contract Metadata" description="Core contract state, dates, and legal ownership.">
                 <div className="space-y-3">
                   <MetadataRow label="Contract number" value={contract.contract_number ?? 'Auto-generated'} />
@@ -441,7 +441,7 @@ export default function LexContractDetailPage() {
               </SectionCard>
             </div>
 
-            <div className="grid gap-4 xl:grid-cols-[1fr_1fr]">
+            <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1fr_1fr]">
               <SectionCard title="Parties & Value" description="Commercial parties and financial context.">
                 <div className="space-y-3">
                   <MetadataRow label="Party A" value={contract.party_a_name} />
@@ -515,7 +515,7 @@ export default function LexContractDetailPage() {
 
             {complianceResult ? (
               <SectionCard title="Latest Compliance Run" description="Most recent contract-scoped compliance execution from the live backend.">
-                <div className="grid gap-4 md:grid-cols-3">
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
                   <MetricCard label="Score" value={`${formatNumber(complianceResult.score)}%`} />
                   <MetricCard label="Alerts Created" value={String(complianceResult.alerts_created)} />
                   <MetricCard label="Calculated At" value={formatDateTime(complianceResult.calculated_at)} />
@@ -527,7 +527,7 @@ export default function LexContractDetailPage() {
           <TabsContent value="analysis" className="space-y-4">
             {latestAnalysis ? (
               <>
-                <div className="grid gap-4 xl:grid-cols-[1fr_1fr]">
+                <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1fr_1fr]">
                   <SectionCard title="Risk Summary" description="Latest explainable analysis from lex-service.">
                     <div className="space-y-3">
                       <MetadataRow label="Overall risk" value={titleCase(latestAnalysis.overall_risk)} />
@@ -576,7 +576,7 @@ export default function LexContractDetailPage() {
                   </SectionCard>
                 </div>
 
-                <div className="grid gap-4 xl:grid-cols-[1fr_1fr]">
+                <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1fr_1fr]">
                   <SectionCard title="Key Findings" description="Top contract findings with recommendations.">
                     <div className="space-y-3">
                       {latestAnalysis.key_findings.length > 0 ? (
@@ -907,7 +907,7 @@ function MetadataRow({
   value: React.ReactNode;
 }) {
   return (
-    <div className="grid gap-1 sm:grid-cols-[160px_1fr]">
+    <div className="grid grid-cols-1 gap-1 sm:grid-cols-[160px_1fr]">
       <span className="text-sm text-muted-foreground">{label}</span>
       <div className="text-sm">{value}</div>
     </div>

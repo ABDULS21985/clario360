@@ -34,7 +34,7 @@ export function DriftChart({ latest, history }: DriftChartProps) {
     }));
 
   return (
-    <div className="grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
+    <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1.2fr_0.8fr]">
       <Card className="border-border/70">
         <CardHeader>
           <CardTitle>PSI Trend</CardTitle>
@@ -65,7 +65,7 @@ export function DriftChart({ latest, history }: DriftChartProps) {
                   Alerts {latest.alert_count}
                 </div>
               </div>
-              <div className="grid gap-3 text-sm md:grid-cols-2">
+              <div className="grid grid-cols-1 gap-3 text-sm md:grid-cols-2">
                 <div className="rounded-lg bg-muted/30 p-3">
                   <div className="text-muted-foreground">Current volume</div>
                   <div className="mt-1 text-xl font-semibold">{latest.current_volume.toLocaleString()}</div>

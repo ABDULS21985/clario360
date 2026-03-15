@@ -28,7 +28,7 @@ export function ProfileSelector({ open, onOpenChange, profiles, busy, onSelect }
         <DialogHeader>
           <DialogTitle>Launch Notebook Workspace</DialogTitle>
         </DialogHeader>
-        <div className="grid gap-4 md:grid-cols-2">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           {profiles.map((profile) => {
             const Icon = iconMap[profile.slug as keyof typeof iconMap] ?? Bot;
             return (
@@ -45,7 +45,7 @@ export function ProfileSelector({ open, onOpenChange, profiles, busy, onSelect }
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <div className="grid grid-cols-3 gap-2 text-xs text-muted-foreground">
+                  <div className="grid grid-cols-1 gap-2 text-xs text-muted-foreground sm:grid-cols-3">
                     <div>CPU: {profile.cpu}</div>
                     <div>Memory: {profile.memory}</div>
                     <div>Storage: {profile.storage}</div>

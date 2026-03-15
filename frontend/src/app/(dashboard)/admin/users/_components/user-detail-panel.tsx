@@ -155,7 +155,7 @@ export function UserDetailPanel({
         <Separator />
 
         {/* Info grid */}
-        <div className="grid grid-cols-2 gap-3 text-sm">
+        <div className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
           <div>
             <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">
               Last Login

@@ -119,7 +119,7 @@ export function UserCreateDialog({ open, onOpenChange, onSuccess }: UserCreateDi
 
         <FormProvider {...methods}>
           <form onSubmit={onSubmit} className="space-y-5" noValidate>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <FormField name="first_name" label="First Name" required>
                 <Input
                   {...methods.register("first_name")}
@@ -175,7 +175,7 @@ export function UserCreateDialog({ open, onOpenChange, onSuccess }: UserCreateDi
                         />
                       ))}
                     </div>
-                    <ul className="grid grid-cols-2 gap-x-4 gap-y-0.5 text-xs text-muted-foreground">
+                    <ul className="grid grid-cols-1 gap-x-4 gap-y-0.5 text-xs text-muted-foreground sm:grid-cols-2">
                       {Object.entries({
                         "12+ characters": strength.length,
                         Uppercase: strength.upper,
@@ -193,7 +193,7 @@ export function UserCreateDialog({ open, onOpenChange, onSuccess }: UserCreateDi
               </div>
             </FormField>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <FormField name="status" label="Initial Status">
                 <Select
                   defaultValue="active"

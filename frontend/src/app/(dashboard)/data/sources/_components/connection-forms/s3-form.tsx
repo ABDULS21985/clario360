@@ -14,7 +14,7 @@ interface S3FormProps {
 export function S3Form({ form }: S3FormProps) {
   return (
     <div className="space-y-4">
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <FormField name="endpoint" label="Endpoint" required>
           <Input {...form.register('endpoint')} placeholder="https://s3.amazonaws.com" />
         </FormField>

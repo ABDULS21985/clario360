@@ -35,7 +35,7 @@ export function ShadowComparisonChart({ latest, history }: ShadowComparisonChart
     }));
 
   return (
-    <div className="grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
+    <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1.2fr_0.8fr]">
       <Card className="border-border/70">
         <CardHeader>
           <CardTitle>Shadow Agreement</CardTitle>

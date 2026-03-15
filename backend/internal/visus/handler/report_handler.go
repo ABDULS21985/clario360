@@ -3,6 +3,7 @@ package handler
 import (
 	"errors"
 	"net/http"
+	"strconv"
 
 	"github.com/rs/zerolog"
 
@@ -53,13 +54,34 @@ func (h *ReportHandler) Create(w http.ResponseWriter, r *http.Request) {
 	suiteapi.WriteData(w, http.StatusCreated, item)
 }
 
+var reportSortColumns = map[string]string{
+	"name":              "name",
+	"report_type":       "report_type",
+	"schedule":          "schedule",
+	"last_generated_at": "last_generated_at",
+	"updated_at":        "updated_at",
+	"created_at":        "created_at",
+}
+
 func (h *ReportHandler) List(w http.ResponseWriter, r *http.Request) {
 	tenantID, ok := h.tenantID(w, r)
 	if !ok {
 		return
 	}
 	page, perPage := suiteapi.ParsePagination(r)
-	items, total, err := h.service.List(r.Context(), tenantID, page, perPage)
+	sortCol, sortDir := suiteapi.ParseSort(r, reportSortColumns, "updated_at", "desc")
+	search := r.URL.Query().Get("search")
+	reportType := r.URL.Query().Get("report_type")
+	var autoSend *bool
+	if raw := r.URL.Query().Get("auto_send"); raw != "" {
+		value, err := strconv.ParseBool(raw)
+		if err != nil {
+			suiteapi.WriteError(w, r, http.StatusBadRequest, "VALIDATION_ERROR", "auto_send must be a boolean", nil)
+			return
+		}
+		autoSend = &value
+	}
+	items, total, err := h.service.List(r.Context(), tenantID, page, perPage, sortCol, sortDir, search, reportType, autoSend)
 	if err != nil {
 		h.writeError(w, r, err)
 		return

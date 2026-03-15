@@ -190,15 +190,16 @@ func (qb *QueryBuilder) OrderBy(column, direction string, allowlist []string) *Q
 	}
 
 	// Special column mappings
+	alias := extractTableAlias(qb.baseSelect)
 	switch strings.ToLower(column) {
 	case "criticality":
-		qb.orderClause = fmt.Sprintf("ORDER BY severity_order(a.criticality::text) %s", dir)
+		qb.orderClause = fmt.Sprintf("ORDER BY severity_order(%s.criticality::text) %s", alias, dir)
 	case "severity":
-		qb.orderClause = fmt.Sprintf("ORDER BY severity_order(a.severity::text) %s", dir)
+		qb.orderClause = fmt.Sprintf("ORDER BY severity_order(%s.severity::text) %s", alias, dir)
 	case "vulnerability_count":
 		qb.orderClause = fmt.Sprintf("ORDER BY open_vulnerability_count %s", dir)
 	default:
-		qb.orderClause = fmt.Sprintf("ORDER BY a.%s %s", column, dir)
+		qb.orderClause = fmt.Sprintf("ORDER BY %s.%s %s", alias, column, dir)
 	}
 	return qb
 }
@@ -269,7 +270,8 @@ func (qb *QueryBuilder) BuildCount() (string, []any) {
 	}
 
 	var sb strings.Builder
-	sb.WriteString("SELECT COUNT(DISTINCT a.id)")
+	alias := extractTableAlias(qb.baseSelect)
+	sb.WriteString(fmt.Sprintf("SELECT COUNT(DISTINCT %s.id)", alias))
 
 	// Extract the top-level FROM clause from baseSelect (everything after
 	// SELECT … FROM). Nested subqueries in the select-list can also contain
@@ -360,6 +362,35 @@ func isSQLBoundary(ch byte) bool {
 	default:
 		return false
 	}
+}
+
+// extractTableAlias returns the primary table alias from a base SELECT clause.
+// Given "SELECT ... FROM tablename a" it returns "a".
+// Falls back to "a" if no alias is detected.
+func extractTableAlias(baseSelect string) string {
+	fromIdx := findTopLevelFromIndex(baseSelect)
+	if fromIdx < 0 {
+		return "a"
+	}
+	after := strings.TrimSpace(baseSelect[fromIdx+4:]) // skip "FROM"
+	fields := strings.Fields(after)
+	// fields[0] = table name, fields[1] = alias (or next keyword like WHERE/JOIN)
+	if len(fields) >= 2 {
+		candidate := strings.ToUpper(fields[1])
+		// If it looks like a SQL keyword, there's no alias
+		switch candidate {
+		case "WHERE", "JOIN", "LEFT", "RIGHT", "INNER", "OUTER", "CROSS", "ON", "GROUP", "ORDER", "LIMIT", "HAVING":
+			return fields[0] // use table name itself
+		}
+		if strings.ToUpper(fields[1]) == "AS" && len(fields) >= 3 {
+			return fields[2]
+		}
+		return fields[1]
+	}
+	if len(fields) == 1 {
+		return fields[0] // table name, no alias
+	}
+	return "a"
 }
 
 // replacePlaceholders replaces each "?" in s with the next $N placeholder,

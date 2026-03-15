@@ -120,7 +120,7 @@ export function MessageDiagnostics({ message }: MessageDiagnosticsProps) {
           </SheetHeader>
 
           <div className="mt-6 space-y-6">
-            <div className="grid gap-3 md:grid-cols-2">
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
               <SummaryCard title="Engine" value={engineLabel(engine ?? 'rule_based')} detail={meta?.routing_reason ? humanize(meta.routing_reason) : 'No routing reason recorded'} />
               <SummaryCard title="Grounding" value={meta?.grounding ?? audit?.grounding_result ?? '—'} detail={`Created ${formatDateTime(audit?.created_at ?? message.created_at)}`} />
               <SummaryCard title="Tokens" value={audit ? formatCompactNumber(audit.total_tokens) : meta?.tokens_used ? formatCompactNumber(meta.tokens_used) : '—'} detail={audit ? `${formatCompactNumber(audit.prompt_tokens)} prompt / ${formatCompactNumber(audit.completion_tokens)} completion` : 'Per-response token estimate'} />
@@ -142,7 +142,7 @@ export function MessageDiagnostics({ message }: MessageDiagnosticsProps) {
 
             {!isLoading && audit && (
               <>
-                <div className="grid gap-3 md:grid-cols-3">
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
                   <SummaryCard title="Provider" value={audit.provider} detail={audit.model} />
                   <SummaryCard title="Routing" value={humanize(audit.engine_used)} detail={audit.routing_reason ? humanize(audit.routing_reason) : 'No routing reason recorded'} />
                   <SummaryCard title="Logged" value={formatDateTime(audit.created_at)} detail={`Message ${message.id.slice(0, 8)}`} />

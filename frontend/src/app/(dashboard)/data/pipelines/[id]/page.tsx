@@ -119,7 +119,7 @@ export default function DataPipelineDetailPage() {
           }
         />
 
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
           <SummaryCard label="Status" value={pipeline.status} />
           <SummaryCard label="Runs" value={pipeline.total_runs.toLocaleString()} />
           <SummaryCard label="Processed" value={formatMaybeCompact(pipeline.total_records_processed)} />

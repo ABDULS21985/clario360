@@ -50,8 +50,8 @@ export default function DataAssetsPage() {
       key: 'classification',
       label: 'Classification',
       type: 'multi-select' as const,
-      options: ['public', 'internal', 'confidential', 'restricted'].map((c) => ({
-        label: c.charAt(0).toUpperCase() + c.slice(1),
+      options: ['public', 'internal', 'confidential', 'restricted', 'top_secret'].map((c) => ({
+        label: c.replace(/_/g, ' ').replace(/\b\w/g, (x) => x.toUpperCase()),
         value: c,
       })),
     },

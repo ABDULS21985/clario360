@@ -44,7 +44,7 @@ export function MapTransform({
 
       <div className="space-y-3">
         {value.config.mappings.map((mapping) => (
-          <div key={mapping.id} className="grid gap-3 rounded-lg border p-3 md:grid-cols-[1fr_auto_1fr_auto]">
+          <div key={mapping.id} className="grid grid-cols-1 gap-3 rounded-lg border p-3 md:grid-cols-[1fr_auto_1fr_auto]">
             <Input
               value={mapping.key}
               onChange={(event) =>
@@ -95,7 +95,7 @@ export function MapTransform({
         ))}
       </div>
 
-      <div className="grid gap-4 md:grid-cols-[1fr_auto]">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-[1fr_auto]">
         <Input
           value={value.config.default_value}
           onChange={(event) => onChange({ ...value, config: { ...value.config, default_value: event.target.value } })}

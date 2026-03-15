@@ -185,14 +185,14 @@ export default function DataLineagePage() {
                         className="flex flex-col gap-2 py-3 first:pt-0 last:pb-0 sm:flex-row sm:items-center sm:justify-between"
                       >
                         <div className="flex items-center gap-2 text-sm">
-                          <span className="font-medium truncate max-w-[180px]">
+                          <span className="font-medium truncate max-w-[120px] sm:max-w-[180px]">
                             {edge.source_asset_name ?? edge.source_asset_id}
                           </span>
                           {edge.source_table && (
                             <span className="text-xs text-muted-foreground">({edge.source_table})</span>
                           )}
                           <ArrowRight className="h-4 w-4 shrink-0 text-muted-foreground" />
-                          <span className="font-medium truncate max-w-[180px]">
+                          <span className="font-medium truncate max-w-[120px] sm:max-w-[180px]">
                             {edge.target_asset_name ?? edge.target_asset_id}
                           </span>
                           {edge.target_table && (
@@ -338,7 +338,7 @@ export default function DataLineagePage() {
                                   {EDGE_TYPE_LABELS[edge.edge_type] ?? edge.edge_type}
                                 </Badge>
                                 {edge.pipeline_name && (
-                                  <p className="mt-0.5 text-xs text-muted-foreground truncate max-w-[140px]">
+                                  <p className="mt-0.5 text-xs text-muted-foreground truncate max-w-[100px] sm:max-w-[140px]">
                                     {edge.pipeline_name}
                                   </p>
                                 )}

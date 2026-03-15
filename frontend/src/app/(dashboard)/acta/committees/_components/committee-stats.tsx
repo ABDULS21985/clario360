@@ -11,7 +11,7 @@ interface CommitteeStatsProps {
 
 export function CommitteeStats({ stats, memberCount }: CommitteeStatsProps) {
   return (
-    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+    <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
       <KpiCard title="Members" value={memberCount} icon={Users} iconColor="text-sky-600" />
       <KpiCard
         title="Upcoming Meetings"

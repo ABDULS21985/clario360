@@ -31,7 +31,7 @@ export function RunDetailPanel({
 
         {run ? (
           <div className="mt-6 space-y-6">
-            <div className="grid gap-3 md:grid-cols-2">
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
               <Metric label="Status" value={run.status} />
               <Metric label="Current Phase" value={run.current_phase ?? '—'} />
               <Metric label="Started" value={formatMaybeDateTime(run.started_at)} />

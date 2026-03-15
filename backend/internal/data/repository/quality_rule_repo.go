@@ -62,8 +62,16 @@ func (r *QualityRuleRepository) List(ctx context.Context, tenantID uuid.UUID, pa
 	qb.Where("a.tenant_id = ?", tenantID)
 	qb.Where("a.deleted_at IS NULL")
 	qb.WhereIf(params.ModelID != "", "a.model_id = ?", params.ModelID)
-	qb.WhereIf(params.Severity != "", "a.severity = ?", params.Severity)
-	qb.WhereIf(params.Status != "", "a.last_status = ?", params.Status)
+	if len(params.Severities) == 1 {
+		qb.Where("a.severity = ?", params.Severities[0])
+	} else if len(params.Severities) > 1 {
+		qb.WhereIn("a.severity", params.Severities)
+	}
+	if len(params.Statuses) == 1 {
+		qb.Where("a.last_status = ?", params.Statuses[0])
+	} else if len(params.Statuses) > 1 {
+		qb.WhereIn("a.last_status", params.Statuses)
+	}
 	if params.Enabled != nil {
 		qb.Where("a.enabled = ?", *params.Enabled)
 	}

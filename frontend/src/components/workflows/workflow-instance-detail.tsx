@@ -148,7 +148,7 @@ function StepHistoryTable({ steps }: { steps: StepExecution[] }) {
                   {isExpanded && ((step.input_data ?? step.input) || (step.output_data ?? step.output) || (step.error_message ?? step.error)) && (
                     <tr className="border-b last:border-0 bg-muted/20">
                       <td colSpan={6} className="px-3 py-3">
-                        <div className="grid gap-3 text-xs sm:grid-cols-2">
+                        <div className="grid grid-cols-1 gap-3 text-xs sm:grid-cols-2">
                           {(step.input_data ?? step.input) && (
                             <div>
                               <p className="mb-1 font-semibold text-muted-foreground">Input</p>
@@ -203,7 +203,7 @@ export function WorkflowInstanceDetail({
       </div>
 
       {/* Two-column layout */}
-      <div className="grid gap-6 lg:grid-cols-[1fr_300px]">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_300px]">
         {/* Left: step timeline */}
         <div className="space-y-6">
           <div>

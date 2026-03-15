@@ -35,7 +35,7 @@ export function SourceSchemaTab({
   }
 
   return (
-    <div className="grid gap-4 xl:grid-cols-[0.35fr_0.65fr]">
+    <div className="grid grid-cols-1 gap-4 xl:grid-cols-[0.35fr_0.65fr]">
       <div className="space-y-4 rounded-lg border p-4">
         <div className="relative">
           <Search className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-muted-foreground" />

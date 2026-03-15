@@ -170,7 +170,7 @@ export default function BenchmarkSuiteDetailPage() {
           </Card>
         )}
 
-        <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
           <ModelCard label="Total Runs" value={runs.length} helper="Benchmark runs for this suite." />
           <ModelCard label="Completed" value={completedRuns.length} helper="Runs with full results." />
           <ModelCard
@@ -195,7 +195,7 @@ export default function BenchmarkSuiteDetailPage() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="grid gap-4 md:grid-cols-3">
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
                 <div>
                   <p className="text-sm text-muted-foreground">Monthly Cost Delta</p>
                   <p className={`text-2xl font-semibold ${comparison.cost_delta_monthly_usd < 0 ? 'text-green-600' : 'text-red-600'}`}>

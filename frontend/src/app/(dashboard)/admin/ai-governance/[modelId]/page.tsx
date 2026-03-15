@@ -278,7 +278,7 @@ export default function AIModelDetailPage() {
         />
 
         <Card className="overflow-hidden border-border/70 bg-[radial-gradient(circle_at_top_left,_rgba(30,64,175,0.12),_transparent_40%),radial-gradient(circle_at_bottom_right,_rgba(180,83,9,0.12),_transparent_36%)]">
-          <CardContent className="grid gap-4 p-6 md:grid-cols-4">
+          <CardContent className="grid grid-cols-1 gap-4 p-4 sm:p-6 md:grid-cols-4">
             <div>
               <p className="text-xs uppercase tracking-[0.24em] text-muted-foreground">Suite</p>
               <div className="mt-2">
@@ -317,7 +317,7 @@ export default function AIModelDetailPage() {
         </Card>
 
         <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as GovernanceTab)} className="space-y-4">
-          <TabsList className="grid w-full grid-cols-3 md:grid-cols-6">
+          <TabsList className="grid w-full grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-6">
             <TabsTrigger value="versions">Versions</TabsTrigger>
             <TabsTrigger value="predictions">Predictions</TabsTrigger>
             <TabsTrigger value="shadow">Shadow</TabsTrigger>
@@ -435,7 +435,7 @@ export default function AIModelDetailPage() {
               />
             ) : (
               <>
-                <div className="grid gap-4 md:grid-cols-3">
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
                   <Card className="border-border/70">
                     <CardHeader>
                       <CardTitle>Correct Feedback</CardTitle>

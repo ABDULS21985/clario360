@@ -308,7 +308,7 @@ export function PolicyEditorForm({ policy, onSubmit, onCancel }: PolicyEditorFor
               rows={3}
             />
           </div>
-          <div className="grid gap-4 sm:grid-cols-3">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
             <div>
               <Label>Category</Label>
               <Select value={category} onValueChange={(v) => { setCategory(v as DSPMPolicyCategory); setRule({}); }}>

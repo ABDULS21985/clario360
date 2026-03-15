@@ -31,7 +31,7 @@ export function RuleLogic({ rule }: { rule: DetectionRule }) {
 
   return (
     <div className="space-y-6">
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
         {Object.entries(serialized).map(([key, value]) => (
           <LogicField key={key} label={key.replace(/_/g, ' ')} value={typeof value === 'string' ? value : JSON.stringify(value)} />
         ))}

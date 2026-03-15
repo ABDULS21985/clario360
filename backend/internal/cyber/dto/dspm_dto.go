@@ -10,16 +10,18 @@ import (
 
 // DSPMAssetListParams are query parameters for listing DSPM data assets.
 type DSPMAssetListParams struct {
-	Classification *string    `json:"classification"`
-	ContainsPII    *bool      `json:"contains_pii"`
-	MinRiskScore   *float64   `json:"min_risk_score"`
-	NetworkExposure *string   `json:"network_exposure"`
-	AssetID        *uuid.UUID `json:"asset_id"`
-	Search         *string    `json:"search"`
-	Sort           string     `json:"sort"`
-	Order          string     `json:"order"`
-	Page           int        `json:"page"`
-	PerPage        int        `json:"per_page"`
+	Classification  *string    `json:"classification"`
+	ContainsPII     *bool      `json:"contains_pii"`
+	MinRiskScore    *float64   `json:"min_risk_score"`
+	NetworkExposure *string    `json:"network_exposure"`
+	AssetType       *string    `json:"asset_type"`
+	EncryptedAtRest *bool      `json:"encrypted_at_rest"`
+	AssetID         *uuid.UUID `json:"asset_id"`
+	Search          *string    `json:"search"`
+	Sort            string     `json:"sort"`
+	Order           string     `json:"order"`
+	Page            int        `json:"page"`
+	PerPage         int        `json:"per_page"`
 }
 
 func (p *DSPMAssetListParams) SetDefaults() {
@@ -43,6 +45,7 @@ func (p *DSPMAssetListParams) Validate() error {
 		"posture_score":        true,
 		"data_classification":  true,
 		"sensitivity_score":    true,
+		"asset_name":           true,
 		"created_at":           true,
 		"updated_at":           true,
 	}

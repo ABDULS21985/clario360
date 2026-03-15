@@ -51,13 +51,23 @@ func (h *DashboardHandler) Create(w http.ResponseWriter, r *http.Request) {
 	suiteapi.WriteData(w, http.StatusCreated, item)
 }
 
+var dashboardSortColumns = map[string]string{
+	"name":       "name",
+	"visibility": "visibility",
+	"created_at": "created_at",
+	"updated_at": "updated_at",
+}
+
 func (h *DashboardHandler) List(w http.ResponseWriter, r *http.Request) {
 	tenantID, userID, ok := h.tenantAndUser(w, r)
 	if !ok {
 		return
 	}
 	page, perPage := suiteapi.ParsePagination(r)
-	items, total, err := h.service.List(r.Context(), tenantID, userID, page, perPage)
+	sortCol, sortDir := suiteapi.ParseSort(r, dashboardSortColumns, "updated_at", "desc")
+	search := r.URL.Query().Get("search")
+	visibility := r.URL.Query().Get("visibility")
+	items, total, err := h.service.List(r.Context(), tenantID, userID, page, perPage, sortCol, sortDir, search, visibility)
 	if err != nil {
 		h.writeError(w, r, err)
 		return

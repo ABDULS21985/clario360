@@ -21,7 +21,7 @@ export function CommitteeGrid({ committees }: CommitteeGridProps) {
   }
 
   return (
-    <div className="grid gap-4 md:grid-cols-2 2xl:grid-cols-3">
+    <div className="grid grid-cols-1 gap-4 md:grid-cols-2 2xl:grid-cols-3">
       {committees.map((committee) => (
         <CommitteeCard key={committee.id} committee={committee} />
       ))}

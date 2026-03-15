@@ -97,7 +97,7 @@ export default function TicketLinkDetailPage({ params }: Props) {
           }
         />
 
-        <div className="grid gap-4 md:grid-cols-2">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <Card>
             <CardHeader>
               <CardTitle className="text-base">External Record</CardTitle>
@@ -131,7 +131,7 @@ export default function TicketLinkDetailPage({ params }: Props) {
           <CardHeader>
             <CardTitle className="text-base">Timestamps</CardTitle>
           </CardHeader>
-          <CardContent className="grid gap-3 md:grid-cols-3 text-sm">
+          <CardContent className="grid grid-cols-1 gap-3 md:grid-cols-3 text-sm">
             <div>
               <div className="text-xs uppercase tracking-wide text-muted-foreground">Created</div>
               <div className="mt-1">

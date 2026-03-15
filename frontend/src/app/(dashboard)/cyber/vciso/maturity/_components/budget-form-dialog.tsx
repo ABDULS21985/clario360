@@ -184,7 +184,7 @@ export function BudgetFormDialog({
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <Label>
                 Category <span className="text-destructive">*</span>
@@ -227,7 +227,7 @@ export function BudgetFormDialog({
             </div>
           </div>
 
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
             <div className="space-y-2">
               <Label htmlFor="budget-amount">
                 Amount <span className="text-destructive">*</span>
@@ -284,7 +284,7 @@ export function BudgetFormDialog({
             Timeline
           </h4>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="budget-fiscal-year">Fiscal Year</Label>
               <Input

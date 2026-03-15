@@ -15,7 +15,7 @@ interface ClickHouseFormProps {
 export function ClickHouseForm({ form }: ClickHouseFormProps) {
   return (
     <div className="space-y-4">
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <FormField name="host" label="Host" required>
           <Input {...form.register('host')} placeholder="clickhouse.example.com" />
         </FormField>
@@ -44,7 +44,7 @@ export function ClickHouseForm({ form }: ClickHouseFormProps) {
         </FormField>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <div className="flex items-center justify-between rounded-lg border p-4">
           <div>
             <Label>TLS / SSL</Label>

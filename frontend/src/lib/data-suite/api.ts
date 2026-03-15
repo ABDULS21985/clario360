@@ -213,6 +213,7 @@ export const dataSuiteApi = {
   listQualityRules: (params: FetchParams) => fetchDataSuitePaginated<QualityRule>(DATA_SUITE_ENDPOINTS.qualityRules, params),
   createQualityRule: (payload: unknown) => apiPost<DataEnvelope<QualityRule>>(DATA_SUITE_ENDPOINTS.qualityRules, payload).then((res) => res.data),
   updateQualityRule: (id: string, payload: unknown) => apiPut<DataEnvelope<QualityRule>>(DATA_SUITE_ENDPOINTS.qualityRuleById(id), payload).then((res) => res.data),
+  deleteQualityRule: (id: string) => apiDelete<void>(DATA_SUITE_ENDPOINTS.qualityRuleById(id)),
   runQualityRule: (id: string) => apiPost<DataEnvelope<QualityResult>>(DATA_SUITE_ENDPOINTS.qualityRuleRun(id), {}).then((res) => res.data),
   listQualityResults: (params: FetchParams) => fetchDataSuitePaginated<QualityResult>(DATA_SUITE_ENDPOINTS.qualityResults, params),
   getQualityResult: (id: string) => fetchDataSuite<QualityResult>(DATA_SUITE_ENDPOINTS.qualityResultById(id)),

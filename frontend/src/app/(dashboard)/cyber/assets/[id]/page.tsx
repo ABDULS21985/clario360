@@ -111,7 +111,7 @@ export default function AssetDetailPage({ params }: Props) {
             />
 
             {/* Security summary bar */}
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
               {[
                 { label: 'Vulnerabilities', value: asset.vulnerability_count ?? 0, color: (asset.vulnerability_count ?? 0) > 0 ? 'text-orange-600' : 'text-green-600' },
                 { label: 'Critical Vulns', value: asset.critical_vuln_count ?? 0, color: (asset.critical_vuln_count ?? 0) > 0 ? 'text-red-600 font-bold' : 'text-green-600' },

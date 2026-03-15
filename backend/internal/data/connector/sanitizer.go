@@ -7,7 +7,10 @@ import (
 	"github.com/clario360/platform/internal/data/model"
 )
 
-var secretKeys = map[string]struct{}{
+// SecretKeys is the set of connection-config field names whose values are
+// considered sensitive. Exported so the service layer can use it for
+// credential-preservation during updates.
+var SecretKeys = map[string]struct{}{
 	"password":      {},
 	"secret_key":    {},
 	"api_key":       {},
@@ -42,7 +45,7 @@ func sanitizeValue(value any) any {
 	case map[string]any:
 		out := make(map[string]any, len(typed))
 		for key, inner := range typed {
-			if _, blocked := secretKeys[strings.ToLower(key)]; blocked {
+			if _, blocked := SecretKeys[strings.ToLower(key)]; blocked {
 				continue
 			}
 			out[key] = sanitizeValue(inner)

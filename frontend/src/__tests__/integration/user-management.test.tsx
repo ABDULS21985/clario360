@@ -76,10 +76,7 @@ const server = setupServer(
     })
   ),
   http.get(`${API_URL}/api/v1/roles`, () =>
-    HttpResponse.json({
-      data: mockRoles,
-      meta: { page: 1, per_page: 100, total: 1, total_pages: 1 },
-    })
+    HttpResponse.json(mockRoles)
   )
 );
 

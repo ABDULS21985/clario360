@@ -27,7 +27,7 @@ func (s *DashboardSeeder) Seed(ctx context.Context, tenantID, adminUserID uuid.U
 	dashboardService := visusservice.NewDashboardService(store.Dashboards, store.Widgets, nil, nil, s.log)
 	widgetService := visusservice.NewWidgetService(store.Dashboards, store.Widgets, store.KPIs, store.KPISnapshots, store.Alerts, nil, nil, s.log)
 
-	existing, _, err := store.Dashboards.ListAccessible(ctx, tenantID, nil, 1, 50)
+	existing, _, err := store.Dashboards.ListAccessible(ctx, tenantID, nil, 1, 50, "updated_at", "desc", "", "")
 	if err != nil {
 		return err
 	}
@@ -57,7 +57,7 @@ func (s *DashboardSeeder) Seed(ctx context.Context, tenantID, adminUserID uuid.U
 		dashboardID = created.ID
 	}
 
-	kpis, _, err := store.KPIs.List(ctx, tenantID, 1, 100)
+	kpis, _, err := store.KPIs.List(ctx, tenantID, 1, 100, "name", "asc", "", "", nil)
 	if err != nil {
 		return err
 	}

@@ -22,7 +22,7 @@ interface TemplateGalleryProps {
 
 export function TemplateGallery({ templates, activeServer, busyTemplateId, onOpenTemplate }: TemplateGalleryProps) {
   return (
-    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+    <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
       {templates.map((template) => {
         const Icon = iconForTemplate(template.tags);
         return (

@@ -107,7 +107,7 @@ export function FeedDetail({
             </div>
           </div>
 
-          <section className="grid gap-4 md:grid-cols-2">
+          <section className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <InfoCard title="Configuration">
               <InfoRow label="Sync Interval">{getThreatFeedIntervalLabel(feed.sync_interval)}</InfoRow>
               <InfoRow label="Default Severity">{feed.default_severity}</InfoRow>

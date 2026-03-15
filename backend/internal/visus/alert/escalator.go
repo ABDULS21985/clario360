@@ -22,7 +22,7 @@ func (e *Escalator) EscalateStaleCritical(ctx context.Context, tenantID uuid.UUI
 	alerts, _, err := e.alerts.List(ctx, tenantID, repository.AlertListFilters{
 		Status:   []string{"new", "viewed", "acknowledged"},
 		Severity: []string{string(model.AlertSeverityCritical)},
-	}, 1, 200)
+	}, 1, 200, "created_at", "asc")
 	if err != nil {
 		return err
 	}

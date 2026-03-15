@@ -16,7 +16,7 @@ export function BaselineComparisonCard({
       <CardHeader className="pb-3">
         <CardTitle className="text-sm">{title}</CardTitle>
       </CardHeader>
-      <CardContent className="grid gap-4 lg:grid-cols-2">
+      <CardContent className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <div className="rounded-lg border bg-muted/30 p-3">
           <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Expected</div>
           <pre className="overflow-auto text-xs">{JSON.stringify(expected, null, 2)}</pre>

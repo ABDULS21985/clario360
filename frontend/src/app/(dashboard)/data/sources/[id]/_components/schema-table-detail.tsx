@@ -113,7 +113,7 @@ export function SchemaTableDetail({
           </ScrollArea>
         </div>
 
-        <div className="grid gap-4 xl:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
           <DetailListCard title="Primary Keys" items={table.primary_keys ?? []} emptyLabel="No primary key metadata." />
           <DetailListCard
             title="Foreign Keys"

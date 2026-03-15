@@ -41,6 +41,7 @@ func RegisterRoutes(r chi.Router, deps RouteDependencies) {
 		r.Delete("/dashboards/{id}/widgets/{wid}", deps.Widget.Delete)
 		r.Get("/dashboards/{id}/widgets/{wid}/data", deps.Widget.Data)
 		r.Put("/dashboards/{id}/widgets/layout", deps.Widget.UpdateLayout)
+		r.Get("/widgets/stats", deps.Widget.Stats)
 		r.Get("/widgets/types", deps.Widget.Types)
 
 		r.Post("/kpis", deps.KPI.Create)

@@ -123,7 +123,7 @@ export function CreateActionItemDialog({
             className="space-y-4"
             onSubmit={form.handleSubmit((values) => createMutation.mutate(values))}
           >
-            <div className="grid gap-4 md:grid-cols-2">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <FormField name="meeting_id" label="Meeting" required>
                 <Select
                   value={form.watch('meeting_id')}
@@ -170,7 +170,7 @@ export function CreateActionItemDialog({
               <Textarea {...form.register('description')} rows={4} />
             </FormField>
 
-            <div className="grid gap-4 md:grid-cols-3">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
               <FormField name="priority" label="Priority" required>
                 <Select
                   value={form.watch('priority')}

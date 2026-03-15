@@ -253,7 +253,7 @@ export default function DataAnalyticsPage() {
           description="Governed query builder for data models with saved query execution and PII-aware result rendering."
         />
 
-        <div className="grid gap-4 xl:grid-cols-[0.3fr_0.7fr]">
+        <div className="grid grid-cols-1 gap-4 xl:grid-cols-[0.3fr_0.7fr]">
           <ModelBrowser
             models={models}
             selectedModelId={selectedModelId}

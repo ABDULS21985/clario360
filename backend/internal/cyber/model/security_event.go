@@ -89,7 +89,7 @@ type EventQueryParams struct {
 	Severities  []string   `json:"severities"`
 	SourceIP    string     `json:"source_ip"`
 	DestIP      string     `json:"dest_ip"`
-	Protocol    string     `json:"protocol"`
+	Protocols   []string   `json:"protocols"`
 	Username    string     `json:"username"`
 	Process     string     `json:"process"`
 	CmdContains string     `json:"cmd_contains"` // ILIKE on command_line

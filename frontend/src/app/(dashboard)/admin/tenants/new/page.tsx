@@ -12,7 +12,12 @@ import {
   User,
   Settings,
   CheckCircle,
+  RefreshCw,
+  Copy,
+  Eye,
+  EyeOff,
 } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -25,6 +30,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { PageHeader } from "@/components/common/page-header";
 import { FormField } from "@/components/shared/forms/form-field";
 import { useProvisionTenant } from "@/hooks/use-tenants";
@@ -42,6 +55,7 @@ const provisionSchema = z.object({
   subscription_tier: z.enum(["free", "starter", "professional", "enterprise"]),
   owner_email: z.string().email("Invalid email address"),
   owner_name: z.string().min(1, "Owner name is required"),
+  owner_password: z.string().optional(),
   max_users: z.coerce.number().min(1).default(10),
   max_storage_gb: z.coerce.number().min(1).default(10),
   mfa_required: z.boolean().default(false),
@@ -65,9 +79,18 @@ const AVAILABLE_SUITES = [
   { value: "visus", label: "Visus (Executive)" },
 ];
 
+function generatePassword() {
+  const chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*";
+  return Array.from(crypto.getRandomValues(new Uint8Array(16)))
+    .map((b) => chars[b % chars.length])
+    .join("");
+}
+
 export default function ProvisionTenantPage() {
   const router = useRouter();
   const [step, setStep] = useState(1);
+  const [showPassword, setShowPassword] = useState(false);
+  const [credentials, setCredentials] = useState<{ email: string; password: string } | null>(null);
   const provisionMutation = useProvisionTenant();
 
   const methods = useForm<ProvisionFormData>({
@@ -79,6 +102,7 @@ export default function ProvisionTenantPage() {
       subscription_tier: "professional",
       owner_email: "",
       owner_name: "",
+      owner_password: "",
       max_users: 10,
       max_storage_gb: 10,
       mfa_required: false,
@@ -123,6 +147,7 @@ export default function ProvisionTenantPage() {
       subscription_tier: data.subscription_tier as SubscriptionTier,
       owner_email: data.owner_email,
       owner_name: data.owner_name,
+      owner_password: data.owner_password || undefined,
       settings: {
         max_users: data.max_users,
         max_storage_gb: data.max_storage_gb,
@@ -130,7 +155,8 @@ export default function ProvisionTenantPage() {
         enabled_suites: data.enabled_suites,
       },
     });
-    router.push(`/admin/tenants/${result.id}`);
+    // Show credentials dialog — the password is only available at this moment.
+    setCredentials({ email: data.owner_email, password: result.temp_password });
   });
 
   const values = methods.watch();
@@ -277,6 +303,44 @@ export default function ProvisionTenantPage() {
                     placeholder="john@acme.com"
                   />
                 </FormField>
+
+                <FormField
+                  name="owner_password"
+                  label="Initial Password"
+                  description="Leave blank to auto-generate a secure password"
+                >
+                  <div className="flex gap-2">
+                    <div className="relative flex-1">
+                      <Input
+                        type={showPassword ? "text" : "password"}
+                        {...methods.register("owner_password")}
+                        placeholder="Auto-generated if empty"
+                        className="pr-9"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword((v) => !v)}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                        tabIndex={-1}
+                      >
+                        {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </button>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      onClick={() => {
+                        const pwd = generatePassword();
+                        methods.setValue("owner_password", pwd);
+                        setShowPassword(true);
+                      }}
+                      title="Generate password"
+                    >
+                      <RefreshCw className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </FormField>
               </CardContent>
             </Card>
           )}
@@ -289,7 +353,7 @@ export default function ProvisionTenantPage() {
                 <CardDescription>Configure limits and access for the tenant</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <FormField name="max_users" label="Max Users" required>
                     <Input type="number" {...methods.register("max_users")} />
                   </FormField>
@@ -313,7 +377,7 @@ export default function ProvisionTenantPage() {
 
                 <div className="space-y-2">
                   <Label>Enabled Suites</Label>
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                     {AVAILABLE_SUITES.map((suite) => (
                       <div key={suite.value} className="flex items-center gap-2">
                         <Checkbox
@@ -351,7 +415,7 @@ export default function ProvisionTenantPage() {
               </CardHeader>
               <CardContent>
                 <dl className="space-y-4 text-sm">
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <div>
                       <dt className="text-muted-foreground">Tenant Name</dt>
                       <dd className="font-medium mt-0.5">{values.name}</dd>
@@ -367,6 +431,12 @@ export default function ProvisionTenantPage() {
                     <div>
                       <dt className="text-muted-foreground">Owner</dt>
                       <dd className="mt-0.5">{values.owner_name} ({values.owner_email})</dd>
+                    </div>
+                    <div>
+                      <dt className="text-muted-foreground">Initial Password</dt>
+                      <dd className="mt-0.5 text-muted-foreground italic">
+                        {values.owner_password ? "Custom (set in Step 2)" : "Auto-generated on submit"}
+                      </dd>
                     </div>
                     <div>
                       <dt className="text-muted-foreground">Max Users</dt>
@@ -419,6 +489,79 @@ export default function ProvisionTenantPage() {
           </div>
         </form>
       </FormProvider>
+
+      {/* One-time credentials dialog — shown after successful provisioning */}
+      <Dialog
+        open={!!credentials}
+        onOpenChange={(open) => {
+          if (!open && credentials) {
+            router.push(`/admin/tenants/${provisionMutation.data?.id}`);
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Tenant Provisioned</DialogTitle>
+            <DialogDescription>
+              Save these credentials now. The password will not be shown again.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-2">
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">Email</Label>
+              <div className="flex items-center gap-2">
+                <code className="flex-1 rounded bg-muted px-3 py-2 text-sm font-mono">
+                  {credentials?.email}
+                </code>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => {
+                    navigator.clipboard.writeText(credentials?.email ?? "");
+                    toast.success("Email copied");
+                  }}
+                >
+                  <Copy className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">Password</Label>
+              <div className="flex items-center gap-2">
+                <code className="flex-1 rounded bg-muted px-3 py-2 text-sm font-mono break-all">
+                  {credentials?.password}
+                </code>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => {
+                    navigator.clipboard.writeText(credentials?.password ?? "");
+                    toast.success("Password copied");
+                  }}
+                >
+                  <Copy className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+
+            <p className="text-xs text-muted-foreground rounded border border-yellow-300 bg-yellow-50 dark:bg-yellow-900/20 px-3 py-2">
+              Share these credentials securely with the tenant owner. They should change the password on first login.
+            </p>
+          </div>
+
+          <DialogFooter>
+            <Button
+              onClick={() => router.push(`/admin/tenants/${provisionMutation.data?.id}`)}
+            >
+              Go to Tenant
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

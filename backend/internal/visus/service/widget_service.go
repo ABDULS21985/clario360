@@ -72,6 +72,10 @@ func (s *WidgetService) List(ctx context.Context, tenantID, dashboardID uuid.UUI
 	return items, err
 }
 
+func (s *WidgetService) CountByType(ctx context.Context, tenantID uuid.UUID) (map[string]int, error) {
+	return s.widgets.CountByType(ctx, tenantID)
+}
+
 func (s *WidgetService) Update(ctx context.Context, widget *model.Widget) (*model.Widget, error) {
 	if err := validateWidget(widget); err != nil {
 		return nil, err

@@ -139,8 +139,8 @@ func (r *SourceRepository) List(ctx context.Context, tenantID uuid.UUID, params 
 	qb.Where("a.tenant_id = ?", tenantID)
 	qb.Where("a.deleted_at IS NULL")
 	qb.WhereIf(strings.TrimSpace(params.Search) != "", "a.name ILIKE ?", "%"+strings.TrimSpace(params.Search)+"%")
-	qb.WhereIf(params.Type != "", "a.type = ?", params.Type)
-	qb.WhereIf(params.Status != "", "a.status = ?", params.Status)
+	qb.WhereIn("a.type", params.Types)
+	qb.WhereIn("a.status", params.Statuses)
 	if params.HasSchema != nil {
 		if *params.HasSchema {
 			qb.Where("a.schema_metadata IS NOT NULL")
@@ -173,8 +173,8 @@ func (r *SourceRepository) List(ctx context.Context, tenantID uuid.UUID, params 
 	countQB.Where("a.tenant_id = ?", tenantID)
 	countQB.Where("a.deleted_at IS NULL")
 	countQB.WhereIf(strings.TrimSpace(params.Search) != "", "a.name ILIKE ?", "%"+strings.TrimSpace(params.Search)+"%")
-	countQB.WhereIf(params.Type != "", "a.type = ?", params.Type)
-	countQB.WhereIf(params.Status != "", "a.status = ?", params.Status)
+	countQB.WhereIn("a.type", params.Types)
+	countQB.WhereIn("a.status", params.Statuses)
 	if params.HasSchema != nil {
 		if *params.HasSchema {
 			countQB.Where("a.schema_metadata IS NOT NULL")

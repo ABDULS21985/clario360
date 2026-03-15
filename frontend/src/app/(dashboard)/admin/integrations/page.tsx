@@ -198,7 +198,7 @@ export default function AdminIntegrationsPage() {
           </div>
 
           {loading ? (
-            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
               {Array.from({ length: 5 }).map((_, index) => (
                 <Card key={index}>
                   <CardHeader className="space-y-3">
@@ -213,7 +213,7 @@ export default function AdminIntegrationsPage() {
               ))}
             </div>
           ) : (
-            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
               {providers.map((provider) => (
                 <Card key={provider.type}>
                   <CardHeader className="space-y-3">
@@ -294,7 +294,7 @@ export default function AdminIntegrationsPage() {
           </div>
 
           {loading ? (
-            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
               {Array.from({ length: 6 }).map((_, index) => (
                 <Card key={index}>
                   <CardHeader className="space-y-3">
@@ -316,7 +316,7 @@ export default function AdminIntegrationsPage() {
               description="Start from the provider cards above or open the manual setup dialog to create the first integration."
             />
           ) : (
-            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
               {items.map((item) => {
                 const summary = summarizeIntegrationConfig(item);
                 const nextStatus = item.status === "active" ? "inactive" : "active";

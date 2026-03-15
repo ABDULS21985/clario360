@@ -27,7 +27,7 @@ export function SourceGridView({
   onDelete,
 }: SourceGridViewProps) {
   return (
-    <div className="grid gap-4 lg:grid-cols-3 md:grid-cols-2">
+    <div className="grid grid-cols-1 gap-4 lg:grid-cols-3 md:grid-cols-2">
       {sources.map((source) => (
         <SourceCard
           key={source.id}

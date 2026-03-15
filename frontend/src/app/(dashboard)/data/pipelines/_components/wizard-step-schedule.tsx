@@ -86,7 +86,7 @@ export function WizardStepSchedule({
           />
         ) : null}
 
-        <div className="grid gap-4 md:grid-cols-2">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <FormField name="max_retries" label="Max retries" required>
             <Input type="number" {...form.register('max_retries', { valueAsNumber: true })} min={0} max={10} />
           </FormField>

@@ -56,7 +56,7 @@ export function MinutesTab({
   }
 
   return (
-    <div className="grid gap-4 xl:grid-cols-[1.5fr_0.8fr]">
+    <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1.5fr_0.8fr]">
       <div className="space-y-4">
         <div className="rounded-xl border bg-card p-4">
           <div className="flex flex-wrap items-center gap-2">

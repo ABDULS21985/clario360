@@ -148,7 +148,7 @@ export function MaturityDimensionCard({
         </div>
 
         {/* Findings & Recommendations counts */}
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
           <div className="flex items-center gap-1.5 rounded-lg border p-2">
             <AlertTriangle className="h-3.5 w-3.5 text-amber-500 shrink-0" />
             <div>

@@ -47,8 +47,8 @@ func (s *KPIService) Create(ctx context.Context, item *model.KPIDefinition) (*mo
 	return created, nil
 }
 
-func (s *KPIService) List(ctx context.Context, tenantID uuid.UUID, page, perPage int) ([]model.KPIDefinition, int, error) {
-	items, total, err := s.kpis.List(ctx, tenantID, page, perPage)
+func (s *KPIService) List(ctx context.Context, tenantID uuid.UUID, page, perPage int, sortCol, sortDir, search, suite string, enabled *bool) ([]model.KPIDefinition, int, error) {
+	items, total, err := s.kpis.List(ctx, tenantID, page, perPage, sortCol, sortDir, search, suite, enabled)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -105,7 +105,7 @@ func (s *KPIService) TriggerSnapshot(ctx context.Context, tenantID uuid.UUID) er
 }
 
 func (s *KPIService) Summary(ctx context.Context, tenantID uuid.UUID) ([]model.KPIDefinition, error) {
-	items, _, err := s.List(ctx, tenantID, 1, 500)
+	items, _, err := s.List(ctx, tenantID, 1, 500, "category", "asc", "", "", nil)
 	return items, err
 }
 

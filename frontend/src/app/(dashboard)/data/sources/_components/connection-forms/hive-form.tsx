@@ -32,7 +32,7 @@ export function HiveForm({ form }: HiveFormProps) {
 
   return (
     <div className="space-y-4">
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <FormField name="host" label="Host" required>
           <Input {...form.register('host')} placeholder="hiveserver2.example.com" />
         </FormField>
@@ -73,7 +73,7 @@ export function HiveForm({ form }: HiveFormProps) {
       </div>
 
       {authType === 'plain' ? (
-        <div className="grid gap-4 md:grid-cols-2">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <FormField name="username" label="Username" required>
             <Input {...form.register('username')} />
           </FormField>
@@ -84,7 +84,7 @@ export function HiveForm({ form }: HiveFormProps) {
       ) : null}
 
       {authType === 'kerberos' ? (
-        <div className="grid gap-4 rounded-lg border p-4 md:grid-cols-2">
+        <div className="grid grid-cols-1 gap-4 rounded-lg border p-4 md:grid-cols-2">
           <FormField name="kerberos.realm" label="Realm" required>
             <Input value={form.watch('kerberos')?.realm ?? ''} onChange={(event) => updateKerberos({ realm: event.target.value })} />
           </FormField>

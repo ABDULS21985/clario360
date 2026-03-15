@@ -78,7 +78,7 @@ export function DarkDataScanDialog({
           <div className="space-y-4">
             <div className="text-sm capitalize">Status: {scan.status}</div>
             <Progress value={progress} />
-            <div className="grid gap-3 md:grid-cols-2">
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
               <Metric label="Sources Scanned" value={scan.sources_scanned.toLocaleString()} />
               <Metric label="Assets Found" value={scan.assets_discovered.toLocaleString()} />
               <Metric label="PII Assets" value={scan.pii_assets_found.toLocaleString()} />

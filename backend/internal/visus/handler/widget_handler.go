@@ -211,6 +211,19 @@ func (h *WidgetHandler) Types(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+func (h *WidgetHandler) Stats(w http.ResponseWriter, r *http.Request) {
+	tenantID, ok := h.tenantID(w, r)
+	if !ok {
+		return
+	}
+	counts, err := h.service.CountByType(r.Context(), tenantID)
+	if err != nil {
+		h.writeError(w, r, err)
+		return
+	}
+	suiteapi.WriteData(w, http.StatusOK, counts)
+}
+
 func (h *WidgetHandler) writeError(w http.ResponseWriter, r *http.Request, err error) {
 	switch {
 	case errors.Is(err, service.ErrValidation):

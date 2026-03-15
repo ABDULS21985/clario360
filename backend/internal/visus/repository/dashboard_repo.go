@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -46,25 +47,43 @@ func (r *DashboardRepository) Create(ctx context.Context, dashboard *model.Dashb
 	return r.GetByID(ctx, dashboard.TenantID, nil, id)
 }
 
-func (r *DashboardRepository) ListAccessible(ctx context.Context, tenantID uuid.UUID, userID *uuid.UUID, page, perPage int) ([]model.Dashboard, int, error) {
+func (r *DashboardRepository) ListAccessible(ctx context.Context, tenantID uuid.UUID, userID *uuid.UUID, page, perPage int, sortCol, sortDir, search, visibility string) ([]model.Dashboard, int, error) {
 	meta := normalizePagination(page, perPage)
-	args := []any{tenantID, meta.Limit, meta.Offset}
-	accessClause := `AND (visibility IN ('organization','public','team'))`
-	if userID != nil {
-		accessClause = `AND (created_by = $2 OR $2 = ANY(shared_with) OR visibility IN ('organization','public','team'))`
-		args = []any{tenantID, *userID, meta.Limit, meta.Offset}
+	args := []any{tenantID}
+	whereClauses := []string{
+		"tenant_id = $1",
+		"deleted_at IS NULL",
 	}
+	if userID != nil {
+		args = append(args, *userID)
+		whereClauses = append(whereClauses, "(created_by = $2 OR $2 = ANY(shared_with) OR visibility IN ('organization','public','team'))")
+	} else {
+		whereClauses = append(whereClauses, "visibility IN ('organization','public','team')")
+	}
+	if search != "" {
+		args = append(args, "%"+search+"%")
+		position := len(args)
+		whereClauses = append(whereClauses, fmt.Sprintf("(name ILIKE $%d OR description ILIKE $%d)", position, position))
+	}
+	if visibility != "" {
+		args = append(args, visibility)
+		position := len(args)
+		whereClauses = append(whereClauses, fmt.Sprintf("visibility = $%d", position))
+	}
+	orderClause := fmt.Sprintf("is_default DESC, %s %s", sortCol, sortDir)
+	args = append(args, meta.Limit, meta.Offset)
 	query := fmt.Sprintf(`
 		SELECT id, tenant_id, name, description, grid_columns, visibility, shared_with, is_default, is_system,
 		       tags, metadata, created_by, created_at, updated_at, deleted_at,
 		       COALESCE((SELECT COUNT(*) FROM visus_widgets w WHERE w.dashboard_id = visus_dashboards.id), 0)
 		FROM visus_dashboards
-		WHERE tenant_id = $1
-		  AND deleted_at IS NULL
-		  %s
-		ORDER BY is_default DESC, updated_at DESC
+		WHERE %s
+		ORDER BY %s
 		LIMIT $%d OFFSET $%d`,
-		accessClause, len(args)-1, len(args),
+		strings.Join(whereClauses, " AND "),
+		orderClause,
+		len(args)-1,
+		len(args),
 	)
 	rows, err := r.db.Query(ctx, query, args...)
 	if err != nil {
@@ -85,12 +104,11 @@ func (r *DashboardRepository) ListAccessible(ctx context.Context, tenantID uuid.
 		return nil, 0, wrapErr("iterate dashboards", err)
 	}
 
-	countArgs := []any{tenantID}
-	countQuery := `SELECT COUNT(*) FROM visus_dashboards WHERE tenant_id = $1 AND deleted_at IS NULL AND visibility IN ('organization','public','team')`
-	if userID != nil {
-		countArgs = []any{tenantID, *userID}
-		countQuery = `SELECT COUNT(*) FROM visus_dashboards WHERE tenant_id = $1 AND deleted_at IS NULL AND (created_by = $2 OR $2 = ANY(shared_with) OR visibility IN ('organization','public','team'))`
-	}
+	countArgs := args[:len(args)-2]
+	countQuery := fmt.Sprintf(
+		`SELECT COUNT(*) FROM visus_dashboards WHERE %s`,
+		strings.Join(whereClauses, " AND "),
+	)
 	var total int
 	if err := r.db.QueryRow(ctx, countQuery, countArgs...).Scan(&total); err != nil {
 		return nil, 0, wrapErr("count dashboards", err)

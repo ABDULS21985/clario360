@@ -24,7 +24,16 @@ type ProvisionTenantRequest struct {
 	SubscriptionTier string          `json:"subscription_tier" validate:"omitempty,oneof=free starter professional enterprise"`
 	OwnerEmail       string          `json:"owner_email" validate:"required,email"`
 	OwnerName        string          `json:"owner_name" validate:"required,min=1,max=255"`
-	Settings         json.RawMessage `json:"settings,omitempty"`
+	// OwnerPassword is optional. If omitted, a secure random password is generated and returned.
+	OwnerPassword string          `json:"owner_password,omitempty"`
+	Settings      json.RawMessage `json:"settings,omitempty"`
+}
+
+// ProvisionTenantResponse extends TenantResponse with the owner's initial password.
+// TempPassword is only non-empty on initial provisioning and must be stored securely.
+type ProvisionTenantResponse struct {
+	TenantResponse
+	TempPassword string `json:"temp_password"`
 }
 
 type UpdateTenantRequest struct {

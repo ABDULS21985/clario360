@@ -47,7 +47,7 @@ export function WizardStepTest({
             <AlertTitle className="text-emerald-700">Connected successfully</AlertTitle>
             <AlertDescription className="text-emerald-700">{result.message}</AlertDescription>
           </Alert>
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
             <MetricCard title="Latency" value={`${result.latency_ms}ms`} />
             <MetricCard title="Version" value={result.version || 'Unknown'} />
             <MetricCard title="Permissions" value={result.permissions?.join(', ') || 'Read access confirmed'} />

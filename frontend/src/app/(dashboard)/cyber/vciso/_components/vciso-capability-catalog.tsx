@@ -425,7 +425,7 @@ export function VCISOCapabilityCatalog() {
               assurance, operations, and AI-assisted oversight.
             </p>
           </div>
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
             {capabilityCategories.map((category) => (
               <div key={category.title} className="rounded-2xl border bg-white/80 px-4 py-3 text-center">
                 <p className="text-lg font-semibold">{category.capabilities.length}</p>
@@ -436,7 +436,7 @@ export function VCISOCapabilityCatalog() {
         </div>
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-2">
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
         {capabilityCategories.map((category) => {
           const Icon = category.icon;
 

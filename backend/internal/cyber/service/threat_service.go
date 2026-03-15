@@ -246,6 +246,9 @@ func (s *ThreatService) ListThreatIndicators(ctx context.Context, tenantID, thre
 	if err != nil {
 		return nil, err
 	}
+	if items == nil {
+		items = make([]*model.ThreatIndicator, 0)
+	}
 	_ = publishAuditEvent(ctx, s.producer, "cyber.threat.indicators_listed", tenantID, actor, map[string]interface{}{
 		"id":    threatID.String(),
 		"count": len(items),
@@ -344,6 +347,9 @@ func (s *ThreatService) ListThreatAlerts(ctx context.Context, tenantID, threatID
 	items, err := s.alertRepo.FindByThreatContext(ctx, tenantID, values, techniques, 50)
 	if err != nil {
 		return nil, err
+	}
+	if items == nil {
+		items = make([]*model.Alert, 0)
 	}
 	_ = publishAuditEvent(ctx, s.producer, "cyber.threat.alerts_listed", tenantID, actor, map[string]interface{}{
 		"id":    threatID.String(),
@@ -453,9 +459,13 @@ func (s *ThreatService) CheckIndicators(ctx context.Context, tenantID uuid.UUID,
 	}
 	results := make([]dto.IndicatorCheckResult, 0, len(values))
 	for _, value := range values {
+		matched := matches[strings.ToLower(value)]
+		if matched == nil {
+			matched = make([]*model.ThreatIndicator, 0)
+		}
 		results = append(results, dto.IndicatorCheckResult{
 			Value:      value,
-			Indicators: matches[strings.ToLower(value)],
+			Indicators: matched,
 		})
 	}
 	_ = publishAuditEvent(ctx, s.producer, "cyber.indicator.checked", tenantID, actor, map[string]interface{}{

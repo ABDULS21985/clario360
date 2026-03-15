@@ -100,22 +100,24 @@ export function ExportMenu({
     try {
       const params = buildParams(currentFilters, EXPORT_LIMIT);
       if (format === 'csv') {
-        // Try Accept header first
-        try {
-          const res = await fetch(`${baseUrl}?${new URLSearchParams(Object.entries(params).map(([k, v]) => [k, String(v)]))}`, {
-            headers: { Accept: 'text/csv' },
-          });
-          if (res.ok && res.headers.get('content-type')?.includes('text/csv')) {
-            const text = await res.text();
-            downloadBlob(
-              new Blob([text], { type: 'text/csv;charset=utf-8;' }),
-              `${entityType}-export-${dateSuffix()}.csv`,
-            );
-            toast.success('CSV export ready');
-            return;
+        // Try Accept header first (skip for nested responses that use csvDataKey)
+        if (!csvDataKey) {
+          try {
+            const res = await fetch(`${baseUrl}?${new URLSearchParams(Object.entries(params).map(([k, v]) => [k, String(v)]))}`, {
+              headers: { Accept: 'text/csv' },
+            });
+            if (res.ok && res.headers.get('content-type')?.includes('text/csv')) {
+              const text = await res.text();
+              downloadBlob(
+                new Blob([text], { type: 'text/csv;charset=utf-8;' }),
+                `${entityType}-export-${dateSuffix()}.csv`,
+              );
+              toast.success('CSV export ready');
+              return;
+            }
+          } catch {
+            // fallthrough to JSON-based CSV
           }
-        } catch {
-          // fallthrough to JSON-based CSV
         }
         // Fallback: fetch JSON and convert
         const data = await apiGet<{ data: unknown }>(baseUrl, params);

@@ -176,13 +176,13 @@ export function RuleFormDialog({
                 />
               </FormField>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div>
                   <Label className="text-sm font-medium">Rule Type</Label>
                   <RadioGroup
                     value={selectedType}
                     onValueChange={(v) => methods.setValue('type', v as RuleType)}
-                    className="mt-2 grid grid-cols-2 gap-2"
+                    className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2"
                   >
                     {(['sigma', 'threshold', 'correlation', 'anomaly'] as const).map((t) => (
                       <div key={t} className="flex items-center gap-2">

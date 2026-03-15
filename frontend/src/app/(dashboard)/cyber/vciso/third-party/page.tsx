@@ -179,7 +179,7 @@ function VendorsTab({ onCreateVendor }: { onCreateVendor: () => void }) {
       enableSorting: true,
       cell: ({ row }) => (
         <button
-          className="font-semibold text-sm hover:underline text-left max-w-[200px] truncate block"
+          className="font-semibold text-sm hover:underline text-left max-w-[120px] sm:max-w-[200px] truncate block"
           onClick={(e) => {
             e.stopPropagation();
             setDetailVendor(row.original);
@@ -450,7 +450,7 @@ function QuestionnairesTab({
       accessorKey: 'title',
       enableSorting: true,
       cell: ({ row }) => (
-        <span className="font-semibold text-sm max-w-[220px] truncate block">
+        <span className="font-semibold text-sm max-w-[140px] sm:max-w-[220px] truncate block">
           {row.original.title}
         </span>
       ),

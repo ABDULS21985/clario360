@@ -170,7 +170,7 @@ function getEscalationColumns(
       header: 'Trigger Condition',
       enableSorting: false,
       cell: ({ row }) => (
-        <span className="text-sm text-muted-foreground max-w-[200px] truncate block">
+        <span className="text-sm text-muted-foreground max-w-[120px] sm:max-w-[200px] truncate block">
           {row.original.trigger_condition}
         </span>
       ),
@@ -252,7 +252,7 @@ function getPlaybookColumns(): ColumnDef<VCISOPlaybook>[] {
       header: 'Scenario',
       enableSorting: false,
       cell: ({ row }) => (
-        <span className="text-sm text-muted-foreground max-w-[200px] truncate block">
+        <span className="text-sm text-muted-foreground max-w-[120px] sm:max-w-[200px] truncate block">
           {row.original.scenario}
         </span>
       ),

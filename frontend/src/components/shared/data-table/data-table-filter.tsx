@@ -127,6 +127,19 @@ export function DataTableFilter({
     );
   }
 
+  if (config.type === "text") {
+    return (
+      <TextFilterControl
+        config={config}
+        isActive={isActive}
+        open={open}
+        setOpen={setOpen}
+        value={value}
+        onChange={onChange}
+      />
+    );
+  }
+
   if (config.type === "range") {
     return (
       <RangeFilterControl
@@ -141,6 +154,85 @@ export function DataTableFilter({
   }
 
   return null;
+}
+
+interface TextFilterControlProps {
+  config: FilterConfig;
+  isActive: boolean;
+  open: boolean;
+  setOpen: (open: boolean) => void;
+  value: string | string[] | undefined;
+  onChange: (key: string, value: string | string[] | undefined) => void;
+}
+
+function TextFilterControl({
+  config,
+  isActive,
+  open,
+  setOpen,
+  value,
+  onChange,
+}: TextFilterControlProps) {
+  const current = typeof value === "string" ? value : "";
+  const [local, setLocal] = useState(current);
+
+  useEffect(() => {
+    setLocal(typeof value === "string" ? value : "");
+  }, [value]);
+
+  const apply = () => {
+    onChange(config.key, local.trim() || undefined);
+    setOpen(false);
+  };
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          variant="outline"
+          size="sm"
+          className={cn("h-8 border-dashed", isActive && "border-primary")}
+        >
+          {config.label}
+          {isActive && (
+            <span className="ml-2 max-w-[80px] truncate text-xs text-muted-foreground">
+              {current}
+            </span>
+          )}
+          <ChevronDown className="ml-2 h-4 w-4 opacity-50" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-64 space-y-3 p-3" align="start">
+        <input
+          className="w-full rounded-md border px-2 py-1.5 text-sm outline-none focus:ring-1 focus:ring-primary"
+          placeholder={config.placeholder ?? `Filter by ${config.label.toLowerCase()}…`}
+          value={local}
+          onChange={(e) => setLocal(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") apply();
+          }}
+          autoFocus
+        />
+        <div className="flex justify-end gap-2">
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              setLocal("");
+              onChange(config.key, undefined);
+              setOpen(false);
+            }}
+          >
+            Clear
+          </Button>
+          <Button type="button" size="sm" onClick={apply}>
+            Apply
+          </Button>
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
 }
 
 interface RangeFilterControlProps {

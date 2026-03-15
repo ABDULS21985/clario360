@@ -137,7 +137,7 @@ export default function SourceDetailPage() {
           }
         />
 
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
           <SummaryCard label="Type" value={typeVisual.label} />
           <SummaryCard label="Tables" value={formatMaybeCompact(source.table_count)} />
           <SummaryCard label="Rows" value={formatMaybeCompact(source.total_row_count)} />

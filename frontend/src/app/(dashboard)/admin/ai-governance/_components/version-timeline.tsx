@@ -46,7 +46,7 @@ export function VersionTimeline({
   onFail,
 }: VersionTimelineProps) {
   return (
-    <div className="grid gap-4 lg:grid-cols-[1.4fr_1fr]">
+    <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1.4fr_1fr]">
       <Card className="border-border/70">
         <CardHeader>
           <CardTitle>Versions</CardTitle>
@@ -101,7 +101,7 @@ export function VersionTimeline({
                     ) : null}
                   </div>
                 </div>
-                <div className="mt-4 grid gap-2 text-sm text-muted-foreground md:grid-cols-3">
+                <div className="mt-4 grid grid-cols-1 gap-2 text-sm text-muted-foreground md:grid-cols-3">
                   <div>Predictions: {version.prediction_count.toLocaleString()}</div>
                   <div>Avg latency: {version.avg_latency_ms ? `${Math.round(version.avg_latency_ms)} ms` : 'n/a'}</div>
                   <div>Avg confidence: {version.avg_confidence ? `${Math.round(version.avg_confidence * 100)}%` : 'n/a'}</div>

@@ -16,7 +16,7 @@ function countFor(items: DetectionRuleStats['by_type'], name: string): number {
 
 export function RuleStats({ stats, loading = false }: RuleStatsProps) {
   return (
-    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+    <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
       <KpiCard
         title="Total Rules"
         value={stats?.total ?? 0}

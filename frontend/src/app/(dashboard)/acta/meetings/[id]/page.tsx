@@ -297,7 +297,7 @@ export default function ActaMeetingDetailPage() {
           }
         />
 
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
           <div className="rounded-lg border bg-card p-4">
             <p className="text-sm text-muted-foreground">Status</p>
             <div className="mt-2">
@@ -323,7 +323,7 @@ export default function ActaMeetingDetailPage() {
           </div>
         </div>
 
-        <div className="grid gap-4 xl:grid-cols-[1.05fr_0.95fr]">
+        <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1.05fr_0.95fr]">
           <SectionCard title="Meeting Context" description="Core scheduling and participation context.">
             <div className="space-y-4">
               <div className="rounded-lg border px-4 py-3">

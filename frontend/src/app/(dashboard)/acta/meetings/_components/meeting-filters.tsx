@@ -32,7 +32,7 @@ export function MeetingFilters({
   loading = false,
 }: MeetingFiltersProps) {
   return (
-    <div className="grid gap-3 rounded-xl border bg-card p-4 lg:grid-cols-[1.2fr_0.8fr_0.8fr]">
+    <div className="grid grid-cols-1 gap-3 rounded-xl border bg-card p-4 lg:grid-cols-[1.2fr_0.8fr_0.8fr]">
       <SearchInput
         value={search}
         onChange={onSearchChange}

@@ -81,13 +81,13 @@ func (h *SourceHandler) List(w http.ResponseWriter, r *http.Request) {
 	}
 	page, perPage := suiteapi.ParsePagination(r)
 	params := dto.ListSourcesParams{
-		Page:    page,
-		PerPage: perPage,
-		Search:  r.URL.Query().Get("search"),
-		Type:    r.URL.Query().Get("type"),
-		Status:  r.URL.Query().Get("status"),
-		Sort:    r.URL.Query().Get("sort"),
-		Order:   r.URL.Query().Get("order"),
+		Page:     page,
+		PerPage:  perPage,
+		Search:   r.URL.Query().Get("search"),
+		Types:    suiteapi.ParseCSVParam(r, "type"),
+		Statuses: suiteapi.ParseCSVParam(r, "status"),
+		Sort:     r.URL.Query().Get("sort"),
+		Order:    r.URL.Query().Get("order"),
 	}
 	if raw := r.URL.Query().Get("has_schema"); raw != "" {
 		value := raw == "true"

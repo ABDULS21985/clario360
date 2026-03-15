@@ -274,7 +274,7 @@ export default function AIModelValidationPage() {
 
         {selectedVersion ? (
           <Card className="overflow-hidden border-border/70 bg-[radial-gradient(circle_at_top_left,_rgba(16,185,129,0.14),_transparent_36%),radial-gradient(circle_at_bottom_right,_rgba(14,116,144,0.12),_transparent_38%)]">
-            <CardContent className="grid gap-4 p-6 md:grid-cols-4">
+            <CardContent className="grid grid-cols-1 gap-4 p-4 sm:p-6 md:grid-cols-4">
               <div>
                 <div className="text-xs uppercase tracking-[0.24em] text-muted-foreground">Version</div>
                 <div className="mt-2 text-3xl font-semibold tracking-[-0.05em] text-slate-950">
@@ -335,7 +335,7 @@ export default function AIModelValidationPage() {
 
             <MetricsCards result={result} />
 
-            <div className="grid gap-4 xl:grid-cols-[0.95fr_1.05fr]">
+            <div className="grid grid-cols-1 gap-4 xl:grid-cols-[0.95fr_1.05fr]">
               <ConfusionMatrix result={result} />
               <ROCCurveChart result={result} />
             </div>
@@ -413,7 +413,7 @@ export default function AIModelValidationPage() {
                   <div className="text-sm text-muted-foreground">
                     Comparing against validation from {formatDateTime(previousValidation.validated_at)}.
                   </div>
-                  <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
                     {[
                       ['Precision', result.precision - previousValidation.precision, false],
                       ['Recall', result.recall - previousValidation.recall, false],
@@ -438,7 +438,7 @@ export default function AIModelValidationPage() {
           </div>
         ) : (
           <Card className="border-border/70">
-            <CardContent className="p-6 text-sm text-muted-foreground">
+            <CardContent className="p-4 text-sm text-muted-foreground sm:p-6">
               No validation result has been recorded for this version yet.
             </CardContent>
           </Card>

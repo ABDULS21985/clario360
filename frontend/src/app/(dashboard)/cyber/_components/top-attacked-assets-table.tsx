@@ -64,7 +64,7 @@ export function TopAttackedAssetsTable({ assets }: TopAttackedAssetsTableProps) 
                 <td className="px-3 py-2">
                   <Link href={`/cyber/assets/${asset.asset_id}`} className="flex items-center gap-2 hover:underline">
                     <Icon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                    <span className="font-medium truncate max-w-[140px]">{asset.asset_name}</span>
+                    <span className="font-medium truncate max-w-[100px] sm:max-w-[140px]">{asset.asset_name}</span>
                   </Link>
                 </td>
                 <td className="px-3 py-2">

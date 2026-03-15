@@ -38,7 +38,7 @@ export function ROCCurveChart({ result }: ROCCurveChartProps) {
         </div>
       </CardHeader>
       <CardContent>
-        <div className="h-[320px]">
+        <div className="h-[220px] sm:h-[320px]">
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart data={data} margin={{ top: 8, right: 12, left: 0, bottom: 8 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />

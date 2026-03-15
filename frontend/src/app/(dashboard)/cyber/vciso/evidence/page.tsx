@@ -193,7 +193,7 @@ export default function EvidencePage() {
         header: 'Title',
         cell: ({ row }: { row: Row<VCISOEvidence> }) => (
           <button
-            className="text-left font-medium hover:underline max-w-[280px] truncate block"
+            className="text-left font-medium hover:underline max-w-[180px] sm:max-w-[280px] truncate block"
             onClick={() => handleView(row.original)}
           >
             {row.original.title}
@@ -274,7 +274,7 @@ export default function EvidencePage() {
         id: 'file_name',
         header: 'File',
         cell: ({ row }: { row: Row<VCISOEvidence> }) => (
-          <span className="text-sm text-muted-foreground max-w-[150px] truncate block">
+          <span className="text-sm text-muted-foreground max-w-[100px] sm:max-w-[150px] truncate block">
             {row.original.file_name ?? '\u2014'}
           </span>
         ),
@@ -388,7 +388,7 @@ export default function EvidencePage() {
         />
 
         {/* KPI Stats Row */}
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <KpiCard
             title="Total Evidence"
             value={stats?.total ?? 0}
@@ -457,7 +457,7 @@ export default function EvidencePage() {
           {/* ── Collection Status Tab ────────────────────────────────────── */}
           <TabsContent value="collection" className="space-y-6">
             {statsLoading ? (
-              <div className="grid gap-4 md:grid-cols-2">
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 <LoadingSkeleton variant="card" />
                 <LoadingSkeleton variant="card" />
               </div>
@@ -469,7 +469,7 @@ export default function EvidencePage() {
             ) : (
               <>
                 {/* Source Breakdown */}
-                <div className="grid gap-4 md:grid-cols-2">
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                   <Card>
                     <CardHeader className="pb-3">
                       <CardTitle className="text-sm font-semibold flex items-center gap-2">
@@ -510,7 +510,7 @@ export default function EvidencePage() {
                     <CardTitle className="text-sm font-semibold">Evidence by Type</CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
                       {Object.entries(stats.by_type ?? {}).map(([type, count]) => (
                         <div
                           key={type}
@@ -545,7 +545,7 @@ export default function EvidencePage() {
                     <CardTitle className="text-sm font-semibold">Control Evidence Coverage</CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className="grid gap-4 md:grid-cols-2">
+                    <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                       <div className="rounded-lg border border-green-200 bg-green-50 dark:bg-green-900/10 p-4">
                         <div className="flex items-center gap-2 mb-2">
                           <CheckCircle className="h-5 w-5 text-green-600" />

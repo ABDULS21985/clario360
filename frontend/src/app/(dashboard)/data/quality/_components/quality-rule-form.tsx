@@ -13,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import type { DataModel, DataSource, QualityRule, QualityRuleType } from '@/lib/data-suite';
+import { isValidCron } from '@/lib/data-suite/forms';
 
 const qualityRuleSchema = z
   .object({
@@ -34,7 +35,7 @@ const qualityRuleSchema = z
     severity: z.enum(['critical', 'high', 'medium', 'low']),
     column_name: z.string().optional(),
     config: z.record(z.string(), z.unknown()).default({}),
-    schedule: z.string().optional(),
+    schedule: z.string().optional().refine((v) => isValidCron(v), 'Invalid cron expression (e.g. 0 2 * * *)'),
     enabled: z.boolean().default(true),
     tags: z.array(z.string()).default([]),
   })
@@ -166,9 +167,10 @@ export function QualityRuleForm({
     setTagInput('');
   }, [form, open, rule]);
 
+  const modelId = form.watch('model_id');
   const selectedModel = useMemo(
-    () => models.find((model) => model.id === form.watch('model_id')) ?? null,
-    [form, models],
+    () => models.find((model) => model.id === modelId) ?? null,
+    [modelId, models],
   );
   const columns = selectedModel?.schema_definition.map((field) => field.name) ?? [];
   const config = form.watch('config');
@@ -190,7 +192,7 @@ export function QualityRuleForm({
 
         <FormProvider {...form}>
           <form className="space-y-6" onSubmit={form.handleSubmit(onSubmit)}>
-            <div className="grid gap-4 md:grid-cols-2">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <FormField name="model_id" label="Model" required>
                 <Select
                   value={form.watch('model_id')}
@@ -238,7 +240,7 @@ export function QualityRuleForm({
               </FormField>
             </div>
 
-            <div className="grid gap-4 md:grid-cols-2">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <FormField name="name" label="Rule name" required>
                 <Input {...form.register('name')} placeholder="customer_email_present" />
               </FormField>
@@ -291,7 +293,7 @@ export function QualityRuleForm({
 
             <div className="rounded-xl border bg-muted/10 p-4">
               <div className="mb-4 font-medium">Rule configuration</div>
-              <div className="grid gap-4 md:grid-cols-2">
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 {ruleType === 'range' ? (
                   <>
                     <FormField name="config.min" label="Minimum" required>
@@ -423,7 +425,7 @@ export function QualityRuleForm({
               </div>
             </div>
 
-            <div className="grid gap-4 md:grid-cols-2">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <FormField name="schedule" label="Schedule">
                 <Input {...form.register('schedule')} placeholder="0 2 * * *" />
               </FormField>

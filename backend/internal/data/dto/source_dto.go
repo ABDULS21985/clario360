@@ -41,8 +41,8 @@ type ListSourcesParams struct {
 	Page      int
 	PerPage   int
 	Search    string
-	Type      string
-	Status    string
+	Types     []string
+	Statuses  []string
 	HasSchema *bool
 	Sort      string
 	Order     string

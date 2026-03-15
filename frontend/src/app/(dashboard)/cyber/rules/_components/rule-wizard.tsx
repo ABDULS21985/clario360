@@ -280,7 +280,7 @@ export function RuleWizard({
         </DialogHeader>
 
         <div className="flex flex-col gap-6 overflow-y-auto px-6 py-5">
-          <div className="grid gap-3 md:grid-cols-4">
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
             {STEPS.map((label, index) => (
               <button
                 key={label}
@@ -301,7 +301,7 @@ export function RuleWizard({
           </div>
 
           {step === 0 && (
-            <div className="grid gap-6 lg:grid-cols-[1.4fr_1fr]">
+            <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1.4fr_1fr]">
               <div className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="rule-name">Rule name</Label>
@@ -432,7 +432,7 @@ export function RuleWizard({
           )}
 
           {step === 2 && (
-            <div className="grid gap-6 lg:grid-cols-[280px_1fr]">
+            <div className="grid grid-cols-1 gap-6 lg:grid-cols-[280px_1fr]">
               <div className="rounded-[26px] border border-[color:var(--card-border)] bg-[var(--card-bg)] p-4 shadow-[var(--card-shadow)]">
                 <p className="text-sm font-medium">Tactics</p>
                 <p className="mt-1 text-sm text-muted-foreground">Select the ATT&CK tactics this rule is designed to cover.</p>
@@ -455,7 +455,7 @@ export function RuleWizard({
               <div className="rounded-[26px] border border-[color:var(--card-border)] bg-[var(--card-bg)] p-4 shadow-[var(--card-shadow)]">
                 <p className="text-sm font-medium">Techniques</p>
                 <p className="mt-1 text-sm text-muted-foreground">Choose techniques from the selected tactics.</p>
-                <div className="mt-4 grid gap-4 xl:grid-cols-2">
+                <div className="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-2">
                   {groupedTechniques
                     .filter((group) => selectedTactics.includes(group.tactic.id))
                     .map((group) => (
@@ -489,7 +489,7 @@ export function RuleWizard({
           )}
 
           {step === 3 && (
-            <div className="grid gap-6 lg:grid-cols-[1.2fr_1fr]">
+            <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1.2fr_1fr]">
               <div className="rounded-[26px] border border-[color:var(--card-border)] bg-[var(--card-bg)] p-5 shadow-[var(--card-shadow)]">
                 <p className="text-sm font-medium">Configuration summary</p>
                 <div className="mt-4 space-y-4">
@@ -501,7 +501,7 @@ export function RuleWizard({
 
                   <Separator />
 
-                  <div className="grid gap-3 sm:grid-cols-3">
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                     <div>
                       <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">Type</p>
                       <p className="mt-2 text-sm font-medium">{getRuleTypeLabel(ruleType)}</p>

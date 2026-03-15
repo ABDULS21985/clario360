@@ -11,6 +11,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/robfig/cron/v3"
 	"github.com/rs/zerolog"
 
 	"github.com/clario360/platform/internal/aigovernance"
@@ -77,6 +78,11 @@ func (s *SourceService) Create(ctx context.Context, tenantID, userID uuid.UUID, 
 		return nil, fmt.Errorf("%w: invalid data source type", ErrValidation)
 	}
 
+	if req.SyncFrequency != nil && strings.TrimSpace(*req.SyncFrequency) != "" {
+		if err := validateSyncFrequency(*req.SyncFrequency); err != nil {
+			return nil, fmt.Errorf("%w: %v", ErrValidation, err)
+		}
+	}
 	normalizedConfig, err := normalizeConnectionConfig(sourceType, req.ConnectionConfig, s.config)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrValidation, err)
@@ -194,9 +200,18 @@ func (s *SourceService) Update(ctx context.Context, tenantID, userID, id uuid.UU
 		source.Description = *req.Description
 	}
 	if req.SyncFrequency != nil {
-		source.SyncFrequency = req.SyncFrequency
-		now := time.Now().UTC()
-		source.NextSyncAt = computeNextSync(req.SyncFrequency, now)
+		if strings.TrimSpace(*req.SyncFrequency) == "" {
+			// Explicit empty string clears the schedule.
+			source.SyncFrequency = nil
+			source.NextSyncAt = nil
+		} else {
+			if err := validateSyncFrequency(*req.SyncFrequency); err != nil {
+				return nil, fmt.Errorf("%w: %v", ErrValidation, err)
+			}
+			source.SyncFrequency = req.SyncFrequency
+			now := time.Now().UTC()
+			source.NextSyncAt = computeNextSync(req.SyncFrequency, now)
+		}
 	}
 	if req.Tags != nil {
 		source.Tags = safeTags(req.Tags)
@@ -208,7 +223,15 @@ func (s *SourceService) Update(ctx context.Context, tenantID, userID, id uuid.UU
 
 	encryptedConfig := record.EncryptedConfig
 	if len(req.ConnectionConfig) > 0 {
-		normalizedConfig, err := normalizeConnectionConfig(source.Type, req.ConnectionConfig, s.config)
+		// Restore any secret fields that the sanitised API response omitted
+		// but were present in the stored (decrypted) config. This prevents a
+		// user editing non-sensitive fields from accidentally clearing creds.
+		existingConfig, decryptErr := s.loadDecryptedConfig(ctx, record)
+		if decryptErr != nil {
+			return nil, decryptErr
+		}
+		mergedConfig := mergeConnectionConfigs(existingConfig, req.ConnectionConfig)
+		normalizedConfig, err := normalizeConnectionConfig(source.Type, mergedConfig, s.config)
 		if err != nil {
 			return nil, fmt.Errorf("%w: %v", ErrValidation, err)
 		}
@@ -727,7 +750,7 @@ func normalizeConnectionConfig(sourceType model.DataSourceType, raw json.RawMess
 			value.TransportMode = "binary"
 		}
 		if value.HTTPPath == "" {
-			value.HTTPPath = "cliservice"
+			value.HTTPPath = "/cliservice"
 		}
 		if value.QueryTimeoutSeconds == 0 {
 			value.QueryTimeoutSeconds = int((2 * cfg.ConnectorStatementTimeout).Seconds())
@@ -817,23 +840,60 @@ func coalesceJSON(value json.RawMessage, fallback json.RawMessage) json.RawMessa
 	return value
 }
 
+// cronParser is shared across calls; it accepts standard 5-field cron
+// expressions plus the predefined schedules (@hourly, @daily, @weekly, etc.).
+var cronParser = cron.NewParser(cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow | cron.Descriptor)
+
+// validateSyncFrequency returns an error when expr is not a valid cron
+// expression, so callers can surface a 400 instead of silently ignoring it.
+func validateSyncFrequency(expr string) error {
+	if _, err := cronParser.Parse(strings.TrimSpace(expr)); err != nil {
+		return fmt.Errorf("invalid sync_frequency %q: %w", strings.TrimSpace(expr), err)
+	}
+	return nil
+}
+
 func computeNextSync(syncFrequency *string, now time.Time) *time.Time {
 	if syncFrequency == nil || strings.TrimSpace(*syncFrequency) == "" {
 		return nil
 	}
-	switch strings.TrimSpace(*syncFrequency) {
-	case "@hourly":
-		next := now.Add(time.Hour)
-		return &next
-	case "@daily":
-		next := now.Add(24 * time.Hour)
-		return &next
-	case "@weekly":
-		next := now.Add(7 * 24 * time.Hour)
-		return &next
-	default:
+	schedule, err := cronParser.Parse(strings.TrimSpace(*syncFrequency))
+	if err != nil {
+		// Should not happen after validateSyncFrequency; fail safe.
 		return nil
 	}
+	next := schedule.Next(now)
+	return &next
+}
+
+// mergeConnectionConfigs preserves secret-key values from the existing
+// (decrypted) config when they are absent from the submitted config.
+// This ensures a user who edits only non-sensitive fields does not
+// inadvertently clear credentials that the sanitised API response omitted.
+func mergeConnectionConfigs(existing, submitted json.RawMessage) json.RawMessage {
+	if len(existing) == 0 {
+		return submitted
+	}
+	var existingMap, submittedMap map[string]any
+	if err := json.Unmarshal(existing, &existingMap); err != nil {
+		return submitted
+	}
+	if err := json.Unmarshal(submitted, &submittedMap); err != nil {
+		return submitted
+	}
+	for key, existingVal := range existingMap {
+		if _, isSecret := connector.SecretKeys[strings.ToLower(key)]; !isSecret {
+			continue
+		}
+		if _, present := submittedMap[key]; !present {
+			submittedMap[key] = existingVal
+		}
+	}
+	merged, err := json.Marshal(submittedMap)
+	if err != nil {
+		return submitted
+	}
+	return merged
 }
 
 func changedFields(req dto.UpdateSourceRequest) []string {

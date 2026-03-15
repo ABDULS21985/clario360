@@ -3,6 +3,8 @@ package repository
 import (
 	"context"
 	"errors"
+	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -80,16 +82,43 @@ func (r *ReportRepository) GetByID(ctx context.Context, id uuid.UUID) (*model.Re
 	return item, nil
 }
 
-func (r *ReportRepository) List(ctx context.Context, tenantID uuid.UUID, page, perPage int) ([]model.ReportDefinition, int, error) {
+func (r *ReportRepository) List(ctx context.Context, tenantID uuid.UUID, page, perPage int, sortCol, sortDir, search, reportType string, autoSend *bool) ([]model.ReportDefinition, int, error) {
 	meta := normalizePagination(page, perPage)
-	rows, err := r.db.Query(ctx, `
+	orderClause := fmt.Sprintf("%s %s", sortCol, sortDir)
+	args := []any{tenantID}
+	whereClauses := []string{
+		"tenant_id = $1",
+		"deleted_at IS NULL",
+	}
+	if search != "" {
+		args = append(args, "%"+search+"%")
+		position := len(args)
+		whereClauses = append(whereClauses, fmt.Sprintf("(name ILIKE $%d OR description ILIKE $%d)", position, position))
+	}
+	if reportType != "" {
+		args = append(args, reportType)
+		position := len(args)
+		whereClauses = append(whereClauses, fmt.Sprintf("report_type = $%d", position))
+	}
+	if autoSend != nil {
+		args = append(args, *autoSend)
+		position := len(args)
+		whereClauses = append(whereClauses, fmt.Sprintf("auto_send = $%d", position))
+	}
+	args = append(args, meta.Limit, meta.Offset)
+	rows, err := r.db.Query(ctx, fmt.Sprintf(`
 		SELECT id, tenant_id, name, description, report_type, sections, period, custom_period_start, custom_period_end,
 		       schedule, next_run_at, recipients, auto_send, last_generated_at, total_generated, created_by,
 		       created_at, updated_at, deleted_at
 		FROM visus_report_definitions
-		WHERE tenant_id = $1 AND deleted_at IS NULL
-		ORDER BY updated_at DESC
-		LIMIT $2 OFFSET $3`, tenantID, meta.Limit, meta.Offset)
+		WHERE %s
+		ORDER BY %s
+		LIMIT $%d OFFSET $%d`,
+		strings.Join(whereClauses, " AND "),
+		orderClause,
+		len(args)-1,
+		len(args),
+	), args...)
 	if err != nil {
 		return nil, 0, wrapErr("list reports", err)
 	}
@@ -106,7 +135,11 @@ func (r *ReportRepository) List(ctx context.Context, tenantID uuid.UUID, page, p
 		return nil, 0, wrapErr("iterate reports", err)
 	}
 	var total int
-	if err := r.db.QueryRow(ctx, `SELECT COUNT(*) FROM visus_report_definitions WHERE tenant_id = $1 AND deleted_at IS NULL`, tenantID).Scan(&total); err != nil {
+	if err := r.db.QueryRow(
+		ctx,
+		fmt.Sprintf(`SELECT COUNT(*) FROM visus_report_definitions WHERE %s`, strings.Join(whereClauses, " AND ")),
+		args[:len(args)-2]...,
+	).Scan(&total); err != nil {
 		return nil, 0, wrapErr("count reports", err)
 	}
 	return items, total, nil

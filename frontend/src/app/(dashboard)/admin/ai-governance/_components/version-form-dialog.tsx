@@ -171,7 +171,7 @@ export function VersionFormDialog({ open, onOpenChange, model, onSaved }: Versio
             />
           </div>
 
-          <section className="grid gap-4 md:grid-cols-2">
+          <section className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div className="space-y-2">
               <Label>Artifact Type</Label>
               <Select
@@ -224,7 +224,7 @@ export function VersionFormDialog({ open, onOpenChange, model, onSaved }: Versio
             />
           </div>
 
-          <section className="grid gap-4 md:grid-cols-2">
+          <section className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="explanation-template">Explanation Template</Label>
               <Textarea
@@ -248,7 +248,7 @@ export function VersionFormDialog({ open, onOpenChange, model, onSaved }: Versio
             </div>
           </section>
 
-          <section className="grid gap-4 md:grid-cols-2">
+          <section className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="training-data-hash">Training Data Hash</Label>
               <Input

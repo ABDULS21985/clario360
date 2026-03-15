@@ -94,7 +94,7 @@ function AttendanceRow({
   }, [attendee.proxy_user_name, attendee.status]);
 
   return (
-    <div className="grid gap-3 rounded-xl border bg-card px-4 py-3 md:grid-cols-[1.1fr_0.9fr_0.9fr_auto] md:items-center">
+    <div className="grid grid-cols-1 gap-3 rounded-xl border bg-card px-4 py-3 md:grid-cols-[1.1fr_0.9fr_0.9fr_auto] md:items-center">
       <div>
         <p className="font-medium">{attendee.user_name}</p>
         <p className="text-xs text-muted-foreground">

@@ -48,8 +48,8 @@ func (s *ReportService) Create(ctx context.Context, item *model.ReportDefinition
 	return created, err
 }
 
-func (s *ReportService) List(ctx context.Context, tenantID uuid.UUID, page, perPage int) ([]model.ReportDefinition, int, error) {
-	items, total, err := s.reports.List(ctx, tenantID, page, perPage)
+func (s *ReportService) List(ctx context.Context, tenantID uuid.UUID, page, perPage int, sortCol, sortDir, search, reportType string, autoSend *bool) ([]model.ReportDefinition, int, error) {
+	items, total, err := s.reports.List(ctx, tenantID, page, perPage, sortCol, sortDir, search, reportType, autoSend)
 	if err == nil {
 		s.syncMetrics(ctx, tenantID)
 	}

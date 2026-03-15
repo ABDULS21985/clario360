@@ -22,19 +22,28 @@ func NewAlertHandler(service *service.AlertService, logger zerolog.Logger) *Aler
 	return &AlertHandler{baseHandler: baseHandler{logger: logger}, service: service}
 }
 
+var alertSortColumns = map[string]string{
+	"created_at": "created_at",
+	"severity":   "severity",
+	"status":     "status",
+	"category":   "category",
+	"title":      "title",
+}
+
 func (h *AlertHandler) List(w http.ResponseWriter, r *http.Request) {
 	tenantID, ok := h.tenantID(w, r)
 	if !ok {
 		return
 	}
 	page, perPage := suiteapi.ParsePagination(r)
+	sortCol, sortDir := suiteapi.ParseSort(r, alertSortColumns, "created_at", "desc")
 	items, total, err := h.service.List(r.Context(), tenantID, repository.AlertListFilters{
 		Status:       suiteapi.ParseCSVParam(r, "status"),
 		Severity:     suiteapi.ParseCSVParam(r, "severity"),
 		Category:     suiteapi.ParseCSVParam(r, "category"),
 		SourceSuites: suiteapi.ParseCSVParam(r, "source_suite"),
 		Search:       r.URL.Query().Get("search"),
-	}, page, perPage)
+	}, page, perPage, sortCol, sortDir)
 	if err != nil {
 		h.writeError(w, r, err)
 		return

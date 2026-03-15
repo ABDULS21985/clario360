@@ -29,19 +29,19 @@ export function SourceOverviewTab({
 
   return (
     <div className="space-y-4">
-      <div className="grid gap-4 xl:grid-cols-4">
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-4">
         <MetricCard label="Tables" value={formatMaybeCompact(stats?.table_count ?? source.table_count)} icon={Database} />
         <MetricCard label="Rows" value={formatMaybeCompact(stats?.total_row_count ?? source.total_row_count)} icon={Database} />
         <MetricCard label="Size" value={formatMaybeBytes(stats?.total_size_bytes ?? source.total_size_bytes)} icon={Database} />
         <MetricCard label="Last Sync" value={formatMaybeDateTime(stats?.last_synced_at ?? source.last_synced_at)} icon={Clock3} />
       </div>
 
-      <div className="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1.2fr_0.8fr]">
         <Card>
           <CardHeader>
             <CardTitle>Source Properties</CardTitle>
           </CardHeader>
-          <CardContent className="grid gap-4 md:grid-cols-2">
+          <CardContent className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <PropertyRow label="Type" value={typeVisual.label} />
             <PropertyRow label="Status" value={source.status} />
             <PropertyRow label="Sync Frequency" value={source.sync_frequency ?? 'Manual only'} />

@@ -38,7 +38,7 @@ export function ActionItemKanban({ items, onMove }: ActionItemKanbanProps) {
 
   return (
     <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-      <div className="grid gap-4 xl:grid-cols-4">
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-4">
         {COLUMNS.map((column) => (
           <KanbanColumn
             key={column.key}

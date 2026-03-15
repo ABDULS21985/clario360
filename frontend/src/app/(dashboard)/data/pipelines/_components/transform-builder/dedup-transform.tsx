@@ -19,7 +19,7 @@ export function DedupTransform({
     <div className="space-y-4">
       <div className="space-y-2">
         <div className="text-sm font-medium">Key columns</div>
-        <div className="grid gap-3 md:grid-cols-2">
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
           {availableColumns.map((column) => (
             <label key={column} className="flex items-center gap-3 rounded-md border px-3 py-2 text-sm">
               <Checkbox
@@ -42,7 +42,7 @@ export function DedupTransform({
         </div>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <Select
           value={value.config.keep}
           onValueChange={(next) =>

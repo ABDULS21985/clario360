@@ -33,6 +33,7 @@ export const breadcrumbMap: Record<string, string> = {
   documents: 'Documents',
   compliance: 'Compliance',
   visus: 'Executive Intelligence',
+  dashboards: 'Dashboards',
   reports: 'Reports',
   admin: 'Platform',
   users: 'Users',

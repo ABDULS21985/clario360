@@ -162,7 +162,7 @@ func (s *WidgetService) resolveAlertFeed(ctx context.Context, tenantID uuid.UUID
 		Severity:     severityFilter,
 		SourceSuites: sourceSuites,
 		Status:       []string{"new", "viewed", "acknowledged", "escalated"},
-	}, 1, maxAlerts)
+	}, 1, maxAlerts, "created_at", "desc")
 	if err != nil {
 		return nil, err
 	}

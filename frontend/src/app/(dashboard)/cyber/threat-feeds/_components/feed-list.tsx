@@ -83,7 +83,7 @@ export function FeedList({
       accessorKey: 'url',
       header: 'URL',
       cell: ({ row }) => (
-        <span className="max-w-[320px] truncate text-sm text-muted-foreground">
+        <span className="max-w-[200px] sm:max-w-[320px] truncate text-sm text-muted-foreground">
           {row.original.url ? truncate(row.original.url, 48) : 'Manual feed'}
         </span>
       ),

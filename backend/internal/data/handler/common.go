@@ -42,6 +42,26 @@ func (h *baseHandler) writeError(w http.ResponseWriter, r *http.Request, err err
 	}
 }
 
+// splitCSV splits a comma-separated query-param value into a trimmed,
+// non-empty string slice. Returns nil when value is blank.
+func splitCSV(value string) []string {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return nil
+	}
+	parts := strings.Split(value, ",")
+	result := make([]string, 0, len(parts))
+	for _, p := range parts {
+		if trimmed := strings.TrimSpace(p); trimmed != "" {
+			result = append(result, trimmed)
+		}
+	}
+	if len(result) == 0 {
+		return nil
+	}
+	return result
+}
+
 func cleanError(err error) string {
 	if err == nil {
 		return ""

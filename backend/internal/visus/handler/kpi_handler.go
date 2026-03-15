@@ -3,6 +3,7 @@ package handler
 import (
 	"errors"
 	"net/http"
+	"strconv"
 
 	"github.com/rs/zerolog"
 
@@ -66,13 +67,35 @@ func (h *KPIHandler) Create(w http.ResponseWriter, r *http.Request) {
 	suiteapi.WriteData(w, http.StatusCreated, item)
 }
 
+var kpiSortColumns = map[string]string{
+	"name":        "name",
+	"category":    "category",
+	"suite":       "suite",
+	"last_value":  "last_value",
+	"last_status": "last_status",
+	"created_at":  "created_at",
+	"updated_at":  "updated_at",
+}
+
 func (h *KPIHandler) List(w http.ResponseWriter, r *http.Request) {
 	tenantID, ok := h.tenantID(w, r)
 	if !ok {
 		return
 	}
 	page, perPage := suiteapi.ParsePagination(r)
-	items, total, err := h.service.List(r.Context(), tenantID, page, perPage)
+	sortCol, sortDir := suiteapi.ParseSort(r, kpiSortColumns, "category", "asc")
+	search := r.URL.Query().Get("search")
+	suite := r.URL.Query().Get("suite")
+	var enabled *bool
+	if raw := r.URL.Query().Get("enabled"); raw != "" {
+		value, err := strconv.ParseBool(raw)
+		if err != nil {
+			suiteapi.WriteError(w, r, http.StatusBadRequest, "VALIDATION_ERROR", "enabled must be a boolean", nil)
+			return
+		}
+		enabled = &value
+	}
+	items, total, err := h.service.List(r.Context(), tenantID, page, perPage, sortCol, sortDir, search, suite, enabled)
 	if err != nil {
 		h.writeError(w, r, err)
 		return

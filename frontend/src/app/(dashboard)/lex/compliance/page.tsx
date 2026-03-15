@@ -65,14 +65,14 @@ export default function LexCompliancePage() {
       <div className="space-y-6">
         <PageHeader title="Compliance" description="Rule coverage, recent alerting, and contract exposure from the live lex-service dashboard." />
 
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <KpiCard title="Total Rules" value={totalRules} icon={Scale} iconColor="text-blue-600" />
           <KpiCard title="Enabled Rules" value={enabledRules} icon={Scale} iconColor="text-green-600" />
           <KpiCard title="Open Alerts" value={dashboard?.open_alerts ?? 0} icon={Scale} iconColor="text-red-600" />
           <KpiCard title="Contracts In Scope" value={expiringContracts} icon={Scale} iconColor="text-orange-600" />
         </div>
 
-        <div className="grid gap-4 xl:grid-cols-[0.95fr_1.05fr]">
+        <div className="grid grid-cols-1 gap-4 xl:grid-cols-[0.95fr_1.05fr]">
           <SectionCard title="Recent Compliance Alerts" description="Latest alerts from legal compliance evaluations.">
             <div className="space-y-3">
               {alerts.length ? (

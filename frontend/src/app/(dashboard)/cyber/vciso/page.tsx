@@ -68,10 +68,10 @@ export default function CyberVcisoPage() {
         />
 
         {isLoading ? (
-          <div className="grid gap-6 xl:grid-cols-[minmax(0,1.45fr)_minmax(380px,1fr)]">
+          <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.45fr)_minmax(380px,1fr)]">
             <div className="space-y-4">
               <LoadingSkeleton variant="card" />
-              <div className="grid gap-4 md:grid-cols-2">
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 <LoadingSkeleton variant="card" />
                 <LoadingSkeleton variant="card" />
               </div>
@@ -83,7 +83,7 @@ export default function CyberVcisoPage() {
           <ErrorState message="Failed to load the Virtual CISO briefing." onRetry={() => void refetch()} />
         ) : (
           <div className="space-y-6">
-            <div className="grid gap-6 xl:grid-cols-[minmax(0,1.45fr)_minmax(380px,1fr)]">
+            <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.45fr)_minmax(380px,1fr)]">
               <div className="space-y-6">
                 <section className="relative overflow-hidden rounded-[2rem] border bg-[radial-gradient(circle_at_top_left,_rgba(14,165,233,0.16),_transparent_38%),linear-gradient(135deg,#0f172a,#1e293b)] p-6 text-white shadow-xl">
                   <div className="absolute right-6 top-6 opacity-10">
@@ -117,7 +117,7 @@ export default function CyberVcisoPage() {
                   </div>
                 </section>
 
-                <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
+                <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
                   <div className="space-y-4">
                     <div>
                       <h3 className="mb-3 text-sm font-semibold uppercase tracking-[0.18em] text-muted-foreground">

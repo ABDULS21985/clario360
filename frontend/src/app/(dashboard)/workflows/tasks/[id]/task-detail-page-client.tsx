@@ -2,11 +2,12 @@
 
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { ArrowLeft, X, AlertCircle } from 'lucide-react';
+import { ArrowLeft, X, AlertCircle, MessageSquare, Send } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiGet } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Textarea } from '@/components/ui/textarea';
 import { StatusBadge } from '@/components/shared/status-badge';
 import {
   TaskDetailForm,
@@ -28,7 +29,8 @@ import {
 } from '@/lib/workflow-utils';
 import { formatDateTime } from '@/lib/utils';
 import { useAuth } from '@/hooks/use-auth';
-import type { HumanTask } from '@/types/models';
+import { useAddTaskComment } from '@/hooks/use-workflow-tasks-ext';
+import type { HumanTask, TaskComment } from '@/types/models';
 
 const DRAFT_KEY = (id: string) => `clario360_task_draft_${id}`;
 const FORM_ID = 'task-detail-form';
@@ -52,6 +54,8 @@ export function TaskDetailPageClient() {
   const [completeOpen, setCompleteOpen] = useState(false);
   const [rejectOpen, setRejectOpen] = useState(false);
   const [delegateOpen, setDelegateOpen] = useState(false);
+  const [commentText, setCommentText] = useState('');
+  const addComment = useAddTaskComment();
 
   const {
     data: task,
@@ -158,6 +162,7 @@ export function TaskDetailPageClient() {
   const sla = formatSLAStatus(task);
   const priorityLabel = PRIORITY_LABELS[task.priority] ?? 'Normal';
   const hasForm = task.form_schema.length > 0;
+  const comments = (task.metadata?.comments as TaskComment[] | undefined) ?? [];
 
   return (
     <div className="space-y-6">
@@ -221,7 +226,7 @@ export function TaskDetailPageClient() {
         </div>
       )}
 
-      <div className="grid gap-6 lg:grid-cols-[3fr_2fr]">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[3fr_2fr]">
         <div className="space-y-4">
           {isUnclaimed ? (
             canClaim ? (
@@ -297,6 +302,62 @@ export function TaskDetailPageClient() {
           )}
         </div>
       )}
+
+      {/* Comments */}
+      <div className="rounded-lg border p-4">
+        <div className="mb-3 flex items-center gap-2">
+          <MessageSquare className="h-4 w-4 text-muted-foreground" />
+          <h3 className="text-sm font-semibold">
+            Comments {comments.length > 0 && `(${comments.length})`}
+          </h3>
+        </div>
+        {comments.length === 0 ? (
+          <p className="text-xs text-muted-foreground">No comments yet.</p>
+        ) : (
+          <div className="mb-3 space-y-3">
+            {comments.map((c) => (
+              <div key={c.id} className="text-sm">
+                <div className="flex items-center gap-2">
+                  <span className="font-medium">{c.user_name}</span>
+                  <span className="text-xs text-muted-foreground">
+                    {formatDateTime(c.created_at)}
+                  </span>
+                </div>
+                <p className="mt-0.5 text-muted-foreground">{c.content}</p>
+              </div>
+            ))}
+          </div>
+        )}
+        <div className="mt-3 flex gap-2">
+          <Textarea
+            value={commentText}
+            onChange={(e) => setCommentText(e.target.value)}
+            placeholder="Add a comment..."
+            rows={2}
+            className="text-sm"
+          />
+          <Button
+            size="sm"
+            variant="outline"
+            className="self-end"
+            disabled={!commentText.trim() || addComment.isPending}
+            onClick={() => {
+              if (!commentText.trim()) return;
+              addComment.mutate(
+                { taskId, content: commentText },
+                {
+                  onSuccess: () => {
+                    setCommentText('');
+                    queryClient.invalidateQueries({ queryKey: ['task', taskId] });
+                  },
+                },
+              );
+            }}
+          >
+            <Send className="h-3.5 w-3.5" />
+          </Button>
+        </div>
+      </div>
 
       <TaskCompleteDialog
         task={task}

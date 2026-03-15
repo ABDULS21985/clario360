@@ -14,7 +14,7 @@ interface DoltFormProps {
 export function DoltForm({ form }: DoltFormProps) {
   return (
     <div className="space-y-4">
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <FormField name="host" label="Host" required>
           <Input {...form.register('host')} placeholder="dolt-server.example.com" />
         </FormField>

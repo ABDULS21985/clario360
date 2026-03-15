@@ -34,7 +34,7 @@ export function DarkDataDetailPanel({
                 {classification.label}
               </Badge>
             </div>
-            <div className="grid gap-3 md:grid-cols-2">
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
               <Metric label="Risk Score" value={`${asset.risk_score.toFixed(0)}%`} />
               <Metric label="Estimated Size" value={formatMaybeBytes(asset.estimated_size_bytes)} />
               <Metric label="Columns" value={asset.column_count?.toLocaleString() ?? '—'} />

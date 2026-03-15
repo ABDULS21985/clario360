@@ -63,15 +63,15 @@ export function CampaignDetection() {
                 </div>
               </CardHeader>
               <CardContent className="space-y-3">
-                <div className="grid grid-cols-2 gap-2 text-xs">
+                <div className="grid grid-cols-1 gap-2 text-xs sm:grid-cols-2">
                   <div>
                     <span className="text-muted-foreground">Alerts: </span>
-                    <span className="font-medium">{campaign.alert_ids.length}</span>
+                    <span className="font-medium">{(campaign.alert_ids ?? []).length}</span>
                   </div>
                   <div>
                     <span className="text-muted-foreground">Confidence: </span>
                     <span className="font-medium tabular-nums">
-                      {(campaign.confidence.p50 * 100).toFixed(0)}%
+                      {(campaign.confidence_interval.p50 * 100).toFixed(0)}%
                     </span>
                   </div>
                   <div>
@@ -88,32 +88,32 @@ export function CampaignDetection() {
                   </div>
                 </div>
 
-                {campaign.mitre_techniques.length > 0 && (
+                {(campaign.mitre_techniques ?? []).length > 0 && (
                   <div>
                     <span className="text-xs text-muted-foreground">MITRE Techniques:</span>
                     <div className="flex flex-wrap gap-1 mt-1">
-                      {campaign.mitre_techniques.slice(0, 5).map((t) => (
+                      {(campaign.mitre_techniques ?? []).slice(0, 5).map((t) => (
                         <Badge key={t} variant="outline" className="text-xs">{t}</Badge>
                       ))}
-                      {campaign.mitre_techniques.length > 5 && (
+                      {(campaign.mitre_techniques ?? []).length > 5 && (
                         <Badge variant="secondary" className="text-xs">
-                          +{campaign.mitre_techniques.length - 5}
+                          +{(campaign.mitre_techniques ?? []).length - 5}
                         </Badge>
                       )}
                     </div>
                   </div>
                 )}
 
-                {campaign.shared_iocs.length > 0 && (
+                {(campaign.shared_iocs ?? []).length > 0 && (
                   <div>
                     <span className="text-xs text-muted-foreground">Shared IOCs:</span>
                     <div className="flex flex-wrap gap-1 mt-1">
-                      {campaign.shared_iocs.slice(0, 3).map((ioc) => (
+                      {(campaign.shared_iocs ?? []).slice(0, 3).map((ioc) => (
                         <code key={ioc} className="text-xs bg-muted px-1 py-0.5 rounded">{ioc}</code>
                       ))}
-                      {campaign.shared_iocs.length > 3 && (
+                      {(campaign.shared_iocs ?? []).length > 3 && (
                         <Badge variant="secondary" className="text-xs">
-                          +{campaign.shared_iocs.length - 3}
+                          +{(campaign.shared_iocs ?? []).length - 3}
                         </Badge>
                       )}
                     </div>

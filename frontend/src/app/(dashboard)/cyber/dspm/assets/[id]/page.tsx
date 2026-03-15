@@ -394,7 +394,7 @@ export default function DataAssetDetailPage() {
               }
             />
 
-            <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
               <ScoreDisplay label="Posture Score" score={asset.posture_score} />
               <ScoreDisplay label="Risk Score" score={asset.risk_score} invert />
               <ScoreDisplay label="Sensitivity" score={asset.sensitivity_score} invert />

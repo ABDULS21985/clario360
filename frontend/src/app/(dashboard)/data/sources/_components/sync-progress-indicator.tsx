@@ -72,7 +72,7 @@ export function SyncProgressIndicator({
                 {latest.status === 'running' ? <Spinner size="sm" /> : latest.status === 'success' ? <CheckCircle2 className="h-5 w-5 text-emerald-600" /> : null}
               </div>
               <Progress className="mt-4 h-2" value={progressValue} />
-              <div className="mt-4 grid gap-3 sm:grid-cols-2">
+              <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <Metric label="Rows read" value={formatMaybeCompact(latest.rows_read)} />
                 <Metric label="Rows written" value={formatMaybeCompact(latest.rows_written)} />
                 <Metric label="Tables synced" value={`${latest.tables_synced}`} />

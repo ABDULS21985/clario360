@@ -79,7 +79,7 @@ export function DryRunResultsPanel({ result }: DryRunResultsPanelProps) {
       {/* Impact estimate */}
       <div className="rounded-lg border p-3">
         <p className="mb-2 text-xs font-semibold">Estimated Impact</p>
-        <div className="grid grid-cols-2 gap-2 text-xs">
+        <div className="grid grid-cols-1 gap-2 text-xs sm:grid-cols-2">
           <div>
             <p className="text-muted-foreground">Downtime</p>
             <p className="font-medium">{result.estimated_impact.downtime}</p>

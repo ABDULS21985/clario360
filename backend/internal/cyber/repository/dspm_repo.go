@@ -155,6 +155,16 @@ func (r *DSPMRepository) ListDataAssets(ctx context.Context, tenantID uuid.UUID,
 		args = append(args, *params.NetworkExposure)
 		i++
 	}
+	if params.AssetType != nil {
+		conds = append(conds, fmt.Sprintf("a.type=$%d", i))
+		args = append(args, *params.AssetType)
+		i++
+	}
+	if params.EncryptedAtRest != nil {
+		conds = append(conds, fmt.Sprintf("COALESCE(da.encrypted_at_rest, false)=$%d", i))
+		args = append(args, *params.EncryptedAtRest)
+		i++
+	}
 	if params.AssetID != nil {
 		conds = append(conds, fmt.Sprintf("da.asset_id=$%d", i))
 		args = append(args, *params.AssetID)
@@ -182,6 +192,7 @@ func (r *DSPMRepository) ListDataAssets(ctx context.Context, tenantID uuid.UUID,
 		"posture_score":       "da.posture_score",
 		"data_classification": "da.data_classification",
 		"sensitivity_score":   "da.sensitivity_score",
+		"asset_name":          "a.name",
 		"created_at":          "da.created_at",
 		"updated_at":          "da.updated_at",
 	}

@@ -63,7 +63,7 @@ export function RecentAlertsTable({ alerts }: RecentAlertsTableProps) {
                     <SevIcon className={cn('h-3 w-3', sevConfig.color)} />
                   </span>
                 </td>
-                <td className="px-3 py-2 max-w-[200px]">
+                <td className="px-3 py-2 max-w-[120px] sm:max-w-[200px]">
                   <Link
                     href={`/cyber/alerts/${alert.id}`}
                     className="font-medium hover:underline line-clamp-1"

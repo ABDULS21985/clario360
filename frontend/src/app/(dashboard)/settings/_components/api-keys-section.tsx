@@ -32,18 +32,23 @@ import { RelativeTime } from '@/components/shared/relative-time';
 interface ApiKey {
   id: string;
   name: string;
-  key_prefix: string;
-  permissions: string[];
+  prefix: string;
+  scopes: string[];
+  status: string;
   created_at: string;
   last_used_at: string | null;
   expires_at: string | null;
+  created_by: string | null;
+}
+
+interface ApiKeysResponse {
+  data: ApiKey[];
+  meta: { page: number; per_page: number; total: number; total_pages: number };
 }
 
 interface CreateApiKeyResponse {
-  id: string;
-  name: string;
-  key: string; // raw key, only shown once
-  key_prefix: string;
+  key: ApiKey;
+  secret: string;
 }
 
 function ApiKeyCreateDialog({
@@ -67,7 +72,7 @@ function ApiKeyCreateDialog({
     formState: { errors },
   } = useForm<CreateApiKeyFormData>({
     resolver: zodResolver(createApiKeySchema),
-    defaultValues: { permissions: [], no_expiry: true },
+    defaultValues: { scopes: [], no_expiry: true },
   });
 
   const handleClose = (o: boolean) => {
@@ -87,10 +92,10 @@ function ApiKeyCreateDialog({
     try {
       const res = await apiPost<CreateApiKeyResponse>('/api/v1/api-keys', {
         name: data.name,
-        permissions: data.permissions,
+        scopes: data.scopes,
         expires_at: data.no_expiry ? null : data.expires_at,
       });
-      setCreatedKey(res.key);
+      setCreatedKey(res.secret);
       onSuccess();
     } catch (err) {
       const msg = isApiError(err) ? err.message : 'Failed to create API key.';
@@ -153,12 +158,12 @@ function ApiKeyCreateDialog({
               </div>
 
               <div className="space-y-2">
-                <Label>Permissions *</Label>
-                {errors.permissions && (
-                  <p className="text-sm text-destructive">{errors.permissions.message}</p>
+                <Label>Scopes *</Label>
+                {errors.scopes && (
+                  <p className="text-sm text-destructive">{errors.scopes.message}</p>
                 )}
                 <Controller
-                  name="permissions"
+                  name="scopes"
                   control={control}
                   render={({ field }) => (
                     <PermissionTree value={field.value} onChange={field.onChange} />
@@ -201,10 +206,11 @@ export function ApiKeysSection() {
   const [createOpen, setCreateOpen] = useState(false);
   const [revokeKey, setRevokeKey] = useState<ApiKey | null>(null);
 
-  const { data: keys, isLoading } = useQuery<ApiKey[]>({
+  const { data: keysResponse, isLoading } = useQuery<ApiKeysResponse>({
     queryKey: ['api-keys'],
-    queryFn: () => apiGet<ApiKey[]>('/api/v1/api-keys'),
+    queryFn: () => apiGet<ApiKeysResponse>('/api/v1/api-keys'),
   });
+  const keys = keysResponse?.data;
 
   const refetch = () => queryClient.invalidateQueries({ queryKey: ['api-keys'] });
 
@@ -253,7 +259,7 @@ export function ApiKeysSection() {
                   <div className="flex items-center gap-2 flex-wrap">
                     <p className="text-sm font-medium">{key.name}</p>
                     <span className="font-mono text-xs text-muted-foreground">
-                      {key.key_prefix}...
+                      {key.prefix}...
                     </span>
                     {key.expires_at && (
                       <Badge variant="outline" className="text-xs">

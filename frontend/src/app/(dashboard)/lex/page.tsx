@@ -90,14 +90,14 @@ export default function LexPage() {
           }
         />
 
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <KpiCard title="Contracts" value={contractsQuery.data?.meta.total ?? 0} icon={FileText} iconColor="text-blue-600" />
           <KpiCard title="Documents" value={documentsQuery.data?.meta.total ?? 0} icon={Gavel} iconColor="text-violet-600" />
           <KpiCard title="Open Compliance Alerts" value={compliance?.open_alerts ?? 0} icon={ShieldCheck} iconColor="text-red-600" />
           <KpiCard title="Compliance Score" value={`${Math.round(compliance?.compliance_score ?? 0)}%`} icon={Scale} iconColor="text-orange-600" />
         </div>
 
-        <div className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
+        <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1.1fr_0.9fr]">
           <SectionCard
             title="Recent Contracts"
             description="Latest contract records and current lifecycle state."

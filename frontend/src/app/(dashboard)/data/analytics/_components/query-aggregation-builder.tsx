@@ -27,7 +27,7 @@ export function QueryAggregationBuilder({
   return (
     <div className="space-y-3">
       {rows.map((row) => (
-        <div key={row.id} className="grid gap-3 lg:grid-cols-[1fr_180px_1fr_auto]">
+        <div key={row.id} className="grid grid-cols-1 gap-3 lg:grid-cols-[1fr_180px_1fr_auto]">
           <Select value={row.column} onValueChange={(value) => onChange(rows.map((item) => (item.id === row.id ? { ...item, column: value } : item)))}>
             <SelectTrigger>
               <SelectValue placeholder="Column" />

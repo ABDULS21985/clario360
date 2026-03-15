@@ -25,7 +25,7 @@ type CorrelatedAlert struct {
 }
 
 type correlatorKPIRepository interface {
-	List(ctx context.Context, tenantID uuid.UUID, page, perPage int) ([]model.KPIDefinition, int, error)
+	List(ctx context.Context, tenantID uuid.UUID, page, perPage int, sortCol, sortDir, search, suite string, enabled *bool) ([]model.KPIDefinition, int, error)
 }
 
 type correlatorSnapshotRepository interface {
@@ -59,7 +59,7 @@ func NewCorrelator(kpis correlatorKPIRepository, snapshots correlatorSnapshotRep
 
 func (c *Correlator) DetectPatterns(ctx context.Context, tenantID uuid.UUID) ([]CorrelatedAlert, error) {
 	out := make([]CorrelatedAlert, 0)
-	kpis, _, err := c.kpis.List(ctx, tenantID, 1, 500)
+	kpis, _, err := c.kpis.List(ctx, tenantID, 1, 500, "category", "asc", "", "", nil)
 	if err != nil {
 		return nil, err
 	}

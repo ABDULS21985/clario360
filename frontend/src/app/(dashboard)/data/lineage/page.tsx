@@ -108,7 +108,7 @@ export default function DataLineagePage() {
           }
         />
 
-        <div className="grid gap-4 xl:grid-cols-[1fr_340px]">
+        <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1fr_340px]">
           <LineageDag
             graph={graphQuery.data}
             direction={direction}

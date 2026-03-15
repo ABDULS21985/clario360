@@ -81,7 +81,7 @@ export function ContradictionScanDialog({
           <div className="space-y-4">
             <div className="text-sm capitalize">Status: {scan.status}</div>
             <Progress value={progress} />
-            <div className="grid gap-3 md:grid-cols-2">
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
               <Metric label="Models Scanned" value={scan.models_scanned.toLocaleString()} />
               <Metric label="Pairs Compared" value={scan.model_pairs_compared.toLocaleString()} />
               <Metric label="Found" value={scan.contradictions_found.toLocaleString()} />

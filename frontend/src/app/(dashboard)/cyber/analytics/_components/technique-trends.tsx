@@ -48,13 +48,14 @@ export function TechniqueTrends() {
                   <th className="text-left py-2 pr-4">ID</th>
                   <th className="text-left py-2 pr-4">Trend</th>
                   <th className="text-right py-2 pr-4">Growth</th>
-                  <th className="text-right py-2">Forecast Range</th>
+                  <th className="text-right py-2">Predicted (p50)</th>
+                  <th className="text-right py-2">Range (p10–p90)</th>
                 </tr>
               </thead>
               <tbody>
                 {items.slice(0, 20).map((item) => (
                   <tr key={item.technique_id} className="border-b last:border-0 hover:bg-muted/50">
-                    <td className="py-2 pr-4 max-w-[200px] truncate">{item.technique_name}</td>
+                    <td className="py-2 pr-4 max-w-[120px] sm:max-w-[200px] truncate">{item.technique_name}</td>
                     <td className="py-2 pr-4">
                       <Badge variant="outline" className="text-xs">{item.technique_id}</Badge>
                     </td>
@@ -69,8 +70,11 @@ export function TechniqueTrends() {
                     <td className={`py-2 pr-4 text-right tabular-nums text-xs ${item.growth_rate > 0 ? 'text-red-600' : item.growth_rate < 0 ? 'text-green-600' : ''}`}>
                       {item.growth_rate > 0 ? '+' : ''}{(item.growth_rate * 100).toFixed(1)}%
                     </td>
+                    <td className="py-2 pr-2 text-right tabular-nums text-xs font-medium">
+                      {item.forecast.p50.toFixed(0)}
+                    </td>
                     <td className="py-2 text-right tabular-nums text-xs text-muted-foreground">
-                      {item.forecast.lower.toFixed(0)}–{item.forecast.upper.toFixed(0)}
+                      {item.forecast.p10.toFixed(0)}–{item.forecast.p90.toFixed(0)}
                     </td>
                   </tr>
                 ))}

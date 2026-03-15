@@ -228,6 +228,7 @@ export function CreateThreatDialog({
         ...indicator,
         value: indicator.value.trim(),
         description: indicator.description?.trim() || undefined,
+        confidence: indicator.confidence / 100,
         source: 'manual',
       })),
     };
@@ -253,7 +254,7 @@ export function CreateThreatDialog({
 
         <FormProvider {...methods}>
           <form onSubmit={onSubmit} className="space-y-5">
-            <div className="grid gap-4 md:grid-cols-3">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
               <FormField name="name" label="Name" required className="md:col-span-3">
                 <Input id="name" placeholder="APT29 credential harvesting cluster" {...methods.register('name')} />
               </FormField>
@@ -301,7 +302,7 @@ export function CreateThreatDialog({
               />
             </FormField>
 
-            <div className="grid gap-4 md:grid-cols-2">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <FormField name="threat_actor" label="Threat Actor">
                 <Input id="threat_actor" placeholder="APT29" {...methods.register('threat_actor')} />
               </FormField>
@@ -310,7 +311,7 @@ export function CreateThreatDialog({
               </FormField>
             </div>
 
-            <div className="grid gap-4 md:grid-cols-2">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <FormField name="mitre_tactic_ids" label="MITRE Tactics">
                 <MultiSelect
                   options={tacticOptions}
@@ -364,7 +365,7 @@ export function CreateThreatDialog({
                               Remove
                             </Button>
                           </div>
-                          <div className="grid gap-4 md:grid-cols-2">
+                          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                             <FormField name={`indicators.${index}.type`} label="Type" required>
                               <Select
                                 value={methods.watch(`indicators.${index}.type`)}

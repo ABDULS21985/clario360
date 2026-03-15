@@ -252,7 +252,7 @@ export function RiskDetailPanel({
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="edit-category">Category</Label>
                 <Input
@@ -273,7 +273,7 @@ export function RiskDetailPanel({
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label>Likelihood</Label>
                 <Select
@@ -312,7 +312,7 @@ export function RiskDetailPanel({
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label>Status</Label>
                 <Select
@@ -419,7 +419,7 @@ export function RiskDetailPanel({
               <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
                 Risk Scores
               </h3>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div className="rounded-xl border p-4 text-center">
                   <p className="text-xs text-muted-foreground mb-1">Inherent Score</p>
                   <p className={cn('text-2xl font-bold', scoreColor(risk.inherent_score))}>
@@ -433,7 +433,7 @@ export function RiskDetailPanel({
                   </p>
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div className="flex items-center gap-2 text-sm">
                   <span className="text-muted-foreground">Likelihood:</span>
                   <span className="font-medium">{titleCase(risk.likelihood)}</span>

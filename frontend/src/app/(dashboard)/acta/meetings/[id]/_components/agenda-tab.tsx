@@ -111,7 +111,7 @@ export function AgendaTab({
               className="space-y-4"
               onSubmit={form.handleSubmit((values) => onCreate(values))}
             >
-              <div className="grid gap-4 md:grid-cols-2">
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 <FormField name="title" label="Title" required>
                   <Input {...form.register('title')} />
                 </FormField>
@@ -130,7 +130,7 @@ export function AgendaTab({
               <FormField name="description" label="Description" required>
                 <Textarea {...form.register('description')} rows={3} />
               </FormField>
-              <div className="grid gap-4 md:grid-cols-3">
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
                 <FormField name="presenter_user_id" label="Presenter">
                   <Select
                     value={form.watch('presenter_user_id') ?? undefined}

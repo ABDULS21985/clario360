@@ -42,7 +42,7 @@ export default function UebaDashboardPage() {
       <PermissionRedirect permission="cyber:read">
         <div className="space-y-6">
           <PageHeader title="UEBA" description="Behavioral analytics for users, services, and applications." />
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
             {Array.from({ length: 4 }).map((_, index) => <LoadingSkeleton key={index} variant="card" />)}
           </div>
           <LoadingSkeleton variant="card" />
@@ -79,7 +79,7 @@ export default function UebaDashboardPage() {
         />
 
         <Card className="overflow-hidden border-border/70 bg-[radial-gradient(circle_at_top_left,_rgba(14,165,233,0.16),_transparent_38%),linear-gradient(135deg,_rgba(17,24,39,0.04),_transparent)]">
-          <CardContent className="flex items-center gap-4 p-6">
+          <CardContent className="flex items-center gap-4 p-4 sm:p-6">
             <div className="rounded-full bg-sky-500/10 p-3 text-sky-600">
               <Fingerprint className="h-6 w-6" />
             </div>
@@ -92,14 +92,14 @@ export default function UebaDashboardPage() {
           </CardContent>
         </Card>
 
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
           <KpiCard label="Active Profiles" value={dashboard.kpis.active_profiles.toLocaleString()} />
           <KpiCard label="High Risk Entities" value={dashboard.kpis.high_risk_entities.toLocaleString()} />
           <KpiCard label="Alerts (7d)" value={dashboard.kpis.alerts_7d.toLocaleString()} />
           <KpiCard label="Avg Risk Score" value={dashboard.kpis.average_risk_score.toFixed(1)} />
         </div>
 
-        <div className="grid gap-4 xl:grid-cols-[1.35fr_0.9fr]">
+        <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1.35fr_0.9fr]">
           <Card>
             <CardHeader>
               <CardTitle className="text-base">Risk Ranking</CardTitle>

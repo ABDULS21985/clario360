@@ -23,7 +23,7 @@ export function QualityResultDialog({
         </DialogHeader>
         {result ? (
           <div className="space-y-4">
-            <div className="grid gap-3 md:grid-cols-2">
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
               <Metric label="Status" value={result.status} />
               <Metric label="Checked" value={result.records_checked.toLocaleString()} />
               <Metric label="Failed" value={result.records_failed.toLocaleString()} />

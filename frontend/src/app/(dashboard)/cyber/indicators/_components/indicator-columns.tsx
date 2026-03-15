@@ -60,7 +60,7 @@ export function getIndicatorColumns(options: IndicatorColumnOptions): ColumnDef<
         <div className="flex items-center gap-2">
           <button
             type="button"
-            className="max-w-[280px] truncate text-left font-mono text-xs hover:underline"
+            className="max-w-[180px] sm:max-w-[280px] truncate text-left font-mono text-xs hover:underline"
             onClick={(event) => {
               event.stopPropagation();
               options.onView(row.original);
@@ -116,7 +116,7 @@ export function getIndicatorColumns(options: IndicatorColumnOptions): ColumnDef<
         row.original.threat_id && row.original.threat_name ? (
           <button
             type="button"
-            className="max-w-[180px] truncate text-left text-sm font-medium hover:underline"
+            className="max-w-[120px] sm:max-w-[180px] truncate text-left text-sm font-medium hover:underline"
             onClick={(event) => {
               event.stopPropagation();
               options.onOpenThreat?.(row.original);

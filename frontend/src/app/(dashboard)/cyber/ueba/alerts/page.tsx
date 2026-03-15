@@ -76,7 +76,7 @@ export default function UebaAlertsPage() {
                 </div>
                 <div className="text-sm text-muted-foreground">{alert.description}</div>
               </CardHeader>
-              <CardContent className="grid gap-4 xl:grid-cols-[0.95fr_1.05fr]">
+              <CardContent className="grid grid-cols-1 gap-4 xl:grid-cols-[0.95fr_1.05fr]">
                 <div className="rounded-lg border bg-muted/20 p-3">
                   <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Risk Impact</div>
                   <div className="text-sm">

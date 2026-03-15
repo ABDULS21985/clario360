@@ -9,9 +9,12 @@ const ALERT_ID = 'alert-abc-123';
 
 vi.mock('@/hooks/use-auth', () => ({
   useAuth: () => ({
-    user: { id: 'u1', first_name: 'Admin', permissions: ['cyber:read'] },
+    user: { id: 'u1', first_name: 'Admin', permissions: ['cyber:read'], roles: [] },
+    isAuthenticated: true,
     isHydrated: true,
     hasPermission: () => true,
+    hasAnyPermission: () => true,
+    hasAllPermissions: () => true,
   }),
 }));
 
@@ -107,17 +110,17 @@ describe('Alert Detail Page', () => {
     });
   });
 
-  it('shows AI analysis tab content', async () => {
+  it('shows AI explanation tab', async () => {
     await renderPage();
     await waitFor(() => {
-      expect(screen.getByText(/AI Analysis/i)).toBeInTheDocument();
+      expect(screen.getByRole('tab', { name: /AI Explanation/i })).toBeInTheDocument();
     });
   });
 
   it('shows action buttons', async () => {
     await renderPage();
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: /update status/i })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /change status/i })).toBeInTheDocument();
       expect(screen.getByRole('button', { name: /assign/i })).toBeInTheDocument();
     });
   });

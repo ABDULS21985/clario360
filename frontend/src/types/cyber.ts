@@ -1434,6 +1434,7 @@ export interface MITRETechniqueCoverage {
   tactic_id?: string;
   tactic_name?: string;
   rule_count: number;
+  rule_names?: string[];
   alert_count: number;
   threat_count: number;
   active_threat_count: number;
@@ -1487,7 +1488,7 @@ export interface MITREThreatReference {
   id: string;
   name: string;
   type: ThreatType;
-  severity: ThreatSeverity;
+  severity: CyberSeverity;
   status: ThreatStatus;
   last_seen_at: string;
 }
@@ -2908,19 +2909,20 @@ export interface ThreatForecastItem {
   technique_name: string;
   trend: 'increasing' | 'stable' | 'decreasing';
   growth_rate: number;
-  forecast: { lower: number; mid: number; upper: number };
+  // Matches backend model.ConfidenceInterval JSON: { p10, p50, p90 }
+  forecast: { p10: number; p50: number; p90: number };
 }
 
+// Matches backend model.ForecastPoint JSON shape
 export interface AlertForecastPoint {
-  date: string;
-  predicted: number;
-  lower: number;
-  upper: number;
-  actual?: number;
+  timestamp: string;
+  value: number;
+  bounds: { p10: number; p50: number; p90: number };
 }
 
 export interface CampaignCluster {
-  cluster_id: number;
+  // Backend sends cluster_id as a string (uuid-style)
+  cluster_id: string;
   alert_ids: string[];
   alert_titles: string[];
   start_at: string;
@@ -2928,7 +2930,8 @@ export interface CampaignCluster {
   stage: string;
   mitre_techniques: string[];
   shared_iocs: string[];
-  confidence: { p10: number; p50: number; p90: number };
+  // Backend field is "confidence_interval" (model.ConfidenceInterval)
+  confidence_interval: { p10: number; p50: number; p90: number };
 }
 
 export interface AnalyticsLandscape {

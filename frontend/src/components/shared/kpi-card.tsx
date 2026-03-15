@@ -33,10 +33,10 @@ export function KpiCard({
   if (loading) {
     return (
       <Card className={cn("overflow-hidden", className)}>
-        <CardHeader className="pb-3">
+        <CardHeader className="p-4 pb-3 sm:p-6 sm:pb-3">
           <div className="h-4 w-28 rounded-full animate-pulse bg-muted" />
         </CardHeader>
-        <CardContent>
+        <CardContent className="p-4 pt-0 sm:p-6 sm:pt-0">
           <div className="mb-3 h-9 w-32 rounded-xl animate-pulse bg-muted" />
           <div className="h-3 w-24 rounded animate-pulse bg-muted" />
         </CardContent>
@@ -46,7 +46,7 @@ export function KpiCard({
 
   return (
     <Card className={cn("group overflow-hidden", className)}>
-      <CardHeader className="flex flex-row items-start justify-between gap-3 pb-3 space-y-0">
+      <CardHeader className="flex flex-row items-start justify-between gap-3 p-4 pb-3 space-y-0 sm:p-6 sm:pb-3">
         <div className="space-y-2">
           <span className="inline-flex items-center rounded-full border border-border/70 bg-secondary/70 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
             {title}
@@ -58,8 +58,8 @@ export function KpiCard({
           </div>
         )}
       </CardHeader>
-      <CardContent>
-        <div className="text-3xl font-semibold tracking-[-0.04em] text-slate-950">
+      <CardContent className="p-4 pt-0 sm:p-6 sm:pt-0">
+        <div className="text-2xl font-semibold tracking-[-0.04em] text-slate-950 sm:text-3xl">
           {value}
         </div>
         {change !== undefined && (

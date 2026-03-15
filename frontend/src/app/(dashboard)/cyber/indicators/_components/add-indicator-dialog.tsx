@@ -196,7 +196,7 @@ export function AddIndicatorDialog({
 
         <FormProvider {...methods}>
           <form onSubmit={handleSubmit} className="space-y-5">
-            <div className="grid gap-4 md:grid-cols-2">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <FormField name="type" label="Type" required>
                 <Select
                   value={methods.watch('type')}

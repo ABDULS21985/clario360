@@ -38,7 +38,7 @@ export function MetricsCards({ result }: MetricsCardsProps) {
   ];
 
   return (
-    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+    <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
       {cards.map((card) => (
         <Card key={card.title} className="border-border/70">
           <CardHeader className="pb-3">

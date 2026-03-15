@@ -76,7 +76,7 @@ export function MitreTechniquePanel({ technique, onClose }: MitreTechniquePanelP
             </a>
           </div>
 
-          <div className="grid gap-4 md:grid-cols-3">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
             <div className="rounded-2xl border p-4">
               <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">Rules</p>
               <p className="mt-2 text-xl font-semibold">{detail.rule_count}</p>
@@ -178,7 +178,7 @@ export function MitreTechniquePanel({ technique, onClose }: MitreTechniquePanelP
                         </div>
                       </div>
                       <div className="text-right text-sm text-muted-foreground">
-                        <p>{Math.round(alert.confidence_score * 100)}%</p>
+                        <p>{Math.round(Math.min(1, Math.max(0, alert.confidence_score ?? 0)) * 100)}%</p>
                         <p>{timeAgo(alert.created_at)}</p>
                       </div>
                     </div>

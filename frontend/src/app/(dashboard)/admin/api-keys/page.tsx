@@ -105,7 +105,7 @@ export default function ApiKeysPage() {
         const displayed = scopes.slice(0, 3);
         const extra = scopes.length - 3;
         return (
-          <div className="flex flex-wrap gap-1 max-w-[250px]">
+          <div className="flex flex-wrap gap-1 max-w-[160px] sm:max-w-[250px]">
             {displayed.map((scope) => (
               <span
                 key={scope}

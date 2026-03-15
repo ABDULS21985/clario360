@@ -73,9 +73,18 @@ func (h *Handler) ListInvitations(w http.ResponseWriter, r *http.Request) {
 		order = "desc"
 	}
 	search := strings.TrimSpace(q.Get("search"))
-	status := strings.TrimSpace(q.Get("status"))
 
-	items, total, err := h.invitationSvc.ListPaginated(r.Context(), tenantID, page, perPage, sort, order, search, status)
+	// Collect all ?status= values, dropping any blank entries produced by
+	// a bare ?status= parameter with no value.
+	rawStatuses := q["status"]
+	statuses := rawStatuses[:0:len(rawStatuses)]
+	for _, s := range rawStatuses {
+		if v := strings.TrimSpace(s); v != "" {
+			statuses = append(statuses, v)
+		}
+	}
+
+	items, total, err := h.invitationSvc.ListPaginated(r.Context(), tenantID, page, perPage, sort, order, search, statuses)
 	if err != nil {
 		handleServiceError(w, err)
 		return

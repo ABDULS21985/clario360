@@ -205,7 +205,7 @@ export function getAlertColumns(options: AlertColumnOptions = {}): ColumnDef<Cyb
 
         return (
           <div className="space-y-1">
-            <p className="max-w-[180px] truncate text-sm font-medium">{label}</p>
+            <p className="max-w-[120px] sm:max-w-[180px] truncate text-sm font-medium">{label}</p>
             {alert.rule_type && (
               <Badge variant="secondary" className="text-[11px]">
                 {slugToTitle(alert.rule_type)}

@@ -37,7 +37,7 @@ export function AuditExportForm() {
   const today = format(new Date(), "yyyy-MM-dd");
   const thirtyDaysAgo = format(subDays(new Date(), 30), "yyyy-MM-dd");
 
-  const [exportFormat, setExportFormat] = useState<"csv" | "json">("csv");
+  const [exportFormat, setExportFormat] = useState<"csv" | "ndjson">("csv");
   const [dateFrom, setDateFrom] = useState(thirtyDaysAgo);
   const [dateTo, setDateTo] = useState(today);
   const [selectedService, setSelectedService] = useState("");
@@ -96,21 +96,21 @@ export function AuditExportForm() {
               </button>
               <button
                 type="button"
-                onClick={() => setExportFormat("json")}
+                onClick={() => setExportFormat("ndjson")}
                 className={cn(
                   "flex items-center gap-2 rounded-lg border px-4 py-3 text-sm transition-colors",
-                  exportFormat === "json"
+                  exportFormat === "ndjson"
                     ? "border-primary bg-primary/5 text-primary"
                     : "border-border hover:bg-muted/50"
                 )}
               >
                 <FileJson className="h-4 w-4" />
-                JSON
+                NDJSON
               </button>
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="export-date-from">From</Label>
               <Input
@@ -153,7 +153,7 @@ export function AuditExportForm() {
 
           <div className="space-y-3">
             <Label>Columns</Label>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
               {EXPORT_COLUMNS.map((col) => (
                 <label
                   key={col.id}

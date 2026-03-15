@@ -965,7 +965,9 @@ func (r *RuleRepository) QuerySecurityEvents(ctx context.Context, tenantID uuid.
 	}
 	qb.WhereIf(params.SourceIP != "", "host(e.source_ip) = ?", params.SourceIP)
 	qb.WhereIf(params.DestIP != "", "host(e.dest_ip) = ?", params.DestIP)
-	qb.WhereIf(params.Protocol != "", "e.protocol = ?", params.Protocol)
+	if len(params.Protocols) > 0 {
+		qb.WhereIn("e.protocol", params.Protocols)
+	}
 	qb.WhereIf(params.Username != "", "e.username ILIKE ?", "%"+params.Username+"%")
 	qb.WhereIf(params.Process != "", "e.process ILIKE ?", "%"+params.Process+"%")
 	qb.WhereIf(params.CmdContains != "", "e.command_line ILIKE ?", "%"+params.CmdContains+"%")

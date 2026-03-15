@@ -62,7 +62,7 @@ func SeedDemoData(ctx context.Context, app *Application, cfg *visusconfig.Config
 }
 
 func seedDefaultKPIs(ctx context.Context, app *Application, tenantID, userID uuid.UUID) (map[string]model.KPIDefinition, error) {
-	existing, _, err := app.Store.KPIs.List(ctx, tenantID, 1, 100)
+	existing, _, err := app.Store.KPIs.List(ctx, tenantID, 1, 100, "name", "asc", "", "", nil)
 	if err != nil {
 		return nil, err
 	}
@@ -84,7 +84,7 @@ func seedDefaultKPIs(ctx context.Context, app *Application, tenantID, userID uui
 }
 
 func seedDashboards(ctx context.Context, app *Application, tenantID, userID uuid.UUID, kpisByName map[string]model.KPIDefinition) error {
-	existing, _, err := app.Store.Dashboards.ListAccessible(ctx, tenantID, &userID, 1, 20)
+	existing, _, err := app.Store.Dashboards.ListAccessible(ctx, tenantID, &userID, 1, 20, "name", "asc", "", "")
 	if err != nil {
 		return err
 	}
@@ -237,7 +237,7 @@ func seedSnapshots(ctx context.Context, app *Application, tenantID uuid.UUID, kp
 }
 
 func seedAlerts(ctx context.Context, app *Application, tenantID, userID uuid.UUID, kpisByName map[string]model.KPIDefinition) error {
-	_, total, err := app.Store.Alerts.List(ctx, tenantID, repository.AlertListFilters{}, 1, 1)
+	_, total, err := app.Store.Alerts.List(ctx, tenantID, repository.AlertListFilters{}, 1, 1, "created_at", "desc")
 	if err != nil {
 		return err
 	}
@@ -267,7 +267,7 @@ func seedAlerts(ctx context.Context, app *Application, tenantID, userID uuid.UUI
 }
 
 func seedReports(ctx context.Context, app *Application, tenantID, userID uuid.UUID) error {
-	existing, _, err := app.Store.Reports.List(ctx, tenantID, 1, 20)
+	existing, _, err := app.Store.Reports.List(ctx, tenantID, 1, 20, "name", "asc", "", "", nil)
 	if err != nil {
 		return err
 	}

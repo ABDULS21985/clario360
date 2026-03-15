@@ -57,7 +57,7 @@ export function ThreatDetailPanel({ threat, onClose }: ThreatDetailPanelProps) {
         <p className="text-sm leading-relaxed text-muted-foreground">{threat.description}</p>
 
         {/* Timeline */}
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div className="rounded-lg border p-3">
             <p className="text-xs text-muted-foreground">First Seen</p>
             <p className="text-sm font-medium mt-0.5">{timeAgo(threat.first_seen_at)}</p>

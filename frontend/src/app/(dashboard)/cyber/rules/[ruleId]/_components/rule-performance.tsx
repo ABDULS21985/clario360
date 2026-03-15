@@ -38,14 +38,14 @@ export function RulePerformance({ rule, performance, loading = false }: RulePerf
 
   return (
     <div className="space-y-6">
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
         <KpiCard title="Triggers" value={rule.trigger_count.toLocaleString()} loading={loading} />
         <KpiCard title="Alerts 30d" value={performance?.alerts_last_30_days ?? 0} loading={loading} />
         <KpiCard title="True Positive Rate" value={`${((performance?.true_positive_rate ?? 0) * 100).toFixed(1)}%`} loading={loading} />
         <KpiCard title="False Positive Rate" value={`${((performance?.false_positive_rate ?? 0) * 100).toFixed(1)}%`} loading={loading} />
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-2">
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
         <LineChart
           data={alertTrend}
           xKey="date"

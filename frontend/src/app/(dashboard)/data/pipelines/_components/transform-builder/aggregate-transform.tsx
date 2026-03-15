@@ -25,7 +25,7 @@ export function AggregateTransform({
     <div className="space-y-4">
       <div className="space-y-2">
         <div className="text-sm font-medium">Group by</div>
-        <div className="grid gap-3 md:grid-cols-2">
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
           {availableColumns.map((column) => (
             <label key={column} className="flex items-center gap-3 rounded-md border px-3 py-2 text-sm">
               <Checkbox
@@ -50,7 +50,7 @@ export function AggregateTransform({
 
       <div className="space-y-3">
         {value.config.aggregations.map((aggregation) => (
-          <div key={aggregation.id} className="grid gap-3 rounded-lg border p-3 lg:grid-cols-[1fr_180px_1fr_auto]">
+          <div key={aggregation.id} className="grid grid-cols-1 gap-3 rounded-lg border p-3 lg:grid-cols-[1fr_180px_1fr_auto]">
             <Select
               value={aggregation.column}
               onValueChange={(next) =>

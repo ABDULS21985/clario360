@@ -130,7 +130,7 @@ export default function CyberRemediationPage() {
         />
 
         {/* KPI Summary */}
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
           {kpis.map(({ label, value, icon: Icon, color, bg }) => (
             <div key={label} className={`flex items-center gap-3 rounded-xl border p-4 ${bg}`}>
               <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border bg-background ${color}`}>

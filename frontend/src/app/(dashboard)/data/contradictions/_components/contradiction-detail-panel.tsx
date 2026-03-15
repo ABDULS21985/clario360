@@ -50,7 +50,7 @@ export function ContradictionDetailPanel({
               </span>
             </div>
 
-            <div className="grid gap-4 xl:grid-cols-2">
+            <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
               <SourceComparisonCard title="Source A" source={contradiction.source_a} />
               <SourceComparisonCard title="Source B" source={contradiction.source_b} />
             </div>

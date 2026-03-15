@@ -149,7 +149,7 @@ export function CreateKeyDialog({ open, onOpenChange, onCreated }: CreateKeyDial
                       {group.label}
                     </Label>
                   </div>
-                  <div className="ml-6 grid grid-cols-2 gap-2">
+                  <div className="ml-6 grid grid-cols-1 gap-2 sm:grid-cols-2">
                     {group.scopes.map((scope) => (
                       <div key={scope} className="flex items-center gap-2">
                         <Checkbox

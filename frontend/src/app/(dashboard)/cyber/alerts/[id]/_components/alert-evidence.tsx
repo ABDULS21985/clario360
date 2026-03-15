@@ -48,7 +48,7 @@ export function AlertEvidence({ alert }: AlertEvidenceProps) {
         )}
       </Section>
 
-      <div className="grid gap-6 xl:grid-cols-2">
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
         <Section icon={Globe} title="Network Context">
           {networkEvidence.length > 0 ? (
             <div className="space-y-3">
@@ -81,7 +81,7 @@ export function AlertEvidence({ alert }: AlertEvidenceProps) {
         </Section>
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-2">
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
         <Section icon={Shield} title="Indicator Matches">
           {(explanation.indicator_matches?.length ?? 0) > 0 ? (
             <div className="space-y-3">

@@ -84,7 +84,7 @@ export function StepHistory({ steps }: StepHistoryProps) {
                       </Badge>
                     </div>
 
-                    <div className="mt-2 grid grid-cols-2 md:grid-cols-4 gap-2 text-xs text-muted-foreground">
+                    <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2 text-xs text-muted-foreground">
                       {step.started_at && (
                         <div>
                           <span className="block text-[10px] uppercase font-medium">

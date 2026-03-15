@@ -19,7 +19,7 @@ export function ContradictionStatBar({
   const active = Array.isArray(activeStatus) ? activeStatus[0] : activeStatus;
 
   return (
-    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+    <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-5">
       {STATUS_ORDER.map((status) => (
         <button
           key={status}

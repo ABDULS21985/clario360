@@ -52,8 +52,8 @@ func (s *DashboardService) Create(ctx context.Context, dashboard *model.Dashboar
 	return created, nil
 }
 
-func (s *DashboardService) List(ctx context.Context, tenantID uuid.UUID, userID *uuid.UUID, page, perPage int) ([]model.Dashboard, int, error) {
-	items, total, err := s.dashboards.ListAccessible(ctx, tenantID, userID, page, perPage)
+func (s *DashboardService) List(ctx context.Context, tenantID uuid.UUID, userID *uuid.UUID, page, perPage int, sortCol, sortDir, search, visibility string) ([]model.Dashboard, int, error) {
+	items, total, err := s.dashboards.ListAccessible(ctx, tenantID, userID, page, perPage, sortCol, sortDir, search, visibility)
 	if err == nil {
 		s.syncMetrics(ctx, tenantID)
 	}

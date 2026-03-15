@@ -13,7 +13,7 @@ export function ExplanationViewer({ explanation }: ExplanationViewerProps) {
   if (!explanation) {
     return (
       <Card className="border-dashed">
-        <CardContent className="p-6 text-sm text-muted-foreground">
+        <CardContent className="p-4 text-sm text-muted-foreground sm:p-6">
           Select a prediction to inspect the structured explanation.
         </CardContent>
       </Card>

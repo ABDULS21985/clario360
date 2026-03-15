@@ -122,7 +122,7 @@ export function IntegrationDetailPanel({
             <RefreshCw className="inline h-3.5 w-3.5 mr-1 -mt-0.5" />
             Sync Information
           </h4>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="rounded-lg border p-3">
               <p className="text-xs text-muted-foreground flex items-center gap-1">
                 <Database className="h-3 w-3" />
@@ -175,7 +175,7 @@ export function IntegrationDetailPanel({
               {configEntries.map(([key, value]) => (
                 <div key={key} className="flex items-center justify-between text-sm">
                   <span className="text-muted-foreground font-mono text-xs">{key}</span>
-                  <span className="font-medium font-mono text-xs truncate max-w-[200px]">
+                  <span className="font-medium font-mono text-xs truncate max-w-[120px] sm:max-w-[200px]">
                     {redactConfigValue(key, value)}
                   </span>
                 </div>
@@ -193,7 +193,7 @@ export function IntegrationDetailPanel({
           <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-3">
             Timeline
           </h4>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="rounded-lg border p-3">
               <p className="text-xs text-muted-foreground flex items-center gap-1">
                 <Calendar className="h-3 w-3" />
@@ -221,7 +221,7 @@ export function IntegrationDetailPanel({
             <RefreshCw className={cn('mr-1.5 h-4 w-4', syncing && 'animate-spin')} />
             {syncing ? 'Syncing...' : 'Sync Now'}
           </Button>
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
             <Button
               variant="outline"
               onClick={() => onConfigure?.(integration)}

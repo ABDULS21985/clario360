@@ -9,13 +9,16 @@ import type { ApiError } from '@/types/api';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8080';
 
+// Intentionally global: ALL backend list endpoints use Go's url.Values which
+// reads repeated keys (type=sigma&type=threshold), not Axios's default bracket
+// format (type[]=sigma&type[]=threshold). Every call through this instance —
+// cyber rules, alerts, assets, threats, etc. — hits a splitQueryValues helper
+// that requires the repeat format. Do not use a per-request override.
 const api = axios.create({
   baseURL: API_URL,
   timeout: 30000,
   paramsSerializer: {
-    // Use 'repeat' format: type=sigma&type=threshold (not type[]=...)
-    // Backend splitQueryValues reads url.Values["type"], not "type[]"
-    indexes: null,
+    indexes: null, // repeat format: arr=a&arr=b (not arr[]=a&arr[]=b)
   },
 });
 

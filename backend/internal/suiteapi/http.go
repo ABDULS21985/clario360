@@ -157,6 +157,24 @@ func UserID(r *http.Request) (*uuid.UUID, error) {
 	return &userID, nil
 }
 
+// ParseSort reads "sort" and "order" query params, validates them against an
+// allowlist that maps frontend column names to SQL column expressions, and
+// returns safe column/direction strings.  Invalid or missing values fall back
+// to the supplied defaults.
+func ParseSort(r *http.Request, allowed map[string]string, defaultCol, defaultDir string) (string, string) {
+	col := defaultCol
+	if raw := strings.TrimSpace(r.URL.Query().Get("sort")); raw != "" {
+		if mapped, ok := allowed[raw]; ok {
+			col = mapped
+		}
+	}
+	dir := defaultDir
+	if raw := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("order"))); raw == "asc" || raw == "desc" {
+		dir = raw
+	}
+	return col, dir
+}
+
 func parsePositiveInt(raw string, fallback int) int {
 	if raw == "" {
 		return fallback

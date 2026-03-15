@@ -88,6 +88,13 @@ func (s *InvitationService) CreateBatch(ctx context.Context, tenantID, invitedBy
 		return nil, err
 	}
 
+	// Resolve inviter's display name; fall back to the email passed in.
+	if inviter, lookupErr := s.userRepo.GetByID(ctx, invitedBy.String()); lookupErr == nil && inviter != nil {
+		if fullName := strings.TrimSpace(inviter.FirstName + " " + inviter.LastName); fullName != "" {
+			invitedByName = fullName
+		}
+	}
+
 	created := make([]onboardingmodel.Invitation, 0, len(req.Invitations))
 	seenEmails := map[string]struct{}{}
 	for _, item := range req.Invitations {
@@ -173,8 +180,8 @@ func (s *InvitationService) List(ctx context.Context, tenantID uuid.UUID) ([]onb
 	return s.invitationRepo.ListByTenant(ctx, tenantID)
 }
 
-func (s *InvitationService) ListPaginated(ctx context.Context, tenantID uuid.UUID, page, perPage int, sort, order, search, status string) ([]onboardingdto.InvitationListItem, int, error) {
-	invitations, total, err := s.invitationRepo.ListByTenantPaginated(ctx, tenantID, page, perPage, sort, order, search, status)
+func (s *InvitationService) ListPaginated(ctx context.Context, tenantID uuid.UUID, page, perPage int, sort, order, search string, statuses []string) ([]onboardingdto.InvitationListItem, int, error) {
+	invitations, total, err := s.invitationRepo.ListByTenantPaginated(ctx, tenantID, page, perPage, sort, order, search, statuses)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -243,6 +250,13 @@ func (s *InvitationService) Stats(ctx context.Context, tenantID uuid.UUID) (*onb
 }
 
 func (s *InvitationService) Cancel(ctx context.Context, tenantID, invitationID uuid.UUID) error {
+	inv, err := s.invitationRepo.GetByID(ctx, tenantID, invitationID)
+	if err != nil {
+		return err
+	}
+	if inv.Status != onboardingmodel.InvitationStatusPending && inv.Status != onboardingmodel.InvitationStatusExpired {
+		return fmt.Errorf("only pending or expired invitations can be cancelled: %w", iammodel.ErrValidation)
+	}
 	if err := s.invitationRepo.UpdateStatus(ctx, tenantID, invitationID, onboardingmodel.InvitationStatusCancelled); err != nil {
 		return err
 	}
@@ -257,6 +271,9 @@ func (s *InvitationService) Resend(ctx context.Context, tenantID, invitationID u
 	invitation, err := s.invitationRepo.GetByID(ctx, tenantID, invitationID)
 	if err != nil {
 		return err
+	}
+	if invitation.Status != onboardingmodel.InvitationStatusPending && invitation.Status != onboardingmodel.InvitationStatusExpired {
+		return fmt.Errorf("only pending or expired invitations can be resent: %w", iammodel.ErrValidation)
 	}
 	orgName, _, _, _, err := s.onboardingRepo.GetTenantIdentity(ctx, tenantID)
 	if err != nil {

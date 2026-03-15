@@ -257,7 +257,7 @@ function getAcceptanceColumns(): ColumnDef<VCISORiskEntry>[] {
       header: 'Rationale',
       enableSorting: false,
       cell: ({ row }) => (
-        <span className="text-sm text-muted-foreground max-w-[250px] truncate block">
+        <span className="text-sm text-muted-foreground max-w-[160px] sm:max-w-[250px] truncate block">
           {row.original.acceptance_rationale || '--'}
         </span>
       ),
@@ -711,7 +711,7 @@ export default function RiskRegisterPage() {
                               </div>
                             </CardHeader>
                             <CardContent className="space-y-3">
-                              <div className="grid grid-cols-3 gap-3 text-center">
+                              <div className="grid grid-cols-1 gap-3 text-center sm:grid-cols-3">
                                 <div>
                                   <p className="text-xs text-muted-foreground">Avg Residual</p>
                                   <p

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -70,17 +71,44 @@ func (r *KPIRepository) Get(ctx context.Context, tenantID, id uuid.UUID) (*model
 	return item, nil
 }
 
-func (r *KPIRepository) List(ctx context.Context, tenantID uuid.UUID, page, perPage int) ([]model.KPIDefinition, int, error) {
+func (r *KPIRepository) List(ctx context.Context, tenantID uuid.UUID, page, perPage int, sortCol, sortDir, search, suite string, enabled *bool) ([]model.KPIDefinition, int, error) {
 	meta := normalizePagination(page, perPage)
-	rows, err := r.db.Query(ctx, `
+	orderClause := fmt.Sprintf("%s %s", sortCol, sortDir)
+	args := []any{tenantID}
+	whereClauses := []string{
+		"tenant_id = $1",
+		"deleted_at IS NULL",
+	}
+	if search != "" {
+		args = append(args, "%"+search+"%")
+		position := len(args)
+		whereClauses = append(whereClauses, fmt.Sprintf("(name ILIKE $%d OR description ILIKE $%d)", position, position))
+	}
+	if suite != "" {
+		args = append(args, suite)
+		position := len(args)
+		whereClauses = append(whereClauses, fmt.Sprintf("suite = $%d", position))
+	}
+	if enabled != nil {
+		args = append(args, *enabled)
+		position := len(args)
+		whereClauses = append(whereClauses, fmt.Sprintf("enabled = $%d", position))
+	}
+	args = append(args, meta.Limit, meta.Offset)
+	rows, err := r.db.Query(ctx, fmt.Sprintf(`
 		SELECT id, tenant_id, name, description, category, suite, icon, query_endpoint, query_params, value_path, unit,
 		       format_pattern, target_value, warning_threshold, critical_threshold, direction, calculation_type,
 		       calculation_window, snapshot_frequency, enabled, is_default, last_snapshot_at, last_value, last_status,
 		       tags, created_by, created_at, updated_at, deleted_at
 		FROM visus_kpi_definitions
-		WHERE tenant_id = $1 AND deleted_at IS NULL
-		ORDER BY category, name
-		LIMIT $2 OFFSET $3`, tenantID, meta.Limit, meta.Offset)
+		WHERE %s
+		ORDER BY %s
+		LIMIT $%d OFFSET $%d`,
+		strings.Join(whereClauses, " AND "),
+		orderClause,
+		len(args)-1,
+		len(args),
+	), args...)
 	if err != nil {
 		return nil, 0, wrapErr("list kpis", err)
 	}
@@ -97,7 +125,11 @@ func (r *KPIRepository) List(ctx context.Context, tenantID uuid.UUID, page, perP
 		return nil, 0, wrapErr("iterate kpis", err)
 	}
 	var total int
-	if err := r.db.QueryRow(ctx, `SELECT COUNT(*) FROM visus_kpi_definitions WHERE tenant_id = $1 AND deleted_at IS NULL`, tenantID).Scan(&total); err != nil {
+	if err := r.db.QueryRow(
+		ctx,
+		fmt.Sprintf(`SELECT COUNT(*) FROM visus_kpi_definitions WHERE %s`, strings.Join(whereClauses, " AND ")),
+		args[:len(args)-2]...,
+	).Scan(&total); err != nil {
 		return nil, 0, wrapErr("count kpis", err)
 	}
 	return items, total, nil

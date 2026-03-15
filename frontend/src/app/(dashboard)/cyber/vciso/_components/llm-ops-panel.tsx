@@ -162,7 +162,7 @@ export function LLMOpsPanel() {
         </Badge>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
         <MetricCard
           icon={HeartPulse}
           title="Provider Health"
@@ -192,12 +192,12 @@ export function LLMOpsPanel() {
 
       {!canAdmin ? (
         <Card className="border-dashed">
-          <CardContent className="p-6 text-sm text-muted-foreground">
+          <CardContent className="p-4 text-sm text-muted-foreground sm:p-6">
             LLM admin controls require the `vciso:llm:admin` permission. Health, usage, engine selection, and message-level traces remain visible here.
           </CardContent>
         </Card>
       ) : (
-        <div className="grid gap-6 xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
+        <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
           <Card className="border-border/70">
             <CardHeader>
               <CardTitle>Provider Configuration</CardTitle>
@@ -326,7 +326,7 @@ export function LLMOpsPanel() {
                     Register a new version; activation remains explicit.
                   </p>
                 </div>
-                <div className="grid gap-4 md:grid-cols-2">
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                   <div className="space-y-2">
                     <Label htmlFor="prompt-version">Version</Label>
                     <Input

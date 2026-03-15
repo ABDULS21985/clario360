@@ -94,7 +94,7 @@ export function QueryBuilder({
             </Button>
           </div>
         </div>
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
           {selectedModel?.schema_definition.map((field) => (
             <label key={field.name} className="flex items-center gap-3 rounded-md border px-3 py-2 text-sm">
               <Checkbox checked={selectedColumns.includes(field.name)} onCheckedChange={() => onToggleColumn(field.name)} />
@@ -128,7 +128,7 @@ export function QueryBuilder({
       {aggregations.length > 0 ? (
         <section className="space-y-3">
           <h3 className="font-medium">Group By</h3>
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
             {selectedModel?.schema_definition.map((field) => (
               <label key={field.name} className="flex items-center gap-3 rounded-md border px-3 py-2 text-sm">
                 <Checkbox checked={groupBy.includes(field.name)} onCheckedChange={() => onChangeGroupBy(groupBy.includes(field.name) ? groupBy.filter((item) => item !== field.name) : [...groupBy, field.name])} />
@@ -148,7 +148,7 @@ export function QueryBuilder({
         </div>
         <div className="space-y-3">
           {orders.map((row) => (
-            <div key={row.id} className="grid gap-3 lg:grid-cols-[1fr_180px_auto]">
+            <div key={row.id} className="grid grid-cols-1 gap-3 lg:grid-cols-[1fr_180px_auto]">
               <Select value={row.column} onValueChange={(value) => onChangeOrders(orders.map((item) => (item.id === row.id ? { ...item, column: value } : item)))}>
                 <SelectTrigger>
                   <SelectValue placeholder="Column" />

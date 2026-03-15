@@ -338,7 +338,7 @@ function getIAMFindingColumns(): ColumnDef<VCISOIAMFinding>[] {
       header: 'Remediation',
       enableSorting: false,
       cell: ({ row }) => (
-        <span className="text-sm text-muted-foreground max-w-[200px] truncate block">
+        <span className="text-sm text-muted-foreground max-w-[120px] sm:max-w-[200px] truncate block">
           {row.original.remediation ? truncate(row.original.remediation, 60) : '--'}
         </span>
       ),

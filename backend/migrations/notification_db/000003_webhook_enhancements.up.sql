@@ -24,5 +24,5 @@ ALTER TABLE notification_delivery_log
 CREATE INDEX IF NOT EXISTS idx_delivery_webhook ON notification_delivery_log (webhook_id, created_at DESC)
     WHERE webhook_id IS NOT NULL;
 
-CREATE INDEX IF NOT EXISTS idx_delivery_tenant_date ON notification_delivery_log (created_at)
+CREATE INDEX IF NOT EXISTS idx_delivery_tenant_date ON notification_delivery_log
     USING btree (created_at);

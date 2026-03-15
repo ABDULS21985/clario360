@@ -40,7 +40,7 @@ export function HDFSForm({ form }: HDFSFormProps) {
         description="Enter one or more HDFS NameNode addresses."
       />
 
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <FormField name="user" label="User">
           <Input {...form.register('user')} placeholder="hdfs" />
         </FormField>
@@ -58,7 +58,7 @@ export function HDFSForm({ form }: HDFSFormProps) {
         description="Directories to scan for warehouse data and DSPM inspection."
       />
 
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <FormField name="audit_log_path" label="Audit Log Path">
           <Input {...form.register('audit_log_path')} placeholder="/var/log/hdfs/audit.log" />
         </FormField>
@@ -83,7 +83,7 @@ export function HDFSForm({ form }: HDFSFormProps) {
       </div>
 
       {kerberosEnabled ? (
-        <div className="grid gap-4 rounded-lg border p-4 md:grid-cols-2">
+        <div className="grid grid-cols-1 gap-4 rounded-lg border p-4 md:grid-cols-2">
           <FormField name="kerberos.realm" label="Realm" required>
             <Input value={form.watch('kerberos')?.realm ?? ''} onChange={(event) => updateKerberos({ realm: event.target.value })} />
           </FormField>

@@ -103,7 +103,7 @@ function ObligationsTab({ onCreateObligation }: { onCreateObligation: () => void
       enableSorting: true,
       cell: ({ row }) => (
         <button
-          className="font-semibold text-sm hover:underline text-left max-w-[280px] truncate block"
+          className="font-semibold text-sm hover:underline text-left max-w-[180px] sm:max-w-[280px] truncate block"
           onClick={(e) => {
             e.stopPropagation();
             setDetailObligation(row.original);
@@ -312,7 +312,7 @@ function ControlTestingTab({ onRecordTest }: { onRecordTest: () => void }) {
       accessorKey: 'control_name',
       enableSorting: true,
       cell: ({ row }) => (
-        <span className="font-semibold text-sm max-w-[240px] truncate block">
+        <span className="font-semibold text-sm max-w-[140px] sm:max-w-[240px] truncate block">
           {row.original.control_name}
         </span>
       ),
@@ -493,7 +493,7 @@ function ControlTestDetailView({
         <Separator />
 
         {/* Metadata */}
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div className="space-y-1">
             <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
               Framework
@@ -591,7 +591,7 @@ function ControlDependenciesTab() {
       enableSorting: true,
       cell: ({ row }) => (
         <button
-          className="font-semibold text-sm hover:underline text-left max-w-[260px] truncate block"
+          className="font-semibold text-sm hover:underline text-left max-w-[160px] sm:max-w-[260px] truncate block"
           onClick={(e) => {
             e.stopPropagation();
             setDetailDependency(row.original);

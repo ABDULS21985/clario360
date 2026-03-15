@@ -111,14 +111,14 @@ export default function ActaCompliancePage() {
           }
         />
 
-        <div className="grid gap-4 xl:grid-cols-4">
+        <div className="grid grid-cols-1 gap-4 xl:grid-cols-4">
           <KpiCard title="Compliance Score" value={`${Math.round(scoreQuery.data?.score ?? 0)}%`} icon={Shield} iconColor="text-emerald-600" />
           <KpiCard title="Non-Compliant" value={report?.non_compliant_count ?? 0} icon={AlertTriangle} iconColor="text-rose-600" />
           <KpiCard title="Warnings" value={report?.warning_count ?? 0} icon={AlertTriangle} iconColor="text-amber-600" />
           <KpiCard title="Checks Logged" value={report?.results.length ?? 0} icon={Shield} iconColor="text-sky-600" />
         </div>
 
-        <div className="grid gap-4 xl:grid-cols-[1fr_1.1fr]">
+        <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1fr_1.1fr]">
           <SectionCard title="Latest Scorecard" description="Current committee-level compliance distribution.">
             <ActaComplianceBars items={report?.by_committee ?? []} />
           </SectionCard>

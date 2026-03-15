@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import { type ColumnDef } from '@tanstack/react-table';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Bell } from 'lucide-react';
@@ -12,9 +13,11 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { showApiError, showSuccess } from '@/lib/toast';
 import type { VisusExecutiveAlert } from '@/types/suites';
+import { DismissAlertDialog } from './_components/dismiss-alert-dialog';
 
 export default function VisusAlertsPage() {
   const queryClient = useQueryClient();
+  const [dismissTarget, setDismissTarget] = useState<VisusExecutiveAlert | null>(null);
   const { tableProps } = useDataTable<VisusExecutiveAlert>({
     queryKey: 'visus-alerts',
     fetchFn: (params) => enterpriseApi.visus.listAlerts(params),
@@ -27,8 +30,8 @@ export default function VisusAlertsPage() {
   });
 
   const updateMutation = useMutation({
-    mutationFn: ({ id, status }: { id: string; status: VisusExecutiveAlert['status'] }) =>
-      enterpriseApi.visus.updateAlertStatus(id, { status }),
+    mutationFn: ({ id, status, dismiss_reason }: { id: string; status: VisusExecutiveAlert['status']; dismiss_reason?: string }) =>
+      enterpriseApi.visus.updateAlertStatus(id, { status, dismiss_reason }),
     onSuccess: async () => {
       showSuccess('Alert updated.');
       await Promise.all([
@@ -38,6 +41,11 @@ export default function VisusAlertsPage() {
     },
     onError: showApiError,
   });
+
+  const handleDismissConfirm = (id: string, dismissReason?: string) => {
+    updateMutation.mutate({ id, status: 'dismissed', dismiss_reason: dismissReason });
+    setDismissTarget(null);
+  };
 
   const columns: ColumnDef<VisusExecutiveAlert>[] = [
     {
@@ -56,18 +64,21 @@ export default function VisusAlertsPage() {
       id: 'severity',
       accessorKey: 'severity',
       header: 'Severity',
+      enableSorting: true,
       cell: ({ row }) => <Badge variant={severityVariant(row.original.severity)}>{row.original.severity}</Badge>,
     },
     {
       id: 'category',
       accessorKey: 'category',
       header: 'Category',
+      enableSorting: true,
       cell: ({ row }) => <Badge variant="outline">{row.original.category}</Badge>,
     },
     {
       id: 'status',
       accessorKey: 'status',
       header: 'Status',
+      enableSorting: true,
       cell: ({ row }) => <Badge variant="outline">{row.original.status}</Badge>,
     },
     {
@@ -78,7 +89,7 @@ export default function VisusAlertsPage() {
           <Button variant="outline" size="sm" onClick={() => updateMutation.mutate({ id: row.original.id, status: 'acknowledged' })}>
             Acknowledge
           </Button>
-          <Button variant="ghost" size="sm" onClick={() => updateMutation.mutate({ id: row.original.id, status: 'dismissed' })}>
+          <Button variant="ghost" size="sm" onClick={() => setDismissTarget(row.original)}>
             Dismiss
           </Button>
         </div>
@@ -90,7 +101,7 @@ export default function VisusAlertsPage() {
     <PermissionRedirect permission="visus:read">
       <div className="space-y-6">
         <PageHeader title="Alerts" description="Executive alerts aggregated across all suites." />
-        <div className="grid gap-4 md:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
           {Object.entries(statsQuery.data?.by_severity ?? {}).map(([severity, count]) => (
             <div key={severity} className="rounded-xl border bg-card px-4 py-4">
               <p className="text-sm text-muted-foreground capitalize">{severity}</p>
@@ -108,6 +119,12 @@ export default function VisusAlertsPage() {
           }}
         />
       </div>
+      <DismissAlertDialog
+        alert={dismissTarget}
+        open={dismissTarget !== null}
+        onOpenChange={(open) => { if (!open) setDismissTarget(null); }}
+        onConfirm={handleDismissConfirm}
+      />
     </PermissionRedirect>
   );
 }

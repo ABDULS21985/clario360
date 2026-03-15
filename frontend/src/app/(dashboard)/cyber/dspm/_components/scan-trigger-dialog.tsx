@@ -18,6 +18,7 @@ import { Label } from '@/components/ui/label';
 import { FormField } from '@/components/shared/forms/form-field';
 import { useApiMutation } from '@/hooks/use-api-mutation';
 import { API_ENDPOINTS } from '@/lib/constants';
+import type { DSPMScan } from '@/types/cyber';
 
 const schema = z.object({
   scope: z.array(z.string()).min(1, 'Select at least one scope item'),
@@ -27,16 +28,14 @@ const schema = z.object({
 
 type FormValues = z.infer<typeof schema>;
 
-interface ScanResult {
-  scan_id: string;
-  status: string;
-  started_at: string;
+interface ScanTriggerResponse {
+  data: { scan: DSPMScan };
 }
 
 interface ScanTriggerDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onSuccess?: (result: ScanResult) => void;
+  onSuccess?: (result: ScanTriggerResponse) => void;
 }
 
 const SCOPE_OPTIONS = [
@@ -52,7 +51,7 @@ export function ScanTriggerDialog({ open, onOpenChange, onSuccess }: ScanTrigger
     defaultValues: { scope: ['databases'], asset_types: '', full_scan: false },
   });
 
-  const { mutate, isPending } = useApiMutation<ScanResult, FormValues>(
+  const { mutate, isPending } = useApiMutation<ScanTriggerResponse, FormValues>(
     'post',
     API_ENDPOINTS.CYBER_DSPM_SCAN,
     {

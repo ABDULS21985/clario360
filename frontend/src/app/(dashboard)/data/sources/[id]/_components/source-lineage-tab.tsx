@@ -31,7 +31,7 @@ export function SourceLineageTab({
           <p className="text-sm text-muted-foreground">No lineage graph is available for this source.</p>
         ) : (
           <>
-            <div className="grid gap-3 md:grid-cols-3">
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
               <SummaryCard label="Nodes" value={String(graph.stats.node_count)} />
               <SummaryCard label="Edges" value={String(graph.stats.edge_count)} />
               <SummaryCard label="Depth" value={String(graph.stats.max_depth)} />

@@ -82,7 +82,7 @@ export function AwarenessDetailPanel({
           <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
             User Breakdown
           </h3>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="rounded-xl border p-4 text-center">
               <div className="flex items-center justify-center gap-1.5 mb-1">
                 <Users className="h-4 w-4 text-muted-foreground" />

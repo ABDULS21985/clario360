@@ -180,7 +180,7 @@ export function CreatePipelineWizard({
         </DialogHeader>
 
         <div className="space-y-6">
-          <div className="grid grid-cols-6 gap-2">
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-6">
             {STEPS.map((label, index) => {
               const step = index + 1;
               const complete = state.step > step;

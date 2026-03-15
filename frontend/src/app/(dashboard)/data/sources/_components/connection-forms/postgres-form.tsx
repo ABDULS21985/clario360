@@ -17,7 +17,7 @@ export function PostgresForm({ form }: PostgresFormProps) {
   const [showPassword, setShowPassword] = useState(false);
 
   return (
-    <div className="grid gap-4 md:grid-cols-2">
+    <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
       <FormField name="host" label="Host" required>
         <Input id="host" {...form.register('host')} />
       </FormField>
@@ -59,6 +59,8 @@ export function PostgresForm({ form }: PostgresFormProps) {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="disable">Disable</SelectItem>
+            <SelectItem value="allow">Allow</SelectItem>
+            <SelectItem value="prefer">Prefer</SelectItem>
             <SelectItem value="require">Require</SelectItem>
             <SelectItem value="verify-ca">Verify CA</SelectItem>
             <SelectItem value="verify-full">Verify full</SelectItem>

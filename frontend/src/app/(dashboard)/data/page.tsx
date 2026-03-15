@@ -55,16 +55,16 @@ export default function DataPage() {
       <PermissionRedirect permission="data:read">
         <div className="space-y-6">
           <PageHeader title="Data Suite" description="Unified operational view across sources, models, pipelines, quality, lineage, and governed analytics." />
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-5">
             {Array.from({ length: 5 }).map((_, index) => (
               <LoadingSkeleton key={index} variant="card" />
             ))}
           </div>
-          <div className="grid gap-4 xl:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
             <LoadingSkeleton variant="chart" />
             <LoadingSkeleton variant="chart" />
           </div>
-          <div className="grid gap-4 xl:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
             <LoadingSkeleton variant="chart" />
             <LoadingSkeleton variant="chart" />
           </div>
@@ -103,7 +103,7 @@ export default function DataPage() {
           }
         />
 
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-5">
           <DashboardKpiCard
             href={KPI_LINKS.total_sources}
             title="Total Sources"
@@ -150,7 +150,7 @@ export default function DataPage() {
           />
         </div>
 
-        <div className="grid gap-4 xl:grid-cols-2">
+        <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
           <SectionCard
             title="Pipeline Success Rate"
             description="Last 30 days of pipeline outcomes."
@@ -188,7 +188,7 @@ export default function DataPage() {
           </SectionCard>
         </div>
 
-        <div className="grid gap-4 xl:grid-cols-2">
+        <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
           <SectionCard
             title="Recent Pipeline Runs"
             description="Last 10 executions."

@@ -114,7 +114,7 @@ export function LogDetail({ logId }: LogDetailProps) {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-2 gap-4 text-sm">
+              <div className="grid grid-cols-1 gap-4 text-sm sm:grid-cols-2">
                 <div>
                   <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">
                     Action
@@ -284,10 +284,10 @@ export function LogDetail({ logId }: LogDetailProps) {
                   </code>
                 </MetadataRow>
               )}
-              {log.prev_hash && (
+              {log.previous_hash && (
                 <MetadataRow icon={Hash} label="Previous Hash">
                   <code className="text-xs font-mono break-all text-muted-foreground">
-                    {log.prev_hash}
+                    {log.previous_hash}
                   </code>
                 </MetadataRow>
               )}

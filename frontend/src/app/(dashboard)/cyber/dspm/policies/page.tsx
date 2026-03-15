@@ -448,7 +448,7 @@ export default function DataPoliciesPage() {
                   onChange={(e) => setForm({ ...form, description: e.target.value })}
                 />
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
                   <Label>Category</Label>
                   <Select value={form.category} onValueChange={(v) => setForm({ ...form, category: v as DSPMPolicyCategory })}>
@@ -480,7 +480,7 @@ export default function DataPoliciesPage() {
                   </Select>
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
                   <Label>Severity</Label>
                   <Select value={form.severity} onValueChange={(v) => setForm({ ...form, severity: v as CyberSeverity })}>

@@ -152,6 +152,8 @@ func (h *TenantHandler) Provision(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Return 201 with tenant details and the one-time temp_password.
+	// The caller must surface this to the operator — it is never stored again.
 	writeJSON(w, http.StatusCreated, resp)
 }
 

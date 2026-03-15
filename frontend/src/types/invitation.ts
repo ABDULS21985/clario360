@@ -5,7 +5,7 @@ export interface Invitation {
   role_slug: string;
   role_name: string;
   status: InvitationStatus;
-  message: string | null;
+  message?: string | null;
   invited_by: string;
   invited_by_name: string;
   expires_at: string;

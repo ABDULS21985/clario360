@@ -110,12 +110,12 @@ export function getAssetColumns(options: AssetColumnOptions = {}): ColumnDef<Cyb
             <div className="min-w-0">
               <Link
                 href={`/cyber/assets/${asset.id}`}
-                className="font-medium hover:underline truncate block max-w-[200px]"
+                className="font-medium hover:underline truncate block max-w-[120px] sm:max-w-[200px]"
               >
                 {asset.name}
               </Link>
               {asset.hostname && (
-                <p className="text-xs text-muted-foreground truncate max-w-[200px]">{asset.hostname}</p>
+                <p className="text-xs text-muted-foreground truncate max-w-[120px] sm:max-w-[200px]">{asset.hostname}</p>
               )}
             </div>
           </div>

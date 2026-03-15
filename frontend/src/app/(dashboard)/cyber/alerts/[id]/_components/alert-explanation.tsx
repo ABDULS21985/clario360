@@ -108,7 +108,7 @@ export function AlertExplanation({ alert }: AlertExplanationProps) {
 
       <Section icon={AlertCircle} title="Indicator Matches">
         {(explanation.indicator_matches?.length ?? 0) > 0 ? (
-          <div className="grid gap-3 md:grid-cols-2">
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
             {explanation.indicator_matches?.map((match, index) => (
               <div key={`${match.value}-${index}`} className="rounded-2xl border bg-background px-4 py-3">
                 <div className="flex flex-wrap items-center gap-2">

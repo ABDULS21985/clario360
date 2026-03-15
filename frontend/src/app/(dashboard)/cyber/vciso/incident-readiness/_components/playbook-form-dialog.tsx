@@ -229,7 +229,7 @@ export function PlaybookFormDialog({
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <Label>Status</Label>
               <Select
@@ -268,7 +268,7 @@ export function PlaybookFormDialog({
           {/* Recovery Objectives */}
           <h4 className="text-sm font-semibold text-muted-foreground">Recovery Objectives</h4>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="playbook-rto">RTO (hours)</Label>
               <Input

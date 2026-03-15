@@ -100,7 +100,7 @@ export function ExecutionResultsPanel({ result }: { result: ExecutionResult }) {
       </div>
 
       {/* Stats row */}
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div className="rounded-lg border p-3 text-center">
           <p className="text-2xl font-bold tabular-nums">
             {result.steps_executed}
@@ -140,7 +140,7 @@ export function ExecutionResultsPanel({ result }: { result: ExecutionResult }) {
               </div>
               <p className="text-xs">{change.description}</p>
               {(change.old_value || change.new_value) && (
-                <div className="grid grid-cols-2 gap-2 pt-1">
+                <div className="grid grid-cols-1 gap-2 pt-1 sm:grid-cols-2">
                   <div>
                     <p className="mb-0.5 text-xs text-muted-foreground">Before</p>
                     <code className="block rounded bg-red-50 px-2 py-1 text-xs font-mono text-red-700 dark:bg-red-950/30 dark:text-red-400">

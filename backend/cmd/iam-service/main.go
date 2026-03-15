@@ -423,6 +423,7 @@ func main() {
 				r.Post("/", onboardingHandler.CreateBatchInvitations)
 				r.Delete("/{id}", onboardingHandler.CancelInvitation)
 				r.Post("/resend/{id}", onboardingHandler.ResendInvitation)
+				r.Get("/stats", onboardingHandler.GetStats)
 			})
 		})
 

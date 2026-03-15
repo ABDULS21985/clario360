@@ -42,7 +42,7 @@ export function QueryFilterBuilder({
   return (
     <div className="space-y-3">
       {rows.map((row) => (
-        <div key={row.id} className="grid gap-3 lg:grid-cols-[1fr_180px_1fr_auto]">
+        <div key={row.id} className="grid grid-cols-1 gap-3 lg:grid-cols-[1fr_180px_1fr_auto]">
           <Select value={row.column} onValueChange={(value) => onChange(rows.map((item) => (item.id === row.id ? { ...item, column: value } : item)))}>
             <SelectTrigger>
               <SelectValue placeholder="Column" />
@@ -72,7 +72,7 @@ export function QueryFilterBuilder({
           {row.operator === 'is_null' || row.operator === 'is_not_null' ? (
             <div className="flex items-center rounded-md border px-3 text-sm text-muted-foreground">No value required</div>
           ) : row.operator === 'between' ? (
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
               <Input
                 value={row.value}
                 onChange={(event) => onChange(rows.map((item) => (item.id === row.id ? { ...item, value: event.target.value } : item)))}

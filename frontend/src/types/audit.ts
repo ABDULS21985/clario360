@@ -104,7 +104,7 @@ export interface AuditTimelineParams {
 // ── Export types ──────────────────────────────────────────────────────────────
 
 export interface AuditExportParams {
-  format: "csv" | "json";
+  format: "csv" | "ndjson";
   date_from?: string;
   date_to?: string;
   service?: string;

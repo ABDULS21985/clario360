@@ -50,7 +50,7 @@ export function RuleMitreSelector({ value, onChange }: RuleMitreSelectorProps) {
           return (
             <Badge key={id} variant="secondary" className="gap-1 pl-2 pr-1 font-mono">
               {id}
-              {t && <span className="ml-0.5 max-w-[120px] truncate text-xs text-muted-foreground">— {t.technique_name}</span>}
+              {t && <span className="ml-0.5 max-w-[80px] sm:max-w-[120px] truncate text-xs text-muted-foreground">— {t.technique_name}</span>}
               <button
                 type="button"
                 onClick={() => remove(id)}

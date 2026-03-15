@@ -41,7 +41,7 @@ export function WizardStepTarget({
   return (
     <FormProvider {...form}>
       <form className="space-y-6" onSubmit={form.handleSubmit(onContinue)}>
-        <div className="grid gap-4 md:grid-cols-2">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <FormField name="target_id" label="Target source">
             <Select
               value={form.watch('target_id') ?? '__none__'}
@@ -85,7 +85,7 @@ export function WizardStepTarget({
           </FormField>
         </div>
 
-        <div className="grid gap-4 md:grid-cols-2">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <FormField name="target_table" label="Target table">
             <Input {...form.register('target_table')} placeholder="analytics.customer_orders" />
           </FormField>
@@ -112,7 +112,7 @@ export function WizardStepTarget({
 
         {form.watch('load_strategy') === 'merge' ? (
           <FormField name="merge_keys" label="Merge keys" required>
-            <div className="grid gap-3 md:grid-cols-2">
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
               {availableColumns.map((column) => (
                 <label key={column} className="flex items-center gap-3 rounded-md border px-3 py-2 text-sm">
                   <Checkbox

@@ -54,14 +54,14 @@ export function FPSampleTable({ samples }: FPSampleTableProps) {
                     <TableCell>{titleCase(sample.expected_label)}</TableCell>
                     <TableCell>{formatPercentage(sample.confidence, 1)}</TableCell>
                     <TableCell>{sample.rule_type || 'Unknown'}</TableCell>
-                    <TableCell className="max-w-[320px] text-muted-foreground">
+                    <TableCell className="max-w-[200px] sm:max-w-[320px] text-muted-foreground">
                       {truncate(sample.explanation || 'No explanation available.', 110)}
                     </TableCell>
                   </TableRow>
                   {open ? (
                     <TableRow>
                       <TableCell colSpan={6} className="bg-slate-50/80">
-                        <div className="grid gap-4 lg:grid-cols-2">
+                        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
                           <div className="space-y-2 text-sm text-slate-700">
                             <div className="font-medium text-slate-900">Full Explanation</div>
                             <p>{sample.explanation || 'No explanation available.'}</p>

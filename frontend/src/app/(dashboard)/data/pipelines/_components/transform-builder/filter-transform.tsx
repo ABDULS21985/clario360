@@ -54,7 +54,7 @@ export function FilterTransform({
 
       <div className="space-y-3">
         {value.config.conditions.map((condition) => (
-          <div key={condition.id} className="grid gap-3 rounded-lg border p-3 lg:grid-cols-[1fr_140px_1fr_auto]">
+          <div key={condition.id} className="grid grid-cols-1 gap-3 rounded-lg border p-3 lg:grid-cols-[1fr_140px_1fr_auto]">
             <Select
               value={condition.column}
               onValueChange={(next) =>

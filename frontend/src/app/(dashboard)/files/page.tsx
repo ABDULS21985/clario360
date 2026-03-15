@@ -168,7 +168,7 @@ function StorageSummaryCard({ title, value, caption }: { title: string; value: s
 
 function FileMetadataRow({ label, value }: { label: string; value: React.ReactNode }) {
   return (
-    <div className="grid gap-1 sm:grid-cols-[160px_1fr]">
+    <div className="grid grid-cols-1 gap-1 sm:grid-cols-[160px_1fr]">
       <span className="text-sm text-muted-foreground">{label}</span>
       <div className="text-sm">{value}</div>
     </div>
@@ -650,7 +650,7 @@ export default function FilesPage() {
       />
 
       {isAdmin ? (
-        <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
           <StorageSummaryCard
             title="Tracked files"
             value={statsQuery.isLoading ? '...' : totalFiles.toString()}
@@ -685,7 +685,7 @@ export default function FilesPage() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-5">
             <div className="space-y-2">
               <Label htmlFor="file-suite">Suite</Label>
               <Select
@@ -926,7 +926,7 @@ export default function FilesPage() {
         {isAdmin ? (
           <TabsContent value="quarantine" className="space-y-4">
             {!statsQuery.isLoading && Object.keys(suiteBreakdown).length > 0 ? (
-              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
                 {Object.values(suiteBreakdown).map((stat) => (
                   <Card key={stat.suite}>
                     <CardHeader className="space-y-2">

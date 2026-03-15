@@ -69,7 +69,7 @@ export function ThreatMitreTab({ threat }: ThreatMitreTabProps) {
           </div>
           <Badge variant="secondary">{mappedTechniques.length} techniques</Badge>
         </div>
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
           {highlightedTactics.map((tactic) => {
             const techniques = mappedTechniques.filter((technique) => technique.tactic_ids.includes(tactic.id));
             return (
@@ -99,7 +99,7 @@ export function ThreatMitreTab({ threat }: ThreatMitreTabProps) {
         </div>
       </section>
 
-      <section className="grid gap-4 xl:grid-cols-2">
+      <section className="grid grid-cols-1 gap-4 xl:grid-cols-2">
         {mappedTechniques.map((technique) => (
           <article key={technique.id} className="rounded-[24px] border bg-card p-5">
             <div className="flex items-start justify-between gap-3">

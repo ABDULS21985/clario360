@@ -719,7 +719,7 @@ func (f *fakeInvitationRepo) ExpirePastDue(ctx context.Context) error {
 	return nil
 }
 
-func (f *fakeInvitationRepo) ListByTenantPaginated(_ context.Context, tenantID uuid.UUID, page, perPage int, sort, order, search, status string) ([]onboardingmodel.Invitation, int, error) {
+func (f *fakeInvitationRepo) ListByTenantPaginated(_ context.Context, tenantID uuid.UUID, page, perPage int, sort, order, search string, statuses []string) ([]onboardingmodel.Invitation, int, error) {
 	all, err := f.ListByTenant(context.Background(), tenantID)
 	if err != nil {
 		return nil, 0, err

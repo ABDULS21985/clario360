@@ -89,7 +89,7 @@ export default function NotebookWorkspacePage() {
         />
 
         <Card className="overflow-hidden border-border/70 bg-[radial-gradient(circle_at_top_left,_rgba(15,118,110,0.14),_transparent_38%),radial-gradient(circle_at_bottom_right,_rgba(180,83,9,0.12),_transparent_34%)]">
-          <CardContent className="space-y-6 p-6">
+          <CardContent className="space-y-6 p-4 sm:p-6">
             <div className="flex items-center gap-3">
               <div className="rounded-2xl bg-primary/10 p-3 text-primary">
                 <BookOpenText className="h-6 w-6" />

@@ -190,7 +190,9 @@ export default function DetectionRulesPage() {
       updated_at: '',
     });
     setTemplateGalleryOpen(false);
-    setWizardOpen(true);
+    // Defer wizard open until after the Sheet's exit animation starts to avoid
+    // Radix Presence ref-callback infinite loop when two overlays transition simultaneously.
+    setTimeout(() => setWizardOpen(true), 0);
   }
 
   return (

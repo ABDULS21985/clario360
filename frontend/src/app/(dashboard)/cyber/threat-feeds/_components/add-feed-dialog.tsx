@@ -217,7 +217,7 @@ export function AddFeedDialog({
 
         <FormProvider {...methods}>
           <form onSubmit={handleSubmit} className="space-y-5">
-            <div className="grid gap-4 md:grid-cols-2">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <FormField name="name" label="Name" required className="md:col-span-2">
                 <Input id="name" placeholder="MISP community feed" {...methods.register('name')} />
               </FormField>

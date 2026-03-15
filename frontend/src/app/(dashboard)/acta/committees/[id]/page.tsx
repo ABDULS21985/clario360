@@ -87,7 +87,7 @@ export default function CommitteeDetailPage() {
 
         <CommitteeStats stats={committee.stats} memberCount={memberCount} />
 
-        <div className="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
+        <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1.2fr_0.8fr]">
           <SectionCard title="Committee Profile" description="Governance mandate and operating model.">
             <div className="space-y-4">
               <div className="flex flex-wrap gap-2">
@@ -110,7 +110,7 @@ export default function CommitteeDetailPage() {
                   {committee.charter || 'No charter text is currently recorded.'}
                 </p>
               </div>
-              <div className="grid gap-3 md:grid-cols-2">
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                 <div className="rounded-xl border px-4 py-3">
                   <p className="text-sm font-medium">Established</p>
                   <p className="mt-1 text-sm text-muted-foreground">
@@ -138,7 +138,7 @@ export default function CommitteeDetailPage() {
           <MemberManagement committee={committee} />
         </div>
 
-        <div className="grid gap-4 xl:grid-cols-2">
+        <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
           <SectionCard
             title="Recent Meetings"
             description="Latest scheduled and completed sessions for this committee."

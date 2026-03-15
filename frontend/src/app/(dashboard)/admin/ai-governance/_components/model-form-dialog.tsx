@@ -219,7 +219,7 @@ export function ModelFormDialog({ open, onOpenChange, model, onSaved }: ModelFor
             </Alert>
           ) : null}
 
-          <section className="grid gap-4 md:grid-cols-2">
+          <section className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="model-name">Name</Label>
               <Input
@@ -340,7 +340,7 @@ export function ModelFormDialog({ open, onOpenChange, model, onSaved }: ModelFor
             />
           </div>
 
-          <section className="grid gap-4 md:grid-cols-2">
+          <section className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div className="space-y-2">
               <Label>Owner User</Label>
               <Select

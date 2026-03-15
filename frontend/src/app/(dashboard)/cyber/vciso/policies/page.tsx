@@ -192,7 +192,7 @@ function PoliciesTab({
       enableSorting: true,
       cell: ({ row }) => (
         <button
-          className="font-semibold text-sm hover:underline text-left max-w-[280px] truncate block"
+          className="font-semibold text-sm hover:underline text-left max-w-[180px] sm:max-w-[280px] truncate block"
           onClick={(e) => {
             e.stopPropagation();
             setDetailPolicy(row.original);
@@ -505,7 +505,7 @@ function ExceptionsTab({
       enableSorting: true,
       cell: ({ row }) => (
         <button
-          className="font-semibold text-sm hover:underline text-left max-w-[240px] truncate block"
+          className="font-semibold text-sm hover:underline text-left max-w-[140px] sm:max-w-[240px] truncate block"
           onClick={(e) => {
             e.stopPropagation();
             setViewException(row.original);
@@ -521,7 +521,7 @@ function ExceptionsTab({
       accessorKey: 'policy_title',
       enableSorting: true,
       cell: ({ row }) => (
-        <span className="text-sm max-w-[200px] truncate block">
+        <span className="text-sm max-w-[120px] sm:max-w-[200px] truncate block">
           {row.original.policy_title}
         </span>
       ),
@@ -554,7 +554,7 @@ function ExceptionsTab({
       accessorKey: 'compensating_controls',
       enableSorting: false,
       cell: ({ row }) => (
-        <span className="text-sm text-muted-foreground max-w-[200px] truncate block">
+        <span className="text-sm text-muted-foreground max-w-[120px] sm:max-w-[200px] truncate block">
           {truncate(row.original.compensating_controls, 60)}
         </span>
       ),
@@ -758,7 +758,7 @@ function ExceptionDetailView({
         <Separator />
 
         {/* Metadata */}
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div className="space-y-1">
             <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
               Requested By

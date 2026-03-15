@@ -519,7 +519,7 @@ export interface QualityTrendPoint {
 }
 
 export interface QualityDashboard {
-  score: QualityScore;
+  score: QualityScore | null;
   recent_rules: QualityRule[];
   top_failures: TopFailure[];
   trend: QualityTrendPoint[];

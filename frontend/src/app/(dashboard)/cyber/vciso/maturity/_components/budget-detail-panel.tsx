@@ -60,7 +60,7 @@ export function BudgetDetailPanel({
         </div>
 
         {/* Financial Summary */}
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div className="rounded-lg border p-3">
             <p className="text-xs text-muted-foreground flex items-center gap-1">
               <DollarSign className="h-3 w-3" />
@@ -159,7 +159,7 @@ export function BudgetDetailPanel({
         <Separator />
 
         {/* Owner and Dates */}
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           {item.owner_name && (
             <div className="rounded-lg border p-3">
               <p className="text-xs text-muted-foreground flex items-center gap-1">

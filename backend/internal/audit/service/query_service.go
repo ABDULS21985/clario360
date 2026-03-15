@@ -2,6 +2,8 @@ package service
 
 import (
 	"context"
+	"encoding/json"
+	"strings"
 	"time"
 
 	"github.com/rs/zerolog"
@@ -97,8 +99,9 @@ func (s *QueryService) GetStats(ctx context.Context, tenantID string, dateFrom, 
 	return s.repo.GetStats(ctx, tenantID, dateFrom, dateTo)
 }
 
-// GetTimeline returns activity timeline for a specific resource.
-func (s *QueryService) GetTimeline(ctx context.Context, tenantID, resourceID string, page, perPage int, callerRoles []string) (*dto.PaginatedResult, error) {
+// GetTimeline returns the activity timeline for a specific resource, formatted as
+// an AuditTimeline with AuditTimelineEvent entries aligned to the frontend contract.
+func (s *QueryService) GetTimeline(ctx context.Context, tenantID, resourceID string, page, perPage int, callerRoles []string) (*model.AuditTimeline, error) {
 	start := time.Now()
 	defer func() {
 		metrics.QueryDuration.WithLabelValues("timeline").Observe(time.Since(start).Seconds())
@@ -115,15 +118,147 @@ func (s *QueryService) GetTimeline(ctx context.Context, tenantID, resourceID str
 	}
 	offset := (page - 1) * perPage
 
-	entries, total, err := s.repo.GetTimeline(ctx, tenantID, resourceID, perPage, offset)
+	entries, _, err := s.repo.GetTimeline(ctx, tenantID, resourceID, perPage, offset)
 	if err != nil {
 		return nil, err
 	}
 
 	masked := s.masking.MaskEntries(entries, callerRoles)
 
-	return &dto.PaginatedResult{
-		Data: masked,
-		Meta: dto.NewPagination(page, perPage, total),
-	}, nil
+	timeline := &model.AuditTimeline{
+		ResourceID: resourceID,
+		Events:     make([]model.AuditTimelineEvent, 0, len(masked)),
+	}
+
+	// Populate resource_type and resource_name from first entry
+	if len(masked) > 0 {
+		timeline.ResourceType = masked[0].ResourceType
+		timeline.ResourceName = masked[0].ResourceID // no separate name column; use ID
+	}
+
+	for _, e := range masked {
+		event := model.AuditTimelineEvent{
+			ID:        e.ID,
+			Action:    e.Action,
+			UserName:  deriveTimelineUserName(e.UserEmail),
+			Timestamp: e.CreatedAt.UTC().Format(time.RFC3339),
+			Changes:   computeChanges(e.OldValue, e.NewValue),
+			Summary:   deriveSummary(e.Action),
+		}
+		timeline.Events = append(timeline.Events, event)
+	}
+
+	return timeline, nil
+}
+
+// deriveTimelineUserName extracts a display name from an email address for the timeline view.
+func deriveTimelineUserName(email string) string {
+	if email == "" {
+		return "System"
+	}
+	for i, c := range email {
+		if c == '@' {
+			local := email[:i]
+			result := make([]byte, 0, len(local))
+			capitalize := true
+			for _, b := range []byte(local) {
+				if b == '.' || b == '_' || b == '-' {
+					result = append(result, ' ')
+					capitalize = true
+				} else if capitalize {
+					if b >= 'a' && b <= 'z' {
+						b -= 32
+					}
+					result = append(result, b)
+					capitalize = false
+				} else {
+					result = append(result, b)
+				}
+			}
+			return string(result)
+		}
+	}
+	return email
+}
+
+// deriveSummary produces a human-readable summary from an action string.
+// e.g. "user.update" → "Updated user"
+func deriveSummary(action string) string {
+	parts := strings.SplitN(action, ".", 2)
+	if len(parts) < 2 {
+		return action
+	}
+	resource := parts[0]
+	verb := parts[1]
+
+	switch {
+	case strings.HasPrefix(verb, "creat"):
+		return "Created " + resource
+	case strings.HasPrefix(verb, "updat"), strings.HasPrefix(verb, "modif"), strings.HasPrefix(verb, "edit"):
+		return "Updated " + resource
+	case strings.HasPrefix(verb, "delet"), strings.HasPrefix(verb, "remov"):
+		return "Deleted " + resource
+	case strings.HasPrefix(verb, "login"), strings.HasPrefix(verb, "auth"):
+		return "Authenticated as " + resource
+	case strings.HasPrefix(verb, "export"):
+		return "Exported " + resource
+	default:
+		return strings.Title(strings.ReplaceAll(action, ".", " "))
+	}
+}
+
+// computeChanges produces a field-level diff between old and new JSON values.
+// Returns an empty slice if either value is nil or not a JSON object.
+func computeChanges(oldVal, newVal json.RawMessage) []model.AuditChangeRecord {
+	if len(oldVal) == 0 || len(newVal) == 0 {
+		return []model.AuditChangeRecord{}
+	}
+
+	var oldMap, newMap map[string]interface{}
+	if err := json.Unmarshal(oldVal, &oldMap); err != nil {
+		return []model.AuditChangeRecord{}
+	}
+	if err := json.Unmarshal(newVal, &newMap); err != nil {
+		return []model.AuditChangeRecord{}
+	}
+
+	var changes []model.AuditChangeRecord
+
+	// Fields present in old (changed or removed)
+	for key, oldV := range oldMap {
+		newV, exists := newMap[key]
+		if !exists {
+			changes = append(changes, model.AuditChangeRecord{
+				Field:    key,
+				OldValue: oldV,
+				NewValue: nil,
+			})
+		} else if jsonValuesDiffer(oldV, newV) {
+			changes = append(changes, model.AuditChangeRecord{
+				Field:    key,
+				OldValue: oldV,
+				NewValue: newV,
+			})
+		}
+	}
+
+	// Fields added in new
+	for key, newV := range newMap {
+		if _, exists := oldMap[key]; !exists {
+			changes = append(changes, model.AuditChangeRecord{
+				Field:    key,
+				OldValue: nil,
+				NewValue: newV,
+			})
+		}
+	}
+
+	return changes
+}
+
+// jsonValuesDiffer returns true if two interface{} values differ by JSON equality.
+func jsonValuesDiffer(a, b interface{}) bool {
+	ab, _ := json.Marshal(a)
+	bb, _ := json.Marshal(b)
+	return string(ab) != string(bb)
 }

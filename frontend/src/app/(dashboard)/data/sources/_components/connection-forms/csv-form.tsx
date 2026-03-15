@@ -50,7 +50,7 @@ export function CSVForm({ form }: CSVFormProps) {
         />
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <FormField name="minio_endpoint" label="MinIO endpoint" required>
           <Input {...form.register('minio_endpoint')} placeholder="http://minio:9000" />
         </FormField>

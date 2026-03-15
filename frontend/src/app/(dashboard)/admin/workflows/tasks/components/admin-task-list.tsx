@@ -16,7 +16,6 @@ import { useRealtimeData } from '@/hooks/use-realtime-data';
 import { SearchInput } from '@/components/shared/forms/search-input';
 import { taskFilters, fetchRoleFilterOptions } from '@/components/workflows/task-filters';
 import { showError, showSuccess } from '@/lib/toast';
-import { TaskDetailPanel } from './task-detail-panel';
 import type { HumanTask, TaskCounts } from '@/types/models';
 import type { PaginatedResponse } from '@/types/api';
 
@@ -46,7 +45,6 @@ export function AdminTaskList() {
   const queryClient = useQueryClient();
   const activeTab = searchParams?.get('tab') ?? 'all';
   const [delegateTask, setDelegateTask] = useState<HumanTask | null>(null);
-  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
 
   const {
     data: counts,
@@ -129,7 +127,7 @@ export function AdminTaskList() {
   });
 
   const columns = getTaskColumns({
-    onOpen: (task) => setSelectedTaskId(task.id),
+    onOpen: (task) => router.push(`/admin/workflows/tasks/${task.id}`),
     onClaim: (task) => claimTaskMutation.mutate(task.id),
     onDelegate: (task) => setDelegateTask(task),
     onViewWorkflow: (task) => router.push(`/admin/workflows/instances/${task.instance_id}`),
@@ -182,7 +180,7 @@ export function AdminTaskList() {
           />
         }
         {...taskTable.tableProps}
-        onRowClick={(row) => setSelectedTaskId(row.id)}
+        onRowClick={(row) => router.push(`/admin/workflows/tasks/${row.id}`)}
       />
 
       {delegateTask && (
@@ -199,12 +197,6 @@ export function AdminTaskList() {
         />
       )}
 
-      {selectedTaskId && (
-        <TaskDetailPanel
-          taskId={selectedTaskId}
-          onClose={() => setSelectedTaskId(null)}
-        />
-      )}
     </div>
   );
 }

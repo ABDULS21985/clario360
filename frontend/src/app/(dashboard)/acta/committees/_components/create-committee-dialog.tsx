@@ -147,7 +147,7 @@ export function CreateCommitteeDialog({
             className="space-y-5"
             onSubmit={form.handleSubmit((values) => createMutation.mutate(values))}
           >
-            <div className="grid gap-4 md:grid-cols-2">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <FormField name="name" label="Committee name" required>
                 <Input {...form.register('name')} placeholder="Board of Directors" />
               </FormField>
@@ -181,7 +181,7 @@ export function CreateCommitteeDialog({
               />
             </FormField>
 
-            <div className="grid gap-4 md:grid-cols-3">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
               <RoleSelect
                 label="Chair"
                 name="chair_user_id"
@@ -206,7 +206,7 @@ export function CreateCommitteeDialog({
               />
             </div>
 
-            <div className="grid gap-4 md:grid-cols-2">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <FormField name="meeting_frequency" label="Meeting frequency" required>
                 <Select
                   value={form.watch('meeting_frequency')}
@@ -251,7 +251,7 @@ export function CreateCommitteeDialog({
               </div>
             </div>
 
-            <div className="grid gap-4 md:grid-cols-2">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               {quorumType === 'fixed_count' ? (
                 <FormField name="quorum_fixed_count" label="Fixed quorum count" required>
                   <Input

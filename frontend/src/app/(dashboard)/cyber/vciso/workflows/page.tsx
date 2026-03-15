@@ -211,7 +211,7 @@ function getApprovalColumns(): ColumnDef<VCISOApprovalRequest>[] {
       header: 'Title',
       enableSorting: true,
       cell: ({ row }) => (
-        <span className="font-medium text-foreground max-w-[240px] truncate block">
+        <span className="font-medium text-foreground max-w-[140px] sm:max-w-[240px] truncate block">
           {row.original.title}
         </span>
       ),

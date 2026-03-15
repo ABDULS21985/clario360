@@ -28,7 +28,7 @@ export function AssetOverviewTab({ asset }: AssetOverviewTabProps) {
       {/* Identity */}
       <div className="rounded-lg border p-4">
         <h3 className="mb-4 text-sm font-semibold">Identity</h3>
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
           <Field label="Type" value={
             <span className="flex items-center gap-1.5">
               <Icon className="h-3.5 w-3.5 text-muted-foreground" />
@@ -44,7 +44,7 @@ export function AssetOverviewTab({ asset }: AssetOverviewTabProps) {
       {/* Network */}
       <div className="rounded-lg border p-4">
         <h3 className="mb-4 text-sm font-semibold">Network</h3>
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3">
           <Field label="IP Address" value={asset.ip_address ? <span className="font-mono">{asset.ip_address}</span> : undefined} />
           <Field label="Hostname" value={asset.hostname ? <span className="font-mono text-xs">{asset.hostname}</span> : undefined} />
           <Field label="MAC Address" value={asset.mac_address ? <span className="font-mono text-xs">{asset.mac_address}</span> : undefined} />
@@ -54,7 +54,7 @@ export function AssetOverviewTab({ asset }: AssetOverviewTabProps) {
       {/* System */}
       <div className="rounded-lg border p-4">
         <h3 className="mb-4 text-sm font-semibold">System</h3>
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3">
           <Field label="Operating System" value={asset.os} />
           <Field label="OS Version" value={asset.os_version} />
           <Field label="Location" value={asset.location} />
@@ -64,7 +64,7 @@ export function AssetOverviewTab({ asset }: AssetOverviewTabProps) {
       {/* Ownership */}
       <div className="rounded-lg border p-4">
         <h3 className="mb-4 text-sm font-semibold">Ownership</h3>
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3">
           <Field label="Owner" value={asset.owner} />
           <Field label="Department" value={asset.department} />
         </div>
@@ -73,7 +73,7 @@ export function AssetOverviewTab({ asset }: AssetOverviewTabProps) {
       {/* Security */}
       <div className="rounded-lg border p-4">
         <h3 className="mb-4 text-sm font-semibold">Security Posture</h3>
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <Field label="Total Vulnerabilities" value={
             <span className={(asset.vulnerability_count ?? 0) > 0 ? 'text-orange-600' : 'text-green-600'}>
               {asset.vulnerability_count ?? 0}
@@ -108,7 +108,7 @@ export function AssetOverviewTab({ asset }: AssetOverviewTabProps) {
       {/* Timestamps */}
       <div className="rounded-lg border p-4">
         <h3 className="mb-4 text-sm font-semibold">Timeline</h3>
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3">
           <Field label="Discovered" value={asset.discovered_at ? timeAgo(asset.discovered_at) : undefined} />
           <Field label="Last Seen" value={asset.last_seen_at ? timeAgo(asset.last_seen_at) : undefined} />
           <Field label="Last Updated" value={timeAgo(asset.updated_at)} />

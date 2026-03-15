@@ -50,14 +50,14 @@ func (h *QualityHandler) ListRules(w http.ResponseWriter, r *http.Request) {
 	}
 	page, perPage := suiteapi.ParsePagination(r)
 	params := dto.ListQualityRulesParams{
-		Page:     page,
-		PerPage:  perPage,
-		ModelID:  r.URL.Query().Get("model_id"),
-		Severity: r.URL.Query().Get("severity"),
-		Status:   r.URL.Query().Get("status"),
-		Search:   r.URL.Query().Get("search"),
-		Sort:     r.URL.Query().Get("sort"),
-		Order:    r.URL.Query().Get("order"),
+		Page:       page,
+		PerPage:    perPage,
+		ModelID:    r.URL.Query().Get("model_id"),
+		Severities: splitCSV(r.URL.Query().Get("severity")),
+		Statuses:   splitCSV(r.URL.Query().Get("status")),
+		Search:     r.URL.Query().Get("search"),
+		Sort:       r.URL.Query().Get("sort"),
+		Order:      r.URL.Query().Get("order"),
 	}
 	if raw := r.URL.Query().Get("enabled"); raw != "" {
 		value, parseErr := strconv.ParseBool(raw)

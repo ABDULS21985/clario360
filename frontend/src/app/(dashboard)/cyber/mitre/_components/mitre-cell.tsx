@@ -57,6 +57,11 @@ export function MitreCell({
           <p className="text-xs text-muted-foreground">
             {technique.active_threat_count} active threat{technique.active_threat_count === 1 ? '' : 's'}
           </p>
+          {technique.rule_names && technique.rule_names.length > 0 && (
+            <p className="text-xs text-muted-foreground">
+              Rules: {technique.rule_names.slice(0, 3).join(', ')}{technique.rule_names.length > 3 ? ` +${technique.rule_names.length - 3} more` : ''}
+            </p>
+          )}
           <p className="text-xs text-muted-foreground">
             {technique.last_alert_at ? `Last alert ${timeAgo(technique.last_alert_at)}` : 'No recent alerts'}
           </p>

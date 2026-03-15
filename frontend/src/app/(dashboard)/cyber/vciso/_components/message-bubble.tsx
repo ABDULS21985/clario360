@@ -268,7 +268,7 @@ function TableResponse({ data }: { data: Record<string, unknown> }) {
               {records.slice(0, 10).map((row, idx) => (
                 <tr key={idx} className="border-b last:border-0 hover:bg-slate-50/50">
                   {columns.map((col) => (
-                    <td key={col} className="px-3 py-1.5 whitespace-nowrap max-w-[200px] truncate">
+                    <td key={col} className="px-3 py-1.5 whitespace-nowrap max-w-[120px] sm:max-w-[200px] truncate">
                       {renderCellValue(row[col])}
                     </td>
                   ))}
@@ -314,7 +314,7 @@ function DashboardLinkResponse({ data }: { data: Record<string, unknown> }) {
 
       {/* Widget preview grid */}
       {widgets.length > 0 && (
-        <div className="mt-3 grid grid-cols-3 gap-2">
+        <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2 md:grid-cols-3">
           {widgets.slice(0, 6).map((widget, i) => {
             const title = getString(widget.title) ?? getString(widget.name) ?? `Widget ${i + 1}`;
             const type = getString(widget.type) ?? 'chart';

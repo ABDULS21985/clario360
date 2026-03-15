@@ -146,7 +146,7 @@ export default function ScanDetailPage({ params }: Props) {
             />
 
             {/* Stats */}
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
               <div className="rounded-xl border bg-card p-4 text-center">
                 <p className="text-2xl font-bold tabular-nums text-green-600 dark:text-green-400">
                   {scan.assets_found.toLocaleString()}

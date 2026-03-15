@@ -142,7 +142,7 @@ export default function UserManagementPage() {
       header: "Roles",
       enableSorting: false,
       cell: ({ row }) => (
-        <div className="flex flex-wrap gap-1 max-w-[200px]">
+        <div className="flex flex-wrap gap-1 max-w-[120px] sm:max-w-[200px]">
           {(row.original.roles ?? []).length === 0 ? (
             <span className="text-xs text-muted-foreground">No roles</span>
           ) : (

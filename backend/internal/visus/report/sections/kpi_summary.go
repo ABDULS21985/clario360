@@ -11,7 +11,7 @@ import (
 )
 
 func BuildKPISummary(ctx context.Context, kpis *repository.KPIRepository, snapshots *repository.KPISnapshotRepository, tenantID uuid.UUID, start, end time.Time) (map[string]any, string) {
-	definitions, _, err := kpis.List(ctx, tenantID, 1, 500)
+	definitions, _, err := kpis.List(ctx, tenantID, 1, 500, "category", "asc", "", "", nil)
 	if err != nil {
 		return unavailable(), err.Error()
 	}

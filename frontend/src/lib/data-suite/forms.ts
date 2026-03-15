@@ -1,8 +1,10 @@
+import { CronExpressionParser } from 'cron-parser';
 import { z } from 'zod';
 
 export const sourceTypeSchema = z.enum([
   'postgresql',
   'mysql',
+  'mssql',
   'api',
   'csv',
   's3',
@@ -22,7 +24,7 @@ export const postgresConnectionSchema = z.object({
   database: z.string().min(1, 'Database is required'),
   username: z.string().min(1, 'Username is required'),
   password: z.string().min(1, 'Password is required'),
-  ssl_mode: z.enum(['disable', 'require', 'verify-ca', 'verify-full']).default('require'),
+  ssl_mode: z.enum(['disable', 'allow', 'prefer', 'require', 'verify-ca', 'verify-full']).default('require'),
   schema: z.string().default('public'),
 });
 
@@ -262,11 +264,25 @@ export const doltConnectionSchema = z.object({
   use_tls: z.boolean().default(false),
 });
 
+export function isValidCron(value: string | null | undefined): boolean {
+  if (!value) return true; // null/empty means "manual only" — valid
+  try {
+    CronExpressionParser.parse(value);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export const sourceConfigureSchema = z.object({
   name: z.string().min(2, 'Source name is required').max(255),
   description: z.string().max(2000).optional(),
   tags: z.array(z.string().min(1)).max(20).default([]),
-  sync_frequency: z.string().nullable().default(null),
+  sync_frequency: z
+    .string()
+    .nullable()
+    .default(null)
+    .refine(isValidCron, 'Invalid cron expression (e.g. 0 * * * *)'),
 });
 
 export const testSourceConfigSchema = z.object({
@@ -293,7 +309,7 @@ export const qualityRuleFormSchema = z.object({
   severity: z.enum(['critical', 'high', 'medium', 'low']),
   column_name: z.string().optional(),
   config: z.record(z.string(), z.unknown()).default({}),
-  schedule: z.string().optional(),
+  schedule: z.string().optional().refine((v) => isValidCron(v), 'Invalid cron expression (e.g. 0 2 * * *)'),
   enabled: z.boolean().default(true),
   tags: z.array(z.string()).default([]),
 });

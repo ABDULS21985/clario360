@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
-import { ArrowRight, Eye, FileBarChart, Grid3X3, LayoutDashboard } from 'lucide-react';
+import { ArrowRight, Eye, FileBarChart, Grid3X3, LayoutDashboard, ShieldCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { KpiCard } from '@/components/shared/kpi-card';
 import { ErrorState } from '@/components/common/error-state';
@@ -12,7 +12,7 @@ import { PermissionRedirect } from '@/components/common/permission-redirect';
 import { RelativeTime } from '@/components/shared/relative-time';
 import { SectionCard } from '@/components/suites/section-card';
 import { enterpriseApi } from '@/lib/enterprise';
-import type { VisusDashboard, VisusReport, VisusWidget } from '@/types/suites';
+import type { VisusDashboard, VisusReport } from '@/types/suites';
 import { Badge } from '@/components/ui/badge';
 
 export default function VisusPage() {
@@ -24,27 +24,16 @@ export default function VisusPage() {
     queryKey: ['visus-overview', 'reports'],
     queryFn: () => enterpriseApi.visus.listReports({ page: 1, per_page: 10, order: 'desc' }),
   });
-  const widgetsQuery = useQuery({
-    queryKey: ['visus-overview', 'widgets'],
-    queryFn: async () => {
-      const dashboards = await enterpriseApi.visus.listDashboards({ page: 1, per_page: 50, order: 'desc' });
-      const widgetLists = await Promise.all(
-        dashboards.data.map((dashboard) => enterpriseApi.visus.listWidgets(dashboard.id)),
-      );
-      const widgets = widgetLists.flat();
-      return {
-        data: widgets,
-        meta: {
-          page: 1,
-          per_page: widgets.length || 1,
-          total: widgets.length,
-          total_pages: 1,
-        },
-      };
-    },
+  const widgetStatsQuery = useQuery({
+    queryKey: ['visus-overview', 'widget-stats'],
+    queryFn: () => enterpriseApi.visus.getWidgetStats(),
+  });
+  const executiveViewQuery = useQuery({
+    queryKey: ['visus-overview', 'executive-view'],
+    queryFn: () => enterpriseApi.visus.getExecutiveView(),
   });
 
-  if (dashboardsQuery.isLoading && reportsQuery.isLoading && widgetsQuery.isLoading) {
+  if (dashboardsQuery.isLoading && reportsQuery.isLoading && widgetStatsQuery.isLoading && executiveViewQuery.isLoading) {
     return (
       <PermissionRedirect permission="visus:read">
         <div className="space-y-6">
@@ -55,7 +44,7 @@ export default function VisusPage() {
     );
   }
 
-  if (dashboardsQuery.error && reportsQuery.error && widgetsQuery.error) {
+  if (dashboardsQuery.error && reportsQuery.error && widgetStatsQuery.error && executiveViewQuery.error) {
     return (
       <PermissionRedirect permission="visus:read">
         <ErrorState
@@ -63,7 +52,7 @@ export default function VisusPage() {
           onRetry={() => {
             void dashboardsQuery.refetch();
             void reportsQuery.refetch();
-            void widgetsQuery.refetch();
+            void widgetStatsQuery.refetch();
           }}
         />
       </PermissionRedirect>
@@ -72,8 +61,9 @@ export default function VisusPage() {
 
   const dashboards = dashboardsQuery.data?.data ?? [];
   const reports = reportsQuery.data?.data ?? [];
-  const widgets = widgetsQuery.data?.data ?? [];
-  const widgetTypeCounts = countBy(widgets.map((widget) => widget.type));
+  const widgetTypeCounts = widgetStatsQuery.data ?? {};
+  const totalWidgets = Object.values(widgetTypeCounts).reduce((a, b) => a + b, 0);
+  const executiveView = executiveViewQuery.data;
 
   return (
     <PermissionRedirect permission="visus:read">
@@ -82,20 +72,25 @@ export default function VisusPage() {
           title="Executive Intelligence"
           description="Live executive reporting inventory across dashboards, widgets, and scheduled reports."
           actions={
-            <Button size="sm" asChild>
-              <Link href="/visus/reports">Open reports</Link>
-            </Button>
+            <>
+              <Button variant="outline" size="sm" asChild>
+                <Link href="/visus/dashboards">Manage dashboards</Link>
+              </Button>
+              <Button size="sm" asChild>
+                <Link href="/visus/reports">Open reports</Link>
+              </Button>
+            </>
           }
         />
 
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <KpiCard title="Dashboards" value={dashboardsQuery.data?.meta.total ?? 0} icon={LayoutDashboard} iconColor="text-blue-600" />
           <KpiCard title="Reports" value={reportsQuery.data?.meta.total ?? 0} icon={FileBarChart} iconColor="text-violet-600" />
-          <KpiCard title="Widgets" value={widgetsQuery.data?.meta.total ?? 0} icon={Grid3X3} iconColor="text-green-600" />
+          <KpiCard title="Widgets" value={totalWidgets} icon={Grid3X3} iconColor="text-green-600" />
           <KpiCard title="Default Dashboards" value={dashboards.filter((dashboard) => dashboard.is_default).length} icon={Eye} iconColor="text-orange-600" />
         </div>
 
-        <div className="grid gap-4 xl:grid-cols-[1fr_1fr]">
+        <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1fr_1fr]">
           <SectionCard
             title="Dashboards"
             description="Dashboard definitions currently available to the tenant."
@@ -153,6 +148,61 @@ export default function VisusPage() {
           </SectionCard>
         </div>
 
+        <SectionCard
+          title="Executive Health"
+          description="Cross-suite health and latest executive rollup returned by the Visus executive endpoint."
+          actions={
+            <Button variant="ghost" size="sm" asChild>
+              <Link href="/visus/dashboards">
+                Dashboard studio
+                <ArrowRight className="ml-1 h-3.5 w-3.5" />
+              </Link>
+            </Button>
+          }
+        >
+          {executiveView ? (
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1.1fr_0.9fr]">
+              <div className="space-y-3">
+                <p className="text-sm text-muted-foreground">
+                  Generated <RelativeTime date={executiveView.generated_at} />
+                </p>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  {Object.entries(executiveView.suite_health).map(([suite, status]) => (
+                    <div key={suite} className="rounded-lg border px-4 py-3">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="font-medium capitalize">{suite.replace(/_/g, ' ')}</p>
+                        <Badge variant={status.available ? 'success' : 'destructive'}>
+                          {status.available ? 'Available' : 'Unavailable'}
+                        </Badge>
+                      </div>
+                      <div className="mt-2 text-xs text-muted-foreground">
+                        <p>Latency {status.latency_ms} ms</p>
+                        <p>{status.last_success ? `Last success ${status.last_success}` : 'No successful sync yet'}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <div className="rounded-lg border px-4 py-3">
+                  <div className="flex items-center gap-2">
+                    <ShieldCheck className="h-4 w-4 text-emerald-600" />
+                    <p className="font-medium">Cached Executive Alerts</p>
+                  </div>
+                  <p className="mt-2 text-3xl font-semibold">{executiveView.alerts.length}</p>
+                </div>
+                <div className="rounded-lg border px-4 py-3">
+                  <p className="font-medium">Cached KPI Snapshots</p>
+                  <p className="mt-2 text-3xl font-semibold">{executiveView.kpis.length}</p>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">Executive health data is unavailable for this tenant.</p>
+          )}
+        </SectionCard>
+
         <SectionCard title="Recent Reports" description="Most recently updated report definitions.">
           <div className="space-y-3">
             {reports.length === 0 ? (
@@ -179,11 +229,4 @@ export default function VisusPage() {
       </div>
     </PermissionRedirect>
   );
-}
-
-function countBy(values: string[]): Record<string, number> {
-  return values.reduce<Record<string, number>>((acc, value) => {
-    acc[value] = (acc[value] ?? 0) + 1;
-    return acc;
-  }, {});
 }
