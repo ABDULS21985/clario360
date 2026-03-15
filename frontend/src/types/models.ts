@@ -4,16 +4,17 @@ export interface User {
   email: string;
   first_name: string;
   last_name: string;
+  full_name?: string;
+  avatar_url?: string | null;
   status: UserStatus;
   mfa_enabled: boolean;
   last_login_at: string | null;
-  password_changed_at: string;
   roles: Role[];
   created_at: string;
   updated_at: string;
 }
 
-export type UserStatus = 'active' | 'suspended' | 'deactivated' | 'pending_verification';
+export type UserStatus = 'active' | 'suspended' | 'inactive' | 'pending_verification';
 
 export interface Role {
   id: string;

@@ -1,19 +1,19 @@
 "use client";
 
-import { useEffect } from "react";
+import { useState, useEffect } from "react";
 import { useForm, FormProvider } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
+import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Checkbox } from "@/components/ui/checkbox";
 import { FormField } from "@/components/shared/forms/form-field";
 import { MultiSelect } from "@/components/shared/forms/multi-select";
-import { useApiMutation } from "@/hooks/use-api-mutation";
 import { useApiQuery } from "@/hooks/use-api";
+import { useAuthStore } from "@/stores/auth-store";
+import api from "@/lib/api";
 import type { Role } from "@/types/models";
 
 const passwordRegex = /^(?=.*[A-Z])(?=.*[a-z])(?=.*\d)(?=.*[^A-Za-z\d]).{12,}$/;
@@ -26,9 +26,8 @@ const createUserSchema = z.object({
     .string()
     .min(12, "Password must be at least 12 characters")
     .regex(passwordRegex, "Password must contain uppercase, lowercase, number, and special character"),
-  status: z.enum(["active", "suspended", "deactivated"]),
+  status: z.enum(["active", "suspended", "inactive"]),
   role_ids: z.array(z.string()),
-  send_welcome_email: z.boolean(),
 });
 
 type CreateUserFormData = z.infer<typeof createUserSchema>;
@@ -39,7 +38,14 @@ interface UserCreateDialogProps {
   onSuccess: () => void;
 }
 
+interface RegisterResponse {
+  user: { id: string };
+}
+
 export function UserCreateDialog({ open, onOpenChange, onSuccess }: UserCreateDialogProps) {
+  const [submitting, setSubmitting] = useState(false);
+  const user = useAuthStore((s) => s.user);
+
   const methods = useForm<CreateUserFormData>({
     resolver: zodResolver(createUserSchema),
     defaultValues: {
@@ -49,33 +55,62 @@ export function UserCreateDialog({ open, onOpenChange, onSuccess }: UserCreateDi
       password: "",
       status: "active",
       role_ids: [],
-      send_welcome_email: true,
     },
   });
 
-  const { data: rolesData } = useApiQuery<{ data: Role[] }>(
+  // Backend returns plain Role[] (not paginated)
+  const { data: roles } = useApiQuery<Role[]>(
     ["roles"],
     "/api/v1/roles",
     { enabled: open }
   );
 
-  const createMutation = useApiMutation<unknown, CreateUserFormData>(
-    "post",
-    "/api/v1/auth/register",
-    {
-      successMessage: "User created successfully",
-      onSuccess: () => {
-        onOpenChange(false);
-        methods.reset();
-        onSuccess();
-      },
-    }
-  );
-
-  const roleOptions = rolesData?.data?.map((r) => ({ label: r.name, value: r.id })) ?? [];
+  const roleOptions = (roles ?? []).map((r) => ({ label: r.name, value: r.id }));
 
   const onSubmit = methods.handleSubmit(async (data) => {
-    await createMutation.mutate(data);
+    setSubmitting(true);
+    try {
+      // Step 1: Register user via auth endpoint
+      // Backend RegisterRequest: { tenant_id, email, password, first_name, last_name }
+      const { data: registerResp } = await api.post<RegisterResponse>("/api/v1/auth/register", {
+        tenant_id: user?.tenant_id ?? "",
+        email: data.email,
+        password: data.password,
+        first_name: data.first_name,
+        last_name: data.last_name,
+      });
+
+      const newUserId = registerResp.user.id;
+
+      // Step 2: Set status if not "active" (register creates as active by default)
+      if (data.status !== "active") {
+        await api.put(`/api/v1/users/${newUserId}/status`, {
+          status: data.status,
+        });
+      }
+
+      // Step 3: Assign selected roles
+      if (data.role_ids.length > 0) {
+        await Promise.all(
+          data.role_ids.map((roleId) =>
+            api.post(`/api/v1/users/${newUserId}/roles`, { role_id: roleId })
+          )
+        );
+      }
+
+      toast.success("User created successfully");
+      onOpenChange(false);
+      methods.reset();
+      onSuccess();
+    } catch (err) {
+      const message =
+        err && typeof err === "object" && "message" in err
+          ? String((err as { message: string }).message)
+          : "Failed to create user";
+      toast.error(message);
+    } finally {
+      setSubmitting(false);
+    }
   });
 
   useEffect(() => {
@@ -107,7 +142,7 @@ export function UserCreateDialog({ open, onOpenChange, onSuccess }: UserCreateDi
                 <Input
                   {...methods.register("first_name")}
                   placeholder="John"
-                  disabled={createMutation.isPending}
+                  disabled={submitting}
                   aria-invalid={!!methods.formState.errors.first_name}
                 />
               </FormField>
@@ -115,7 +150,7 @@ export function UserCreateDialog({ open, onOpenChange, onSuccess }: UserCreateDi
                 <Input
                   {...methods.register("last_name")}
                   placeholder="Doe"
-                  disabled={createMutation.isPending}
+                  disabled={submitting}
                   aria-invalid={!!methods.formState.errors.last_name}
                 />
               </FormField>
@@ -126,7 +161,7 @@ export function UserCreateDialog({ open, onOpenChange, onSuccess }: UserCreateDi
                 {...methods.register("email")}
                 type="email"
                 placeholder="john@company.com"
-                disabled={createMutation.isPending}
+                disabled={submitting}
                 aria-invalid={!!methods.formState.errors.email}
               />
             </FormField>
@@ -137,7 +172,7 @@ export function UserCreateDialog({ open, onOpenChange, onSuccess }: UserCreateDi
                   {...methods.register("password")}
                   type="password"
                   placeholder="Create a strong password"
-                  disabled={createMutation.isPending}
+                  disabled={submitting}
                   aria-invalid={!!methods.formState.errors.password}
                 />
                 {password.length > 0 && (
@@ -181,9 +216,9 @@ export function UserCreateDialog({ open, onOpenChange, onSuccess }: UserCreateDi
                 <Select
                   defaultValue="active"
                   onValueChange={(v) =>
-                    methods.setValue("status", v as "active" | "suspended" | "deactivated")
+                    methods.setValue("status", v as "active" | "suspended" | "inactive")
                   }
-                  disabled={createMutation.isPending}
+                  disabled={submitting}
                 >
                   <SelectTrigger>
                     <SelectValue />
@@ -191,7 +226,7 @@ export function UserCreateDialog({ open, onOpenChange, onSuccess }: UserCreateDi
                   <SelectContent>
                     <SelectItem value="active">Active</SelectItem>
                     <SelectItem value="suspended">Suspended</SelectItem>
-                    <SelectItem value="deactivated">Deactivated</SelectItem>
+                    <SelectItem value="inactive">Inactive</SelectItem>
                   </SelectContent>
                 </Select>
               </FormField>
@@ -203,35 +238,21 @@ export function UserCreateDialog({ open, onOpenChange, onSuccess }: UserCreateDi
                 selected={methods.watch("role_ids")}
                 onChange={(vals) => methods.setValue("role_ids", vals)}
                 placeholder="Select roles..."
-                disabled={createMutation.isPending}
+                disabled={submitting}
               />
             </FormField>
-
-            <div className="flex items-center gap-2">
-              <Checkbox
-                id="send_welcome_email"
-                checked={methods.watch("send_welcome_email")}
-                onCheckedChange={(checked) =>
-                  methods.setValue("send_welcome_email", !!checked)
-                }
-                disabled={createMutation.isPending}
-              />
-              <Label htmlFor="send_welcome_email" className="text-sm cursor-pointer">
-                Send welcome email
-              </Label>
-            </div>
 
             <DialogFooter>
               <Button
                 type="button"
                 variant="outline"
                 onClick={() => onOpenChange(false)}
-                disabled={createMutation.isPending}
+                disabled={submitting}
               >
                 Cancel
               </Button>
-              <Button type="submit" disabled={createMutation.isPending}>
-                {createMutation.isPending ? "Creating..." : "Create User"}
+              <Button type="submit" disabled={submitting}>
+                {submitting ? "Creating..." : "Create User"}
               </Button>
             </DialogFooter>
           </form>

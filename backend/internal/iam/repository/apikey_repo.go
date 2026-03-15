@@ -13,8 +13,11 @@ import (
 type APIKeyRepository interface {
 	Create(ctx context.Context, key *model.APIKey) error
 	GetByKeyHash(ctx context.Context, keyHash string) (*model.APIKey, error)
+	GetByID(ctx context.Context, id, tenantID string) (*model.APIKey, error)
 	List(ctx context.Context, tenantID string) ([]model.APIKey, error)
-	Revoke(ctx context.Context, id string) error
+	ListPaginated(ctx context.Context, tenantID string, page, perPage int, search, status string) ([]model.APIKey, int, error)
+	Revoke(ctx context.Context, id, tenantID string) error
+	RotateKey(ctx context.Context, id, tenantID, newKeyHash, newKeyPrefix string) error
 	UpdateLastUsed(ctx context.Context, id string) error
 }
 
@@ -90,11 +93,109 @@ func (r *apiKeyRepo) List(ctx context.Context, tenantID string) ([]model.APIKey,
 	return keys, nil
 }
 
-func (r *apiKeyRepo) Revoke(ctx context.Context, id string) error {
-	query := `UPDATE api_keys SET revoked_at = NOW() WHERE id = $1 AND revoked_at IS NULL`
-	ct, err := r.pool.Exec(ctx, query, id)
+func (r *apiKeyRepo) GetByID(ctx context.Context, id, tenantID string) (*model.APIKey, error) {
+	query := `
+		SELECT id, tenant_id, name, key_hash, key_prefix, permissions, last_used_at, expires_at, created_at, created_by, revoked_at
+		FROM api_keys
+		WHERE id = $1 AND tenant_id = $2`
+
+	k := &model.APIKey{}
+	err := r.pool.QueryRow(ctx, query, id, tenantID).Scan(
+		&k.ID, &k.TenantID, &k.Name, &k.KeyHash, &k.KeyPrefix,
+		&k.Permissions, &k.LastUsedAt, &k.ExpiresAt, &k.CreatedAt, &k.CreatedBy, &k.RevokedAt,
+	)
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			return nil, fmt.Errorf("api key: %w", model.ErrNotFound)
+		}
+		return nil, fmt.Errorf("querying api key: %w", err)
+	}
+	return k, nil
+}
+
+func (r *apiKeyRepo) ListPaginated(ctx context.Context, tenantID string, page, perPage int, search, status string) ([]model.APIKey, int, error) {
+	if page < 1 {
+		page = 1
+	}
+	if perPage < 1 {
+		perPage = 20
+	}
+	if perPage > 100 {
+		perPage = 100
+	}
+
+	where := "tenant_id = $1"
+	args := []any{tenantID}
+	argIdx := 2
+
+	if search != "" {
+		where += fmt.Sprintf(" AND (name ILIKE $%d OR key_prefix ILIKE $%d)", argIdx, argIdx)
+		args = append(args, "%"+search+"%")
+		argIdx++
+	}
+
+	switch status {
+	case "active":
+		where += " AND revoked_at IS NULL AND (expires_at IS NULL OR expires_at > NOW())"
+	case "revoked":
+		where += " AND revoked_at IS NOT NULL"
+	case "expired":
+		where += " AND revoked_at IS NULL AND expires_at IS NOT NULL AND expires_at <= NOW()"
+	}
+
+	var total int
+	if err := r.pool.QueryRow(ctx, "SELECT COUNT(*) FROM api_keys WHERE "+where, args...).Scan(&total); err != nil {
+		return nil, 0, fmt.Errorf("counting api keys: %w", err)
+	}
+	if total == 0 {
+		return []model.APIKey{}, 0, nil
+	}
+
+	query := fmt.Sprintf(`
+		SELECT id, tenant_id, name, key_hash, key_prefix, permissions, last_used_at, expires_at, created_at, created_by, revoked_at
+		FROM api_keys
+		WHERE %s
+		ORDER BY created_at DESC
+		LIMIT $%d OFFSET $%d`, where, argIdx, argIdx+1)
+	args = append(args, perPage, (page-1)*perPage)
+
+	rows, err := r.pool.Query(ctx, query, args...)
+	if err != nil {
+		return nil, 0, fmt.Errorf("listing api keys: %w", err)
+	}
+	defer rows.Close()
+
+	var keys []model.APIKey
+	for rows.Next() {
+		var k model.APIKey
+		if err := rows.Scan(
+			&k.ID, &k.TenantID, &k.Name, &k.KeyHash, &k.KeyPrefix,
+			&k.Permissions, &k.LastUsedAt, &k.ExpiresAt, &k.CreatedAt, &k.CreatedBy, &k.RevokedAt,
+		); err != nil {
+			return nil, 0, fmt.Errorf("scanning api key: %w", err)
+		}
+		keys = append(keys, k)
+	}
+	return keys, total, nil
+}
+
+func (r *apiKeyRepo) Revoke(ctx context.Context, id, tenantID string) error {
+	query := `UPDATE api_keys SET revoked_at = NOW() WHERE id = $1 AND tenant_id = $2 AND revoked_at IS NULL`
+	ct, err := r.pool.Exec(ctx, query, id, tenantID)
 	if err != nil {
 		return fmt.Errorf("revoking api key: %w", err)
+	}
+	if ct.RowsAffected() == 0 {
+		return fmt.Errorf("api key %s: %w", id, model.ErrNotFound)
+	}
+	return nil
+}
+
+func (r *apiKeyRepo) RotateKey(ctx context.Context, id, tenantID, newKeyHash, newKeyPrefix string) error {
+	query := `UPDATE api_keys SET key_hash = $3, key_prefix = $4 WHERE id = $1 AND tenant_id = $2 AND revoked_at IS NULL`
+	ct, err := r.pool.Exec(ctx, query, id, tenantID, newKeyHash, newKeyPrefix)
+	if err != nil {
+		return fmt.Errorf("rotating api key: %w", err)
 	}
 	if ct.RowsAffected() == 0 {
 		return fmt.Errorf("api key %s: %w", id, model.ErrNotFound)

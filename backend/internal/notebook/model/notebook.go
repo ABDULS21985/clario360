@@ -22,26 +22,26 @@ type Actor struct {
 }
 
 type NotebookServer struct {
-	ID            string    `json:"id"`
-	Profile       string    `json:"profile"`
-	Status        string    `json:"status"`
-	URL           string    `json:"url"`
-	StartedAt     time.Time `json:"started_at,omitempty"`
-	LastActivity  time.Time `json:"last_activity,omitempty"`
-	CPUPercent    float64   `json:"cpu_percent"`
-	MemoryMB      int       `json:"memory_mb"`
-	MemoryLimitMB int       `json:"memory_limit_mb"`
+	ID            string     `json:"id"`
+	Profile       string     `json:"profile"`
+	Status        string     `json:"status"`
+	URL           string     `json:"url"`
+	StartedAt     *time.Time `json:"started_at,omitempty"`
+	LastActivity  *time.Time `json:"last_activity,omitempty"`
+	CPUPercent    float64    `json:"cpu_percent"`
+	MemoryMB      int        `json:"memory_mb"`
+	MemoryLimitMB int        `json:"memory_limit_mb"`
 }
 
 type NotebookServerStatus struct {
-	ID            string    `json:"id"`
-	Profile       string    `json:"profile"`
-	Status        string    `json:"status"`
-	CPUPercent    float64   `json:"cpu_percent"`
-	MemoryMB      int       `json:"memory_mb"`
-	MemoryLimitMB int       `json:"memory_limit_mb"`
-	UptimeSeconds int64     `json:"uptime_seconds"`
-	LastActivity  time.Time `json:"last_activity,omitempty"`
+	ID            string     `json:"id"`
+	Profile       string     `json:"profile"`
+	Status        string     `json:"status"`
+	CPUPercent    float64    `json:"cpu_percent"`
+	MemoryMB      int        `json:"memory_mb"`
+	MemoryLimitMB int        `json:"memory_limit_mb"`
+	UptimeSeconds int64      `json:"uptime_seconds"`
+	LastActivity  *time.Time `json:"last_activity,omitempty"`
 }
 
 type NotebookProfile struct {

@@ -78,7 +78,7 @@ export const taskStatusConfig: StatusConfig = {
 export const userStatusConfig: StatusConfig = {
   active: { label: "Active", color: "green", icon: CheckCircle },
   suspended: { label: "Suspended", color: "red", icon: Ban },
-  deactivated: { label: "Deactivated", color: "gray", icon: XCircle },
+  inactive: { label: "Inactive", color: "gray", icon: XCircle },
   pending_verification: { label: "Pending", color: "yellow", icon: Clock },
 };
 
@@ -92,18 +92,18 @@ export const fileStatusConfig: StatusConfig = {
 
 export const tenantStatusConfig: StatusConfig = {
   active: { label: "Active", color: "green", icon: CheckCircle },
+  inactive: { label: "Inactive", color: "gray", icon: XCircle },
   suspended: { label: "Suspended", color: "red", icon: Ban },
-  provisioning: { label: "Provisioning", color: "blue", icon: Clock },
-  deprovisioning: { label: "Deprovisioning", color: "orange", icon: Clock },
+  trial: { label: "Trial", color: "yellow", icon: Clock },
+  onboarding: { label: "Onboarding", color: "blue", icon: Clock },
   deprovisioned: { label: "Deprovisioned", color: "gray", icon: XCircle },
-  deactivated: { label: "Deactivated", color: "gray", icon: XCircle },
 };
 
 export const tenantPlanConfig: StatusConfig = {
-  starter: { label: "Starter", color: "gray", icon: Building2 },
-  professional: { label: "Professional", color: "blue", icon: Building2 },
-  enterprise: { label: "Enterprise", color: "purple", icon: Building2 },
-  custom: { label: "Custom", color: "teal", icon: Building2 },
+  free: { label: "Free", color: "gray", icon: Building2 },
+  starter: { label: "Starter", color: "blue", icon: Building2 },
+  professional: { label: "Professional", color: "purple", icon: Building2 },
+  enterprise: { label: "Enterprise", color: "teal", icon: Building2 },
 };
 
 export const apiKeyStatusConfig: StatusConfig = {

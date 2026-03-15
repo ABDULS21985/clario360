@@ -7,8 +7,7 @@ export interface ApiKey {
   expires_at: string | null;
   last_used_at: string | null;
   created_at: string;
-  created_by: string;
-  usage_count: number;
+  created_by: string | null;
 }
 
 export type ApiKeyStatus = 'active' | 'revoked' | 'expired';
@@ -31,14 +30,6 @@ export interface CreateApiKeyRequest {
 export interface CreateApiKeyResponse {
   key: ApiKey;
   secret: string;
-}
-
-export interface ApiKeyUsage {
-  key_id: string;
-  period: string;
-  total_calls: number;
-  calls_by_scope: Record<string, number>;
-  calls_by_day: { date: string; count: number }[];
 }
 
 export const API_KEY_SCOPE_GROUPS: { label: string; scopes: ApiKeyScope[] }[] = [

@@ -108,7 +108,7 @@ export function getUserColumns(options: UserColumnOptions): ColumnDef<User>[] {
       header: 'Roles',
       size: 200,
       cell: ({ row }) => {
-        const roles = row.original.roles;
+        const roles = row.original.roles ?? [];
         const displayed = roles.slice(0, 2);
         const extra = roles.length - 2;
         return (

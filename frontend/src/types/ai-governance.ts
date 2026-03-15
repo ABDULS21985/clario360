@@ -36,7 +36,8 @@ export type AIExplainabilityType =
   | 'rule_trace'
   | 'feature_importance'
   | 'statistical_deviation'
-  | 'template_based';
+  | 'template_based'
+  | 'reasoning_trace';
 
 export type AIArtifactType =
   | 'go_function'
@@ -449,6 +450,7 @@ export interface AIInferenceServer {
   base_url: string;
   health_endpoint: string;
   model_name?: string | null;
+  api_key?: string | null;
   quantization?: string | null;
   status: InferenceServerStatus;
   cpu_cores?: number | null;
@@ -456,6 +458,7 @@ export interface AIInferenceServer {
   gpu_type?: string | null;
   gpu_count: number;
   max_concurrent: number;
+  stream_capable: boolean;
   metadata: JsonValue;
   created_at: string;
   updated_at: string;
@@ -477,6 +480,7 @@ export interface AIBenchmarkSuite {
   max_retries: number;
   created_by: string;
   created_at: string;
+  updated_at?: string;
 }
 
 export interface AIBenchmarkRun {
@@ -499,6 +503,11 @@ export interface AIBenchmarkRun {
   total_tokens?: number | null;
   total_requests?: number | null;
   failed_requests: number;
+  retried_requests: number;
+  stream_used: boolean;
+  p50_ttft_ms?: number | null;
+  p95_ttft_ms?: number | null;
+  avg_ttft_ms?: number | null;
   avg_perplexity?: number | null;
   bleu_score?: number | null;
   rouge_l_score?: number | null;

@@ -6,8 +6,6 @@ import {
   Plus,
   RotateCw,
   Trash2,
-  Eye,
-  Edit,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/common/page-header";
@@ -17,7 +15,6 @@ import { StatusBadge } from "@/components/shared/status-badge";
 import { RelativeTime } from "@/components/shared/relative-time";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { apiKeyStatusConfig } from "@/lib/status-configs";
-import { formatNumber } from "@/lib/format";
 import { useDataTable } from "@/hooks/use-data-table";
 import { useRevokeApiKey, useRotateApiKey } from "@/hooks/use-api-keys";
 import api from "@/lib/api";
@@ -27,7 +24,6 @@ import type { ApiKey } from "@/types/api-key";
 import type { FilterConfig } from "@/types/table";
 import { CreateKeyDialog } from "./_components/create-key-dialog";
 import { KeySecretDialog } from "./_components/key-secret-dialog";
-import { KeyUsagePanel } from "./_components/key-usage-panel";
 
 async function fetchApiKeys(params: {
   page: number;
@@ -55,7 +51,6 @@ export default function ApiKeysPage() {
   const [secretValue, setSecretValue] = useState<string | null>(null);
   const [revokeKey, setRevokeKey] = useState<ApiKey | null>(null);
   const [rotateKey, setRotateKey] = useState<ApiKey | null>(null);
-  const [usageKey, setUsageKey] = useState<ApiKey | null>(null);
 
   const revokeMutation = useRevokeApiKey();
   const rotateMutation = useRotateApiKey();
@@ -161,25 +156,10 @@ export default function ApiKeysPage() {
           <span className="text-xs text-muted-foreground">Never</span>
         ),
     },
-    {
-      id: "usage_count",
-      header: "Usage",
-      accessorKey: "usage_count",
-      enableSorting: true,
-      cell: ({ row }) => (
-        <span className="text-sm">{formatNumber(row.original.usage_count)}</span>
-      ),
-    },
   ];
 
   const rowActions = (key: ApiKey) => {
-    const actions = [
-      {
-        label: "View Usage",
-        icon: Eye,
-        onClick: (k: ApiKey) => setUsageKey(k),
-      },
-    ];
+    const actions: { label: string; icon: typeof Trash2; onClick: (k: ApiKey) => void; variant?: "destructive" }[] = [];
 
     if (key.status === "active") {
       actions.push(
@@ -193,7 +173,7 @@ export default function ApiKeysPage() {
           icon: Trash2,
           variant: "destructive" as const,
           onClick: (k: ApiKey) => setRevokeKey(k),
-        } as { label: string; icon: typeof Trash2; onClick: (k: ApiKey) => void; variant?: "destructive" },
+        },
       );
     }
 
@@ -280,15 +260,6 @@ export default function ApiKeysPage() {
             setRotateKey(null);
             refetch();
           }}
-        />
-      )}
-
-      {usageKey && (
-        <KeyUsagePanel
-          keyId={usageKey.id}
-          keyName={usageKey.name}
-          open={!!usageKey}
-          onClose={() => setUsageKey(null)}
         />
       )}
     </div>

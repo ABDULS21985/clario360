@@ -462,13 +462,23 @@ func mapHubServer(id string, server hubServer, baseURL, userEmail string) nbmode
 	if profile == "" {
 		profile = stringFromState(server.State, "profile")
 	}
+
+	var startedAt *time.Time
+	if !server.Started.IsZero() {
+		startedAt = &server.Started
+	}
+	var lastActivity *time.Time
+	if !server.LastActivity.IsZero() {
+		lastActivity = &server.LastActivity
+	}
+
 	return nbmodel.NotebookServer{
 		ID:            normalizeServerID(id),
 		Profile:       profile,
 		Status:        status,
 		URL:           notebookURL(baseURL, userEmail, server.URL),
-		StartedAt:     server.Started,
-		LastActivity:  server.LastActivity,
+		StartedAt:     startedAt,
+		LastActivity:  lastActivity,
 		CPUPercent:    floatFromState(server.State, "cpu_percent"),
 		MemoryMB:      int(floatFromState(server.State, "memory_mb")),
 		MemoryLimitMB: int(floatFromState(server.State, "memory_limit_mb")),
@@ -478,8 +488,8 @@ func mapHubServer(id string, server hubServer, baseURL, userEmail string) nbmode
 func mapHubServerToStatus(id string, server hubServer) *nbmodel.NotebookServerStatus {
 	mapped := mapHubServer(id, server, "", "")
 	uptime := int64(0)
-	if !mapped.StartedAt.IsZero() {
-		uptime = int64(time.Since(mapped.StartedAt).Seconds())
+	if mapped.StartedAt != nil {
+		uptime = int64(time.Since(*mapped.StartedAt).Seconds())
 	}
 	return &nbmodel.NotebookServerStatus{
 		ID:            mapped.ID,
@@ -556,7 +566,7 @@ func floatFromState(state map[string]any, key string) float64 {
 }
 
 func isHubNotFound(err error) bool {
-	return err == nbmodel.ErrServerNotFound
+	return errors.Is(err, nbmodel.ErrServerNotFound)
 }
 
 func isHubUnavailable(err error) bool {

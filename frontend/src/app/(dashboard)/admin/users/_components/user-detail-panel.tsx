@@ -138,11 +138,11 @@ export function UserDetailPanel({
         {/* Roles */}
         <div className="space-y-2">
           <h4 className="text-sm font-semibold">Assigned Roles</h4>
-          {user.roles.length === 0 ? (
+          {(user.roles ?? []).length === 0 ? (
             <p className="text-sm text-muted-foreground">No roles assigned.</p>
           ) : (
             <div className="flex flex-wrap gap-2">
-              {user.roles.map((role) => (
+              {(user.roles ?? []).map((role) => (
                 <Badge key={role.id} variant="secondary" className="gap-1">
                   {role.is_system && <ShieldCheck className="h-3 w-3" />}
                   {role.name}

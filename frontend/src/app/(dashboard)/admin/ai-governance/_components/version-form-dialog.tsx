@@ -67,6 +67,9 @@ const ARTIFACT_TYPES: AIArtifactType[] = [
   'statistical_config',
   'template_config',
   'serialized_model',
+  'gguf_model',
+  'bitnet_model',
+  'onnx_model',
 ];
 
 const EXPLAINABILITY_TYPES: AIExplainabilityType[] = [
@@ -74,6 +77,7 @@ const EXPLAINABILITY_TYPES: AIExplainabilityType[] = [
   'feature_importance',
   'statistical_deviation',
   'template_based',
+  'reasoning_trace',
 ];
 
 export function VersionFormDialog({ open, onOpenChange, model, onSaved }: VersionFormDialogProps) {

@@ -10,7 +10,6 @@ import type {
   ApiKey,
   CreateApiKeyRequest,
   CreateApiKeyResponse,
-  ApiKeyUsage,
 } from "@/types/api-key";
 import type { FetchParams } from "@/types/table";
 
@@ -33,17 +32,6 @@ export function useApiKeys(params?: FetchParams) {
   });
 }
 
-export function useApiKey(keyId: string) {
-  return useQuery<ApiKey, AxiosError<ApiError>>({
-    queryKey: ["api-keys-admin", keyId],
-    queryFn: async () => {
-      const { data } = await api.get<ApiKey>(`/api/v1/api-keys/${keyId}`);
-      return data;
-    },
-    enabled: !!keyId,
-  });
-}
-
 export function useCreateApiKey() {
   const queryClient = useQueryClient();
   return useMutation<CreateApiKeyResponse, AxiosError<ApiError>, CreateApiKeyRequest>({
@@ -52,23 +40,6 @@ export function useCreateApiKey() {
       return data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["api-keys-admin"] });
-    },
-    onError: (error) => {
-      toast.error(parseApiError(error));
-    },
-  });
-}
-
-export function useUpdateApiKey() {
-  const queryClient = useQueryClient();
-  return useMutation<ApiKey, AxiosError<ApiError>, { keyId: string; data: Partial<ApiKey> }>({
-    mutationFn: async ({ keyId, data: payload }) => {
-      const { data } = await api.put<ApiKey>(`/api/v1/api-keys/${keyId}`, payload);
-      return data;
-    },
-    onSuccess: () => {
-      toast.success("API key updated");
       queryClient.invalidateQueries({ queryKey: ["api-keys-admin"] });
     },
     onError: (error) => {
@@ -106,16 +77,5 @@ export function useRotateApiKey() {
     onError: (error) => {
       toast.error(parseApiError(error));
     },
-  });
-}
-
-export function useApiKeyUsage(keyId: string) {
-  return useQuery<ApiKeyUsage, AxiosError<ApiError>>({
-    queryKey: ["api-keys-admin", keyId, "usage"],
-    queryFn: async () => {
-      const { data } = await api.get<ApiKeyUsage>(`/api/v1/api-keys/${keyId}/usage`);
-      return data;
-    },
-    enabled: !!keyId,
   });
 }

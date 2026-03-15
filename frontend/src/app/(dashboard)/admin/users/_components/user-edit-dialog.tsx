@@ -7,15 +7,15 @@ import { z } from "zod";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { FormField } from "@/components/shared/forms/form-field";
 import { useApiMutation } from "@/hooks/use-api-mutation";
 import type { User } from "@/types/models";
 
+// Backend UpdateUserRequest only accepts: { first_name?, last_name?, avatar_url? }
+// Status changes go through PUT /api/v1/users/{id}/status (separate endpoint)
 const editUserSchema = z.object({
   first_name: z.string().min(2, "First name must be at least 2 characters"),
   last_name: z.string().min(2, "Last name must be at least 2 characters"),
-  status: z.enum(["active", "suspended", "deactivated", "pending_verification"]),
 });
 
 type EditUserFormData = z.infer<typeof editUserSchema>;
@@ -33,7 +33,6 @@ export function UserEditDialog({ user, open, onOpenChange, onSuccess }: UserEdit
     defaultValues: {
       first_name: user.first_name,
       last_name: user.last_name,
-      status: user.status,
     },
   });
 
@@ -42,7 +41,6 @@ export function UserEditDialog({ user, open, onOpenChange, onSuccess }: UserEdit
       methods.reset({
         first_name: user.first_name,
         last_name: user.last_name,
-        status: user.status,
       });
     }
   }, [user, methods]);
@@ -93,24 +91,6 @@ export function UserEditDialog({ user, open, onOpenChange, onSuccess }: UserEdit
             </div>
             <FormField name="email" label="Email Address">
               <Input value={user.email} disabled className="bg-muted" />
-            </FormField>
-            <FormField name="status" label="Status">
-              <Select
-                value={methods.watch("status")}
-                onValueChange={(v) =>
-                  methods.setValue("status", v as EditUserFormData["status"])
-                }
-                disabled={updateMutation.isPending}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="active">Active</SelectItem>
-                  <SelectItem value="suspended">Suspended</SelectItem>
-                  <SelectItem value="deactivated">Deactivated</SelectItem>
-                </SelectContent>
-              </Select>
             </FormField>
             <DialogFooter>
               <Button

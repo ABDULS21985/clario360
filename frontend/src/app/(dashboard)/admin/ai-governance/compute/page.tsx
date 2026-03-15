@@ -16,6 +16,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
@@ -77,6 +78,7 @@ export default function ComputePage() {
   const [gpuType, setGpuType] = useState('');
   const [gpuCount, setGpuCount] = useState('0');
   const [maxConcurrent, setMaxConcurrent] = useState('4');
+  const [streamCapable, setStreamCapable] = useState(false);
 
   const { tableProps, refetch } = useDataTable<AIInferenceServer>({
     queryKey: 'ai-inference-servers',
@@ -111,6 +113,7 @@ export default function ComputePage() {
     setGpuType('');
     setGpuCount('0');
     setMaxConcurrent('4');
+    setStreamCapable(false);
   };
 
   const handleCreate = async () => {
@@ -128,6 +131,7 @@ export default function ComputePage() {
         gpu_type: gpuType || null,
         gpu_count: Number(gpuCount) || 0,
         max_concurrent: Number(maxConcurrent) || 4,
+        stream_capable: streamCapable,
         metadata: {},
       });
       showSuccess('Inference server registered.');
@@ -366,6 +370,14 @@ export default function ComputePage() {
                 <Label htmlFor="gpu-count">GPU Count</Label>
                 <Input id="gpu-count" type="number" value={gpuCount} onChange={(e) => setGpuCount(e.target.value)} />
               </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <Checkbox
+                id="stream-capable"
+                checked={streamCapable}
+                onCheckedChange={(checked) => setStreamCapable(checked === true)}
+              />
+              <Label htmlFor="stream-capable" className="cursor-pointer">Supports streaming (SSE)</Label>
             </div>
           </div>
           <DialogFooter>

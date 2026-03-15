@@ -564,7 +564,7 @@ export const enterpriseApi = {
     deleteServer: (id: string) => apiDelete<{ message: string }>(`/api/v1/ai/inference-servers/${id}`),
 
     // ── Benchmark Suites ───────────────────────────
-    createBenchmarkSuite: (payload: Omit<AIBenchmarkSuite, 'id' | 'tenant_id' | 'created_by' | 'created_at'>): Promise<AIBenchmarkSuite> =>
+    createBenchmarkSuite: (payload: Omit<AIBenchmarkSuite, 'id' | 'tenant_id' | 'created_by' | 'created_at' | 'updated_at'>): Promise<AIBenchmarkSuite> =>
       apiPost<{ data: AIBenchmarkSuite }>('/api/v1/ai/benchmarks/suites', payload).then((res) => res.data),
     listBenchmarkSuites: (params?: FetchParams) => fetchSuitePaginated<AIBenchmarkSuite>('/api/v1/ai/benchmarks/suites', params ?? { page: 1, per_page: 50 }),
     getBenchmarkSuite: (id: string): Promise<AIBenchmarkSuite> => fetchSuiteData(`/api/v1/ai/benchmarks/suites/${id}`),

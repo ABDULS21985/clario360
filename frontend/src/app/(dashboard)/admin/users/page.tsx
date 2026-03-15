@@ -71,7 +71,7 @@ export default function UserManagementPage() {
       options: [
         { label: "Active", value: "active" },
         { label: "Suspended", value: "suspended" },
-        { label: "Deactivated", value: "deactivated" },
+        { label: "Inactive", value: "inactive" },
         { label: "Pending", value: "pending_verification" },
       ],
     },

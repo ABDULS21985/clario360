@@ -1,33 +1,56 @@
+/**
+ * Tenant types — aligned with backend TenantResponse (iam/dto/tenant_dto.go).
+ *
+ * Backend returns: id, name, slug, domain, settings (JSONB), status,
+ *   subscription_tier, created_at, updated_at.
+ */
+
 export interface Tenant {
   id: string;
   name: string;
   slug: string;
   domain: string | null;
   status: TenantStatus;
-  plan: TenantPlan;
+  subscription_tier: SubscriptionTier;
+  /** Opaque JSONB — may be empty `{}` for tenants created without settings. */
   settings: TenantSettings;
-  branding: TenantBranding;
-  owner_id: string;
   created_at: string;
   updated_at: string;
-  provisioned_at: string | null;
-  deprovisioned_at: string | null;
-  user_count: number;
-  storage_used_bytes: number;
 }
 
-export type TenantStatus = 'active' | 'suspended' | 'provisioning' | 'deprovisioning' | 'deprovisioned';
-export type TenantPlan = 'starter' | 'professional' | 'enterprise' | 'custom';
+/**
+ * Backend enum: active, inactive, suspended, trial, onboarding, deprovisioned.
+ * See model/tenant.go TenantStatus constants.
+ */
+export type TenantStatus =
+  | 'active'
+  | 'inactive'
+  | 'suspended'
+  | 'trial'
+  | 'onboarding'
+  | 'deprovisioned';
 
+/**
+ * Backend enum: free, starter, professional, enterprise.
+ * See model/tenant.go SubscriptionTier constants.
+ */
+export type SubscriptionTier = 'free' | 'starter' | 'professional' | 'enterprise';
+
+/**
+ * Settings is stored as JSONB in the tenants table.
+ * All fields are optional because older tenants may have been created
+ * with an empty `{}` settings object.
+ */
 export interface TenantSettings {
-  max_users: number;
-  max_storage_gb: number;
-  enabled_suites: string[];
-  mfa_required: boolean;
-  session_timeout_minutes: number;
-  password_policy: TenantPasswordPolicy;
-  ip_whitelist: string[];
-  custom_domain: string | null;
+  max_users?: number;
+  max_storage_gb?: number;
+  enabled_suites?: string[];
+  mfa_required?: boolean;
+  session_timeout_minutes?: number;
+  password_policy?: TenantPasswordPolicy;
+  ip_whitelist?: string[];
+  custom_domain?: string | null;
+  branding?: TenantBranding;
 }
 
 export interface TenantBranding {
@@ -47,12 +70,14 @@ export interface TenantPasswordPolicy {
   history_count: number;
 }
 
+/**
+ * Provision request — maps to backend CreateTenantRequest.
+ * owner_email/owner_name are embedded in settings for persistence.
+ */
 export interface ProvisionTenantRequest {
   name: string;
   slug: string;
-  plan: TenantPlan;
-  owner_email: string;
-  owner_name: string;
+  subscription_tier: SubscriptionTier;
   settings?: Partial<TenantSettings>;
 }
 
