@@ -155,7 +155,7 @@ export function getRuleColumns(options: RuleColumnOptions): ColumnDef<DetectionR
       cell: ({ row }: { row: Row<DetectionRule> }) => <RulePerformanceCard rule={row.original} />,
     },
     {
-      id: 'alerts',
+      id: 'trigger_count',
       accessorKey: 'trigger_count',
       header: 'Alerts Generated',
       enableSorting: true,
@@ -164,7 +164,7 @@ export function getRuleColumns(options: RuleColumnOptions): ColumnDef<DetectionR
       ),
     },
     {
-      id: 'last_triggered',
+      id: 'last_triggered_at',
       accessorKey: 'last_triggered_at',
       header: 'Last Triggered',
       enableSorting: true,

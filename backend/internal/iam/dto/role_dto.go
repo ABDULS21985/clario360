@@ -33,7 +33,7 @@ type RoleResponse struct {
 	Name         string   `json:"name"`
 	Slug         string   `json:"slug"`
 	Description  string   `json:"description"`
-	IsSystemRole bool     `json:"is_system_role"`
+	IsSystemRole bool     `json:"is_system"`
 	Permissions  []string `json:"permissions"`
 	CreatedAt    time.Time `json:"created_at"`
 	UpdatedAt    time.Time `json:"updated_at"`

@@ -65,6 +65,9 @@ func RegisterRoutes(
 		r.Delete("/assets/{id}", assetHandler.DeleteAsset)
 		r.Patch("/assets/{id}/tags", assetHandler.PatchTags)
 
+		// ---- Activity ----
+		r.Get("/assets/{id}/activity", assetHandler.ListActivity)
+
 		// ---- Relationships ----
 		r.Get("/assets/{id}/relationships", assetHandler.ListRelationships)
 		r.Post("/assets/{id}/relationships", assetHandler.CreateRelationship)

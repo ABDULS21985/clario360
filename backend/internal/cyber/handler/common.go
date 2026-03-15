@@ -125,6 +125,8 @@ func parseRuleListParams(r *http.Request) *dto.RuleListParams {
 		Tag:              stringValue(q.Get("tag")),
 		MITRETacticID:    stringValue(q.Get("mitre_tactic_id")),
 		MITRETechniqueID: stringValue(q.Get("mitre_technique_id")),
+		Sort:             q.Get("sort"),
+		Order:            q.Get("order"),
 	}
 	if v := q.Get("enabled"); v != "" {
 		b, _ := strconv.ParseBool(v)

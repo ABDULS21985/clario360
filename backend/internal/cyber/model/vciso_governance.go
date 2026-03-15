@@ -166,6 +166,7 @@ type VCISOEvidence struct {
 	ExpiresAt      *time.Time `json:"expires_at,omitempty"`
 	CollectorName  *string    `json:"collector_name,omitempty"`
 	LastVerifiedAt *time.Time `json:"last_verified_at,omitempty"`
+	VerifiedBy     *uuid.UUID `json:"verified_by,omitempty"`
 	CreatedAt      time.Time  `json:"created_at"`
 	UpdatedAt      time.Time  `json:"updated_at"`
 }
@@ -213,13 +214,18 @@ type VCISOMaturityAssessment struct {
 
 // VCISOBenchmark represents industry benchmark data for a single dimension.
 type VCISOBenchmark struct {
-	Dimension          string  `json:"dimension"`
-	Category           string  `json:"category"`
-	OrganizationScore  float64 `json:"organization_score"`
-	IndustryAverage    float64 `json:"industry_average"`
-	IndustryTopQuartile float64 `json:"industry_top_quartile"`
-	PeerAverage        float64 `json:"peer_average"`
-	Gap                float64 `json:"gap"`
+	ID                  uuid.UUID `json:"id"`
+	TenantID            uuid.UUID `json:"tenant_id"`
+	Dimension           string    `json:"dimension"`
+	Category            string    `json:"category"`
+	OrganizationScore   float64   `json:"organization_score"`
+	IndustryAverage     float64   `json:"industry_average"`
+	IndustryTopQuartile float64   `json:"industry_top_quartile"`
+	PeerAverage         float64   `json:"peer_average"`
+	Gap                 float64   `json:"gap"`
+	Framework           string    `json:"framework"`
+	CreatedAt           time.Time `json:"created_at"`
+	UpdatedAt           time.Time `json:"updated_at"`
 }
 
 // ─── Budget ─────────────────────────────────────────────────────────────────
@@ -386,14 +392,18 @@ type VCISOControlTest struct {
 
 // VCISOControlDependency represents a control's dependency graph.
 type VCISOControlDependency struct {
-	ControlID         string   `json:"control_id"`
-	ControlName       string   `json:"control_name"`
-	Framework         string   `json:"framework"`
-	DependsOn         []string `json:"depends_on"`
-	DependedBy        []string `json:"depended_by"`
-	RiskDomains       []string `json:"risk_domains"`
-	ComplianceDomains []string `json:"compliance_domains"`
-	FailureImpact     string   `json:"failure_impact"`
+	ID                uuid.UUID `json:"id"`
+	TenantID          uuid.UUID `json:"tenant_id"`
+	ControlID         string    `json:"control_id"`
+	ControlName       string    `json:"control_name"`
+	Framework         string    `json:"framework"`
+	DependsOn         []string  `json:"depends_on"`
+	DependedBy        []string  `json:"depended_by"`
+	RiskDomains       []string  `json:"risk_domains"`
+	ComplianceDomains []string  `json:"compliance_domains"`
+	FailureImpact     string    `json:"failure_impact"`
+	CreatedAt         time.Time `json:"created_at"`
+	UpdatedAt         time.Time `json:"updated_at"`
 }
 
 // ─── Integration ────────────────────────────────────────────────────────────

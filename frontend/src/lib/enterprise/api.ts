@@ -79,6 +79,180 @@ import type {
   VisusWidgetTypeDefinition,
 } from '@/types/suites';
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function normalizeOptionalString(value: unknown): unknown {
+  if (value == null) {
+    return null;
+  }
+  if (typeof value !== 'string') {
+    return value;
+  }
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+function normalizeOptionalId(value: unknown): unknown {
+  return normalizeOptionalString(value);
+}
+
+function normalizeDateOnlyValue(value: unknown): unknown {
+  if (value == null) {
+    return null;
+  }
+  if (value instanceof Date) {
+    return Number.isNaN(value.valueOf()) ? null : value.toISOString();
+  }
+  if (typeof value !== 'string') {
+    return value;
+  }
+  const trimmed = value.trim();
+  if (trimmed.length === 0) {
+    return null;
+  }
+  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+    return `${trimmed}T12:00:00.000Z`;
+  }
+  const parsed = new Date(trimmed);
+  return Number.isNaN(parsed.valueOf()) ? trimmed : parsed.toISOString();
+}
+
+function normalizeDateTimeValue(value: unknown): unknown {
+  if (value == null) {
+    return null;
+  }
+  if (value instanceof Date) {
+    return Number.isNaN(value.valueOf()) ? null : value.toISOString();
+  }
+  if (typeof value !== 'string') {
+    return value;
+  }
+  const trimmed = value.trim();
+  if (trimmed.length === 0) {
+    return null;
+  }
+  const parsed = new Date(trimmed);
+  return Number.isNaN(parsed.valueOf()) ? trimmed : parsed.toISOString();
+}
+
+function normalizeCommitteePayload(payload: unknown): unknown {
+  if (!isRecord(payload)) {
+    return payload;
+  }
+  return {
+    ...payload,
+    vice_chair_user_id: normalizeOptionalId(payload.vice_chair_user_id),
+    secretary_user_id: normalizeOptionalId(payload.secretary_user_id),
+    charter: normalizeOptionalString(payload.charter),
+    established_date: normalizeDateOnlyValue(payload.established_date),
+    dissolution_date: normalizeDateOnlyValue(payload.dissolution_date),
+    vice_chair_name: normalizeOptionalString(payload.vice_chair_name),
+    vice_chair_email: normalizeOptionalString(payload.vice_chair_email),
+    secretary_name: normalizeOptionalString(payload.secretary_name),
+    secretary_email: normalizeOptionalString(payload.secretary_email),
+  };
+}
+
+function normalizeMeetingPayload(payload: unknown): unknown {
+  if (!isRecord(payload)) {
+    return payload;
+  }
+  return {
+    ...payload,
+    scheduled_at: normalizeDateTimeValue(payload.scheduled_at),
+    scheduled_end_at: normalizeDateTimeValue(payload.scheduled_end_at),
+    location: normalizeOptionalString(payload.location),
+    virtual_link: normalizeOptionalString(payload.virtual_link),
+    virtual_platform: normalizeOptionalString(payload.virtual_platform),
+  };
+}
+
+function normalizePostponePayload(payload: unknown): unknown {
+  if (!isRecord(payload)) {
+    return payload;
+  }
+  return {
+    ...payload,
+    new_scheduled_at: normalizeDateTimeValue(payload.new_scheduled_at),
+    new_scheduled_end_at: normalizeDateTimeValue(payload.new_scheduled_end_at),
+  };
+}
+
+function normalizeAttendancePayload(payload: unknown): unknown {
+  if (!isRecord(payload)) {
+    return payload;
+  }
+  return {
+    ...payload,
+    notes: normalizeOptionalString(payload.notes),
+    proxy_user_id: normalizeOptionalId(payload.proxy_user_id),
+    proxy_user_name: normalizeOptionalString(payload.proxy_user_name),
+    proxy_authorized_by: normalizeOptionalId(payload.proxy_authorized_by),
+  };
+}
+
+function normalizeBulkAttendancePayload(payload: unknown): unknown {
+  if (!isRecord(payload)) {
+    return payload;
+  }
+  const attendance = Array.isArray(payload.attendance)
+    ? payload.attendance.map((entry) => normalizeAttendancePayload(entry))
+    : payload.attendance;
+  return {
+    ...payload,
+    attendance,
+  };
+}
+
+function normalizeAgendaPayload(payload: unknown): unknown {
+  if (!isRecord(payload)) {
+    return payload;
+  }
+  return {
+    ...payload,
+    item_number: normalizeOptionalString(payload.item_number),
+    presenter_user_id: normalizeOptionalId(payload.presenter_user_id),
+    presenter_name: normalizeOptionalString(payload.presenter_name),
+    parent_item_id: normalizeOptionalId(payload.parent_item_id),
+    vote_type: normalizeOptionalString(payload.vote_type),
+    category: normalizeOptionalString(payload.category),
+  };
+}
+
+function normalizeActionItemPayload(payload: unknown): unknown {
+  if (!isRecord(payload)) {
+    return payload;
+  }
+  return {
+    ...payload,
+    agenda_item_id: normalizeOptionalId(payload.agenda_item_id),
+    due_date: normalizeDateOnlyValue(payload.due_date),
+  };
+}
+
+function normalizeActionItemExtensionPayload(payload: unknown): unknown {
+  if (!isRecord(payload)) {
+    return payload;
+  }
+  return {
+    ...payload,
+    new_due_date: normalizeDateOnlyValue(payload.new_due_date),
+  };
+}
+
+function normalizeAttachmentPayload(payload: unknown): unknown {
+  if (!isRecord(payload)) {
+    return payload;
+  }
+  return {
+    ...payload,
+    content_type: normalizeOptionalString(payload.content_type),
+    uploaded_by: normalizeOptionalId(payload.uploaded_by),
+  };
+}
+
 export const enterpriseApi = {
   users: {
     list: async (params: FetchParams): Promise<PaginatedResponse<UserDirectoryEntry>> => {
@@ -145,8 +319,10 @@ export const enterpriseApi = {
     getDashboard: (): Promise<ActaDashboard> => fetchSuiteData('/api/v1/acta/dashboard'),
     listCommittees: (params: FetchParams) => fetchSuitePaginated<ActaCommittee>('/api/v1/acta/committees', params),
     getCommittee: (id: string) => fetchSuiteData<ActaCommittee>(`/api/v1/acta/committees/${id}`),
-    createCommittee: (payload: unknown) => apiPost<{ data: ActaCommittee }>('/api/v1/acta/committees', payload).then((res) => res.data),
-    updateCommittee: (id: string, payload: unknown) => apiPut<{ data: ActaCommittee }>(`/api/v1/acta/committees/${id}`, payload).then((res) => res.data),
+    createCommittee: (payload: unknown) =>
+      apiPost<{ data: ActaCommittee }>('/api/v1/acta/committees', normalizeCommitteePayload(payload)).then((res) => res.data),
+    updateCommittee: (id: string, payload: unknown) =>
+      apiPut<{ data: ActaCommittee }>(`/api/v1/acta/committees/${id}`, normalizeCommitteePayload(payload)).then((res) => res.data),
     deleteCommittee: (id: string) => apiDelete<void>(`/api/v1/acta/committees/${id}`),
     addCommitteeMember: (id: string, payload: unknown) => apiPost<{ data: ActaCommittee }>(`/api/v1/acta/committees/${id}/members`, payload).then((res) => res.data),
     updateCommitteeMember: (id: string, userId: string, payload: unknown) =>
@@ -154,25 +330,28 @@ export const enterpriseApi = {
     removeCommitteeMember: (id: string, userId: string) => apiDelete<void>(`/api/v1/acta/committees/${id}/members/${userId}`),
     listMeetings: (params: FetchParams) => fetchSuitePaginated<ActaMeeting>('/api/v1/acta/meetings', params),
     getMeeting: (id: string) => fetchSuiteData<ActaMeeting>(`/api/v1/acta/meetings/${id}`),
-    createMeeting: (payload: unknown) => apiPost<{ data: ActaMeeting }>('/api/v1/acta/meetings', payload).then((res) => res.data),
-    updateMeeting: (id: string, payload: unknown) => apiPut<{ data: ActaMeeting }>(`/api/v1/acta/meetings/${id}`, payload).then((res) => res.data),
+    createMeeting: (payload: unknown) =>
+      apiPost<{ data: ActaMeeting }>('/api/v1/acta/meetings', normalizeMeetingPayload(payload)).then((res) => res.data),
+    updateMeeting: (id: string, payload: unknown) =>
+      apiPut<{ data: ActaMeeting }>(`/api/v1/acta/meetings/${id}`, normalizeMeetingPayload(payload)).then((res) => res.data),
     cancelMeeting: (id: string, payload: unknown) =>
       api.delete<{ data: ActaMeeting }>(`/api/v1/acta/meetings/${id}`, { data: payload }).then((res) => res.data.data),
     startMeeting: (id: string) => apiPost<{ data: ActaMeeting }>(`/api/v1/acta/meetings/${id}/start`).then((res) => res.data),
     endMeeting: (id: string) => apiPost<{ data: ActaMeeting }>(`/api/v1/acta/meetings/${id}/end`).then((res) => res.data),
-    postponeMeeting: (id: string, payload: unknown) => apiPost<{ data: ActaMeeting }>(`/api/v1/acta/meetings/${id}/postpone`, payload).then((res) => res.data),
+    postponeMeeting: (id: string, payload: unknown) =>
+      apiPost<{ data: ActaMeeting }>(`/api/v1/acta/meetings/${id}/postpone`, normalizePostponePayload(payload)).then((res) => res.data),
     getUpcomingMeetings: (): Promise<ActaMeetingSummary[]> => fetchSuiteData('/api/v1/acta/meetings/upcoming'),
     getCalendar: (month: string): Promise<ActaCalendarDay[]> => fetchSuiteData('/api/v1/acta/meetings/calendar', { month }),
     getAttendance: (meetingId: string): Promise<ActaAttendee[]> => fetchSuiteData(`/api/v1/acta/meetings/${meetingId}/attendance`),
     recordAttendance: (meetingId: string, payload: unknown) =>
-      apiPost<{ data: ActaAttendee[] }>(`/api/v1/acta/meetings/${meetingId}/attendance`, payload).then((res) => res.data),
+      apiPost<{ data: ActaAttendee[] }>(`/api/v1/acta/meetings/${meetingId}/attendance`, normalizeAttendancePayload(payload)).then((res) => res.data),
     bulkRecordAttendance: (meetingId: string, payload: unknown) =>
-      apiPost<{ data: ActaAttendee[] }>(`/api/v1/acta/meetings/${meetingId}/attendance/bulk`, payload).then((res) => res.data),
+      apiPost<{ data: ActaAttendee[] }>(`/api/v1/acta/meetings/${meetingId}/attendance/bulk`, normalizeBulkAttendancePayload(payload)).then((res) => res.data),
     listAgenda: (meetingId: string): Promise<ActaAgendaItem[]> => fetchSuiteData(`/api/v1/acta/meetings/${meetingId}/agenda`),
     createAgendaItem: (meetingId: string, payload: unknown) =>
-      apiPost<{ data: ActaAgendaItem }>(`/api/v1/acta/meetings/${meetingId}/agenda`, payload).then((res) => res.data),
+      apiPost<{ data: ActaAgendaItem }>(`/api/v1/acta/meetings/${meetingId}/agenda`, normalizeAgendaPayload(payload)).then((res) => res.data),
     updateAgendaItem: (meetingId: string, itemId: string, payload: unknown) =>
-      apiPut<{ data: ActaAgendaItem }>(`/api/v1/acta/meetings/${meetingId}/agenda/${itemId}`, payload).then((res) => res.data),
+      apiPut<{ data: ActaAgendaItem }>(`/api/v1/acta/meetings/${meetingId}/agenda/${itemId}`, normalizeAgendaPayload(payload)).then((res) => res.data),
     deleteAgendaItem: (meetingId: string, itemId: string) => apiDelete<void>(`/api/v1/acta/meetings/${meetingId}/agenda/${itemId}`),
     reorderAgenda: (meetingId: string, itemIds: string[]) =>
       apiPut<{ data: ActaAgendaItem[] }>(`/api/v1/acta/meetings/${meetingId}/agenda/reorder`, { item_ids: itemIds }).then((res) => res.data),
@@ -198,12 +377,14 @@ export const enterpriseApi = {
       apiPost<{ data: ActaMeetingMinutes }>(`/api/v1/acta/meetings/${meetingId}/minutes/publish`).then((res) => res.data),
     listActionItems: (params: FetchParams) => fetchSuitePaginated<ActaActionItem>('/api/v1/acta/action-items', params),
     getActionItem: (id: string) => fetchSuiteData<ActaActionItem>(`/api/v1/acta/action-items/${id}`),
-    createActionItem: (payload: unknown) => apiPost<{ data: ActaActionItem }>('/api/v1/acta/action-items', payload).then((res) => res.data),
-    updateActionItem: (id: string, payload: unknown) => apiPut<{ data: ActaActionItem }>(`/api/v1/acta/action-items/${id}`, payload).then((res) => res.data),
+    createActionItem: (payload: unknown) =>
+      apiPost<{ data: ActaActionItem }>('/api/v1/acta/action-items', normalizeActionItemPayload(payload)).then((res) => res.data),
+    updateActionItem: (id: string, payload: unknown) =>
+      apiPut<{ data: ActaActionItem }>(`/api/v1/acta/action-items/${id}`, normalizeActionItemPayload(payload)).then((res) => res.data),
     updateActionItemStatus: (id: string, payload: unknown) =>
       apiPut<{ data: ActaActionItem }>(`/api/v1/acta/action-items/${id}/status`, payload).then((res) => res.data),
     extendActionItem: (id: string, payload: unknown) =>
-      apiPost<{ data: ActaActionItem }>(`/api/v1/acta/action-items/${id}/extend`, payload).then((res) => res.data),
+      apiPost<{ data: ActaActionItem }>(`/api/v1/acta/action-items/${id}/extend`, normalizeActionItemExtensionPayload(payload)).then((res) => res.data),
     listOverdueActionItems: (): Promise<ActaActionItem[]> => fetchSuiteData('/api/v1/acta/action-items/overdue'),
     listMyActionItems: (): Promise<ActaActionItem[]> => fetchSuiteData('/api/v1/acta/action-items/my'),
     getActionItemStats: (): Promise<ActaActionItemStats> => fetchSuiteData('/api/v1/acta/action-items/stats'),
@@ -213,12 +394,12 @@ export const enterpriseApi = {
     getComplianceScore: (): Promise<{ score: number }> => fetchSuiteData('/api/v1/acta/compliance/score'),
     listAttachments: (meetingId: string): Promise<ActaMeetingAttachment[]> => fetchSuiteData(`/api/v1/acta/meetings/${meetingId}/attachments`),
     addAttachmentReference: (meetingId: string, payload: unknown) =>
-      apiPost<{ data: ActaMeetingAttachment[] }>(`/api/v1/acta/meetings/${meetingId}/attachments`, payload).then((res) => res.data),
+      apiPost<{ data: ActaMeetingAttachment[] }>(`/api/v1/acta/meetings/${meetingId}/attachments`, normalizeAttachmentPayload(payload)).then((res) => res.data),
     deleteAttachment: (meetingId: string, fileId: string) => apiDelete<void>(`/api/v1/acta/meetings/${meetingId}/attachments/${fileId}`),
   },
   lex: {
     getDashboard: (): Promise<LexDashboard> => fetchSuiteData('/api/v1/lex/dashboard'),
-    listContracts: (params: FetchParams) => fetchSuitePaginated<LexContractSummary>('/api/v1/lex/contracts', params),
+    listContracts: (params: FetchParams) => fetchSuitePaginated<LexContractRecord>('/api/v1/lex/contracts', params),
     searchContracts: async (query: string, params: FetchParams): Promise<PaginatedResponse<LexContractSummary>> => {
       const response = await apiGet<{ data: LexContractSummary[]; meta: PaginatedResponse<LexContractSummary>['meta'] }>(
         '/api/v1/lex/contracts/search',
@@ -273,7 +454,7 @@ export const enterpriseApi = {
     getComplianceDashboard: (): Promise<LexComplianceDashboard> => fetchSuiteData('/api/v1/lex/compliance/dashboard'),
     getComplianceScore: (): Promise<LexComplianceScore> => fetchSuiteData('/api/v1/lex/compliance/score'),
     getExpiringContracts: (days?: number): Promise<LexExpiringContractSummary[]> =>
-      fetchSuiteData('/api/v1/lex/contracts/expiring', days ? { days } : undefined),
+      fetchSuiteData('/api/v1/lex/contracts/expiring', days ? { horizon_days: days } : undefined),
   },
   visus: {
     listDashboards: (params: FetchParams) => fetchSuitePaginated<VisusDashboard>('/api/v1/visus/dashboards', params),

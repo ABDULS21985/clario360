@@ -19,12 +19,12 @@ export default function RoleManagementPage() {
   const [editRole, setEditRole] = useState<Role | null>(null);
   const [deleteRole, setDeleteRole] = useState<Role | null>(null);
 
-  const { data, isLoading, error, refetch } = useApiQuery<{ data: Role[] }>(
+  const { data, isLoading, error, refetch } = useApiQuery<Role[]>(
     ["roles"],
     "/api/v1/roles"
   );
 
-  const roles = data?.data ?? [];
+  const roles = data ?? [];
 
   if (isLoading) {
     return (

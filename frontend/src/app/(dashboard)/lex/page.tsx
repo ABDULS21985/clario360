@@ -14,7 +14,7 @@ import { PermissionRedirect } from '@/components/common/permission-redirect';
 import { SectionCard } from '@/components/suites/section-card';
 import { contractStatusConfig } from '@/lib/status-configs';
 import { enterpriseApi } from '@/lib/enterprise';
-import type { ComplianceDashboard, ComplianceRule, LexComplianceAlert, LexContract, LexDocument } from '@/types/suites';
+import type { LexComplianceAlert, LexComplianceRule, LexContract } from '@/types/suites';
 import { StatusBadge } from '@/components/shared/status-badge';
 
 export default function LexPage() {
@@ -126,7 +126,7 @@ export default function LexPage() {
                       <StatusBadge status={contract.status} config={contractStatusConfig} size="sm" />
                     </div>
                     <div className="mt-2 flex flex-wrap gap-3 text-xs text-muted-foreground">
-                      <span>Value: {contract.value != null ? `${contract.currency} ${contract.value.toLocaleString()}` : 'Undisclosed'}</span>
+                      <span>Value: {contract.total_value != null ? `${contract.currency} ${contract.total_value.toLocaleString()}` : 'Undisclosed'}</span>
                       <span>{contract.expiry_date ? `Expires ${new Date(contract.expiry_date).toLocaleDateString()}` : 'No expiry'}</span>
                     </div>
                   </div>
@@ -145,7 +145,7 @@ export default function LexPage() {
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
                         <p className="font-medium">{alert.title}</p>
-                        <p className="text-xs text-muted-foreground">{alert.entity_type}</p>
+                        <p className="text-xs text-muted-foreground line-clamp-1">{alert.description}</p>
                       </div>
                       <SeverityIndicator severity={normalizeSeverity(alert.severity)} size="sm" />
                     </div>
@@ -165,12 +165,12 @@ export default function LexPage() {
             {regulations.length === 0 ? (
               <p className="text-sm text-muted-foreground">No regulations are configured for this tenant.</p>
             ) : (
-              regulations.map((rule) => (
+              regulations.map((rule: LexComplianceRule) => (
                 <div key={rule.id} className="rounded-lg border px-4 py-3">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
                       <p className="font-medium">{rule.name}</p>
-                      <p className="text-xs text-muted-foreground">{rule.regulation_reference ?? rule.jurisdiction ?? 'Unspecified reference'}</p>
+                      <p className="text-xs text-muted-foreground capitalize">{rule.rule_type.replace(/_/g, ' ')}</p>
                     </div>
                     <div className="flex items-center gap-2">
                       <SeverityIndicator severity={normalizeSeverity(rule.severity)} size="sm" />

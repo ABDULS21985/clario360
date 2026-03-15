@@ -53,6 +53,10 @@ func (s *ComplianceService) ListRules(ctx context.Context, tenantID uuid.UUID) (
 	return s.rules.ListRules(ctx, tenantID)
 }
 
+func (s *ComplianceService) ListRulesPaginated(ctx context.Context, tenantID uuid.UUID, page, perPage int) ([]model.ComplianceRule, int, error) {
+	return s.rules.ListRulesPaginated(ctx, tenantID, page, perPage)
+}
+
 func (s *ComplianceService) CreateRule(ctx context.Context, tenantID, userID uuid.UUID, req dto.CreateComplianceRuleRequest) (*model.ComplianceRule, error) {
 	req.Normalize()
 	if strings.TrimSpace(req.Name) == "" {

@@ -4,11 +4,17 @@ import "github.com/clario360/platform/internal/cyber/model"
 
 // AssetStats is the aggregated stats response for GET /api/v1/cyber/assets/stats.
 type AssetStats struct {
-	TotalAssets          int                      `json:"total_assets"`
-	ActiveAssets         int                      `json:"active_assets"`
-	ByType               map[string]int           `json:"by_type"`
-	ByCriticality        map[string]int           `json:"by_criticality"`
-	ByStatus             map[string]int           `json:"by_status"`
+	// Primary fields expected by frontend
+	Total                    int            `json:"total"`
+	TotalAssets              int            `json:"total_assets"`
+	ActiveAssets             int            `json:"active_assets"`
+	ByType                   map[string]int `json:"by_type"`
+	ByCriticality            map[string]int `json:"by_criticality"`
+	ByStatus                 map[string]int `json:"by_status"`
+	AssetsWithVulns          int            `json:"assets_with_vulns"`
+	AssetsDiscoveredThisWeek int            `json:"assets_discovered_this_week"`
+
+	// Extended fields
 	ByOS                 map[string]int           `json:"by_os"`
 	ByDepartment         map[string]int           `json:"by_department"`
 	ByDiscoverySource    map[string]int           `json:"by_discovery_source"`

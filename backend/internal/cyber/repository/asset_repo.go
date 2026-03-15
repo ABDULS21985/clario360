@@ -82,12 +82,31 @@ func (r *AssetRepository) GetByID(ctx context.Context, tenantID, assetID uuid.UU
 			a.id, a.tenant_id, a.name, a.type, a.ip_address::text, a.hostname,
 			a.mac_address, a.os, a.os_version, a.owner, a.department, a.location,
 			a.criticality, a.status, a.discovered_at, a.last_seen_at, a.discovery_source,
+			a.last_scan_id,
 			a.metadata, a.tags, a.created_by, a.created_at, a.updated_at, a.deleted_at,
 			COALESCE((
 				SELECT COUNT(*) FROM vulnerabilities v
 				WHERE v.asset_id = a.id AND v.status NOT IN ('resolved','accepted','false_positive')
 				  AND v.deleted_at IS NULL
 			), 0) AS open_vulnerability_count,
+			COALESCE((
+				SELECT COUNT(*) FROM vulnerabilities v
+				WHERE v.asset_id = a.id AND v.severity = 'critical'
+				  AND v.status NOT IN ('resolved','accepted','false_positive')
+				  AND v.deleted_at IS NULL
+			), 0) AS critical_vuln_count,
+			COALESCE((
+				SELECT COUNT(*) FROM vulnerabilities v
+				WHERE v.asset_id = a.id AND v.severity = 'high'
+				  AND v.status NOT IN ('resolved','accepted','false_positive')
+				  AND v.deleted_at IS NULL
+			), 0) AS high_vuln_count,
+			COALESCE((
+				SELECT COUNT(*) FROM alerts al
+				WHERE al.tenant_id = a.tenant_id AND al.asset_id = a.id
+				  AND al.status NOT IN ('resolved','closed','false_positive')
+				  AND al.deleted_at IS NULL
+			), 0) AS alert_count,
 			(
 				SELECT v.severity FROM vulnerabilities v
 				WHERE v.asset_id = a.id AND v.status NOT IN ('resolved','accepted','false_positive')
@@ -113,19 +132,31 @@ func (r *AssetRepository) List(ctx context.Context, tenantID uuid.UUID, params *
 			a.id, a.tenant_id, a.name, a.type, a.ip_address::text, a.hostname,
 			a.mac_address, a.os, a.os_version, a.owner, a.department, a.location,
 			a.criticality, a.status, a.discovered_at, a.last_seen_at, a.discovery_source,
+			a.last_scan_id,
 			a.metadata, a.tags, a.created_by, a.created_at, a.updated_at, a.deleted_at,
 			COALESCE(vc.open_count, 0) AS open_vulnerability_count,
+			COALESCE(vc.critical_count, 0) AS critical_vuln_count,
+			COALESCE(vc.high_count, 0) AS high_vuln_count,
+			COALESCE(ac.cnt, 0) AS alert_count,
 			vc.highest_severity AS highest_vulnerability_severity,
 			COALESCE(rc.cnt, 0) AS relationship_count
 		FROM assets a
 		LEFT JOIN LATERAL (
 			SELECT COUNT(*) AS open_count,
+			       COUNT(*) FILTER (WHERE v.severity = 'critical') AS critical_count,
+			       COUNT(*) FILTER (WHERE v.severity = 'high') AS high_count,
 			       (SELECT v2.severity FROM vulnerabilities v2 WHERE v2.asset_id = a.id
 			          AND v2.status NOT IN ('resolved','accepted','false_positive') AND v2.deleted_at IS NULL
 			          ORDER BY severity_order(v2.severity::text) DESC LIMIT 1) AS highest_severity
 			FROM vulnerabilities v
 			WHERE v.asset_id = a.id AND v.status NOT IN ('resolved','accepted','false_positive') AND v.deleted_at IS NULL
 		) vc ON true
+		LEFT JOIN LATERAL (
+			SELECT COUNT(*) AS cnt FROM alerts al
+			WHERE al.tenant_id = a.tenant_id AND al.asset_id = a.id
+			  AND al.status NOT IN ('resolved','closed','false_positive')
+			  AND al.deleted_at IS NULL
+		) ac ON true
 		LEFT JOIN LATERAL (
 			SELECT COUNT(*) AS cnt FROM asset_relationships r
 			WHERE r.tenant_id = a.tenant_id AND (r.source_asset_id = a.id OR r.target_asset_id = a.id)
@@ -232,6 +263,9 @@ func (r *AssetRepository) applyAssetFilters(qb *database.QueryBuilder, tenantID 
 	}
 	if params.MinVulnCount != nil {
 		qb.Where("COALESCE(vc.open_count, 0) >= ?", *params.MinVulnCount)
+	}
+	if params.ScanID != nil {
+		qb.Where("a.last_scan_id = ?", *params.ScanID)
 	}
 }
 
@@ -421,17 +455,22 @@ func (r *AssetRepository) UpsertFromScan(ctx context.Context, tenantID uuid.UUID
 		discoverySource = "network_scan"
 	}
 
+	var scanIDPtr *uuid.UUID
+	if d.ScanID != uuid.Nil {
+		scanIDPtr = &d.ScanID
+	}
+
 	err := r.db.QueryRow(ctx, `
 		INSERT INTO assets (
 			id, tenant_id, name, type,
 			ip_address, hostname, mac_address, os, os_version,
 			criticality, status, discovered_at, last_seen_at,
-			discovery_source, metadata, tags
+			discovery_source, last_scan_id, metadata, tags
 		) VALUES (
 			gen_random_uuid(), $1, $2, $3,
 			$4::inet, $5, $6::macaddr, $7, $8,
 			'low', 'active', now(), now(),
-			$9, $10, '{}'
+			$9, $10, $11, '{}'
 		)
 		ON CONFLICT (tenant_id, ip_address) WHERE ip_address IS NOT NULL AND deleted_at IS NULL
 		DO UPDATE SET
@@ -441,11 +480,12 @@ func (r *AssetRepository) UpsertFromScan(ctx context.Context, tenantID uuid.UUID
 			os              = COALESCE(EXCLUDED.os, assets.os),
 			os_version      = COALESCE(EXCLUDED.os_version, assets.os_version),
 			metadata        = assets.metadata || EXCLUDED.metadata,
+			last_scan_id    = COALESCE(EXCLUDED.last_scan_id, assets.last_scan_id),
 			updated_at      = now()
 		RETURNING id, (xmax = 0) AS is_new`,
 		tenantID, d.IPAddress, string(d.AssetType),
 		d.IPAddress, d.Hostname, d.MACAddress, d.OS, d.OSVersion,
-		discoverySource, json.RawMessage(meta),
+		discoverySource, scanIDPtr, json.RawMessage(meta),
 	).Scan(&assetID, &isNew)
 
 	if err != nil {
@@ -537,7 +577,8 @@ func (r *AssetRepository) Stats(ctx context.Context, tenantID uuid.UUID) (map[st
 			COUNT(*) FILTER (WHERE discovery_source = 'network_scan') AS src_network_scan,
 			COUNT(*) FILTER (WHERE discovery_source = 'cloud_scan') AS src_cloud_scan,
 			COUNT(*) FILTER (WHERE discovery_source = 'agent') AS src_agent,
-			COUNT(*) FILTER (WHERE discovery_source = 'import') AS src_import
+			COUNT(*) FILTER (WHERE discovery_source = 'import') AS src_import,
+			COUNT(*) FILTER (WHERE created_at >= NOW() - INTERVAL '7 days') AS discovered_this_week
 		FROM assets
 		WHERE tenant_id = $1 AND deleted_at IS NULL`,
 		tenantID,
@@ -558,6 +599,7 @@ func (r *AssetRepository) Stats(ctx context.Context, tenantID uuid.UUID) (map[st
 		critCritical, critHigh, critMedium, critLow               int
 		statusActive, statusInactive, statusDecom, statusUnknown  int
 		srcManual, srcNetScan, srcCloudScan, srcAgent, srcImport  int
+		discoveredThisWeek                                        int
 	)
 
 	if err := rows.Scan(
@@ -567,6 +609,7 @@ func (r *AssetRepository) Stats(ctx context.Context, tenantID uuid.UUID) (map[st
 		&critCritical, &critHigh, &critMedium, &critLow,
 		&statusActive, &statusInactive, &statusDecom, &statusUnknown,
 		&srcManual, &srcNetScan, &srcCloudScan, &srcAgent, &srcImport,
+		&discoveredThisWeek,
 	); err != nil {
 		return nil, fmt.Errorf("scan stats: %w", err)
 	}
@@ -592,6 +635,7 @@ func (r *AssetRepository) Stats(ctx context.Context, tenantID uuid.UUID) (map[st
 			"manual": srcManual, "network_scan": srcNetScan,
 			"cloud_scan": srcCloudScan, "agent": srcAgent, "import": srcImport,
 		},
+		"discovered_this_week": discoveredThisWeek,
 	}
 
 	byDepartment, topDepartments, err := r.topCounts(ctx, tenantID, "department")
@@ -666,8 +710,12 @@ func (r *AssetRepository) GetMany(ctx context.Context, tenantID uuid.UUID, ids [
 			a.id, a.tenant_id, a.name, a.type, a.ip_address::text, a.hostname,
 			a.mac_address, a.os, a.os_version, a.owner, a.department, a.location,
 			a.criticality, a.status, a.discovered_at, a.last_seen_at, a.discovery_source,
+			a.last_scan_id,
 			a.metadata, a.tags, a.created_by, a.created_at, a.updated_at, a.deleted_at,
 			0::bigint AS open_vulnerability_count,
+			0::bigint AS critical_vuln_count,
+			0::bigint AS high_vuln_count,
+			0::bigint AS alert_count,
 			NULL::text AS highest_vulnerability_severity,
 			0::bigint AS relationship_count
 		FROM assets a
@@ -703,14 +751,18 @@ func scanAsset(row interface {
 		&a.Department, &a.Location,
 		&a.Criticality, &a.Status,
 		&a.DiscoveredAt, &a.LastSeenAt, &a.DiscoverySource,
+		&a.LastScanID,
 		&a.Metadata, &a.Tags,
 		&a.CreatedBy, &a.CreatedAt, &a.UpdatedAt, &a.DeletedAt,
-		&a.OpenVulnerabilityCount, &a.HighestVulnSeverity, &a.RelationshipCount,
+		&a.OpenVulnerabilityCount,
+		&a.CriticalVulnCount, &a.HighVulnCount, &a.AlertCount,
+		&a.HighestVulnSeverity, &a.RelationshipCount,
 	)
 	if err != nil {
 		return nil, err
 	}
 	a.IPAddress = ipStr
+	a.VulnerabilityCount = a.OpenVulnerabilityCount
 	if a.Metadata == nil {
 		a.Metadata = json.RawMessage("{}")
 	}

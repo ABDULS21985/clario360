@@ -26,6 +26,7 @@ import {
 } from '@/components/ui/select';
 import {
   actionItemSchema,
+  dateInputValue,
   enterpriseApi,
   type ActionItemFormValues,
   userDisplayName,
@@ -65,7 +66,7 @@ export function CreateActionItemDialog({
       priority: preset?.priority ?? 'medium',
       assigned_to: preset?.assigned_to ?? '',
       assignee_name: preset?.assignee_name ?? '',
-      due_date: preset?.due_date ?? '',
+      due_date: dateInputValue(preset?.due_date),
       tags: preset?.tags ?? [],
       metadata: preset?.metadata ?? {},
     },
@@ -82,7 +83,7 @@ export function CreateActionItemDialog({
         priority: preset?.priority ?? 'medium',
         assigned_to: preset?.assigned_to ?? '',
         assignee_name: preset?.assignee_name ?? '',
-        due_date: preset?.due_date ?? '',
+        due_date: dateInputValue(preset?.due_date),
         tags: preset?.tags ?? [],
         metadata: preset?.metadata ?? {},
       });

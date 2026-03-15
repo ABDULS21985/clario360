@@ -383,7 +383,19 @@ func (s *VCISOGovernanceService) DeleteEvidence(ctx context.Context, tenantID, i
 	return s.repo.DeleteEvidence(ctx, tenantID, id)
 }
 
+// validEvidenceVerifyStatuses lists the allowed status values for evidence verification.
+var validEvidenceVerifyStatuses = map[string]bool{
+	"verified": true,
+	"rejected": true,
+	"pending":  true,
+	"active":   true,
+	"expired":  true,
+}
+
 func (s *VCISOGovernanceService) VerifyEvidence(ctx context.Context, tenantID, id, userID uuid.UUID, status string) (*model.VCISOEvidence, error) {
+	if !validEvidenceVerifyStatuses[status] {
+		return nil, fmt.Errorf("invalid verification status %q: must be one of verified, rejected, pending, active, expired", status)
+	}
 	if err := s.repo.VerifyEvidence(ctx, tenantID, id, userID, status); err != nil {
 		return nil, err
 	}

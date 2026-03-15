@@ -31,7 +31,12 @@ export default function SocDashboardPage() {
     error,
     mutate,
   } = useRealtimeData<{ data: SOCDashboard }>(API_ENDPOINTS.CYBER_DASHBOARD, {
-    wsTopics: ['alert.created', 'alert.status_changed', 'threat.detected', 'vulnerability.created'],
+    wsTopics: [
+      'cyber.alert.created',
+      'cyber.alert.status_changed',
+      'cyber.threat.detected',
+      'cyber.vulnerability.created',
+    ],
     pollInterval: 60000,
   });
 

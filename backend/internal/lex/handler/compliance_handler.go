@@ -26,12 +26,13 @@ func (h *ComplianceHandler) ListRules(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	items, err := h.service.ListRules(r.Context(), tenantID)
+	page, perPage := suiteapi.ParsePagination(r)
+	items, total, err := h.service.ListRulesPaginated(r.Context(), tenantID, page, perPage)
 	if err != nil {
 		h.writeError(w, r, err)
 		return
 	}
-	suiteapi.WriteData(w, http.StatusOK, items)
+	suiteapi.WritePaginated(w, http.StatusOK, items, page, perPage, total)
 }
 
 func (h *ComplianceHandler) CreateRule(w http.ResponseWriter, r *http.Request) {

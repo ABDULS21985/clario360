@@ -52,7 +52,13 @@ export default function CyberAlertsPage() {
     queryKey: 'cyber-alerts',
     defaultPageSize: 25,
     defaultSort: { column: 'created_at', direction: 'desc' },
-    wsTopics: ['alert.created', 'alert.updated', 'alert.status_changed', 'alert.assigned', 'alert.escalated'],
+    wsTopics: [
+      'cyber.alert.created',
+      'cyber.alert.status_changed',
+      'cyber.alert.assigned',
+      'cyber.alert.escalated',
+      'cyber.alert.merged',
+    ],
   });
 
   const tacticsQuery = useQuery({

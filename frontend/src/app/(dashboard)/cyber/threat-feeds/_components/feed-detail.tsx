@@ -14,6 +14,7 @@ import {
   getThreatFeedTypeLabel,
 } from '@/lib/cyber-indicators';
 import { API_ENDPOINTS } from '@/lib/constants';
+import { parseApiError } from '@/lib/format';
 import { formatDateTime } from '@/lib/utils';
 import type {
   ThreatFeedConfig,
@@ -63,7 +64,7 @@ export function FeedDetail({
       await historyQuery.refetch();
       onSynced?.();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Sync failed');
+      toast.error(parseApiError(error));
     } finally {
       setSyncing(false);
     }

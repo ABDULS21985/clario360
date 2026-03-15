@@ -116,8 +116,8 @@ func TestMinutes_NonChairApprovalRejected(t *testing.T) {
 
 	nonChairToken := h.tokenForUser(t, fixture.Committee.Members[1].ID, "tenant_admin")
 	errResp := mustError(t, h.doJSONWithToken(t, nonChairToken, http.MethodPost, fmt.Sprintf("/api/v1/acta/meetings/%s/minutes/approve", fixture.Meeting.ID), nil), http.StatusForbidden)
-	if errResp.Error.Message != "only the committee chair can approve minutes" {
-		t.Fatalf("approve error message = %q, want chair-only message", errResp.Error.Message)
+	if errResp.Message != "only the committee chair can approve minutes" {
+		t.Fatalf("approve error message = %q, want chair-only message", errResp.Message)
 	}
 }
 

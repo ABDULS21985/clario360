@@ -16,7 +16,7 @@ export function AlertStatsBar({ onFilterByStatus }: AlertStatsBarProps) {
     API_ENDPOINTS.CYBER_ALERTS_STATS,
     {
       pollInterval: 60000,
-      wsTopics: ['alert.created', 'alert.status_changed', 'alert.escalated'],
+      wsTopics: ['cyber.alert.created', 'cyber.alert.status_changed', 'cyber.alert.escalated'],
     },
   );
 

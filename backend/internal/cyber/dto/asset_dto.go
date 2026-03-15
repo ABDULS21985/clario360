@@ -67,6 +67,7 @@ type AssetListParams struct {
 	DiscoveredAfter       *time.Time `form:"discovered_after"`
 	DiscoveredBefore      *time.Time `form:"discovered_before"`
 	LastSeenAfter         *time.Time `form:"last_seen_after"`
+	ScanID                *string    `form:"scan_id"`
 	HasVulnerabilities    *bool      `form:"has_vulnerabilities"`
 	VulnerabilitySeverity *string    `form:"vulnerability_severity"`
 	MinVulnCount          *int       `form:"min_vuln_count"`

@@ -64,7 +64,7 @@ export default function CyberThreatsPage() {
     queryKey: 'cyber-threats',
     defaultPageSize: 25,
     defaultSort: { column: 'last_seen_at', direction: 'desc' },
-    wsTopics: ['threat.detected', 'threat.updated'],
+    wsTopics: ['cyber.threat.detected', 'cyber.threat.updated'],
   });
 
   const statsQuery = useQuery({

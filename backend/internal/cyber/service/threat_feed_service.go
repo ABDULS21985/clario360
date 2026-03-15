@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/csv"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -22,6 +23,41 @@ import (
 	predictfeeds "github.com/clario360/platform/internal/cyber/vciso/predict/feeds"
 	"github.com/clario360/platform/internal/events"
 )
+
+// SyncErrorKind classifies sync failures so the handler can choose the right HTTP status.
+type SyncErrorKind int
+
+const (
+	SyncErrNotFound  SyncErrorKind = iota // feed does not exist
+	SyncErrBadConfig                      // feed configuration is invalid (e.g. missing URL)
+	SyncErrUpstream                       // external feed endpoint unreachable or returned an error
+	SyncErrParse                          // feed payload could not be parsed
+	SyncErrInternal                       // unexpected internal error
+)
+
+// SyncError wraps a classified sync failure.
+type SyncError struct {
+	Kind  SyncErrorKind
+	Cause error
+}
+
+func (e *SyncError) Error() string {
+	if e.Cause != nil {
+		return e.Cause.Error()
+	}
+	return "sync failed"
+}
+
+func (e *SyncError) Unwrap() error {
+	return e.Cause
+}
+
+func classifyFetchError(err error) SyncErrorKind {
+	if strings.Contains(err.Error(), "feed URL is not configured") {
+		return SyncErrBadConfig
+	}
+	return SyncErrUpstream
+}
 
 type ThreatFeedService struct {
 	feedRepo      *repository.ThreatFeedRepository
@@ -148,7 +184,10 @@ func (s *ThreatFeedService) ListHistory(ctx context.Context, tenantID, feedID uu
 func (s *ThreatFeedService) SyncFeed(ctx context.Context, tenantID, feedID uuid.UUID, actor *Actor) (map[string]interface{}, error) {
 	config, err := s.feedRepo.GetByID(ctx, tenantID, feedID)
 	if err != nil {
-		return nil, err
+		if errors.Is(err, repository.ErrNotFound) {
+			return nil, &SyncError{Kind: SyncErrNotFound, Cause: err}
+		}
+		return nil, &SyncError{Kind: SyncErrInternal, Cause: err}
 	}
 
 	startedAt := time.Now().UTC()
@@ -165,6 +204,7 @@ func (s *ThreatFeedService) SyncFeed(ctx context.Context, tenantID, feedID uuid.
 	status := model.ThreatFeedStatusActive
 	lastSyncStatus := "completed"
 	var lastError *string
+	var syncErr *SyncError
 
 	appendPreview := func(item *model.ThreatIndicator) {
 		if len(preview) >= 10 {
@@ -180,12 +220,12 @@ func (s *ThreatFeedService) SyncFeed(ctx context.Context, tenantID, feedID uuid.
 		})
 	}
 
-	runErr := func(err error) error {
+	setFailed := func(kind SyncErrorKind, cause error) {
 		status = model.ThreatFeedStatusError
 		lastSyncStatus = "failed"
-		text := err.Error()
+		text := cause.Error()
 		lastError = &text
-		return err
+		syncErr = &SyncError{Kind: kind, Cause: cause}
 	}
 
 	switch config.Type {
@@ -194,20 +234,26 @@ func (s *ThreatFeedService) SyncFeed(ctx context.Context, tenantID, feedID uuid.
 	case model.ThreatFeedTypeSTIX, model.ThreatFeedTypeTAXII:
 		payload, err := s.fetchFeedPayload(ctx, config)
 		if err != nil {
-			return nil, runErr(err)
+			setFailed(classifyFetchError(err), err)
+			break
 		}
 		bundle, err := indicator.ParseSTIXBundle(payload, "stix_feed")
 		if err != nil {
-			return nil, runErr(err)
+			setFailed(SyncErrParse, err)
+			break
 		}
 
 		threatIDs := make(map[string]uuid.UUID, len(bundle.Threats))
 		for _, parsedThreat := range bundle.Threats {
 			threat, err := s.threatRepo.UpsertSyntheticThreat(ctx, tenantID, parsedThreat.Name, parsedThreat.Description, parsedThreat.Type, config.DefaultSeverity, parsedThreat.Tags)
 			if err != nil {
-				return nil, runErr(err)
+				setFailed(SyncErrInternal, err)
+				break
 			}
 			threatIDs[parsedThreat.ExternalID] = threat.ID
+		}
+		if syncErr != nil {
+			break
 		}
 
 		for _, parsedIndicator := range bundle.Indicators {
@@ -240,11 +286,13 @@ func (s *ThreatFeedService) SyncFeed(ctx context.Context, tenantID, feedID uuid.
 	case model.ThreatFeedTypeMISP:
 		payload, err := s.fetchFeedPayload(ctx, config)
 		if err != nil {
-			return nil, runErr(err)
+			setFailed(classifyFetchError(err), err)
+			break
 		}
 		signals, err := s.ingester.ParseMISP(payload)
 		if err != nil {
-			return nil, runErr(err)
+			setFailed(SyncErrParse, err)
+			break
 		}
 		summary["indicators_parsed"] = len(signals)
 		for _, signal := range signals {
@@ -268,11 +316,13 @@ func (s *ThreatFeedService) SyncFeed(ctx context.Context, tenantID, feedID uuid.
 	case model.ThreatFeedTypeCSVURL:
 		payload, err := s.fetchFeedPayload(ctx, config)
 		if err != nil {
-			return nil, runErr(err)
+			setFailed(classifyFetchError(err), err)
+			break
 		}
 		indicators, failed, err := parseFeedCSV(payload, config)
 		if err != nil {
-			return nil, runErr(err)
+			setFailed(SyncErrParse, err)
+			break
 		}
 		summary["indicators_parsed"] = len(indicators) + failed
 		summary["indicators_failed"] = failed
@@ -289,6 +339,7 @@ func (s *ThreatFeedService) SyncFeed(ctx context.Context, tenantID, feedID uuid.
 		}
 	}
 
+	// Always record sync history and update feed state, even on failure.
 	completedAt := time.Now().UTC()
 	duration := completedAt.Sub(startedAt)
 	historyMeta, _ := json.Marshal(map[string]interface{}{
@@ -308,11 +359,15 @@ func (s *ThreatFeedService) SyncFeed(ctx context.Context, tenantID, feedID uuid.
 		StartedAt:          startedAt,
 		CompletedAt:        &completedAt,
 	}
-	if err := s.feedRepo.AppendHistory(ctx, history); err != nil {
-		return nil, err
+	if histErr := s.feedRepo.AppendHistory(ctx, history); histErr != nil {
+		s.logger.Error().Err(histErr).Str("feed_id", feedID.String()).Msg("failed to append sync history")
 	}
-	if err := s.feedRepo.UpdateSyncState(ctx, tenantID, feedID, status, lastSyncStatus, lastError, completedAt); err != nil {
-		return nil, err
+	if stateErr := s.feedRepo.UpdateSyncState(ctx, tenantID, feedID, status, lastSyncStatus, lastError, completedAt); stateErr != nil {
+		s.logger.Error().Err(stateErr).Str("feed_id", feedID.String()).Msg("failed to update feed sync state")
+	}
+
+	if syncErr != nil {
+		return nil, syncErr
 	}
 
 	summary["status"] = lastSyncStatus

@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"errors"
 	"net/http"
 	"strconv"
 
@@ -97,7 +98,23 @@ func (h *ThreatFeedHandler) Sync(w http.ResponseWriter, r *http.Request) {
 	}
 	result, err := h.svc.SyncFeed(r.Context(), tenantID, feedID, actorFromRequest(r))
 	if err != nil {
-		writeError(w, http.StatusBadRequest, "SYNC_FAILED", err.Error(), nil)
+		var syncErr *service.SyncError
+		if errors.As(err, &syncErr) {
+			switch syncErr.Kind {
+			case service.SyncErrNotFound:
+				writeError(w, http.StatusNotFound, "NOT_FOUND", syncErr.Error(), nil)
+			case service.SyncErrBadConfig:
+				writeError(w, http.StatusUnprocessableEntity, "BAD_CONFIG", syncErr.Error(), nil)
+			case service.SyncErrUpstream:
+				writeError(w, http.StatusBadGateway, "UPSTREAM_ERROR", syncErr.Error(), nil)
+			case service.SyncErrParse:
+				writeError(w, http.StatusUnprocessableEntity, "PARSE_ERROR", syncErr.Error(), nil)
+			default:
+				writeError(w, http.StatusInternalServerError, "INTERNAL_ERROR", err.Error(), nil)
+			}
+		} else {
+			writeError(w, http.StatusInternalServerError, "INTERNAL_ERROR", err.Error(), nil)
+		}
 		return
 	}
 	writeJSON(w, http.StatusOK, envelope{"data": result})

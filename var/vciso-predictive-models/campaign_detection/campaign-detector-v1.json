@@ -1,0 +1,1 @@
+{"model_version":"campaign-detector-v1","epsilon":0.55,"min_points":2,"feature_weights":{"ioc_overlap":0.2,"semantic_similarity":0.35,"target_overlap":0.1,"technique_overlap":0.15,"time_proximity":0.2}}

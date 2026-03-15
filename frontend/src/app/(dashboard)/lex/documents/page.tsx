@@ -43,11 +43,11 @@ export default function LexDocumentsPage() {
       cell: ({ row }) => <StatusBadge status={row.original.status} config={documentStatusConfig} size="sm" />,
     },
     {
-      id: 'version',
-      accessorKey: 'version',
+      id: 'current_version',
+      accessorKey: 'current_version',
       header: 'Version',
       enableSorting: true,
-      cell: ({ row }) => <span className="text-sm text-muted-foreground">v{row.original.version}</span>,
+      cell: ({ row }) => <span className="text-sm text-muted-foreground">v{row.original.current_version}</span>,
     },
     {
       id: 'tags',

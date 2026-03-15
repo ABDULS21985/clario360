@@ -224,9 +224,22 @@ func (h *AssetHandler) BulkCreate(w http.ResponseWriter, r *http.Request) {
 		defer file.Close()
 		result, err = h.svc.BulkCreateFromCSV(r.Context(), tenantID, userID, file)
 	} else {
-		var reqs []dto.CreateAssetRequest
-		if !decodeJSON(w, r, &reqs) {
+		// Accept both raw array [...] and wrapped { assets: [...] } for frontend compatibility
+		var raw json.RawMessage
+		if !decodeJSON(w, r, &raw) {
 			return
+		}
+		var reqs []dto.CreateAssetRequest
+		if err := json.Unmarshal(raw, &reqs); err != nil {
+			// Try wrapped format: { "assets": [...] }
+			var wrapped struct {
+				Assets []dto.CreateAssetRequest `json:"assets"`
+			}
+			if err2 := json.Unmarshal(raw, &wrapped); err2 != nil || len(wrapped.Assets) == 0 {
+				writeError(w, http.StatusBadRequest, "VALIDATION_ERROR", "body must be a JSON array or {assets: [...]}", nil)
+				return
+			}
+			reqs = wrapped.Assets
 		}
 		result, err = h.svc.BulkCreate(r.Context(), tenantID, userID, reqs)
 	}
@@ -456,6 +469,26 @@ func (h *AssetHandler) UpdateVulnerability(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	writeJSON(w, http.StatusOK, envelope{"data": vuln})
+}
+
+// ---- Activity ----
+
+// ListActivity handles GET /api/v1/cyber/assets/:id/activity
+func (h *AssetHandler) ListActivity(w http.ResponseWriter, r *http.Request) {
+	tenantID, _, ok := requireTenantAndUser(w, r)
+	if !ok {
+		return
+	}
+	assetID, ok := parseUUID(w, chi.URLParam(r, "id"))
+	if !ok {
+		return
+	}
+	activity, err := h.svc.ListAssetActivity(r.Context(), tenantID, assetID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "LIST_ACTIVITY_FAILED", err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, envelope{"data": activity})
 }
 
 // ---- Scans ----
@@ -775,6 +808,9 @@ func parseAssetListParams(r *http.Request) (*dto.AssetListParams, error) {
 			}
 		}
 		params.LastSeenAfter = &t
+	}
+	if v := q.Get("scan_id"); v != "" {
+		params.ScanID = &v
 	}
 	if v := q.Get("has_vulnerabilities"); v != "" {
 		b, err := strconv.ParseBool(v)

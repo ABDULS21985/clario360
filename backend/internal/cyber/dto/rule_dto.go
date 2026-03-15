@@ -19,6 +19,8 @@ type RuleListParams struct {
 	Tag              *string  `form:"tag"`
 	MITRETacticID    *string  `form:"mitre_tactic_id"`
 	MITRETechniqueID *string  `form:"mitre_technique_id"`
+	Sort             string   `form:"sort"`
+	Order            string   `form:"order"`
 	Page             int      `form:"page"`
 	PerPage          int      `form:"per_page"`
 }

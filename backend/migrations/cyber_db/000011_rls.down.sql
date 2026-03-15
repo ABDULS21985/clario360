@@ -56,12 +56,36 @@ DROP POLICY IF EXISTS tenant_insert ON alerts;
 DROP POLICY IF EXISTS tenant_update ON alerts;
 DROP POLICY IF EXISTS tenant_delete ON alerts;
 
+-- TABLE: security_events
+ALTER TABLE security_events DISABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON security_events;
+DROP POLICY IF EXISTS tenant_insert ON security_events;
+DROP POLICY IF EXISTS tenant_update ON security_events;
+DROP POLICY IF EXISTS tenant_delete ON security_events;
+
+-- TABLE: alert_timeline
+ALTER TABLE alert_timeline DISABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON alert_timeline;
+DROP POLICY IF EXISTS tenant_insert ON alert_timeline;
+DROP POLICY IF EXISTS tenant_update ON alert_timeline;
+DROP POLICY IF EXISTS tenant_delete ON alert_timeline;
+
+-- TABLE: alert_comments
+ALTER TABLE alert_comments DISABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON alert_comments;
+DROP POLICY IF EXISTS tenant_insert ON alert_comments;
+DROP POLICY IF EXISTS tenant_update ON alert_comments;
+DROP POLICY IF EXISTS tenant_delete ON alert_comments;
+
 -- TABLE: detection_rules
 ALTER TABLE detection_rules DISABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS tenant_isolation ON detection_rules;
 DROP POLICY IF EXISTS tenant_insert ON detection_rules;
 DROP POLICY IF EXISTS tenant_update ON detection_rules;
 DROP POLICY IF EXISTS tenant_delete ON detection_rules;
+DROP POLICY IF EXISTS template_select ON detection_rules;
+DROP POLICY IF EXISTS template_insert ON detection_rules;
+DROP POLICY IF EXISTS template_update ON detection_rules;
 
 -- TABLE: threat_indicators
 ALTER TABLE threat_indicators DISABLE ROW LEVEL SECURITY;

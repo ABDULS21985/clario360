@@ -1,24 +1,31 @@
-import { test as setup, expect } from '@playwright/test';
+import { test as setup } from '@playwright/test';
 
 const AUTH_FILE = './e2e/.auth/user.json';
 
 setup('authenticate', async ({ page }) => {
-  // Navigate to login page
-  await page.goto('/login');
+  // 1. Login via IAM API to get tokens
+  const loginResp = await page.request.post('http://localhost:8081/api/v1/auth/login', {
+    data: { email: 'admin@clario.dev', password: 'Cl@rio360Dev!' },
+  });
 
-  // Wait for the login form to be ready
-  await page.waitForSelector('#email', { timeout: 15_000 });
+  if (!loginResp.ok()) {
+    throw new Error(`IAM login failed: ${loginResp.status()} ${await loginResp.text()}`);
+  }
 
-  // Fill in credentials
-  await page.fill('#email', 'admin@clario.dev');
-  await page.fill('#password', 'Cl@rio360Dev!');
+  const { access_token, refresh_token } = await loginResp.json();
 
-  // Click the sign-in button
-  await page.getByRole('button', { name: /sign in/i }).click();
+  // 2. Store tokens via BFF session endpoint (sets httpOnly cookies on localhost:3000)
+  const sessionResp = await page.request.post('http://localhost:3000/api/auth/session', {
+    data: { access_token, refresh_token },
+  });
 
-  // Wait for redirect to dashboard (successful login)
-  await expect(page).toHaveURL(/\/(dashboard|admin)/, { timeout: 30_000 });
+  if (!sessionResp.ok()) {
+    throw new Error(`BFF session store failed: ${sessionResp.status()} ${await sessionResp.text()}`);
+  }
 
-  // Save the authenticated state (cookies + localStorage)
+  // 3. Navigate briefly to let browser context register the cookies
+  await page.goto('/login', { waitUntil: 'commit' });
+
+  // 4. Save the authenticated state (cookies)
   await page.context().storageState({ path: AUTH_FILE });
 });

@@ -41,9 +41,7 @@ export function ActaCalendarWidget({
       new Map(
         days.map((day) => [
           day.date,
-          [...day.meetings].sort((left, right) =>
-            left.scheduled_at.localeCompare(right.scheduled_at),
-          ),
+          normalizeMeetings(day.meetings),
         ]),
       ),
     [days],
@@ -187,4 +185,14 @@ export function ActaCalendarWidget({
 
 function colorIndex(value: string) {
   return Array.from(value).reduce((sum, char) => sum + char.charCodeAt(0), 0) % PALETTE.length;
+}
+
+function normalizeMeetings(meetings: ActaMeetingSummary[] | null | undefined) {
+  if (!Array.isArray(meetings)) {
+    return [];
+  }
+
+  return [...meetings].sort((left, right) =>
+    left.scheduled_at.localeCompare(right.scheduled_at),
+  );
 }

@@ -88,6 +88,7 @@ type FileAccessLog struct {
 type QuarantineLog struct {
 	ID               string     `json:"id" db:"id"`
 	FileID           string     `json:"file_id" db:"file_id"`
+	TenantID         string     `json:"tenant_id" db:"tenant_id"`
 	OriginalBucket   string     `json:"original_bucket" db:"original_bucket"`
 	OriginalKey      string     `json:"original_key" db:"original_key"`
 	QuarantineBucket string     `json:"quarantine_bucket" db:"quarantine_bucket"`

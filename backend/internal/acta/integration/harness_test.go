@@ -79,20 +79,18 @@ type dataEnvelope[T any] struct {
 }
 
 type paginatedEnvelope[T any] struct {
-	Data       []T `json:"data"`
-	Pagination struct {
+	Data []T `json:"data"`
+	Meta struct {
 		Page       int `json:"page"`
 		PerPage    int `json:"per_page"`
 		Total      int `json:"total"`
 		TotalPages int `json:"total_pages"`
-	} `json:"pagination"`
+	} `json:"meta"`
 }
 
 type errorEnvelope struct {
-	Error struct {
-		Code    string `json:"code"`
-		Message string `json:"message"`
-	} `json:"error"`
+	Code    string `json:"code"`
+	Message string `json:"message"`
 }
 
 type committeeFixture struct {

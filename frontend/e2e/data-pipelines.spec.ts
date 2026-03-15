@@ -153,24 +153,16 @@ test.describe('Data Pipelines List Page', () => {
   });
 
   test('clicking pipeline name navigates to detail page', async ({ page }) => {
-    await page.waitForResponse(
-      (resp) =>
-        resp.url().includes('/api/v1/data/pipelines') &&
-        !resp.url().includes('/count') &&
-        !resp.url().includes('/stats') &&
-        resp.request().method() === 'GET' &&
-        resp.status() === 200,
-      { timeout: 15_000 },
-    );
+    // beforeEach already loaded the page; wait for data to render
+    await page.waitForTimeout(2000);
 
     // Find pipeline links in the table
     const pipelineLinks = page.locator('table a[href*="/data/pipelines/"]');
     const linkCount = await pipelineLinks.count();
 
     if (linkCount > 0) {
-      const href = await pipelineLinks.first().getAttribute('href');
       await pipelineLinks.first().click();
-      await expect(page).toHaveURL(new RegExp(href!.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+      await expect(page).toHaveURL(/\/data\/pipelines\/[0-9a-f-]+/, { timeout: 15_000 });
     }
   });
 

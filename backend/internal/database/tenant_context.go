@@ -101,3 +101,48 @@ func RunReadWithTenant(ctx context.Context, pool *pgxpool.Pool, tenantID uuid.UU
 
 	return nil
 }
+
+// RunSystemTx evaluates logic within a transaction bypassing RLS for background workers.
+// Sets app.bypass_rls to 'on' safely within the local transaction scope.
+func RunSystemTx(ctx context.Context, pool *pgxpool.Pool, fn func(pgx.Tx) error) error {
+	tx, err := pool.BeginTx(ctx, pgx.TxOptions{})
+	if err != nil {
+		return fmt.Errorf("begin system transaction: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
+	if _, err := tx.Exec(ctx, "SELECT set_config('app.bypass_rls', 'on', true)"); err != nil {
+		return fmt.Errorf("set system context: %w", err)
+	}
+
+	if err := fn(tx); err != nil {
+		return err
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("commit system transaction: %w", err)
+	}
+	return nil
+}
+
+// RunSystemRead is like RunSystemTx but sets AccessMode to ReadOnly.
+func RunSystemRead(ctx context.Context, pool *pgxpool.Pool, fn func(pgx.Tx) error) error {
+	tx, err := pool.BeginTx(ctx, pgx.TxOptions{AccessMode: pgx.ReadOnly})
+	if err != nil {
+		return fmt.Errorf("begin read-only system transaction: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
+	if _, err := tx.Exec(ctx, "SELECT set_config('app.bypass_rls', 'on', true)"); err != nil {
+		return fmt.Errorf("set system context: %w", err)
+	}
+
+	if err := fn(tx); err != nil {
+		return err
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("commit read-only system transaction: %w", err)
+	}
+	return nil
+}

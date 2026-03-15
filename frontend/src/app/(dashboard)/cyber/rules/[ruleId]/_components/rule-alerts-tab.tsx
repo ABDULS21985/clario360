@@ -80,7 +80,7 @@ export function RuleAlertsTab({ ruleId }: RuleAlertsTabProps) {
     queryKey: `cyber-rule-alerts-${ruleId}`,
     defaultPageSize: 10,
     defaultSort: { column: 'created_at', direction: 'desc' },
-    wsTopics: ['alert.created', 'alert.updated'],
+    wsTopics: ['cyber.alert.created', 'cyber.alert.status_changed', 'cyber.alert.escalated'],
   });
 
   return (

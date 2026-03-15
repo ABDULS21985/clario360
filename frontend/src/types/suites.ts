@@ -566,12 +566,6 @@ export interface LexContractSummary {
   expiry_date?: string | null;
   current_version: number;
   created_at: string;
-  parties?: Array<Record<string, unknown>>;
-  value?: number | null;
-  currency?: string;
-  effective_date?: string | null;
-  file_url?: string | null;
-  metadata?: JsonObject;
 }
 
 export interface LexContractVersion {
@@ -800,7 +794,6 @@ export interface LexDocument {
   confidentiality: LexDocumentConfidentiality;
   contract_id?: string | null;
   current_version: number;
-  version?: number;
   status: LexDocumentStatus;
   tags: string[];
   metadata: JsonObject;
@@ -852,8 +845,6 @@ export interface LexComplianceRule {
   config: JsonObject;
   contract_types: string[];
   enabled: boolean;
-  jurisdiction?: string | null;
-  regulation_reference?: string | null;
   created_by: string;
   created_at: string;
   updated_at: string;
@@ -868,7 +859,6 @@ export interface LexComplianceAlert {
   description: string;
   severity: LexComplianceSeverity;
   status: LexComplianceAlertStatus;
-  entity_type?: string | null;
   resolved_by?: string | null;
   resolved_at?: string | null;
   resolution_notes?: string | null;
@@ -1296,7 +1286,7 @@ export type VisusWidgetData =
   | VisusTextWidgetData;
 
 export type ActaMeetingMinute = ActaMeetingMinutes;
-export type LexContract = LexContractSummary;
+export type LexContract = LexContractRecord;
 export type VisusReport = VisusReportDefinition;
 export type VisusReportGeneration = VisusReportSnapshot;
 export type ComplianceDashboard = LexComplianceDashboard;

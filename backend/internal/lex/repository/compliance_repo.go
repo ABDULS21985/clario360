@@ -41,6 +41,31 @@ func (r *ComplianceRepository) ListRules(ctx context.Context, tenantID uuid.UUID
 	return queryListJSON[model.ComplianceRule](ctx, r.db, query, tenantID)
 }
 
+func (r *ComplianceRepository) ListRulesPaginated(ctx context.Context, tenantID uuid.UUID, page, perPage int) ([]model.ComplianceRule, int, error) {
+	if page < 1 {
+		page = 1
+	}
+	if perPage < 1 {
+		perPage = 25
+	}
+	if perPage > 200 {
+		perPage = 200
+	}
+	var total int
+	if err := r.db.QueryRow(ctx, `SELECT COUNT(*) FROM compliance_rules WHERE tenant_id = $1 AND deleted_at IS NULL`, tenantID).Scan(&total); err != nil {
+		return nil, 0, err
+	}
+	if total == 0 {
+		return []model.ComplianceRule{}, 0, nil
+	}
+	query := ruleJSONSelect(`tenant_id = $1 AND deleted_at IS NULL`) + ` ORDER BY t.created_at DESC LIMIT $2 OFFSET $3`
+	items, err := queryListJSON[model.ComplianceRule](ctx, r.db, query, tenantID, perPage, (page-1)*perPage)
+	if err != nil {
+		return nil, 0, err
+	}
+	return items, total, nil
+}
+
 func (r *ComplianceRepository) ListEnabledRules(ctx context.Context, tenantID uuid.UUID) ([]model.ComplianceRule, error) {
 	query := ruleJSONSelect(`tenant_id = $1 AND enabled = true AND deleted_at IS NULL`) + ` ORDER BY created_at DESC`
 	return queryListJSON[model.ComplianceRule](ctx, r.db, query, tenantID)

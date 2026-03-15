@@ -16,7 +16,7 @@ import {
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import type { ActaCalendarDay } from '@/types/suites';
+import type { ActaCalendarDay, ActaMeetingSummary } from '@/types/suites';
 
 interface MeetingCalendarProps {
   month: string;
@@ -28,7 +28,7 @@ export function MeetingCalendar({ month, days, onMonthChange }: MeetingCalendarP
   const monthDate = parseISO(`${month}-01`);
   const start = startOfWeek(startOfMonth(monthDate), { weekStartsOn: 1 });
   const end = endOfWeek(endOfMonth(monthDate), { weekStartsOn: 1 });
-  const dayMap = new Map(days.map((day) => [day.date, day.meetings]));
+  const dayMap = new Map(days.map((day) => [day.date, normalizeMeetings(day.meetings)]));
   const grid = eachDayOfInterval({ start, end });
 
   return (
@@ -85,4 +85,12 @@ export function MeetingCalendar({ month, days, onMonthChange }: MeetingCalendarP
       </div>
     </div>
   );
+}
+
+function normalizeMeetings(meetings: ActaMeetingSummary[] | null | undefined) {
+  if (!Array.isArray(meetings)) {
+    return [];
+  }
+
+  return meetings;
 }

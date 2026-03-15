@@ -178,6 +178,7 @@ func scanScanHistory(row interface{ Scan(dest ...any) error }) (*model.ScanHisto
 	if s.Config == nil {
 		s.Config = json.RawMessage("{}")
 	}
+	s.ComputeDerived()
 	return &s, nil
 }
 

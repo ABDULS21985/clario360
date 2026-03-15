@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { FormProvider, useForm } from 'react-hook-form';
@@ -16,7 +17,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { FormField } from '@/components/shared/forms/form-field';
-import { enterpriseApi, extendDueDateSchema, type ExtendDueDateFormValues } from '@/lib/enterprise';
+import { dateInputValue, enterpriseApi, extendDueDateSchema, type ExtendDueDateFormValues } from '@/lib/enterprise';
 import { showApiError, showSuccess } from '@/lib/toast';
 import type { ActaActionItem } from '@/types/suites';
 
@@ -35,10 +36,20 @@ export function ExtendDueDateDialog({
   const form = useForm<ExtendDueDateFormValues>({
     resolver: zodResolver(extendDueDateSchema),
     defaultValues: {
-      new_due_date: item?.due_date ?? '',
+      new_due_date: dateInputValue(item?.due_date),
       reason: '',
     },
   });
+
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+    form.reset({
+      new_due_date: dateInputValue(item?.due_date),
+      reason: '',
+    });
+  }, [form, item?.due_date, open]);
 
   const extendMutation = useMutation({
     mutationFn: (payload: ExtendDueDateFormValues) =>
@@ -50,7 +61,7 @@ export function ExtendDueDateDialog({
         queryClient.invalidateQueries({ queryKey: ['acta-dashboard'] }),
       ]);
       onOpenChange(false);
-      form.reset({ new_due_date: item?.due_date ?? '', reason: '' });
+      form.reset({ new_due_date: dateInputValue(item?.due_date), reason: '' });
     },
     onError: showApiError,
   });

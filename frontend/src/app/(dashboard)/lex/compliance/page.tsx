@@ -11,7 +11,7 @@ import { PageHeader } from '@/components/common/page-header';
 import { PermissionRedirect } from '@/components/common/permission-redirect';
 import { SectionCard } from '@/components/suites/section-card';
 import { enterpriseApi } from '@/lib/enterprise';
-import type { ComplianceDashboard, ComplianceRule, LexComplianceAlert } from '@/types/suites';
+import type { LexComplianceAlert, LexComplianceRule } from '@/types/suites';
 
 export default function LexCompliancePage() {
   const dashboardQuery = useQuery({
@@ -81,7 +81,7 @@ export default function LexCompliancePage() {
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
                         <p className="font-medium">{alert.title}</p>
-                        <p className="text-xs text-muted-foreground">{alert.entity_type}</p>
+                        <p className="text-xs text-muted-foreground line-clamp-1">{alert.description}</p>
                       </div>
                       <SeverityIndicator severity={normalizeSeverity(alert.severity)} size="sm" />
                     </div>
@@ -107,7 +107,7 @@ export default function LexCompliancePage() {
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
                         <p className="font-medium">{rule.name}</p>
-                        <p className="text-xs text-muted-foreground">{rule.regulation_reference ?? rule.jurisdiction ?? 'Unspecified reference'}</p>
+                        <p className="text-xs text-muted-foreground capitalize">{rule.rule_type.replace(/_/g, ' ')}</p>
                       </div>
                       <SeverityIndicator severity={normalizeSeverity(rule.severity)} size="sm" />
                     </div>

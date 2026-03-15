@@ -320,7 +320,9 @@ func (r *DSPMRepository) ListScans(ctx context.Context, tenantID uuid.UUID, para
 	where := "WHERE " + strings.Join(conds, " AND ")
 
 	var total int
-	_ = r.db.QueryRow(ctx, "SELECT COUNT(*) FROM dspm_scans "+where, args...).Scan(&total)
+	if err := r.db.QueryRow(ctx, "SELECT COUNT(*) FROM dspm_scans "+where, args...).Scan(&total); err != nil {
+		return nil, 0, fmt.Errorf("count scans: %w", err)
+	}
 
 	offset := (params.Page - 1) * params.PerPage
 	query := fmt.Sprintf(
@@ -356,7 +358,7 @@ func (r *DSPMRepository) Dashboard(ctx context.Context, tenantID uuid.UUID) (*mo
 		PIITypeFrequency:        make(map[string]int),
 	}
 
-	_ = r.db.QueryRow(ctx, `
+	err := r.db.QueryRow(ctx, `
 		SELECT COUNT(*), COUNT(*) FILTER (WHERE contains_pii),
 		       COUNT(*) FILTER (WHERE risk_score >= 70),
 		       COALESCE(AVG(posture_score), 0), COALESCE(AVG(risk_score), 0),
@@ -374,6 +376,9 @@ func (r *DSPMRepository) Dashboard(ctx context.Context, tenantID uuid.UUID) (*mo
 		&dash.NoAccessControlCount,
 		&dash.InternetFacingCount,
 	)
+	if err != nil {
+		return nil, fmt.Errorf("dashboard counts: %w", err)
+	}
 
 	classRows, err := r.db.Query(ctx, `
 		SELECT data_classification, COUNT(*) FROM dspm_data_assets
@@ -384,7 +389,9 @@ func (r *DSPMRepository) Dashboard(ctx context.Context, tenantID uuid.UUID) (*mo
 		for classRows.Next() {
 			var cls string
 			var cnt int
-			_ = classRows.Scan(&cls, &cnt)
+			if err := classRows.Scan(&cls, &cnt); err != nil {
+				return nil, fmt.Errorf("scan class row: %w", err)
+			}
 			dash.ClassificationBreakdown[cls] = cnt
 		}
 	}
@@ -398,7 +405,9 @@ func (r *DSPMRepository) Dashboard(ctx context.Context, tenantID uuid.UUID) (*mo
 		for expRows.Next() {
 			var exp string
 			var cnt int
-			_ = expRows.Scan(&exp, &cnt)
+			if err := expRows.Scan(&exp, &cnt); err != nil {
+				return nil, fmt.Errorf("scan exp row: %w", err)
+			}
 			dash.ExposureBreakdown[exp] = cnt
 		}
 	}
@@ -435,7 +444,9 @@ func (r *DSPMRepository) ClassificationSummary(ctx context.Context, tenantID uui
 	for rows.Next() {
 		var cls string
 		var cnt int
-		_ = rows.Scan(&cls, &cnt)
+		if err := rows.Scan(&cls, &cnt); err != nil {
+			return nil, fmt.Errorf("scan class row: %w", err)
+		}
 		summary.Total += cnt
 		switch cls {
 		case "public":
@@ -465,7 +476,9 @@ func (r *DSPMRepository) ExposureAnalysis(ctx context.Context, tenantID uuid.UUI
 	for rows.Next() {
 		var exp string
 		var cnt int
-		_ = rows.Scan(&exp, &cnt)
+		if err := rows.Scan(&exp, &cnt); err != nil {
+			return nil, fmt.Errorf("scan exp row: %w", err)
+		}
 		switch exp {
 		case "internal_only":
 			analysis.InternalOnly = cnt

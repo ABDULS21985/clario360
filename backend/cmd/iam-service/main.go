@@ -3,17 +3,21 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/url"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
+	"golang.org/x/sync/errgroup"
 
 	aigovbenchmark "github.com/clario360/platform/internal/aigovernance/benchmark"
 	aigovdrift "github.com/clario360/platform/internal/aigovernance/drift"
@@ -48,7 +52,8 @@ import (
 )
 
 func main() {
-	ctx := context.Background()
+	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer cancel()
 
 	// Load legacy config for auth and Kafka settings.
 	legacyCfg, err := config.Load()
@@ -214,12 +219,21 @@ func main() {
 		Dashboard:    aiDashboardSvc,
 		Benchmark:    aiBenchmarkSvc,
 	}
-	go func() {
-		_ = aigovshadow.NewScheduler(aiComparisonSvc, time.Hour, svc.Logger).Run(ctx)
-	}()
-	go func() {
-		_ = aigovdrift.NewScheduler(aiDriftSvc, 24*time.Hour, svc.Logger).Run(ctx)
-	}()
+	bg, bgCtx := errgroup.WithContext(ctx)
+	bg.Go(func() error {
+		err := aigovshadow.NewScheduler(aiComparisonSvc, time.Hour, svc.Logger).Run(bgCtx)
+		if err != nil && !errors.Is(err, context.Canceled) {
+			return err
+		}
+		return nil
+	})
+	bg.Go(func() error {
+		err := aigovdrift.NewScheduler(aiDriftSvc, 24*time.Hour, svc.Logger).Run(bgCtx)
+		if err != nil && !errors.Is(err, context.Canceled) {
+			return err
+		}
+		return nil
+	})
 
 	// Onboarding dependencies.
 	onboardingMetrics := onboardingsvc.NewMetrics(svc.Metrics)
@@ -454,18 +468,25 @@ func main() {
 			svc.Logger.Warn().Err(err).Msg("notebook audit consumer unavailable")
 		} else {
 			kafkaConsumer.Subscribe(events.Topics.NotebookEvents, notebookconsumer.NewNotebookConsumer(producer, svc.Logger))
-			go func() {
-				if err := kafkaConsumer.Start(ctx); err != nil && err != context.Canceled {
-					svc.Logger.Error().Err(err).Msg("notebook audit consumer exited")
+			bg.Go(func() error {
+				err := kafkaConsumer.Start(bgCtx)
+				if err != nil && !errors.Is(err, context.Canceled) {
+					return err
 				}
-			}()
+				return nil
+			})
 			defer kafkaConsumer.Close()
 		}
 	}
 
 	svc.Logger.Info().Int("port", cfg.Port).Msg("iam-service starting")
-	if err := svc.Run(ctx); err != nil {
-		svc.Logger.Fatal().Err(err).Msg("server failed")
+	runErr := svc.Run(ctx)
+	cancel()
+	if bgErr := bg.Wait(); bgErr != nil && !errors.Is(bgErr, context.Canceled) {
+		svc.Logger.Error().Err(bgErr).Msg("iam background components stopped with error")
+	}
+	if runErr != nil {
+		svc.Logger.Fatal().Err(runErr).Msg("server failed")
 		os.Exit(1)
 	}
 }

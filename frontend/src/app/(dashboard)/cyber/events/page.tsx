@@ -67,7 +67,6 @@ export default function CyberEventsPage() {
     queryKey: 'cyber-events',
     defaultPageSize: 50,
     defaultSort: { column: 'timestamp', direction: 'desc' },
-    wsTopics: ['security_event.ingested'],
   });
 
   const statsQuery = useQuery({

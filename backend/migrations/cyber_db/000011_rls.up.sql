@@ -122,6 +122,28 @@ CREATE POLICY tenant_update ON detection_rules
 CREATE POLICY tenant_delete ON detection_rules
     FOR DELETE
     USING (tenant_id = current_setting('app.current_tenant_id', true)::uuid);
+CREATE POLICY template_select ON detection_rules
+    FOR SELECT
+    USING (is_template = true);
+CREATE POLICY template_insert ON detection_rules
+    FOR INSERT
+    WITH CHECK (
+        current_setting('app.current_tenant_id', true) IS NULL
+        AND tenant_id IS NULL
+        AND is_template = true
+    );
+CREATE POLICY template_update ON detection_rules
+    FOR UPDATE
+    USING (
+        current_setting('app.current_tenant_id', true) IS NULL
+        AND tenant_id IS NULL
+        AND is_template = true
+    )
+    WITH CHECK (
+        current_setting('app.current_tenant_id', true) IS NULL
+        AND tenant_id IS NULL
+        AND is_template = true
+    );
 
 -- =============================================================================
 -- TABLE: alerts
@@ -140,6 +162,66 @@ CREATE POLICY tenant_update ON alerts
     USING (tenant_id = current_setting('app.current_tenant_id', true)::uuid)
     WITH CHECK (tenant_id = current_setting('app.current_tenant_id', true)::uuid);
 CREATE POLICY tenant_delete ON alerts
+    FOR DELETE
+    USING (tenant_id = current_setting('app.current_tenant_id', true)::uuid);
+
+-- =============================================================================
+-- TABLE: alert_comments
+-- =============================================================================
+
+ALTER TABLE alert_comments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE alert_comments FORCE ROW LEVEL SECURITY;
+
+CREATE POLICY tenant_isolation ON alert_comments
+    USING (tenant_id = current_setting('app.current_tenant_id', true)::uuid);
+CREATE POLICY tenant_insert ON alert_comments
+    FOR INSERT
+    WITH CHECK (tenant_id = current_setting('app.current_tenant_id', true)::uuid);
+CREATE POLICY tenant_update ON alert_comments
+    FOR UPDATE
+    USING (tenant_id = current_setting('app.current_tenant_id', true)::uuid)
+    WITH CHECK (tenant_id = current_setting('app.current_tenant_id', true)::uuid);
+CREATE POLICY tenant_delete ON alert_comments
+    FOR DELETE
+    USING (tenant_id = current_setting('app.current_tenant_id', true)::uuid);
+
+-- =============================================================================
+-- TABLE: alert_timeline
+-- =============================================================================
+
+ALTER TABLE alert_timeline ENABLE ROW LEVEL SECURITY;
+ALTER TABLE alert_timeline FORCE ROW LEVEL SECURITY;
+
+CREATE POLICY tenant_isolation ON alert_timeline
+    USING (tenant_id = current_setting('app.current_tenant_id', true)::uuid);
+CREATE POLICY tenant_insert ON alert_timeline
+    FOR INSERT
+    WITH CHECK (tenant_id = current_setting('app.current_tenant_id', true)::uuid);
+CREATE POLICY tenant_update ON alert_timeline
+    FOR UPDATE
+    USING (tenant_id = current_setting('app.current_tenant_id', true)::uuid)
+    WITH CHECK (tenant_id = current_setting('app.current_tenant_id', true)::uuid);
+CREATE POLICY tenant_delete ON alert_timeline
+    FOR DELETE
+    USING (tenant_id = current_setting('app.current_tenant_id', true)::uuid);
+
+-- =============================================================================
+-- TABLE: security_events
+-- =============================================================================
+
+ALTER TABLE security_events ENABLE ROW LEVEL SECURITY;
+ALTER TABLE security_events FORCE ROW LEVEL SECURITY;
+
+CREATE POLICY tenant_isolation ON security_events
+    USING (tenant_id = current_setting('app.current_tenant_id', true)::uuid);
+CREATE POLICY tenant_insert ON security_events
+    FOR INSERT
+    WITH CHECK (tenant_id = current_setting('app.current_tenant_id', true)::uuid);
+CREATE POLICY tenant_update ON security_events
+    FOR UPDATE
+    USING (tenant_id = current_setting('app.current_tenant_id', true)::uuid)
+    WITH CHECK (tenant_id = current_setting('app.current_tenant_id', true)::uuid);
+CREATE POLICY tenant_delete ON security_events
     FOR DELETE
     USING (tenant_id = current_setting('app.current_tenant_id', true)::uuid);
 

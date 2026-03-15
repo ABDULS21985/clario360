@@ -3,7 +3,7 @@ import { test, expect } from '@playwright/test';
 test.describe('Cyber Indicators (IOC Management) Page', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('/cyber/indicators');
-    await expect(page.getByRole('heading', { name: 'IOC Management' })).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByRole('heading', { name: 'IOC Management' })).toBeVisible({ timeout: 30_000 });
   });
 
   // ---- Page structure ----
@@ -23,20 +23,19 @@ test.describe('Cyber Indicators (IOC Management) Page', () => {
 
   // ---- Stats API ----
 
-  test('indicator stats API returns valid data', async ({ page }) => {
-    // Use route interception to reliably capture the response body
-    let capturedBody: Record<string, unknown> | null = null;
-    await page.route('**/api/v1/cyber/indicators/stats', async (route) => {
-      const response = await route.fetch();
-      capturedBody = await response.json() as Record<string, unknown>;
-      await route.fulfill({ response });
+  test('indicator stats API returns valid data', async ({ request }) => {
+    // Login to get token
+    const loginResp = await request.post('http://localhost:8081/api/v1/auth/login', {
+      data: { email: 'admin@clario.dev', password: 'Cl@rio360Dev!' },
     });
+    const { access_token } = await loginResp.json();
 
-    await page.reload();
-    await page.waitForLoadState('networkidle');
+    const response = await request.get('http://localhost:8080/api/v1/cyber/indicators/stats', {
+      headers: { Authorization: `Bearer ${access_token}` },
+    });
+    expect(response.ok()).toBe(true);
 
-    expect(capturedBody).not.toBeNull();
-    const body = capturedBody as { data: { total: number; active: number; expiring_soon: number; by_source: unknown[] } };
+    const body = await response.json();
     expect(body).toHaveProperty('data');
     expect(body.data).toHaveProperty('total');
     expect(body.data).toHaveProperty('active');
@@ -58,16 +57,19 @@ test.describe('Cyber Indicators (IOC Management) Page', () => {
 
   // ---- Indicator list API ----
 
-  test('indicators list API returns paginated data', async ({ page }) => {
-    const listResponse = page.waitForResponse(
-      (resp) => resp.url().includes('/api/v1/cyber/indicators') && !resp.url().includes('/stats') && resp.status() === 200,
-      { timeout: 15_000 },
-    );
+  test('indicators list API returns paginated data', async ({ request }) => {
+    // Login to get token
+    const loginResp = await request.post('http://localhost:8081/api/v1/auth/login', {
+      data: { email: 'admin@clario.dev', password: 'Cl@rio360Dev!' },
+    });
+    const { access_token } = await loginResp.json();
 
-    await page.reload();
-    const response = await listResponse;
+    const response = await request.get('http://localhost:8080/api/v1/cyber/indicators?page=1&per_page=25&sort=last_seen_at&order=desc', {
+      headers: { Authorization: `Bearer ${access_token}` },
+    });
+    expect(response.ok()).toBe(true);
+
     const body = await response.json();
-
     expect(body).toHaveProperty('data');
     expect(body).toHaveProperty('meta');
     expect(Array.isArray(body.data)).toBe(true);

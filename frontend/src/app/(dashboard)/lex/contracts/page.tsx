@@ -17,7 +17,6 @@ import { useAuth } from '@/hooks/use-auth';
 import { API_ENDPOINTS } from '@/lib/constants';
 import { fetchSuitePaginated } from '@/lib/suite-api';
 import { contractStatusConfig } from '@/lib/status-configs';
-import { summarizeNamedRecords } from '@/lib/suite-utils';
 import type { LexContract } from '@/types/suites';
 import { ContractFormDialog } from './_components/contract-form-dialog';
 
@@ -28,11 +27,16 @@ const CONTRACT_FILTERS = [
     type: 'select' as const,
     options: [
       { label: 'Draft', value: 'draft' },
-      { label: 'Review', value: 'review' },
+      { label: 'Internal Review', value: 'internal_review' },
+      { label: 'Legal Review', value: 'legal_review' },
       { label: 'Negotiation', value: 'negotiation' },
+      { label: 'Pending Signature', value: 'pending_signature' },
       { label: 'Active', value: 'active' },
+      { label: 'Suspended', value: 'suspended' },
       { label: 'Expired', value: 'expired' },
       { label: 'Terminated', value: 'terminated' },
+      { label: 'Renewed', value: 'renewed' },
+      { label: 'Cancelled', value: 'cancelled' },
     ],
   },
 ];
@@ -68,7 +72,11 @@ export default function LexContractsPage() {
     {
       id: 'parties',
       header: 'Parties',
-      cell: ({ row }) => <span className="text-sm text-muted-foreground">{summarizeNamedRecords(row.original.parties, 2)}</span>,
+      cell: ({ row }) => (
+        <span className="text-sm text-muted-foreground">
+          {[row.original.party_a_name, row.original.party_b_name].filter(Boolean).join(', ') || '—'}
+        </span>
+      ),
     },
     {
       id: 'status',
@@ -78,13 +86,13 @@ export default function LexContractsPage() {
       cell: ({ row }) => <StatusBadge status={row.original.status} config={contractStatusConfig} size="sm" />,
     },
     {
-      id: 'value',
-      accessorKey: 'value',
+      id: 'total_value',
+      accessorKey: 'total_value',
       header: 'Value',
       enableSorting: true,
       cell: ({ row }) => (
         <span className="text-sm text-muted-foreground">
-          {row.original.value != null ? `${row.original.currency} ${row.original.value.toLocaleString()}` : 'Undisclosed'}
+          {row.original.total_value != null ? `${row.original.currency} ${row.original.total_value.toLocaleString()}` : 'Undisclosed'}
         </span>
       ),
     },

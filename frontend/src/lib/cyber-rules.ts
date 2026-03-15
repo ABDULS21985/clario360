@@ -176,6 +176,8 @@ export function buildRuleQueryParams(params: FetchParams): Record<string, unknow
   return {
     page: params.page,
     per_page: params.per_page,
+    sort: params.sort,
+    order: params.order,
     search: params.search,
     ...(params.filters ?? {}),
   };

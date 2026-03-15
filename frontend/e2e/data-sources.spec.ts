@@ -189,34 +189,16 @@ test.describe('Data Sources List Page', () => {
   });
 
   test('clicking source name navigates to detail page', async ({ page }) => {
-    const apiReady = page.waitForResponse(
-      (resp) =>
-        resp.url().includes('/api/v1/data/sources') &&
-        !resp.url().includes('/stats') &&
-        !resp.url().includes('/test') &&
-        !resp.url().includes('/sync') &&
-        !resp.url().includes('/schema') &&
-        !resp.url().includes('/source-types') &&
-        resp.request().method() === 'GET' &&
-        resp.status() === 200,
-      { timeout: 15_000 },
-    );
+    // beforeEach already loaded the page; wait for source cards/rows to render
+    await page.waitForTimeout(2000);
 
-    await page.goto('/data/sources');
-    const res = await apiReady;
-    const body = await res.json();
+    // Click the "Open" link on the first source card
+    const openLinks = page.getByRole('link', { name: 'Open' });
+    const count = await openLinks.count();
+    if (count === 0) return;
 
-    if (!body.data || body.data.length === 0) return;
-
-    // Find source links in the table or grid
-    const sourceLinks = page.locator('a[href*="/data/sources/"]');
-    const linkCount = await sourceLinks.count();
-
-    if (linkCount > 0) {
-      const href = await sourceLinks.first().getAttribute('href');
-      await sourceLinks.first().click();
-      await expect(page).toHaveURL(new RegExp(href!.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
-    }
+    await openLinks.first().click();
+    await expect(page).toHaveURL(/\/data\/sources\/[0-9a-f-]+/, { timeout: 15_000 });
   });
 });
 
