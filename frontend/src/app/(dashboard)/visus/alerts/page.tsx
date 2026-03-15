@@ -91,10 +91,10 @@ export default function VisusAlertsPage() {
       <div className="space-y-6">
         <PageHeader title="Alerts" description="Executive alerts aggregated across all suites." />
         <div className="grid gap-4 md:grid-cols-3">
-          {Object.entries((statsQuery.data as Record<string, unknown>)?.by_severity ?? {}).map(([severity, count]) => (
+          {Object.entries(statsQuery.data?.by_severity ?? {}).map(([severity, count]) => (
             <div key={severity} className="rounded-xl border bg-card px-4 py-4">
               <p className="text-sm text-muted-foreground capitalize">{severity}</p>
-              <p className="mt-1 text-2xl font-semibold">{String(count)}</p>
+              <p className="mt-1 text-2xl font-semibold">{count}</p>
             </div>
           ))}
         </div>

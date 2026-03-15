@@ -120,7 +120,11 @@ export function AwarenessFormDialog({
     const payload: Record<string, unknown> = {
       name: form.name.trim(),
       type: form.type,
+      status: isEdit ? (program?.status ?? 'scheduled') : 'scheduled',
       total_users: parseInt(form.total_users, 10),
+      completed_users: isEdit ? (program?.completed_users ?? 0) : 0,
+      passed_users: isEdit ? (program?.passed_users ?? 0) : 0,
+      failed_users: isEdit ? (program?.failed_users ?? 0) : 0,
       start_date: form.start_date,
       end_date: form.end_date,
     };

@@ -61,8 +61,17 @@ interface ApiKey {
   id: string;
   name: string;
   prefix: string;
+  scopes: string[];
+  status: string;
   created_at: string;
   last_used_at: string | null;
+  expires_at: string | null;
+  created_by: string | null;
+}
+
+interface ApiKeysResponse {
+  data: ApiKey[];
+  meta: { page: number; per_page: number; total: number; total_pages: number };
 }
 
 export default function SettingsPage() {
@@ -79,10 +88,10 @@ export default function SettingsPage() {
   } = useApiQuery<Session[]>(["sessions"], "/api/v1/users/me/sessions");
 
   const {
-    data: apiKeysData,
+    data: apiKeysRaw,
     isLoading: apiKeysLoading,
     refetch: refetchKeys,
-  } = useApiQuery<ApiKey[]>(["api-keys"], "/api/v1/api-keys");
+  } = useApiQuery<ApiKeysResponse>(["api-keys"], "/api/v1/api-keys");
 
   const passwordMethods = useForm<PasswordFormData>({
     resolver: zodResolver(passwordSchema),
@@ -123,14 +132,10 @@ export default function SettingsPage() {
     }
     try {
       const { data } = await api.post<{
-        key: string;
-        id: string;
-        name: string;
-        prefix: string;
-        created_at: string;
-        last_used_at: null;
+        key: ApiKey;
+        secret: string;
       }>("/api/v1/api-keys", { name: newKeyName.trim() });
-      setNewKeyVisible(data.key);
+      setNewKeyVisible(data.secret);
       setNewKeyName("");
       toast.success("API key created — copy it now, it won't be shown again");
       refetchKeys();
@@ -140,7 +145,7 @@ export default function SettingsPage() {
   };
 
   const sessions = sessionsData ?? [];
-  const apiKeys = apiKeysData ?? [];
+  const apiKeys = apiKeysRaw?.data ?? [];
 
   return (
     <div className="w-full space-y-6">

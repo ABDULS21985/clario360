@@ -1773,6 +1773,7 @@ export interface VCISOEvidence {
   expires_at?: string;
   collector_name?: string;
   last_verified_at?: string;
+  verified_by?: string;
   created_at: string;
   updated_at: string;
 }
@@ -1818,6 +1819,8 @@ export interface VCISOMaturityAssessment {
 }
 
 export interface VCISOBenchmark {
+  id: string;
+  tenant_id: string;
   dimension: string;
   category: MaturityCategory;
   organization_score: number;
@@ -1825,6 +1828,9 @@ export interface VCISOBenchmark {
   industry_top_quartile: number;
   peer_average: number;
   gap: number;
+  framework: string;
+  created_at: string;
+  updated_at: string;
 }
 
 export type BudgetItemStatus = 'proposed' | 'approved' | 'in_progress' | 'completed' | 'deferred';
@@ -2005,6 +2011,8 @@ export interface VCISOControlTest {
 export type ControlFailureImpact = 'critical' | 'high' | 'medium' | 'low';
 
 export interface VCISOControlDependency {
+  id: string;
+  tenant_id: string;
   control_id: string;
   control_name: string;
   framework: string;
@@ -2013,6 +2021,8 @@ export interface VCISOControlDependency {
   risk_domains: string[];
   compliance_domains: string[];
   failure_impact: ControlFailureImpact;
+  created_at: string;
+  updated_at: string;
 }
 
 // ─── vCISO Governance — Integrations ─────────────────────────────────────────

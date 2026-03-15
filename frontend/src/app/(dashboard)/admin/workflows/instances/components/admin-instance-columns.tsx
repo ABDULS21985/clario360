@@ -23,7 +23,7 @@ function CurrentStepCell({ instance }: { instance: WorkflowInstance }) {
   if (instance.status === 'completed') {
     return (
       <span className="text-sm text-green-700">
-        Completed ({instance.total_steps} steps)
+        Completed ({instance.total_steps ?? 0} steps)
       </span>
     );
   }
@@ -35,8 +35,8 @@ function CurrentStepCell({ instance }: { instance: WorkflowInstance }) {
     );
   }
   if (instance.current_step_name) {
-    const stepNum = instance.completed_steps + 1;
-    const total = instance.total_steps;
+    const stepNum = (instance.completed_steps ?? 0) + 1;
+    const total = instance.total_steps ?? 0;
     return (
       <div>
         <span className="text-sm font-medium">{instance.current_step_name}</span>

@@ -17,6 +17,16 @@ type CreateTenantRequest struct {
 	Settings         json.RawMessage `json:"settings,omitempty"`
 }
 
+// ProvisionTenantRequest creates a tenant and its initial owner user.
+type ProvisionTenantRequest struct {
+	Name             string          `json:"name" validate:"required,min=1,max=255"`
+	Slug             string          `json:"slug" validate:"required,min=1,max=100"`
+	SubscriptionTier string          `json:"subscription_tier" validate:"omitempty,oneof=free starter professional enterprise"`
+	OwnerEmail       string          `json:"owner_email" validate:"required,email"`
+	OwnerName        string          `json:"owner_name" validate:"required,min=1,max=255"`
+	Settings         json.RawMessage `json:"settings,omitempty"`
+}
+
 type UpdateTenantRequest struct {
 	Name             *string         `json:"name,omitempty" validate:"omitempty,min=1,max=255"`
 	Domain           *string         `json:"domain,omitempty"`
@@ -59,4 +69,23 @@ func TenantsToResponse(tenants []model.Tenant) []TenantResponse {
 		resp[i] = TenantToResponse(&tenants[i])
 	}
 	return resp
+}
+
+// TenantUsageResponse contains aggregated usage statistics for a tenant.
+type TenantUsageResponse struct {
+	TenantID         string                    `json:"tenant_id"`
+	Period           string                    `json:"period"`
+	ActiveUsers      int                       `json:"active_users"`
+	APICalls         int                       `json:"api_calls"`
+	StorageUsedBytes int64                     `json:"storage_used_bytes"`
+	BandwidthBytes   int64                     `json:"bandwidth_bytes"`
+	SuiteUsage       map[string]SuiteUsageItem `json:"suite_usage"`
+}
+
+// SuiteUsageItem contains per-suite usage data.
+type SuiteUsageItem struct {
+	Suite        string  `json:"suite"`
+	APICalls     int     `json:"api_calls"`
+	ActiveUsers  int     `json:"active_users"`
+	LastAccessed *string `json:"last_accessed"`
 }

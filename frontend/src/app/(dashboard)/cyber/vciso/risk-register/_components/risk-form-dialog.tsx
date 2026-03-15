@@ -136,6 +136,9 @@ export function RiskFormDialog({ open, onOpenChange, onCreated }: RiskFormDialog
       status: form.status,
       treatment: form.treatment,
       department: form.department.trim(),
+      inherent_score: 0,
+      residual_score: 0,
+      owner_name: '',
       business_services: form.business_services
         .split(',')
         .map((s) => s.trim())
@@ -145,6 +148,7 @@ export function RiskFormDialog({ open, onOpenChange, onCreated }: RiskFormDialog
         .split(',')
         .map((s) => s.trim())
         .filter(Boolean),
+      tags: [],
       review_date: form.review_date || undefined,
     });
   };

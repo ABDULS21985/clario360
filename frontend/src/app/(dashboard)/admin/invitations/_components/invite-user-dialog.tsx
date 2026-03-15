@@ -28,9 +28,8 @@ import type { Role } from "@/types/models";
 
 const inviteSchema = z.object({
   email: z.string().email("Invalid email address"),
-  role_id: z.string().min(1, "Role is required"),
+  role_slug: z.string().min(1, "Role is required"),
   message: z.string().optional(),
-  expires_in_days: z.coerce.number().min(1).max(30).default(7),
 });
 
 type InviteFormData = z.infer<typeof inviteSchema>;
@@ -50,9 +49,8 @@ export function InviteUserDialog({ open, onOpenChange, onSuccess }: InviteUserDi
     resolver: zodResolver(inviteSchema),
     defaultValues: {
       email: "",
-      role_id: "",
+      role_slug: "",
       message: "",
-      expires_in_days: 7,
     },
   });
 
@@ -63,10 +61,13 @@ export function InviteUserDialog({ open, onOpenChange, onSuccess }: InviteUserDi
 
   const onSubmit = methods.handleSubmit(async (data) => {
     await createMutation.mutateAsync({
-      email: data.email,
-      role_id: data.role_id,
-      message: data.message || undefined,
-      expires_in_days: data.expires_in_days,
+      invitations: [
+        {
+          email: data.email,
+          role_slug: data.role_slug,
+          message: data.message || undefined,
+        },
+      ],
     });
     handleClose();
     onSuccess();
@@ -94,10 +95,10 @@ export function InviteUserDialog({ open, onOpenChange, onSuccess }: InviteUserDi
               />
             </FormField>
 
-            <FormField name="role_id" label="Role" required>
+            <FormField name="role_slug" label="Role" required>
               <Select
-                value={methods.watch("role_id")}
-                onValueChange={(v) => methods.setValue("role_id", v, { shouldValidate: true })}
+                value={methods.watch("role_slug")}
+                onValueChange={(v) => methods.setValue("role_slug", v, { shouldValidate: true })}
                 disabled={createMutation.isPending}
               >
                 <SelectTrigger>
@@ -105,7 +106,7 @@ export function InviteUserDialog({ open, onOpenChange, onSuccess }: InviteUserDi
                 </SelectTrigger>
                 <SelectContent>
                   {(roles ?? []).map((role) => (
-                    <SelectItem key={role.id} value={role.id}>
+                    <SelectItem key={role.slug} value={role.slug}>
                       {role.name}
                     </SelectItem>
                   ))}
@@ -118,20 +119,6 @@ export function InviteUserDialog({ open, onOpenChange, onSuccess }: InviteUserDi
                 {...methods.register("message")}
                 placeholder="Add a personal message to the invitation..."
                 rows={3}
-                disabled={createMutation.isPending}
-              />
-            </FormField>
-
-            <FormField
-              name="expires_in_days"
-              label="Expires In (days)"
-              description="Invitation will expire after this many days"
-            >
-              <Input
-                type="number"
-                {...methods.register("expires_in_days")}
-                min={1}
-                max={30}
                 disabled={createMutation.isPending}
               />
             </FormField>

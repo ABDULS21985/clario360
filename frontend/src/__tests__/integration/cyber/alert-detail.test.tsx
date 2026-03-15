@@ -94,7 +94,7 @@ async function renderPage() {
   const { default: Page } = await import('@/app/(dashboard)/cyber/alerts/[id]/page');
   return render(
     <QueryClientProvider client={makeQueryClient()}>
-      <Page params={Promise.resolve({ id: ALERT_ID })} />
+      <Page params={{ id: ALERT_ID }} />
     </QueryClientProvider>,
   );
 }

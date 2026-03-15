@@ -277,6 +277,7 @@ func (r *NotificationRepository) scanNotification(row pgx.Row) (*model.Notificat
 	if err != nil {
 		return nil, fmt.Errorf("scan notification: %w", err)
 	}
+	n.ComputeRead()
 	return &n, nil
 }
 
@@ -289,5 +290,6 @@ func (r *NotificationRepository) scanNotificationFromRow(rows pgx.Rows) (*model.
 	if err != nil {
 		return nil, fmt.Errorf("scan notification row: %w", err)
 	}
+	n.ComputeRead()
 	return &n, nil
 }

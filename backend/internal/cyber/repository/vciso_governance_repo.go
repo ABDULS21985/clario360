@@ -412,7 +412,10 @@ func (r *VCISOGovernanceRepository) GetPolicy(ctx context.Context, tenantID, id 
 
 func (r *VCISOGovernanceRepository) UpdatePolicy(ctx context.Context, tenantID, id uuid.UUID, req *dto.CreatePolicyRequest) error {
 	now := time.Now().UTC()
-	ownerID, _ := uuid.Parse(req.OwnerID)
+	ownerID := dto.ParseOptionalUUID(req.OwnerID)
+	if ownerID == nil {
+		return fmt.Errorf("owner_id is required for policy update")
+	}
 	return runWithTenantWrite(ctx, r.db, tenantID, func(db dbtx) error {
 		_, err := db.Exec(ctx, `UPDATE vciso_policies SET
 			title=$3, domain=$4, version=$5, status=$6, content=$7,
@@ -420,7 +423,7 @@ func (r *VCISOGovernanceRepository) UpdatePolicy(ctx context.Context, tenantID, 
 			WHERE id=$1 AND tenant_id=$2`,
 			id, tenantID,
 			req.Title, req.Domain, req.Version, req.Status, req.Content,
-			ownerID, req.OwnerName, req.ReviewDue, req.Tags, now,
+			*ownerID, req.OwnerName, req.ReviewDue, req.Tags, now,
 		)
 		if err != nil {
 			return fmt.Errorf("update policy: %w", err)
@@ -1889,7 +1892,10 @@ func (r *VCISOGovernanceRepository) CreatePlaybook(ctx context.Context, tenantID
 
 func (r *VCISOGovernanceRepository) UpdatePlaybook(ctx context.Context, tenantID, id uuid.UUID, req *dto.CreatePlaybookRequest) error {
 	now := time.Now().UTC()
-	ownerID, _ := uuid.Parse(req.OwnerID)
+	ownerID := dto.ParseOptionalUUID(req.OwnerID)
+	if ownerID == nil {
+		return fmt.Errorf("owner_id is required for playbook update")
+	}
 	return runWithTenantWrite(ctx, r.db, tenantID, func(db dbtx) error {
 		_, err := db.Exec(ctx, `UPDATE vciso_playbooks SET
 			name=$3, scenario=$4, status=$5, next_test_date=$6,
@@ -1897,7 +1903,7 @@ func (r *VCISOGovernanceRepository) UpdatePlaybook(ctx context.Context, tenantID
 			WHERE id=$1 AND tenant_id=$2`,
 			id, tenantID,
 			req.Name, req.Scenario, req.Status, req.NextTestDate,
-			ownerID, req.OwnerName, req.StepsCount, req.Dependencies, req.RTOHours, req.RPOHours, now,
+			*ownerID, req.OwnerName, req.StepsCount, req.Dependencies, req.RTOHours, req.RPOHours, now,
 		)
 		if err != nil {
 			return fmt.Errorf("update playbook: %w", err)
@@ -2403,7 +2409,10 @@ func (r *VCISOGovernanceRepository) CreateControlOwnership(ctx context.Context, 
 
 func (r *VCISOGovernanceRepository) UpdateControlOwnership(ctx context.Context, tenantID, id uuid.UUID, req *dto.CreateControlOwnershipRequest) error {
 	now := time.Now().UTC()
-	ownerID, _ := uuid.Parse(req.OwnerID)
+	ownerID, err := uuid.Parse(req.OwnerID)
+	if err != nil {
+		return fmt.Errorf("invalid owner_id: %w", err)
+	}
 	delegateID := dto.ParseOptionalUUID(req.DelegateID)
 	return runWithTenantWrite(ctx, r.db, tenantID, func(db dbtx) error {
 		_, err := db.Exec(ctx, `UPDATE vciso_control_ownership SET

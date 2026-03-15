@@ -147,6 +147,7 @@ export function IntegrationFormDialog({
       name: form.name.trim(),
       type: form.type,
       provider: form.provider.trim(),
+      status: isEdit ? (integration?.status ?? 'pending') : 'pending',
       sync_frequency: form.sync_frequency,
       config,
     };

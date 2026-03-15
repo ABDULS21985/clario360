@@ -117,6 +117,7 @@ export const invitationStatusConfig: StatusConfig = {
   accepted: { label: "Accepted", color: "green", icon: CheckCircle },
   expired: { label: "Expired", color: "gray", icon: Clock },
   cancelled: { label: "Cancelled", color: "red", icon: Ban },
+  revoked: { label: "Revoked", color: "red", icon: Ban },
 };
 
 export const workflowDefinitionStatusConfig: StatusConfig = {

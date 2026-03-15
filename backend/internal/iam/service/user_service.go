@@ -53,6 +53,64 @@ func (s *UserService) SetMFAEncryptionKey(key []byte) {
 	s.mfaKey = key
 }
 
+// AdminCreateUser creates a user within a tenant with optional status and role assignments.
+// This is the admin-only endpoint (requires users:create permission, enforced by handler).
+func (s *UserService) AdminCreateUser(ctx context.Context, tenantID string, req *dto.AdminCreateUserRequest, createdBy string) (*dto.UserResponse, error) {
+	if err := validatePassword(req.Password); err != nil {
+		return nil, fmt.Errorf("%s: %w", err.Error(), model.ErrValidation)
+	}
+
+	// Check if email already exists in tenant
+	_, err := s.userRepo.GetByEmail(ctx, tenantID, req.Email)
+	if err == nil {
+		return nil, fmt.Errorf("email %s already exists: %w", req.Email, model.ErrConflict)
+	}
+
+	hash, err := bcrypt.GenerateFromPassword([]byte(req.Password), s.bcryptCost)
+	if err != nil {
+		return nil, fmt.Errorf("hashing password: %w", err)
+	}
+
+	status := model.UserStatusActive
+	if req.Status != "" {
+		status = model.UserStatus(req.Status)
+	}
+
+	user := &model.User{
+		TenantID:     tenantID,
+		Email:        req.Email,
+		PasswordHash: string(hash),
+		FirstName:    req.FirstName,
+		LastName:     req.LastName,
+		Status:       status,
+		CreatedBy:    &createdBy,
+	}
+
+	if err := s.userRepo.Create(ctx, user); err != nil {
+		return nil, fmt.Errorf("creating user: %w", err)
+	}
+
+	// Assign roles if provided
+	for _, roleID := range req.RoleIDs {
+		if err := s.roleRepo.AssignToUser(ctx, user.ID, roleID, tenantID, createdBy); err != nil {
+			s.logger.Error().Err(err).Str("role_id", roleID).Msg("failed to assign role during admin create")
+		}
+	}
+
+	s.publishEvent(ctx, "user.created", tenantID, user.ID, map[string]any{
+		"created_by":         createdBy,
+		"send_welcome_email": req.SendWelcomeEmail,
+	})
+
+	// Re-fetch with roles populated
+	created, err := s.userRepo.GetByID(ctx, user.ID)
+	if err != nil {
+		return nil, err
+	}
+	resp := dto.UserToResponse(created)
+	return &resp, nil
+}
+
 func (s *UserService) List(ctx context.Context, tenantID string, page, perPage int, search, status string) ([]dto.UserResponse, int, error) {
 	filter := repository.UserFilter{
 		Page:    page,

@@ -61,7 +61,7 @@ const server = setupServer(
     HttpResponse.json(instanceDetail),
   ),
   http.get(`${API_URL}/api/v1/workflows/instances/instance-1/history`, () =>
-    HttpResponse.json({ steps: history }),
+    HttpResponse.json({ instance_id: 'instance-1', step_executions: history }),
   ),
   http.post(`${API_URL}/api/v1/workflows/instances/instance-1/cancel`, () => {
     instanceDetail = { ...instanceDetail, status: 'cancelled', current_step_id: null };

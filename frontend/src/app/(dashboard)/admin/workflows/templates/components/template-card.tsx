@@ -36,27 +36,27 @@ export function TemplateCard({ template, onClick }: TemplateCardProps) {
         <div className="flex items-center gap-3 text-xs text-muted-foreground">
           <span className="flex items-center gap-1">
             <GitBranch className="h-3 w-3" />
-            {template.steps.length} steps
+            {template.steps?.length ?? 0} steps
           </span>
           <span className="flex items-center gap-1">
             <Layers className="h-3 w-3" />
-            {template.variables.length} vars
+            {template.variables?.length ?? 0} vars
           </span>
           <span className="flex items-center gap-1">
             <BarChart3 className="h-3 w-3" />
-            {template.usage_count} uses
+            {template.usage_count ?? 0} uses
           </span>
         </div>
-        {template.tags.length > 0 && (
+        {(template.tags?.length ?? 0) > 0 && (
           <div className="flex flex-wrap gap-1">
-            {template.tags.slice(0, 4).map((tag) => (
+            {template.tags!.slice(0, 4).map((tag) => (
               <Badge key={tag} variant="outline" className="text-[10px]">
                 {tag}
               </Badge>
             ))}
-            {template.tags.length > 4 && (
+            {template.tags!.length > 4 && (
               <Badge variant="outline" className="text-[10px]">
-                +{template.tags.length - 4}
+                +{template.tags!.length - 4}
               </Badge>
             )}
           </div>

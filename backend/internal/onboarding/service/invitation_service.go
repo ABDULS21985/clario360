@@ -173,6 +173,75 @@ func (s *InvitationService) List(ctx context.Context, tenantID uuid.UUID) ([]onb
 	return s.invitationRepo.ListByTenant(ctx, tenantID)
 }
 
+func (s *InvitationService) ListPaginated(ctx context.Context, tenantID uuid.UUID, page, perPage int, sort, order, search, status string) ([]onboardingdto.InvitationListItem, int, error) {
+	invitations, total, err := s.invitationRepo.ListByTenantPaginated(ctx, tenantID, page, perPage, sort, order, search, status)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	// Collect unique role slugs and resolve role names
+	roleNameCache := make(map[string]string)
+	for _, inv := range invitations {
+		if _, cached := roleNameCache[inv.RoleSlug]; !cached {
+			role, roleErr := s.roleRepo.GetBySlug(ctx, tenantID.String(), inv.RoleSlug)
+			if roleErr != nil || role == nil {
+				roleNameCache[inv.RoleSlug] = inv.RoleSlug
+			} else {
+				roleNameCache[inv.RoleSlug] = role.Name
+			}
+		}
+	}
+
+	// Map to list items
+	items := make([]onboardingdto.InvitationListItem, 0, len(invitations))
+	for _, inv := range invitations {
+		items = append(items, onboardingdto.InvitationListItem{
+			ID:            inv.ID,
+			TenantID:      inv.TenantID,
+			Email:         inv.Email,
+			RoleSlug:      inv.RoleSlug,
+			RoleName:      roleNameCache[inv.RoleSlug],
+			Status:        string(inv.Status),
+			InvitedBy:     inv.InvitedBy,
+			InvitedByName: inv.InvitedByName,
+			AcceptedAt:    inv.AcceptedAt,
+			ExpiresAt:     inv.ExpiresAt,
+			Message:       inv.Message,
+			CreatedAt:     inv.CreatedAt,
+		})
+	}
+	return items, total, nil
+}
+
+func (s *InvitationService) Stats(ctx context.Context, tenantID uuid.UUID) (*onboardingdto.InvitationStatsResponse, error) {
+	counts, err := s.invitationRepo.CountByStatus(ctx, tenantID)
+	if err != nil {
+		return nil, err
+	}
+
+	pending := counts[onboardingmodel.InvitationStatusPending]
+	accepted := counts[onboardingmodel.InvitationStatusAccepted]
+	expired := counts[onboardingmodel.InvitationStatusExpired]
+
+	totalSent := 0
+	for _, count := range counts {
+		totalSent += count
+	}
+
+	var acceptanceRate float64
+	if totalSent > 0 {
+		acceptanceRate = float64(accepted) / float64(totalSent)
+	}
+
+	return &onboardingdto.InvitationStatsResponse{
+		TotalSent:      totalSent,
+		Pending:        pending,
+		Accepted:       accepted,
+		Expired:        expired,
+		AcceptanceRate: acceptanceRate,
+	}, nil
+}
+
 func (s *InvitationService) Cancel(ctx context.Context, tenantID, invitationID uuid.UUID) error {
 	if err := s.invitationRepo.UpdateStatus(ctx, tenantID, invitationID, onboardingmodel.InvitationStatusCancelled); err != nil {
 		return err

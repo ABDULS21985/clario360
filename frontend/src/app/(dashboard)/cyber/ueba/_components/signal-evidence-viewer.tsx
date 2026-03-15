@@ -4,9 +4,10 @@ import { Badge } from '@/components/ui/badge';
 import type { UebaAlert } from './types';
 
 export function SignalEvidenceViewer({ alert }: { alert: UebaAlert }) {
+  const signals = alert.triggering_signals ?? [];
   return (
     <div className="space-y-3">
-      {alert.triggering_signals.map((signal) => (
+      {signals.map((signal) => (
         <div key={`${alert.id}-${signal.event_id}-${signal.signal_type}`} className="rounded-lg border p-3">
           <div className="mb-2 flex items-center justify-between gap-2">
             <div>
@@ -26,7 +27,7 @@ export function SignalEvidenceViewer({ alert }: { alert: UebaAlert }) {
           </div>
         </div>
       ))}
-      {alert.triggering_signals.length === 0 && <p className="text-sm text-muted-foreground">No structured evidence attached.</p>}
+      {signals.length === 0 && <p className="text-sm text-muted-foreground">No structured evidence attached.</p>}
     </div>
   );
 }

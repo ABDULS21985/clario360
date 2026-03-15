@@ -43,6 +43,7 @@ type taskRepo interface {
 	MarkSLABreached(ctx context.Context, taskID string) error
 	EscalateTask(ctx context.Context, taskID, escalationRole string) error
 	CancelByInstance(ctx context.Context, instanceID string) error
+	UpdateMetadata(ctx context.Context, tenantID, taskID string, metadata map[string]interface{}) error
 }
 
 // executorRegistry dispatches step execution to the appropriate executor.

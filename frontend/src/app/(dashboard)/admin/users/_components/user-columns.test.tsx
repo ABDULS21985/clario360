@@ -29,7 +29,6 @@ const makeUser = (overrides: Partial<User> = {}): User => ({
   status: 'active',
   mfa_enabled: false,
   last_login_at: null,
-  password_changed_at: '2024-01-01T00:00:00Z',
   roles: [],
   created_at: '2024-01-01T00:00:00Z',
   updated_at: '2024-01-01T00:00:00Z',

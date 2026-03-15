@@ -25,15 +25,19 @@ func (h *ThreatFeedHandler) List(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	q := r.URL.Query()
 	page := 1
 	perPage := 25
-	if v := r.URL.Query().Get("page"); v != "" {
+	if v := q.Get("page"); v != "" {
 		page, _ = strconv.Atoi(v)
 	}
-	if v := r.URL.Query().Get("per_page"); v != "" {
+	if v := q.Get("per_page"); v != "" {
 		perPage, _ = strconv.Atoi(v)
 	}
-	result, err := h.svc.ListFeeds(r.Context(), tenantID, page, perPage, actorFromRequest(r))
+	search := q.Get("search")
+	sort := q.Get("sort")
+	order := q.Get("order")
+	result, err := h.svc.ListFeeds(r.Context(), tenantID, page, perPage, search, sort, order, actorFromRequest(r))
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "LIST_FAILED", err.Error(), nil)
 		return

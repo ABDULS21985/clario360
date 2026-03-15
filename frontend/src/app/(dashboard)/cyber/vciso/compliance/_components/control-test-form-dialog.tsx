@@ -123,12 +123,15 @@ export function ControlTestFormDialog({
     }
 
     const payload = {
+      control_id: controlTest?.control_id ?? '',
       control_name: controlName.trim(),
       framework: framework.trim(),
       test_type: testType,
       result,
       tester_name: testerName.trim(),
+      test_date: new Date().toISOString().slice(0, 10),
       findings: findings.trim(),
+      evidence_ids: controlTest?.evidence_ids ?? [],
       next_test_date: nextTestDate || undefined,
     };
 

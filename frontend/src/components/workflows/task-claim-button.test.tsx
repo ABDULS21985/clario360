@@ -51,7 +51,6 @@ function buildUser(roleSlugs: string[]): User {
     status: 'active',
     mfa_enabled: false,
     last_login_at: null,
-    password_changed_at: '2026-03-07T10:00:00Z',
     roles: roleSlugs.map(buildRole),
     created_at: '2026-03-07T10:00:00Z',
     updated_at: '2026-03-07T10:00:00Z',

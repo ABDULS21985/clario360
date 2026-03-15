@@ -83,6 +83,7 @@ func (h *Handler) PublicInvitationRoutes() chi.Router {
 func (h *Handler) InvitationRoutes() chi.Router {
 	r := chi.NewRouter()
 	r.Get("/", h.ListInvitations)
+	r.Get("/stats", h.GetStats)
 	r.Post("/", h.CreateBatchInvitations)
 	r.Post("/resend/{id}", h.ResendInvitation)
 	r.Delete("/{id}", h.CancelInvitation)

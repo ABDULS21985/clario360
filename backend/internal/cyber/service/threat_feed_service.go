@@ -85,8 +85,8 @@ func NewThreatFeedService(
 	}
 }
 
-func (s *ThreatFeedService) ListFeeds(ctx context.Context, tenantID uuid.UUID, page, perPage int, actor *Actor) (*dto.ThreatFeedListResponse, error) {
-	items, total, err := s.feedRepo.List(ctx, tenantID, page, perPage)
+func (s *ThreatFeedService) ListFeeds(ctx context.Context, tenantID uuid.UUID, page, perPage int, search, sort, order string, actor *Actor) (*dto.ThreatFeedListResponse, error) {
+	items, total, err := s.feedRepo.List(ctx, tenantID, page, perPage, search, sort, order)
 	if err != nil {
 		return nil, err
 	}
@@ -483,6 +483,16 @@ func applyThreatFeedAuth(req *http.Request, config *model.ThreatFeedConfig) {
 		password, _ := auth["password"].(string)
 		if username != "" {
 			req.SetBasicAuth(username, password)
+		}
+	case model.ThreatFeedAuthCertificate:
+		// Certificate-based auth stores the cert/key in auth_config but TLS client
+		// certificates require a custom http.Transport (not header-based). For now,
+		// we pass any provided certificate fingerprint as a header so the feed
+		// endpoint can identify the client. Full mTLS support requires injecting
+		// a tls.Config into the HTTP client and is tracked separately.
+		certFingerprint, _ := auth["certificate"].(string)
+		if certFingerprint != "" {
+			req.Header.Set("X-Client-Certificate", certFingerprint)
 		}
 	}
 }

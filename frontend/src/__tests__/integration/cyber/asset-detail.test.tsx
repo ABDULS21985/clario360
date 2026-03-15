@@ -89,7 +89,7 @@ async function renderPage() {
   const { default: Page } = await import('@/app/(dashboard)/cyber/assets/[id]/page');
   return render(
     <QueryClientProvider client={makeQueryClient()}>
-      <Page params={Promise.resolve({ id: ASSET_ID })} />
+      <Page params={{ id: ASSET_ID }} />
     </QueryClientProvider>,
   );
 }

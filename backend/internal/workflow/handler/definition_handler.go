@@ -19,14 +19,22 @@ type definitionService interface {
 	List(ctx context.Context, tenantID, status, nameFilter string, page, pageSize int) ([]*model.WorkflowDefinition, int, error)
 	Update(ctx context.Context, tenantID, id, userID string, req dto.UpdateDefinitionRequest) (*model.WorkflowDefinition, error)
 	Activate(ctx context.Context, tenantID, id string) error
+	Archive(ctx context.Context, tenantID, id string) error
+	Clone(ctx context.Context, tenantID, id, userID string) (*model.WorkflowDefinition, error)
 	Delete(ctx context.Context, tenantID, id string) error
 	ListVersions(ctx context.Context, tenantID, id string) ([]*model.WorkflowDefinition, error)
 }
 
+// definitionTemplateService is an optional service for creating definitions from templates.
+type definitionTemplateService interface {
+	InstantiateTemplate(ctx context.Context, tenantID, userID, templateID string) (*model.WorkflowDefinition, error)
+}
+
 // DefinitionHandler handles HTTP requests for workflow definition CRUD operations.
 type DefinitionHandler struct {
-	service definitionService
-	logger  zerolog.Logger
+	service    definitionService
+	tmplSvc    definitionTemplateService
+	logger     zerolog.Logger
 }
 
 // NewDefinitionHandler creates a new DefinitionHandler with the given service and logger.
@@ -37,16 +45,25 @@ func NewDefinitionHandler(service definitionService, logger zerolog.Logger) *Def
 	}
 }
 
+// SetTemplateService sets the optional template service for from-template creation.
+func (h *DefinitionHandler) SetTemplateService(svc definitionTemplateService) {
+	h.tmplSvc = svc
+}
+
 // Routes returns a chi.Router with all definition routes mounted.
 func (h *DefinitionHandler) Routes() chi.Router {
 	r := chi.NewRouter()
 
 	r.Post("/", h.Create)
 	r.Get("/", h.List)
+	r.Post("/from-template", h.CreateFromTemplate)
 	r.Get("/{id}", h.GetByID)
 	r.Put("/{id}", h.Update)
 	r.Delete("/{id}", h.Delete)
 	r.Post("/{id}/activate", h.Activate)
+	r.Post("/{id}/publish", h.Activate)   // alias: frontend uses "publish"
+	r.Post("/{id}/archive", h.Archive)
+	r.Post("/{id}/clone", h.Clone)
 	r.Get("/{id}/versions", h.ListVersions)
 
 	return r
@@ -108,6 +125,9 @@ func (h *DefinitionHandler) List(w http.ResponseWriter, r *http.Request) {
 	}
 
 	nameFilter := r.URL.Query().Get("name")
+	if nameFilter == "" {
+		nameFilter = r.URL.Query().Get("search")
+	}
 	page, pageSize := parsePagination(r)
 
 	defs, total, err := h.service.List(r.Context(), user.TenantID, status, nameFilter, page, pageSize)
@@ -289,4 +309,117 @@ func (h *DefinitionHandler) ListVersions(w http.ResponseWriter, r *http.Request)
 	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"versions": items,
 	})
+}
+
+// Archive handles POST /{id}/archive — archives an active workflow definition.
+func (h *DefinitionHandler) Archive(w http.ResponseWriter, r *http.Request) {
+	user := auth.UserFromContext(r.Context())
+	if user == nil {
+		writeError(w, http.StatusUnauthorized, "UNAUTHORIZED", "authentication required")
+		return
+	}
+
+	id := urlParam(r, "id")
+	if id == "" {
+		writeError(w, http.StatusBadRequest, "INVALID_ID", "definition id is required")
+		return
+	}
+
+	if err := h.service.Archive(r.Context(), user.TenantID, id); err != nil {
+		h.logger.Error().Err(err).
+			Str("tenant_id", user.TenantID).
+			Str("definition_id", id).
+			Msg("failed to archive workflow definition")
+		handleServiceError(w, err)
+		return
+	}
+
+	h.logger.Info().
+		Str("tenant_id", user.TenantID).
+		Str("definition_id", id).
+		Str("user_id", user.ID).
+		Msg("workflow definition archived")
+
+	writeJSON(w, http.StatusOK, map[string]string{"message": "definition archived"})
+}
+
+// Clone handles POST /{id}/clone — creates a copy of a workflow definition in draft status.
+func (h *DefinitionHandler) Clone(w http.ResponseWriter, r *http.Request) {
+	user := auth.UserFromContext(r.Context())
+	if user == nil {
+		writeError(w, http.StatusUnauthorized, "UNAUTHORIZED", "authentication required")
+		return
+	}
+
+	id := urlParam(r, "id")
+	if id == "" {
+		writeError(w, http.StatusBadRequest, "INVALID_ID", "definition id is required")
+		return
+	}
+
+	def, err := h.service.Clone(r.Context(), user.TenantID, id, user.ID)
+	if err != nil {
+		h.logger.Error().Err(err).
+			Str("tenant_id", user.TenantID).
+			Str("definition_id", id).
+			Msg("failed to clone workflow definition")
+		handleServiceError(w, err)
+		return
+	}
+
+	h.logger.Info().
+		Str("tenant_id", user.TenantID).
+		Str("definition_id", def.ID).
+		Str("user_id", user.ID).
+		Msg("workflow definition cloned")
+
+	writeJSON(w, http.StatusCreated, dto.DefinitionToResponse(def))
+}
+
+// CreateFromTemplate handles POST /from-template — creates a new definition from a template.
+// Expects JSON body: { "template_id": "...", "name": "...", "description": "..." }
+func (h *DefinitionHandler) CreateFromTemplate(w http.ResponseWriter, r *http.Request) {
+	user := auth.UserFromContext(r.Context())
+	if user == nil {
+		writeError(w, http.StatusUnauthorized, "UNAUTHORIZED", "authentication required")
+		return
+	}
+
+	if h.tmplSvc == nil {
+		writeError(w, http.StatusNotImplemented, "NOT_IMPLEMENTED", "template service not configured")
+		return
+	}
+
+	var req struct {
+		TemplateID  string `json:"template_id"`
+		Name        string `json:"name"`
+		Description string `json:"description"`
+	}
+	if err := parseBody(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "INVALID_REQUEST", err.Error())
+		return
+	}
+	if req.TemplateID == "" {
+		writeError(w, http.StatusBadRequest, "VALIDATION_ERROR", "template_id is required")
+		return
+	}
+
+	def, err := h.tmplSvc.InstantiateTemplate(r.Context(), user.TenantID, user.ID, req.TemplateID)
+	if err != nil {
+		h.logger.Error().Err(err).
+			Str("tenant_id", user.TenantID).
+			Str("template_id", req.TemplateID).
+			Msg("failed to create definition from template")
+		handleServiceError(w, err)
+		return
+	}
+
+	h.logger.Info().
+		Str("tenant_id", user.TenantID).
+		Str("template_id", req.TemplateID).
+		Str("definition_id", def.ID).
+		Str("user_id", user.ID).
+		Msg("workflow definition created from template")
+
+	writeJSON(w, http.StatusCreated, dto.DefinitionToResponse(def))
 }

@@ -29,7 +29,7 @@ import { PageHeader } from "@/components/common/page-header";
 import { FormField } from "@/components/shared/forms/form-field";
 import { useProvisionTenant } from "@/hooks/use-tenants";
 import { cn } from "@/lib/utils";
-import type { TenantPlan } from "@/types/tenant";
+import type { SubscriptionTier } from "@/types/tenant";
 import Link from "next/link";
 
 const provisionSchema = z.object({
@@ -39,7 +39,7 @@ const provisionSchema = z.object({
     .min(2, "Slug must be at least 2 characters")
     .max(50)
     .regex(/^[a-z0-9-]+$/, "Only lowercase letters, numbers, and hyphens"),
-  plan: z.enum(["starter", "professional", "enterprise", "custom"]),
+  subscription_tier: z.enum(["free", "starter", "professional", "enterprise"]),
   owner_email: z.string().email("Invalid email address"),
   owner_name: z.string().min(1, "Owner name is required"),
   max_users: z.coerce.number().min(1).default(10),
@@ -76,7 +76,7 @@ export default function ProvisionTenantPage() {
     defaultValues: {
       name: "",
       slug: "",
-      plan: "professional",
+      subscription_tier: "professional",
       owner_email: "",
       owner_name: "",
       max_users: 10,
@@ -96,7 +96,7 @@ export default function ProvisionTenantPage() {
   const canAdvance = async (): Promise<boolean> => {
     switch (step) {
       case 1:
-        return methods.trigger(["name", "slug", "plan"]);
+        return methods.trigger(["name", "slug", "subscription_tier"]);
       case 2:
         return methods.trigger(["owner_email", "owner_name"]);
       case 3:
@@ -120,7 +120,7 @@ export default function ProvisionTenantPage() {
     const result = await provisionMutation.mutateAsync({
       name: data.name,
       slug: data.slug,
-      plan: data.plan as TenantPlan,
+      subscription_tier: data.subscription_tier as SubscriptionTier,
       owner_email: data.owner_email,
       owner_name: data.owner_name,
       settings: {
@@ -134,6 +134,16 @@ export default function ProvisionTenantPage() {
   });
 
   const values = methods.watch();
+
+  const tierLabel = (tier: string) => {
+    const labels: Record<string, string> = {
+      free: "Free",
+      starter: "Starter",
+      professional: "Professional",
+      enterprise: "Enterprise",
+    };
+    return labels[tier] ?? tier;
+  };
 
   return (
     <div className="w-full space-y-6">
@@ -226,21 +236,21 @@ export default function ProvisionTenantPage() {
                   />
                 </FormField>
 
-                <FormField name="plan" label="Plan" required>
+                <FormField name="subscription_tier" label="Plan" required>
                   <Select
-                    value={methods.watch("plan")}
+                    value={methods.watch("subscription_tier")}
                     onValueChange={(v) =>
-                      methods.setValue("plan", v as TenantPlan, { shouldValidate: true })
+                      methods.setValue("subscription_tier", v as SubscriptionTier, { shouldValidate: true })
                     }
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Select a plan" />
                     </SelectTrigger>
                     <SelectContent>
+                      <SelectItem value="free">Free</SelectItem>
                       <SelectItem value="starter">Starter</SelectItem>
                       <SelectItem value="professional">Professional</SelectItem>
                       <SelectItem value="enterprise">Enterprise</SelectItem>
-                      <SelectItem value="custom">Custom</SelectItem>
                     </SelectContent>
                   </Select>
                 </FormField>
@@ -352,7 +362,7 @@ export default function ProvisionTenantPage() {
                     </div>
                     <div>
                       <dt className="text-muted-foreground">Plan</dt>
-                      <dd className="capitalize mt-0.5">{values.plan}</dd>
+                      <dd className="capitalize mt-0.5">{tierLabel(values.subscription_tier)}</dd>
                     </div>
                     <div>
                       <dt className="text-muted-foreground">Owner</dt>

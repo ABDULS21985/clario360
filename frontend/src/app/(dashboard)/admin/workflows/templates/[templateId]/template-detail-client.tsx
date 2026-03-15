@@ -100,7 +100,7 @@ export function TemplateDetailClient() {
           <h1 className="text-2xl font-bold">{template.name}</h1>
           <div className="mt-1.5 flex flex-wrap items-center gap-2">
             <Badge variant="secondary">{titleCase(template.category)}</Badge>
-            {template.tags.map((tag) => (
+            {(template.tags ?? []).map((tag) => (
               <Badge key={tag} variant="outline" className="text-xs">
                 {tag}
               </Badge>
@@ -123,12 +123,12 @@ export function TemplateDetailClient() {
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium">
-              Steps ({template.steps.length})
+              Steps ({template.steps?.length ?? 0})
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-1.5">
-              {template.steps.map((step, idx) => (
+              {(template.steps ?? []).map((step, idx) => (
                 <div
                   key={step.id}
                   className="flex items-center gap-2 text-sm"
@@ -150,11 +150,11 @@ export function TemplateDetailClient() {
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium">
-              Variables ({template.variables.length})
+              Variables ({template.variables?.length ?? 0})
             </CardTitle>
           </CardHeader>
           <CardContent>
-            {template.variables.length === 0 ? (
+            {(template.variables?.length ?? 0) === 0 ? (
               <p className="text-xs text-muted-foreground">
                 No variables defined.
               </p>
@@ -168,7 +168,7 @@ export function TemplateDetailClient() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {template.variables.map((v) => (
+                  {template.variables!.map((v) => (
                     <TableRow key={v.name}>
                       <TableCell className="font-mono text-xs py-1.5">
                         {v.name}

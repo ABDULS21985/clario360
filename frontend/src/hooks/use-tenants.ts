@@ -47,14 +47,14 @@ export function useTenant(tenantId: string, polling = false) {
 }
 
 /**
- * Provision a new tenant via POST /api/v1/tenants (CreateTenantRequest).
- * owner_email/owner_name are embedded in the settings JSON.
+ * Provision a new tenant with owner user via POST /api/v1/tenants/provision.
+ * Creates the tenant and an initial tenant-admin user.
  */
 export function useProvisionTenant() {
   const queryClient = useQueryClient();
   return useMutation<Tenant, AxiosError<ApiError>, ProvisionTenantRequest>({
     mutationFn: async (payload) => {
-      const { data } = await api.post<Tenant>("/api/v1/tenants", payload);
+      const { data } = await api.post<Tenant>("/api/v1/tenants/provision", payload);
       return data;
     },
     onSuccess: () => {
@@ -109,7 +109,7 @@ export function useDeprovisionTenant() {
 }
 
 /**
- * Usage endpoint — may not exist yet. Gracefully returns undefined on 404.
+ * Fetch tenant usage statistics from GET /api/v1/tenants/{id}/usage.
  */
 export function useTenantUsage(tenantId: string) {
   return useQuery<TenantUsage | null, AxiosError<ApiError>>({
@@ -119,6 +119,7 @@ export function useTenantUsage(tenantId: string) {
         const { data } = await api.get<TenantUsage>(`/api/v1/tenants/${tenantId}/usage`);
         return data;
       } catch {
+        // Gracefully degrade if usage data is unavailable.
         return null;
       }
     },

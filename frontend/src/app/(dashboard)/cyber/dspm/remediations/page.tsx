@@ -176,8 +176,10 @@ export default function RemediationsPage() {
 
   const { tableProps, refetch } = useDataTable<DSPMRemediation>({
     queryKey: 'cyber-dspm-remediations',
-    fetchFn: (params: FetchParams) =>
-      apiGet<PaginatedResponse<DSPMRemediation>>(API_ENDPOINTS.CYBER_DSPM_REMEDIATIONS, params as unknown as Record<string, unknown>),
+    fetchFn: (params: FetchParams) => {
+      const { filters, ...rest } = params;
+      return apiGet<PaginatedResponse<DSPMRemediation>>(API_ENDPOINTS.CYBER_DSPM_REMEDIATIONS, { ...rest, ...filters } as Record<string, unknown>);
+    },
     defaultSort: { column: 'severity', direction: 'desc' },
   });
 

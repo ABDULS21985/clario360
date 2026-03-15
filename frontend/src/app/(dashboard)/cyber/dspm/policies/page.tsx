@@ -221,8 +221,10 @@ export default function DataPoliciesPage() {
 
   const { tableProps, refetch } = useDataTable<DSPMDataPolicy>({
     queryKey: 'cyber-dspm-policies',
-    fetchFn: (params: FetchParams) =>
-      apiGet<PaginatedResponse<DSPMDataPolicy>>(API_ENDPOINTS.CYBER_DSPM_DATA_POLICIES, params as unknown as Record<string, unknown>),
+    fetchFn: (params: FetchParams) => {
+      const { filters, ...rest } = params;
+      return apiGet<PaginatedResponse<DSPMDataPolicy>>(API_ENDPOINTS.CYBER_DSPM_DATA_POLICIES, { ...rest, ...filters } as Record<string, unknown>);
+    },
     defaultSort: { column: 'name', direction: 'asc' },
   });
 

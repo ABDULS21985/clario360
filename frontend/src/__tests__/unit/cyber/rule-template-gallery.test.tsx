@@ -13,10 +13,10 @@ function makeTemplates(count = 15): RuleTemplate[] {
     id: `tmpl-${i}`,
     name: `Template ${i + 1}`,
     description: `Description for template ${i + 1}`,
-    type: i % 2 === 0 ? 'sigma' : 'threshold',
-    severity: i < 5 ? 'critical' : i < 10 ? 'high' : 'medium',
+    rule_type: (i % 2 === 0 ? 'sigma' : 'threshold') as RuleTemplate['rule_type'],
+    type: (i % 2 === 0 ? 'sigma' : 'threshold') as RuleTemplate['rule_type'],
+    severity: (i < 5 ? 'critical' : i < 10 ? 'high' : 'medium') as RuleTemplate['severity'],
     mitre_technique_ids: [`T10${String(i).padStart(2, '0')}`],
-    category: 'threat',
   }));
 }
 

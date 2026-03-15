@@ -27,20 +27,28 @@ type engineService interface {
 type instanceReader interface {
 	GetByID(ctx context.Context, tenantID, id string) (*model.WorkflowInstance, error)
 	List(ctx context.Context, tenantID, status, definitionID, startedBy string, dateFrom, dateTo *time.Time, limit, offset int) ([]*model.WorkflowInstance, int, error)
+	GetStepExecutions(ctx context.Context, instanceID string) ([]*model.StepExecution, error)
+}
+
+// definitionReader defines read operations for workflow definitions.
+type definitionReader interface {
+	GetByID(ctx context.Context, tenantID, id string) (*model.WorkflowDefinition, error)
 }
 
 // InstanceHandler handles HTTP requests for workflow instance operations.
 type InstanceHandler struct {
 	engine       engineService
 	instanceRepo instanceReader
+	defReader    definitionReader
 	logger       zerolog.Logger
 }
 
-// NewInstanceHandler creates a new InstanceHandler with the given engine, instance reader, and logger.
-func NewInstanceHandler(engine engineService, instanceRepo instanceReader, logger zerolog.Logger) *InstanceHandler {
+// NewInstanceHandler creates a new InstanceHandler with the given engine, instance reader, definition reader, and logger.
+func NewInstanceHandler(engine engineService, instanceRepo instanceReader, defReader definitionReader, logger zerolog.Logger) *InstanceHandler {
 	return &InstanceHandler{
 		engine:       engine,
 		instanceRepo: instanceRepo,
+		defReader:    defReader,
 		logger:       logger.With().Str("handler", "workflow_instance").Logger(),
 	}
 }
@@ -55,6 +63,7 @@ func (h *InstanceHandler) Routes() chi.Router {
 	r.Post("/{id}/cancel", h.Cancel)
 	r.Post("/{id}/retry", h.Retry)
 	r.Post("/{id}/suspend", h.Suspend)
+	r.Post("/{id}/pause", h.Suspend) // alias: frontend uses "pause"
 	r.Post("/{id}/resume", h.Resume)
 	r.Get("/{id}/history", h.GetHistory)
 
@@ -150,9 +159,42 @@ func (h *InstanceHandler) List(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Cache definition lookups to avoid repeated DB calls within the same page.
+	defCache := make(map[string]*model.WorkflowDefinition)
+
 	items := make([]dto.InstanceResponse, len(instances))
 	for i, inst := range instances {
 		items[i] = dto.InstanceToResponse(inst)
+		// Best-effort enrichment — don't fail the list if a definition lookup fails.
+		if h.defReader != nil {
+			def, ok := defCache[inst.DefinitionID]
+			if !ok {
+				def, _ = h.defReader.GetByID(r.Context(), user.TenantID, inst.DefinitionID)
+				defCache[inst.DefinitionID] = def // may be nil
+			}
+			if def != nil {
+				items[i].DefinitionName = def.Name
+				items[i].TotalSteps = len(def.Steps)
+				if inst.CurrentStepID != nil {
+					for _, s := range def.Steps {
+						if s.ID == *inst.CurrentStepID {
+							items[i].CurrentStepName = &s.Name
+							break
+						}
+					}
+				}
+			}
+			// Compute completed steps from step executions.
+			if execs, err := h.instanceRepo.GetStepExecutions(r.Context(), inst.ID); err == nil {
+				completed := 0
+				for _, e := range execs {
+					if e.Status == "completed" {
+						completed++
+					}
+				}
+				items[i].CompletedSteps = completed
+			}
+		}
 	}
 
 	writeJSON(w, http.StatusOK, dto.ListInstancesResponse{
@@ -185,7 +227,10 @@ func (h *InstanceHandler) GetByID(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusOK, dto.InstanceToResponse(instance))
+	resp := dto.InstanceToResponse(instance)
+	h.enrichInstanceResponse(r.Context(), user.TenantID, instance, &resp)
+
+	writeJSON(w, http.StatusOK, resp)
 }
 
 // Cancel handles POST /{id}/cancel — cancels a running workflow instance.
@@ -349,4 +394,41 @@ func (h *InstanceHandler) GetHistory(w http.ResponseWriter, r *http.Request) {
 		InstanceID:     id,
 		StepExecutions: items,
 	})
+}
+
+// enrichInstanceResponse adds definition_name, current_step_name, completed_steps,
+// and total_steps to a single InstanceResponse. Best-effort — errors are logged but not fatal.
+func (h *InstanceHandler) enrichInstanceResponse(ctx context.Context, tenantID string, inst *model.WorkflowInstance, resp *dto.InstanceResponse) {
+	if h.defReader == nil {
+		return
+	}
+
+	def, err := h.defReader.GetByID(ctx, tenantID, inst.DefinitionID)
+	if err != nil {
+		h.logger.Warn().Err(err).Str("definition_id", inst.DefinitionID).Msg("failed to enrich instance with definition name")
+		return
+	}
+
+	resp.DefinitionName = def.Name
+	resp.TotalSteps = len(def.Steps)
+
+	if inst.CurrentStepID != nil {
+		for _, s := range def.Steps {
+			if s.ID == *inst.CurrentStepID {
+				resp.CurrentStepName = &s.Name
+				break
+			}
+		}
+	}
+
+	// Count completed step executions.
+	if execs, err := h.instanceRepo.GetStepExecutions(ctx, inst.ID); err == nil {
+		completed := 0
+		for _, e := range execs {
+			if e.Status == "completed" {
+				completed++
+			}
+		}
+		resp.CompletedSteps = completed
+	}
 }

@@ -35,16 +35,25 @@ export interface DeliveryFilters {
   event_type?: string;
 }
 
-export interface IntegrationFormState {
-  type: IntegrationType;
-  name: string;
-  description: string;
+export interface EventFilterFormState {
   eventTypes: string[];
   severities: string[];
   suites: string[];
   minConfidence: string;
+}
+
+export function emptyFilterState(): EventFilterFormState {
+  return { eventTypes: [], severities: [], suites: [], minConfidence: "" };
+}
+
+export interface IntegrationFormState {
+  type: IntegrationType;
+  name: string;
+  description: string;
+  filters: EventFilterFormState[];
   config: {
     bot_token: string;
+    signing_secret: string;
     channel_id: string;
     team_id: string;
     team_name: string;
@@ -156,12 +165,10 @@ export function getDefaultFormState(type: IntegrationType = "webhook"): Integrat
     type,
     name: "",
     description: "",
-    eventTypes: [],
-    severities: [],
-    suites: [],
-    minConfidence: "",
+    filters: [emptyFilterState()],
     config: {
       bot_token: "",
+      signing_secret: "",
       channel_id: "",
       team_id: "",
       team_name: "",
@@ -203,20 +210,27 @@ export function getDefaultFormState(type: IntegrationType = "webhook"): Integrat
 
 export function formStateFromIntegration(integration: IntegrationRecord): IntegrationFormState {
   const state = getDefaultFormState(integration.type);
-  const filter = integration.event_filters?.[0];
+  const rawFilters = integration.event_filters ?? [];
+  const filters: EventFilterFormState[] =
+    rawFilters.length > 0
+      ? rawFilters.map((f) => ({
+          eventTypes: f.event_types ?? [],
+          severities: f.severities ?? [],
+          suites: f.suites ?? [],
+          minConfidence: f.min_confidence ? String(f.min_confidence) : "",
+        }))
+      : [emptyFilterState()];
 
   return {
     ...state,
     type: integration.type,
     name: integration.name,
     description: integration.description ?? "",
-    eventTypes: filter?.event_types ?? [],
-    severities: filter?.severities ?? [],
-    suites: filter?.suites ?? [],
-    minConfidence: filter?.min_confidence ? String(filter.min_confidence) : "",
+    filters,
     config: {
       ...state.config,
       bot_token: safeSecretPrefill(integration.config?.bot_token),
+      signing_secret: safeSecretPrefill(integration.config?.signing_secret),
       channel_id: safeString(integration.config?.channel_id),
       team_id: safeString(integration.config?.team_id),
       team_name: safeString(integration.config?.team_name),
@@ -276,6 +290,7 @@ export function buildIntegrationPayload(state: IntegrationFormState, existing?: 
   switch (state.type) {
     case "slack":
       assign("bot_token", state.config.bot_token, true);
+      assign("signing_secret", state.config.signing_secret, true);
       assign("channel_id", state.config.channel_id);
       assign("team_id", state.config.team_id);
       assign("team_name", state.config.team_name);
@@ -325,29 +340,26 @@ export function buildIntegrationPayload(state: IntegrationFormState, existing?: 
       break;
   }
 
-  const filter: IntegrationEventFilter = {};
-  if (state.eventTypes.length > 0) {
-    filter.event_types = state.eventTypes;
-  }
-  if (state.severities.length > 0) {
-    filter.severities = state.severities;
-  }
-  if (state.suites.length > 0) {
-    filter.suites = state.suites;
-  }
-  if (state.minConfidence.trim()) {
-    const parsed = Number(state.minConfidence);
-    if (!Number.isNaN(parsed) && parsed > 0) {
-      filter.min_confidence = parsed;
-    }
-  }
+  const event_filters: IntegrationEventFilter[] = state.filters
+    .map((f) => {
+      const filter: IntegrationEventFilter = {};
+      if (f.eventTypes.length > 0) filter.event_types = f.eventTypes;
+      if (f.severities.length > 0) filter.severities = f.severities;
+      if (f.suites.length > 0) filter.suites = f.suites;
+      if (f.minConfidence.trim()) {
+        const parsed = Number(f.minConfidence);
+        if (!Number.isNaN(parsed) && parsed > 0) filter.min_confidence = parsed;
+      }
+      return filter;
+    })
+    .filter((f) => Object.keys(f).length > 0);
 
   return {
     type: existing?.type ?? state.type,
     name: state.name.trim(),
     description: state.description.trim(),
     config,
-    event_filters: Object.keys(filter).length > 0 ? [filter] : [],
+    event_filters,
   };
 }
 
@@ -459,8 +471,13 @@ function assignParsedJSON(target: Record<string, unknown>, key: string, raw: str
   if (!trimmed) {
     return;
   }
-  const parsed = JSON.parse(trimmed) as unknown;
-  target[key] = parsed;
+  try {
+    const parsed = JSON.parse(trimmed) as unknown;
+    target[key] = parsed;
+  } catch {
+    const label = key.replace(/_/g, " ");
+    throw new Error(`Invalid JSON in "${label}". Please check the syntax and try again.`);
+  }
 }
 
 function isMaskedSecret(value: string): boolean {

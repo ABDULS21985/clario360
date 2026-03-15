@@ -61,11 +61,13 @@ export function getDefinitionColumns(
       accessorKey: 'category',
       header: 'Category',
       cell: ({ getValue }) => {
-        const category = getValue() as string;
-        return (
+        const category = getValue() as string | undefined;
+        return category ? (
           <Badge variant="secondary" className="text-xs">
             {titleCase(category)}
           </Badge>
+        ) : (
+          <span className="text-sm text-muted-foreground">&mdash;</span>
         );
       },
       enableSorting: true,
@@ -89,7 +91,7 @@ export function getDefinitionColumns(
       id: 'trigger',
       header: 'Trigger',
       cell: ({ row }) => {
-        const trigger = row.original.trigger;
+        const trigger = row.original.trigger_config;
         const Icon = triggerIcons[trigger.type] ?? Globe;
         return (
           <div className="flex items-center gap-1.5">
@@ -118,7 +120,7 @@ export function getDefinitionColumns(
       header: 'Instances',
       cell: ({ getValue }) => (
         <span className="text-sm text-muted-foreground">
-          {getValue() as number}
+          {(getValue() as number | undefined) ?? 0}
         </span>
       ),
       size: 90,

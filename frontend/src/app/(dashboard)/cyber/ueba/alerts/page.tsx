@@ -17,7 +17,7 @@ import type { UebaAlert } from '../_components/types';
 export default function UebaAlertsPage() {
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['cyber-ueba-alerts'],
-    queryFn: () => apiGet<{ data: UebaAlert[]; total: number }>(API_ENDPOINTS.CYBER_UEBA_ALERTS),
+    queryFn: () => apiGet<{ data: UebaAlert[]; meta: { page: number; per_page: number; total: number; total_pages: number } }>(API_ENDPOINTS.CYBER_UEBA_ALERTS),
   });
 
   const alerts = data?.data ?? [];
@@ -83,7 +83,7 @@ export default function UebaAlertsPage() {
                     {alert.risk_score_before.toFixed(0)} → {alert.risk_score_after.toFixed(0)} ({alert.risk_score_delta >= 0 ? '+' : ''}{alert.risk_score_delta.toFixed(0)})
                   </div>
                   <div className="mt-3 text-xs text-muted-foreground">
-                    Triggered by {alert.correlated_signal_count} signals across {alert.triggering_event_ids.length} events.
+                    Triggered by {alert.correlated_signal_count} signals across {(alert.triggering_event_ids ?? []).length} events.
                   </div>
                   <pre className="mt-3 overflow-auto rounded-md bg-background p-3 text-xs">
                     {JSON.stringify(alert.baseline_comparison, null, 2)}

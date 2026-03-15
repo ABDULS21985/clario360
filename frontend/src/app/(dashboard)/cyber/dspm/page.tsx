@@ -35,8 +35,10 @@ export default function CyberDspmPage() {
 
   const { tableProps, refetch } = useDataTable<DataAsset>({
     queryKey: 'cyber-dspm',
-    fetchFn: (params: FetchParams) =>
-      apiGet<PaginatedResponse<DataAsset>>(API_ENDPOINTS.CYBER_DSPM_DATA_ASSETS, params as unknown as Record<string, unknown>),
+    fetchFn: (params: FetchParams) => {
+      const { filters, ...rest } = params;
+      return apiGet<PaginatedResponse<DataAsset>>(API_ENDPOINTS.CYBER_DSPM_DATA_ASSETS, { ...rest, ...filters } as Record<string, unknown>);
+    },
     defaultSort: { column: 'risk_score', direction: 'desc' },
   });
   const shadowQuery = useQuery({

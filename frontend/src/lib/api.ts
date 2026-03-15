@@ -12,6 +12,11 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8080';
 const api = axios.create({
   baseURL: API_URL,
   timeout: 30000,
+  paramsSerializer: {
+    // Use 'repeat' format: type=sigma&type=threshold (not type[]=...)
+    // Backend splitQueryValues reads url.Values["type"], not "type[]"
+    indexes: null,
+  },
 });
 
 // ── Request interceptor ──────────────────────────────────────────────────────

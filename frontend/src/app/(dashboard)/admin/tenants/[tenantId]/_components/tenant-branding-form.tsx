@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { FormField } from "@/components/shared/forms/form-field";
-import { useUpdateTenant } from "@/hooks/use-tenants";
+import { useUpdateTenantSettings } from "@/hooks/use-tenants";
 import type { Tenant } from "@/types/tenant";
 
 const brandingSchema = z.object({
@@ -27,27 +27,33 @@ interface TenantBrandingFormProps {
 }
 
 export function TenantBrandingForm({ tenant, onSuccess }: TenantBrandingFormProps) {
-  const updateTenant = useUpdateTenant();
+  const updateSettings = useUpdateTenantSettings();
+
+  const branding = tenant.settings?.branding;
 
   const methods = useForm<BrandingFormData>({
     resolver: zodResolver(brandingSchema),
     defaultValues: {
-      company_name: tenant.branding.company_name,
-      primary_color: tenant.branding.primary_color,
-      accent_color: tenant.branding.accent_color,
-      logo_url: tenant.branding.logo_url ?? "",
+      company_name: branding?.company_name ?? tenant.name,
+      primary_color: branding?.primary_color ?? "#1B5E20",
+      accent_color: branding?.accent_color ?? "#C6A962",
+      logo_url: branding?.logo_url ?? "",
     },
   });
 
   const onSubmit = methods.handleSubmit(async (data) => {
-    await updateTenant.mutateAsync({
-      tenantId: tenant.id,
-      data: {
-        branding: {
-          ...data,
-          logo_url: data.logo_url || null,
-        },
+    // Store branding inside the settings JSONB field
+    const mergedSettings = {
+      ...tenant.settings,
+      branding: {
+        ...data,
+        logo_url: data.logo_url || null,
       },
+    };
+
+    await updateSettings.mutateAsync({
+      tenantId: tenant.id,
+      settings: mergedSettings,
     });
     onSuccess();
   });
@@ -70,7 +76,7 @@ export function TenantBrandingForm({ tenant, onSuccess }: TenantBrandingFormProp
             <FormField name="company_name" label="Company Name" required>
               <Input
                 {...methods.register("company_name")}
-                disabled={updateTenant.isPending}
+                disabled={updateSettings.isPending}
               />
             </FormField>
 
@@ -78,7 +84,7 @@ export function TenantBrandingForm({ tenant, onSuccess }: TenantBrandingFormProp
               <Input
                 {...methods.register("logo_url")}
                 placeholder="https://example.com/logo.png"
-                disabled={updateTenant.isPending}
+                disabled={updateSettings.isPending}
               />
             </FormField>
 
@@ -94,14 +100,14 @@ export function TenantBrandingForm({ tenant, onSuccess }: TenantBrandingFormProp
                       methods.setValue("primary_color", e.target.value, { shouldDirty: true })
                     }
                     className="h-10 w-10 rounded border border-input cursor-pointer"
-                    disabled={updateTenant.isPending}
+                    disabled={updateSettings.isPending}
                   />
                   <Input
                     id="primary_color"
                     {...methods.register("primary_color")}
                     placeholder="#000000"
                     className="font-mono"
-                    disabled={updateTenant.isPending}
+                    disabled={updateSettings.isPending}
                   />
                 </div>
                 {methods.formState.errors.primary_color && (
@@ -122,14 +128,14 @@ export function TenantBrandingForm({ tenant, onSuccess }: TenantBrandingFormProp
                       methods.setValue("accent_color", e.target.value, { shouldDirty: true })
                     }
                     className="h-10 w-10 rounded border border-input cursor-pointer"
-                    disabled={updateTenant.isPending}
+                    disabled={updateSettings.isPending}
                   />
                   <Input
                     id="accent_color"
                     {...methods.register("accent_color")}
                     placeholder="#000000"
                     className="font-mono"
-                    disabled={updateTenant.isPending}
+                    disabled={updateSettings.isPending}
                   />
                 </div>
                 {methods.formState.errors.accent_color && (
@@ -163,8 +169,8 @@ export function TenantBrandingForm({ tenant, onSuccess }: TenantBrandingFormProp
         </Card>
 
         <div className="flex justify-end">
-          <Button type="submit" disabled={updateTenant.isPending || !methods.formState.isDirty}>
-            {updateTenant.isPending ? "Saving..." : "Save Branding"}
+          <Button type="submit" disabled={updateSettings.isPending || !methods.formState.isDirty}>
+            {updateSettings.isPending ? "Saving..." : "Save Branding"}
           </Button>
         </div>
       </form>

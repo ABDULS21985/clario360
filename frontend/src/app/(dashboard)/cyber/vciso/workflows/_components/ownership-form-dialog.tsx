@@ -133,6 +133,7 @@ export function OwnershipFormDialog({
       framework: form.framework.trim(),
       owner_id: form.owner_id.trim(),
       owner_name: form.owner_name.trim(),
+      status: isEdit ? (ownership?.status ?? 'assigned') : 'assigned',
       next_review_date: form.next_review_date,
     };
 

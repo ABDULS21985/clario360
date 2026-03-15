@@ -69,7 +69,7 @@ type CreateThreatIndicatorRequest struct {
 	Value       string              `json:"value" validate:"required,min=1,max=2048"`
 	Description string              `json:"description,omitempty" validate:"omitempty,max=2000"`
 	Severity    model.Severity      `json:"severity" validate:"required"`
-	Confidence  float64             `json:"confidence" validate:"gte=0,lte=100"`
+	Confidence  float64             `json:"confidence" validate:"gte=0,lte=1"`
 	Source      string              `json:"source,omitempty" validate:"omitempty,oneof=manual stix_feed osint internal vendor"`
 	Tags        []string            `json:"tags,omitempty" validate:"omitempty,max=20,dive,min=1,max=50"`
 }
@@ -146,8 +146,9 @@ type IndicatorCheckResult struct {
 
 // IndicatorBulkImportRequest imports STIX/TAXII indicator bundles.
 type IndicatorBulkImportRequest struct {
-	Payload json.RawMessage `json:"payload" validate:"required"`
-	Source  string          `json:"source,omitempty" validate:"omitempty,oneof=stix_feed vendor internal osint manual"`
+	Payload      json.RawMessage `json:"payload" validate:"required"`
+	Source       string          `json:"source,omitempty" validate:"omitempty,oneof=stix_feed vendor internal osint manual"`
+	ConflictMode string          `json:"conflict_mode,omitempty" validate:"omitempty,oneof=skip update fail"`
 }
 
 // IndicatorListParams captures filters for GET /cyber/indicators.

@@ -156,6 +156,7 @@ export function EscalationRuleFormDialog({
         .map((s) => s.trim())
         .filter(Boolean),
       notification_channels: form.notification_channels,
+      enabled: isEditing ? (editRule?.enabled ?? true) : true,
     };
 
     if (isEditing) {

@@ -465,7 +465,16 @@ func (s *ThreatService) CheckIndicators(ctx context.Context, tenantID uuid.UUID,
 }
 
 // BulkImport imports indicators from a STIX/TAXII bundle.
-func (s *ThreatService) BulkImport(ctx context.Context, tenantID, userID uuid.UUID, actor *Actor, payload []byte, source string) (int, error) {
+// conflictMode controls behaviour when an indicator with the same (tenant, type, value) already exists:
+//
+//	"update" (default) – upsert, overwriting mutable fields.
+//	"skip"             – silently skip duplicates.
+//	"fail"             – return an error on the first duplicate.
+func (s *ThreatService) BulkImport(ctx context.Context, tenantID, userID uuid.UUID, actor *Actor, payload []byte, source, conflictMode string) (int, error) {
+	if conflictMode == "" {
+		conflictMode = "update"
+	}
+
 	bundle, err := indicator.ParseSTIXBundle(payload, source)
 	if err != nil {
 		return 0, err
@@ -490,6 +499,18 @@ func (s *ThreatService) BulkImport(ctx context.Context, tenantID, userID uuid.UU
 				break
 			}
 		}
+
+		if conflictMode == "skip" || conflictMode == "fail" {
+			existing, _ := s.indicatorRepo.GetByTypeValue(ctx, tenantID, indicatorModel.Type, indicatorModel.Value)
+			if existing != nil {
+				if conflictMode == "fail" {
+					return created, fmt.Errorf("duplicate indicator: type=%s value=%s", indicatorModel.Type, indicatorModel.Value)
+				}
+				// skip
+				continue
+			}
+		}
+
 		if _, err := s.indicatorRepo.Create(ctx, &indicatorModel); err != nil {
 			return created, err
 		}

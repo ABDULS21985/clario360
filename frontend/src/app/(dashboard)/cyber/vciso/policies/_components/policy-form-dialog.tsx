@@ -149,7 +149,12 @@ export function PolicyFormDialog({
     const payload = {
       title: title.trim(),
       domain,
+      version: isEditing ? (policy?.version ?? '1.0') : '1.0',
+      status: isEditing ? (policy?.status ?? 'draft') : 'draft',
       content: content.trim(),
+      owner_id: isEditing ? (policy?.owner_id ?? '') : '',
+      owner_name: isEditing ? (policy?.owner_name ?? '') : '',
+      review_due: isEditing ? (policy?.review_due ?? '') : '',
       tags,
     };
 

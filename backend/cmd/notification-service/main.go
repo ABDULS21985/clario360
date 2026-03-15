@@ -268,7 +268,7 @@ func main() {
 
 	// 11. Initialize handlers.
 	notifHandler := handler.NewNotificationHandler(notifSvc, notifRepo, logger)
-	prefHandler := handler.NewPreferenceHandler(prefSvc, webhookRepo, logger)
+	prefHandler := handler.NewPreferenceHandler(prefSvc, webhookRepo, deliveryRepo, logger)
 	wsHandler := handler.NewWebSocketHandler(hub, srv.JWTManager, notifRepo, notifCfg, logger)
 	adminHandler := handler.NewAdminHandler(notifSvc, deliveryRepo, dispatcher, logger)
 	integrationHandler := inthandler.NewIntegrationHandler(integrationSvc, providerStatuses, logger)
@@ -348,8 +348,13 @@ func main() {
 		// Webhook endpoints.
 		r.Get("/webhooks", prefHandler.ListWebhooks)
 		r.Post("/webhooks", prefHandler.CreateWebhook)
+		r.Get("/webhooks/{id}", prefHandler.GetWebhook)
 		r.Put("/webhooks/{id}", prefHandler.UpdateWebhook)
 		r.Delete("/webhooks/{id}", prefHandler.DeleteWebhook)
+		r.Post("/webhooks/{id}/test", prefHandler.TestWebhook)
+		r.Post("/webhooks/{id}/rotate", prefHandler.RotateWebhookSecret)
+		r.Get("/webhooks/{id}/deliveries", prefHandler.ListWebhookDeliveries)
+		r.Post("/webhooks/{id}/deliveries/{deliveryId}/retry", prefHandler.RetryWebhookDelivery)
 
 		// Admin endpoints.
 		r.Post("/test", adminHandler.SendTestNotification)

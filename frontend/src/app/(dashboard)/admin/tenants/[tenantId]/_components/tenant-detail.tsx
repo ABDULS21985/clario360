@@ -26,7 +26,7 @@ import { KpiCard } from "@/components/shared/kpi-card";
 import { RelativeTime } from "@/components/shared/relative-time";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { tenantStatusConfig, tenantPlanConfig } from "@/lib/status-configs";
-import { formatBytes, formatNumber, formatCompactNumber } from "@/lib/format";
+import { parseApiError } from "@/lib/format";
 import { useTenant, useTenantUsage, useDeprovisionTenant } from "@/hooks/use-tenants";
 import { TenantSettingsForm } from "./tenant-settings-form";
 import { TenantBrandingForm } from "./tenant-branding-form";
@@ -45,8 +45,8 @@ export function TenantDetailContent({ tenantId }: TenantDetailContentProps) {
   const [deprovisionOpen, setDeprovisionOpen] = useState(false);
   const deprovisionMutation = useDeprovisionTenant();
 
-  const isPollingStatus = (status: string) =>
-    status === "provisioning" || status === "deprovisioning";
+  const isTransitionalStatus = (status: string) =>
+    status === "onboarding";
 
   const {
     data: tenant,
@@ -58,7 +58,7 @@ export function TenantDetailContent({ tenantId }: TenantDetailContentProps) {
   // Enable polling only when tenant is in a transitional state
   const { data: polledTenant } = useTenant(
     tenantId,
-    tenant ? isPollingStatus(tenant.status) : false,
+    tenant ? isTransitionalStatus(tenant.status) : false,
   );
 
   const activeTenant = polledTenant ?? tenant;
@@ -104,7 +104,7 @@ export function TenantDetailContent({ tenantId }: TenantDetailContentProps) {
             <div className="flex items-center gap-3">
               {activeTenant.name}
               <StatusBadge status={activeTenant.status} config={tenantStatusConfig} />
-              <StatusBadge status={activeTenant.plan} config={tenantPlanConfig} variant="outline" />
+              <StatusBadge status={activeTenant.subscription_tier} config={tenantPlanConfig} variant="outline" />
             </div>
           }
           description={
@@ -126,8 +126,8 @@ export function TenantDetailContent({ tenantId }: TenantDetailContentProps) {
                       await api.put(`/api/v1/tenants/${tenantId}`, { status: "suspended" });
                       toast.success("Tenant suspended");
                       refetch();
-                    } catch {
-                      toast.error("Failed to suspend tenant");
+                    } catch (err) {
+                      toast.error(parseApiError(err));
                     }
                   }}
                 >
@@ -144,8 +144,8 @@ export function TenantDetailContent({ tenantId }: TenantDetailContentProps) {
                       await api.put(`/api/v1/tenants/${tenantId}`, { status: "active" });
                       toast.success("Tenant activated");
                       refetch();
-                    } catch {
-                      toast.error("Failed to activate tenant");
+                    } catch (err) {
+                      toast.error(parseApiError(err));
                     }
                   }}
                 >
@@ -153,7 +153,7 @@ export function TenantDetailContent({ tenantId }: TenantDetailContentProps) {
                   Activate
                 </Button>
               )}
-              {activeTenant.status !== "deprovisioned" && activeTenant.status !== "deprovisioning" && (
+              {activeTenant.status !== "deprovisioned" && (
                 <Button
                   variant="destructive"
                   size="sm"
@@ -168,7 +168,7 @@ export function TenantDetailContent({ tenantId }: TenantDetailContentProps) {
         />
       </div>
 
-      {isPollingStatus(activeTenant.status) && (
+      {isTransitionalStatus(activeTenant.status) && (
         <Card className="border-blue-300 bg-blue-50 dark:bg-blue-900/20">
           <CardContent className="p-4 flex items-center gap-3">
             <div className="h-4 w-4 animate-spin rounded-full border-2 border-blue-600 border-t-transparent" />
@@ -204,31 +204,33 @@ export function TenantDetailContent({ tenantId }: TenantDetailContentProps) {
         </TabsList>
 
         <TabsContent value="overview" className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            <KpiCard
-              title="Active Users"
-              value={formatNumber(usage?.active_users ?? activeTenant.user_count)}
-              icon={Users}
-              loading={usageLoading}
-            />
-            <KpiCard
-              title="API Calls"
-              value={formatCompactNumber(usage?.api_calls ?? 0)}
-              icon={Settings}
-              loading={usageLoading}
-            />
-            <KpiCard
-              title="Storage Used"
-              value={formatBytes(usage?.storage_used_bytes ?? activeTenant.storage_used_bytes)}
-              description={`of ${activeTenant.settings.max_storage_gb} GB`}
-              loading={usageLoading}
-            />
-            <KpiCard
-              title="Bandwidth"
-              value={formatBytes(usage?.bandwidth_bytes ?? 0)}
-              loading={usageLoading}
-            />
-          </div>
+          {usage && (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              <KpiCard
+                title="Active Users"
+                value={String(usage.active_users ?? 0)}
+                icon={Users}
+                loading={usageLoading}
+              />
+              <KpiCard
+                title="API Calls"
+                value={String(usage.api_calls ?? 0)}
+                icon={Settings}
+                loading={usageLoading}
+              />
+              <KpiCard
+                title="Storage Used"
+                value={`${Math.round((usage.storage_used_bytes ?? 0) / (1024 * 1024 * 1024))} GB`}
+                description={activeTenant.settings?.max_storage_gb ? `of ${activeTenant.settings.max_storage_gb} GB` : undefined}
+                loading={usageLoading}
+              />
+              <KpiCard
+                title="Bandwidth"
+                value={`${Math.round((usage.bandwidth_bytes ?? 0) / (1024 * 1024))} MB`}
+                loading={usageLoading}
+              />
+            </div>
+          )}
 
           <Card>
             <CardHeader>
@@ -241,8 +243,8 @@ export function TenantDetailContent({ tenantId }: TenantDetailContentProps) {
                   <dd className="font-mono text-xs mt-1">{activeTenant.id}</dd>
                 </div>
                 <div>
-                  <dt className="text-muted-foreground">Owner</dt>
-                  <dd className="mt-1">{activeTenant.owner_id}</dd>
+                  <dt className="text-muted-foreground">Subscription Tier</dt>
+                  <dd className="mt-1 capitalize">{activeTenant.subscription_tier}</dd>
                 </div>
                 <div>
                   <dt className="text-muted-foreground">Created</dt>
@@ -251,26 +253,26 @@ export function TenantDetailContent({ tenantId }: TenantDetailContentProps) {
                   </dd>
                 </div>
                 <div>
-                  <dt className="text-muted-foreground">Provisioned</dt>
+                  <dt className="text-muted-foreground">Last Updated</dt>
                   <dd className="mt-1">
-                    {activeTenant.provisioned_at ? (
-                      <RelativeTime date={activeTenant.provisioned_at} />
-                    ) : (
-                      <span className="text-muted-foreground">—</span>
-                    )}
+                    <RelativeTime date={activeTenant.updated_at} />
                   </dd>
                 </div>
                 <div>
                   <dt className="text-muted-foreground">MFA Required</dt>
                   <dd className="mt-1">
-                    <Badge variant={activeTenant.settings.mfa_required ? "default" : "secondary"}>
-                      {activeTenant.settings.mfa_required ? "Yes" : "No"}
+                    <Badge variant={activeTenant.settings?.mfa_required ? "default" : "secondary"}>
+                      {activeTenant.settings?.mfa_required ? "Yes" : "No"}
                     </Badge>
                   </dd>
                 </div>
                 <div>
                   <dt className="text-muted-foreground">Session Timeout</dt>
-                  <dd className="mt-1">{activeTenant.settings.session_timeout_minutes} minutes</dd>
+                  <dd className="mt-1">
+                    {activeTenant.settings?.session_timeout_minutes
+                      ? `${activeTenant.settings.session_timeout_minutes} minutes`
+                      : "Default"}
+                  </dd>
                 </div>
               </dl>
             </CardContent>
@@ -288,7 +290,7 @@ export function TenantDetailContent({ tenantId }: TenantDetailContentProps) {
                     <div key={key} className="rounded-lg border p-4">
                       <p className="font-medium text-sm capitalize">{su.suite}</p>
                       <div className="mt-2 space-y-1 text-xs text-muted-foreground">
-                        <p>API Calls: {formatCompactNumber(su.api_calls)}</p>
+                        <p>API Calls: {su.api_calls}</p>
                         <p>Active Users: {su.active_users}</p>
                         {su.last_accessed && (
                           <p>

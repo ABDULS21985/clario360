@@ -14,6 +14,7 @@ import (
 	"github.com/clario360/platform/internal/cyber/dto"
 	"github.com/clario360/platform/internal/cyber/model"
 	"github.com/clario360/platform/internal/cyber/repository"
+	pkgvalidator "github.com/clario360/platform/pkg/validator"
 )
 
 // vcisoGovernanceService abstracts the governance service layer for testability.
@@ -27,7 +28,7 @@ type vcisoGovernanceService interface {
 	RiskStats(ctx context.Context, tenantID uuid.UUID) (*model.VCISORiskStats, error)
 	// Policies
 	ListPolicies(ctx context.Context, tenantID uuid.UUID, params *dto.VCISOGovernanceListParams) (*dto.GovernanceListResponse, error)
-	CreatePolicy(ctx context.Context, tenantID uuid.UUID, req *dto.CreatePolicyRequest) (*model.VCISOPolicy, error)
+	CreatePolicy(ctx context.Context, tenantID, callerID uuid.UUID, req *dto.CreatePolicyRequest) (*model.VCISOPolicy, error)
 	GetPolicy(ctx context.Context, tenantID, id uuid.UUID) (*model.VCISOPolicy, error)
 	UpdatePolicy(ctx context.Context, tenantID, id uuid.UUID, req *dto.CreatePolicyRequest) (*model.VCISOPolicy, error)
 	DeletePolicy(ctx context.Context, tenantID, id uuid.UUID) error
@@ -85,7 +86,7 @@ type vcisoGovernanceService interface {
 	DeleteEscalationRule(ctx context.Context, tenantID, id uuid.UUID) error
 	// Playbooks
 	ListPlaybooks(ctx context.Context, tenantID uuid.UUID, params *dto.VCISOGovernanceListParams) (*dto.GovernanceListResponse, error)
-	CreatePlaybook(ctx context.Context, tenantID uuid.UUID, req *dto.CreatePlaybookRequest) (*model.VCISOPlaybook, error)
+	CreatePlaybook(ctx context.Context, tenantID, callerID uuid.UUID, req *dto.CreatePlaybookRequest) (*model.VCISOPlaybook, error)
 	UpdatePlaybook(ctx context.Context, tenantID, id uuid.UUID, req *dto.CreatePlaybookRequest) error
 	DeletePlaybook(ctx context.Context, tenantID, id uuid.UUID) error
 	SimulatePlaybook(ctx context.Context, tenantID, id uuid.UUID, result string) error
@@ -181,6 +182,10 @@ func (h *VCISOGovernanceHandler) CreateRisk(w http.ResponseWriter, r *http.Reque
 	if !decodeJSON(w, r, &req) {
 		return
 	}
+	if fieldErrs := pkgvalidator.Validate(req); fieldErrs != nil {
+		writeValidationError(w, fieldErrs)
+		return
+	}
 	item, err := h.svc.CreateRisk(r.Context(), tenantID, &req)
 	if err != nil {
 		h.handleError(w, err)
@@ -217,6 +222,10 @@ func (h *VCISOGovernanceHandler) UpdateRisk(w http.ResponseWriter, r *http.Reque
 	}
 	var req dto.CreateRiskRequest
 	if !decodeJSON(w, r, &req) {
+		return
+	}
+	if fieldErrs := pkgvalidator.Validate(req); fieldErrs != nil {
+		writeValidationError(w, fieldErrs)
 		return
 	}
 	item, err := h.svc.UpdateRisk(r.Context(), tenantID, id, &req)
@@ -272,7 +281,7 @@ func (h *VCISOGovernanceHandler) ListPolicies(w http.ResponseWriter, r *http.Req
 }
 
 func (h *VCISOGovernanceHandler) CreatePolicy(w http.ResponseWriter, r *http.Request) {
-	tenantID, _, ok := requireTenantAndUser(w, r)
+	tenantID, userID, ok := requireTenantAndUser(w, r)
 	if !ok {
 		return
 	}
@@ -280,7 +289,11 @@ func (h *VCISOGovernanceHandler) CreatePolicy(w http.ResponseWriter, r *http.Req
 	if !decodeJSON(w, r, &req) {
 		return
 	}
-	item, err := h.svc.CreatePolicy(r.Context(), tenantID, &req)
+	if fieldErrs := pkgvalidator.Validate(req); fieldErrs != nil {
+		writeValidationError(w, fieldErrs)
+		return
+	}
+	item, err := h.svc.CreatePolicy(r.Context(), tenantID, userID, &req)
 	if err != nil {
 		h.handleError(w, err)
 		return
@@ -316,6 +329,10 @@ func (h *VCISOGovernanceHandler) UpdatePolicy(w http.ResponseWriter, r *http.Req
 	}
 	var req dto.CreatePolicyRequest
 	if !decodeJSON(w, r, &req) {
+		return
+	}
+	if fieldErrs := pkgvalidator.Validate(req); fieldErrs != nil {
+		writeValidationError(w, fieldErrs)
 		return
 	}
 	item, err := h.svc.UpdatePolicy(r.Context(), tenantID, id, &req)
@@ -355,6 +372,10 @@ func (h *VCISOGovernanceHandler) UpdatePolicyStatus(w http.ResponseWriter, r *ht
 	if !decodeJSON(w, r, &req) {
 		return
 	}
+	if fieldErrs := pkgvalidator.Validate(req); fieldErrs != nil {
+		writeValidationError(w, fieldErrs)
+		return
+	}
 	item, err := h.svc.UpdatePolicyStatus(r.Context(), tenantID, id, &req)
 	if err != nil {
 		h.handleError(w, err)
@@ -385,6 +406,10 @@ func (h *VCISOGovernanceHandler) GeneratePolicy(w http.ResponseWriter, r *http.R
 		Domain string `json:"domain"`
 	}
 	if !decodeJSON(w, r, &req) {
+		return
+	}
+	if fieldErrs := pkgvalidator.Validate(req); fieldErrs != nil {
+		writeValidationError(w, fieldErrs)
 		return
 	}
 	content, err := h.svc.GeneratePolicy(r.Context(), tenantID, req.Domain)
@@ -419,6 +444,10 @@ func (h *VCISOGovernanceHandler) CreatePolicyException(w http.ResponseWriter, r 
 	if !decodeJSON(w, r, &req) {
 		return
 	}
+	if fieldErrs := pkgvalidator.Validate(req); fieldErrs != nil {
+		writeValidationError(w, fieldErrs)
+		return
+	}
 	userName := ""
 	if user := auth.UserFromContext(r.Context()); user != nil {
 		userName = user.Email
@@ -442,6 +471,10 @@ func (h *VCISOGovernanceHandler) DecidePolicyException(w http.ResponseWriter, r 
 	}
 	var req dto.DecidePolicyExceptionRequest
 	if !decodeJSON(w, r, &req) {
+		return
+	}
+	if fieldErrs := pkgvalidator.Validate(req); fieldErrs != nil {
+		writeValidationError(w, fieldErrs)
 		return
 	}
 	userName := ""
@@ -477,6 +510,10 @@ func (h *VCISOGovernanceHandler) CreateVendor(w http.ResponseWriter, r *http.Req
 	}
 	var req dto.CreateVendorRequest
 	if !decodeJSON(w, r, &req) {
+		return
+	}
+	if fieldErrs := pkgvalidator.Validate(req); fieldErrs != nil {
+		writeValidationError(w, fieldErrs)
 		return
 	}
 	item, err := h.svc.CreateVendor(r.Context(), tenantID, &req)
@@ -517,6 +554,10 @@ func (h *VCISOGovernanceHandler) UpdateVendor(w http.ResponseWriter, r *http.Req
 	if !decodeJSON(w, r, &req) {
 		return
 	}
+	if fieldErrs := pkgvalidator.Validate(req); fieldErrs != nil {
+		writeValidationError(w, fieldErrs)
+		return
+	}
 	item, err := h.svc.UpdateVendor(r.Context(), tenantID, id, &req)
 	if err != nil {
 		h.handleError(w, err)
@@ -552,6 +593,10 @@ func (h *VCISOGovernanceHandler) UpdateVendorStatus(w http.ResponseWriter, r *ht
 	}
 	var req dto.UpdateVendorStatusRequest
 	if !decodeJSON(w, r, &req) {
+		return
+	}
+	if fieldErrs := pkgvalidator.Validate(req); fieldErrs != nil {
+		writeValidationError(w, fieldErrs)
 		return
 	}
 	item, err := h.svc.UpdateVendorStatus(r.Context(), tenantID, id, &req)
@@ -599,6 +644,10 @@ func (h *VCISOGovernanceHandler) CreateQuestionnaire(w http.ResponseWriter, r *h
 	if !decodeJSON(w, r, &req) {
 		return
 	}
+	if fieldErrs := pkgvalidator.Validate(req); fieldErrs != nil {
+		writeValidationError(w, fieldErrs)
+		return
+	}
 	item, err := h.svc.CreateQuestionnaire(r.Context(), tenantID, &req)
 	if err != nil {
 		h.handleError(w, err)
@@ -620,6 +669,10 @@ func (h *VCISOGovernanceHandler) UpdateQuestionnaire(w http.ResponseWriter, r *h
 	if !decodeJSON(w, r, &req) {
 		return
 	}
+	if fieldErrs := pkgvalidator.Validate(req); fieldErrs != nil {
+		writeValidationError(w, fieldErrs)
+		return
+	}
 	if err := h.svc.UpdateQuestionnaire(r.Context(), tenantID, id, &req); err != nil {
 		h.handleError(w, err)
 		return
@@ -638,6 +691,10 @@ func (h *VCISOGovernanceHandler) UpdateQuestionnaireStatus(w http.ResponseWriter
 	}
 	var req dto.UpdateQuestionnaireStatusRequest
 	if !decodeJSON(w, r, &req) {
+		return
+	}
+	if fieldErrs := pkgvalidator.Validate(req); fieldErrs != nil {
+		writeValidationError(w, fieldErrs)
 		return
 	}
 	if err := h.svc.UpdateQuestionnaireStatus(r.Context(), tenantID, id, &req); err != nil {
@@ -669,6 +726,10 @@ func (h *VCISOGovernanceHandler) CreateEvidence(w http.ResponseWriter, r *http.R
 	}
 	var req dto.CreateEvidenceRequest
 	if !decodeJSON(w, r, &req) {
+		return
+	}
+	if fieldErrs := pkgvalidator.Validate(req); fieldErrs != nil {
+		writeValidationError(w, fieldErrs)
 		return
 	}
 	item, err := h.svc.CreateEvidence(r.Context(), tenantID, &req)
@@ -709,6 +770,10 @@ func (h *VCISOGovernanceHandler) UpdateEvidence(w http.ResponseWriter, r *http.R
 	if !decodeJSON(w, r, &req) {
 		return
 	}
+	if fieldErrs := pkgvalidator.Validate(req); fieldErrs != nil {
+		writeValidationError(w, fieldErrs)
+		return
+	}
 	item, err := h.svc.UpdateEvidence(r.Context(), tenantID, id, &req)
 	if err != nil {
 		h.handleError(w, err)
@@ -744,6 +809,10 @@ func (h *VCISOGovernanceHandler) VerifyEvidence(w http.ResponseWriter, r *http.R
 	}
 	var req dto.VerifyEvidenceRequest
 	if !decodeJSON(w, r, &req) {
+		return
+	}
+	if fieldErrs := pkgvalidator.Validate(req); fieldErrs != nil {
+		writeValidationError(w, fieldErrs)
 		return
 	}
 	item, err := h.svc.VerifyEvidence(r.Context(), tenantID, id, userID, req.Status)
@@ -789,6 +858,10 @@ func (h *VCISOGovernanceHandler) CreateMaturityAssessment(w http.ResponseWriter,
 	}
 	var req dto.CreateMaturityAssessmentRequest
 	if !decodeJSON(w, r, &req) {
+		return
+	}
+	if fieldErrs := pkgvalidator.Validate(req); fieldErrs != nil {
+		writeValidationError(w, fieldErrs)
 		return
 	}
 	item, err := h.svc.CreateMaturityAssessment(r.Context(), tenantID, &req)
@@ -842,6 +915,10 @@ func (h *VCISOGovernanceHandler) CreateBudgetItem(w http.ResponseWriter, r *http
 	if !decodeJSON(w, r, &req) {
 		return
 	}
+	if fieldErrs := pkgvalidator.Validate(req); fieldErrs != nil {
+		writeValidationError(w, fieldErrs)
+		return
+	}
 	item, err := h.svc.CreateBudgetItem(r.Context(), tenantID, &req)
 	if err != nil {
 		h.handleError(w, err)
@@ -861,6 +938,10 @@ func (h *VCISOGovernanceHandler) UpdateBudgetItem(w http.ResponseWriter, r *http
 	}
 	var req dto.CreateBudgetItemRequest
 	if !decodeJSON(w, r, &req) {
+		return
+	}
+	if fieldErrs := pkgvalidator.Validate(req); fieldErrs != nil {
+		writeValidationError(w, fieldErrs)
 		return
 	}
 	if err := h.svc.UpdateBudgetItem(r.Context(), tenantID, id, &req); err != nil {
@@ -923,6 +1004,10 @@ func (h *VCISOGovernanceHandler) CreateAwarenessProgram(w http.ResponseWriter, r
 	if !decodeJSON(w, r, &req) {
 		return
 	}
+	if fieldErrs := pkgvalidator.Validate(req); fieldErrs != nil {
+		writeValidationError(w, fieldErrs)
+		return
+	}
 	item, err := h.svc.CreateAwarenessProgram(r.Context(), tenantID, &req)
 	if err != nil {
 		h.handleError(w, err)
@@ -942,6 +1027,10 @@ func (h *VCISOGovernanceHandler) UpdateAwarenessProgram(w http.ResponseWriter, r
 	}
 	var req dto.CreateAwarenessProgramRequest
 	if !decodeJSON(w, r, &req) {
+		return
+	}
+	if fieldErrs := pkgvalidator.Validate(req); fieldErrs != nil {
+		writeValidationError(w, fieldErrs)
 		return
 	}
 	if err := h.svc.UpdateAwarenessProgram(r.Context(), tenantID, id, &req); err != nil {
@@ -977,6 +1066,10 @@ func (h *VCISOGovernanceHandler) UpdateIAMFinding(w http.ResponseWriter, r *http
 	}
 	var req dto.UpdateIAMFindingRequest
 	if !decodeJSON(w, r, &req) {
+		return
+	}
+	if fieldErrs := pkgvalidator.Validate(req); fieldErrs != nil {
+		writeValidationError(w, fieldErrs)
 		return
 	}
 	if err := h.svc.UpdateIAMFinding(r.Context(), tenantID, id, &req); err != nil {
@@ -1023,6 +1116,10 @@ func (h *VCISOGovernanceHandler) CreateEscalationRule(w http.ResponseWriter, r *
 	if !decodeJSON(w, r, &req) {
 		return
 	}
+	if fieldErrs := pkgvalidator.Validate(req); fieldErrs != nil {
+		writeValidationError(w, fieldErrs)
+		return
+	}
 	item, err := h.svc.CreateEscalationRule(r.Context(), tenantID, &req)
 	if err != nil {
 		h.handleError(w, err)
@@ -1042,6 +1139,10 @@ func (h *VCISOGovernanceHandler) UpdateEscalationRule(w http.ResponseWriter, r *
 	}
 	var req dto.CreateEscalationRuleRequest
 	if !decodeJSON(w, r, &req) {
+		return
+	}
+	if fieldErrs := pkgvalidator.Validate(req); fieldErrs != nil {
+		writeValidationError(w, fieldErrs)
 		return
 	}
 	if err := h.svc.UpdateEscalationRule(r.Context(), tenantID, id, &req); err != nil {
@@ -1083,7 +1184,7 @@ func (h *VCISOGovernanceHandler) ListPlaybooks(w http.ResponseWriter, r *http.Re
 }
 
 func (h *VCISOGovernanceHandler) CreatePlaybook(w http.ResponseWriter, r *http.Request) {
-	tenantID, _, ok := requireTenantAndUser(w, r)
+	tenantID, userID, ok := requireTenantAndUser(w, r)
 	if !ok {
 		return
 	}
@@ -1091,7 +1192,11 @@ func (h *VCISOGovernanceHandler) CreatePlaybook(w http.ResponseWriter, r *http.R
 	if !decodeJSON(w, r, &req) {
 		return
 	}
-	item, err := h.svc.CreatePlaybook(r.Context(), tenantID, &req)
+	if fieldErrs := pkgvalidator.Validate(req); fieldErrs != nil {
+		writeValidationError(w, fieldErrs)
+		return
+	}
+	item, err := h.svc.CreatePlaybook(r.Context(), tenantID, userID, &req)
 	if err != nil {
 		h.handleError(w, err)
 		return
@@ -1110,6 +1215,10 @@ func (h *VCISOGovernanceHandler) UpdatePlaybook(w http.ResponseWriter, r *http.R
 	}
 	var req dto.CreatePlaybookRequest
 	if !decodeJSON(w, r, &req) {
+		return
+	}
+	if fieldErrs := pkgvalidator.Validate(req); fieldErrs != nil {
+		writeValidationError(w, fieldErrs)
 		return
 	}
 	if err := h.svc.UpdatePlaybook(r.Context(), tenantID, id, &req); err != nil {
@@ -1148,6 +1257,10 @@ func (h *VCISOGovernanceHandler) SimulatePlaybook(w http.ResponseWriter, r *http
 	if !decodeJSON(w, r, &req) {
 		return
 	}
+	if fieldErrs := pkgvalidator.Validate(req); fieldErrs != nil {
+		writeValidationError(w, fieldErrs)
+		return
+	}
 	if err := h.svc.SimulatePlaybook(r.Context(), tenantID, id, req.Result); err != nil {
 		h.handleError(w, err)
 		return
@@ -1179,6 +1292,10 @@ func (h *VCISOGovernanceHandler) CreateObligation(w http.ResponseWriter, r *http
 	if !decodeJSON(w, r, &req) {
 		return
 	}
+	if fieldErrs := pkgvalidator.Validate(req); fieldErrs != nil {
+		writeValidationError(w, fieldErrs)
+		return
+	}
 	item, err := h.svc.CreateObligation(r.Context(), tenantID, &req)
 	if err != nil {
 		h.handleError(w, err)
@@ -1198,6 +1315,10 @@ func (h *VCISOGovernanceHandler) UpdateObligation(w http.ResponseWriter, r *http
 	}
 	var req dto.CreateObligationRequest
 	if !decodeJSON(w, r, &req) {
+		return
+	}
+	if fieldErrs := pkgvalidator.Validate(req); fieldErrs != nil {
+		writeValidationError(w, fieldErrs)
 		return
 	}
 	if err := h.svc.UpdateObligation(r.Context(), tenantID, id, &req); err != nil {
@@ -1247,6 +1368,10 @@ func (h *VCISOGovernanceHandler) CreateControlTest(w http.ResponseWriter, r *htt
 	if !decodeJSON(w, r, &req) {
 		return
 	}
+	if fieldErrs := pkgvalidator.Validate(req); fieldErrs != nil {
+		writeValidationError(w, fieldErrs)
+		return
+	}
 	item, err := h.svc.CreateControlTest(r.Context(), tenantID, &req)
 	if err != nil {
 		h.handleError(w, err)
@@ -1294,6 +1419,10 @@ func (h *VCISOGovernanceHandler) CreateIntegration(w http.ResponseWriter, r *htt
 	if !decodeJSON(w, r, &req) {
 		return
 	}
+	if fieldErrs := pkgvalidator.Validate(req); fieldErrs != nil {
+		writeValidationError(w, fieldErrs)
+		return
+	}
 	item, err := h.svc.CreateIntegration(r.Context(), tenantID, &req)
 	if err != nil {
 		h.handleError(w, err)
@@ -1313,6 +1442,10 @@ func (h *VCISOGovernanceHandler) UpdateIntegration(w http.ResponseWriter, r *htt
 	}
 	var req dto.CreateIntegrationRequest
 	if !decodeJSON(w, r, &req) {
+		return
+	}
+	if fieldErrs := pkgvalidator.Validate(req); fieldErrs != nil {
+		writeValidationError(w, fieldErrs)
 		return
 	}
 	if err := h.svc.UpdateIntegration(r.Context(), tenantID, id, &req); err != nil {
@@ -1378,6 +1511,10 @@ func (h *VCISOGovernanceHandler) CreateControlOwnership(w http.ResponseWriter, r
 	if !decodeJSON(w, r, &req) {
 		return
 	}
+	if fieldErrs := pkgvalidator.Validate(req); fieldErrs != nil {
+		writeValidationError(w, fieldErrs)
+		return
+	}
 	item, err := h.svc.CreateControlOwnership(r.Context(), tenantID, &req)
 	if err != nil {
 		h.handleError(w, err)
@@ -1397,6 +1534,10 @@ func (h *VCISOGovernanceHandler) UpdateControlOwnership(w http.ResponseWriter, r
 	}
 	var req dto.CreateControlOwnershipRequest
 	if !decodeJSON(w, r, &req) {
+		return
+	}
+	if fieldErrs := pkgvalidator.Validate(req); fieldErrs != nil {
+		writeValidationError(w, fieldErrs)
 		return
 	}
 	if err := h.svc.UpdateControlOwnership(r.Context(), tenantID, id, &req); err != nil {
@@ -1448,6 +1589,10 @@ func (h *VCISOGovernanceHandler) DecideApproval(w http.ResponseWriter, r *http.R
 	}
 	var req dto.UpdateApprovalRequest
 	if !decodeJSON(w, r, &req) {
+		return
+	}
+	if fieldErrs := pkgvalidator.Validate(req); fieldErrs != nil {
+		writeValidationError(w, fieldErrs)
 		return
 	}
 	if err := h.svc.DecideApproval(r.Context(), tenantID, id, userID, &req); err != nil {

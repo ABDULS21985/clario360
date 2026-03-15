@@ -24,16 +24,23 @@ func (h *TenantHandler) Routes() chi.Router {
 	r := chi.NewRouter()
 	r.Get("/", h.List)
 	r.Post("/", h.Create)
+	r.Post("/provision", h.Provision)
 	r.Get("/{id}", h.GetByID)
 	r.Put("/{id}", h.Update)
 	r.Put("/{id}/status", h.UpdateStatus)
+	r.Get("/{id}/usage", h.Usage)
 	return r
 }
 
 func (h *TenantHandler) List(w http.ResponseWriter, r *http.Request) {
 	page, perPage := parsePagination(r)
+	search := r.URL.Query().Get("search")
+	status := r.URL.Query().Get("status")
+	tier := r.URL.Query().Get("subscription_tier")
+	sort := r.URL.Query().Get("sort")
+	order := r.URL.Query().Get("order")
 
-	tenants, total, err := h.tenantSvc.List(r.Context(), page, perPage)
+	tenants, total, err := h.tenantSvc.List(r.Context(), page, perPage, search, status, tier, sort, order)
 	if err != nil {
 		handleServiceError(w, err)
 		return
@@ -124,6 +131,34 @@ func (h *TenantHandler) UpdateStatus(w http.ResponseWriter, r *http.Request) {
 
 	statusReq := &dto.UpdateTenantRequest{Status: &req.Status}
 	resp, err := h.tenantSvc.Update(r.Context(), tenantID, statusReq)
+	if err != nil {
+		handleServiceError(w, err)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, resp)
+}
+
+func (h *TenantHandler) Provision(w http.ResponseWriter, r *http.Request) {
+	var req dto.ProvisionTenantRequest
+	if err := parseBody(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	resp, err := h.tenantSvc.Provision(r.Context(), &req)
+	if err != nil {
+		handleServiceError(w, err)
+		return
+	}
+
+	writeJSON(w, http.StatusCreated, resp)
+}
+
+func (h *TenantHandler) Usage(w http.ResponseWriter, r *http.Request) {
+	tenantID := urlParam(r, "id")
+
+	resp, err := h.tenantSvc.GetUsage(r.Context(), tenantID)
 	if err != nil {
 		handleServiceError(w, err)
 		return

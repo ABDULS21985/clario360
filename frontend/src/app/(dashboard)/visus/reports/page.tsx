@@ -27,7 +27,7 @@ export default function VisusReportsPage() {
     try {
       setRunningId(report.id);
       const response: VisusReportGeneration = await enterpriseApi.visus.generateReport(report.id);
-      showSuccess('Report generation started.', `Snapshot ${(response.snapshot_id ?? response.id).slice(0, 8)} queued for ${report.name}.`);
+      showSuccess('Report generation started.', `Snapshot ${response.id.slice(0, 8)} queued for ${report.name}.`);
       refetch();
     } catch (error) {
       showApiError(error);
@@ -41,11 +41,10 @@ export default function VisusReportsPage() {
       id: 'name',
       accessorKey: 'name',
       header: 'Report',
-      enableSorting: true,
       cell: ({ row }) => (
         <div>
           <p className="font-medium">{row.original.name}</p>
-          <p className="text-xs capitalize text-muted-foreground">{(row.original.report_type ?? row.original.type ?? 'custom').replace(/_/g, ' ')}</p>
+          <p className="text-xs capitalize text-muted-foreground">{(row.original.report_type ?? 'custom').replace(/_/g, ' ')}</p>
         </div>
       ),
     },
@@ -59,7 +58,6 @@ export default function VisusReportsPage() {
       id: 'last_generated_at',
       accessorKey: 'last_generated_at',
       header: 'Last Generated',
-      enableSorting: true,
       cell: ({ row }) =>
         row.original.last_generated_at ? (
           <RelativeTime date={row.original.last_generated_at} />
@@ -68,17 +66,12 @@ export default function VisusReportsPage() {
         ),
     },
     {
-      id: 'file_url',
-      accessorKey: 'file_url',
-      header: 'Output',
-      cell: ({ row }) =>
-        row.original.file_url ? (
-          <a href={row.original.file_url} className="text-sm text-primary hover:underline" target="_blank" rel="noreferrer">
-            Latest output
-          </a>
-        ) : (
-          <span className="text-sm text-muted-foreground">None</span>
-        ),
+      id: 'total_generated',
+      accessorKey: 'total_generated',
+      header: 'Generations',
+      cell: ({ row }) => (
+        <span className="text-sm">{row.original.total_generated}</span>
+      ),
     },
     {
       id: 'generate',

@@ -143,7 +143,7 @@ func main() {
 	)
 	userSvc := iamservice.NewUserService(userRepo, roleRepo, sessionRepo, svc.Redis, producer, svc.Logger, legacyCfg.Auth.BcryptCost)
 	roleSvc := iamservice.NewRoleService(roleRepo, userRepo, producer, svc.Logger)
-	tenantSvc := iamservice.NewTenantService(tenantRepo, roleRepo, producer, svc.Logger)
+	tenantSvc := iamservice.NewTenantService(tenantRepo, roleRepo, userRepo, svc.DBPool, producer, svc.Logger, legacyCfg.Auth.BcryptCost)
 	apiKeySvc := iamservice.NewAPIKeyService(apiKeyRepo, producer, svc.Logger)
 	oauthClients := []iamservice.OAuthClient{
 		{

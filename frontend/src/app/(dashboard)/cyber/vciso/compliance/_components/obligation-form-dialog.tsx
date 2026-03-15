@@ -124,6 +124,11 @@ export function ObligationFormDialog({
       type,
       jurisdiction: jurisdiction.trim(),
       description: description.trim(),
+      requirements: isEditing ? (obligation?.requirements ?? []) : [],
+      status: isEditing ? (obligation?.status ?? 'not_assessed') : 'not_assessed',
+      mapped_controls: isEditing ? (obligation?.mapped_controls ?? 0) : 0,
+      total_requirements: isEditing ? (obligation?.total_requirements ?? 0) : 0,
+      met_requirements: isEditing ? (obligation?.met_requirements ?? 0) : 0,
       effective_date: effectiveDate || undefined,
       review_date: reviewDate || undefined,
     };

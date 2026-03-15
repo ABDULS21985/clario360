@@ -112,11 +112,14 @@ func (s *VCISOGovernanceService) ListPolicies(ctx context.Context, tenantID uuid
 	return dto.NewGovernanceListResponse(items, params.Page, params.PerPage, total), nil
 }
 
-func (s *VCISOGovernanceService) CreatePolicy(ctx context.Context, tenantID uuid.UUID, req *dto.CreatePolicyRequest) (*model.VCISOPolicy, error) {
+func (s *VCISOGovernanceService) CreatePolicy(ctx context.Context, tenantID, callerID uuid.UUID, req *dto.CreatePolicyRequest) (*model.VCISOPolicy, error) {
 	if req.Title == "" {
 		return nil, fmt.Errorf("title is required")
 	}
-	ownerID, _ := uuid.Parse(req.OwnerID)
+	ownerID := callerID
+	if parsed := dto.ParseOptionalUUID(req.OwnerID); parsed != nil {
+		ownerID = *parsed
+	}
 	item := &model.VCISOPolicy{
 		Title: req.Title, Domain: req.Domain, Version: req.Version, Status: req.Status,
 		Content: req.Content, OwnerID: ownerID, OwnerName: req.OwnerName,
@@ -188,6 +191,12 @@ func (s *VCISOGovernanceService) CreatePolicyException(ctx context.Context, tena
 	policyID, err := uuid.Parse(req.PolicyID)
 	if err != nil {
 		return nil, fmt.Errorf("invalid policy_id: %w", err)
+	}
+	// Validate expires_at date format (defense-in-depth; also validated by DTO tag)
+	if _, err := time.Parse("2006-01-02", req.ExpiresAt); err != nil {
+		if _, err2 := time.Parse(time.RFC3339, req.ExpiresAt); err2 != nil {
+			return nil, fmt.Errorf("expires_at must be a valid date (YYYY-MM-DD or RFC3339)")
+		}
 	}
 	item := &model.VCISOPolicyException{
 		PolicyID: policyID, PolicyTitle: "", Title: req.Title,
@@ -629,11 +638,14 @@ func (s *VCISOGovernanceService) ListPlaybooks(ctx context.Context, tenantID uui
 	return dto.NewGovernanceListResponse(items, params.Page, params.PerPage, total), nil
 }
 
-func (s *VCISOGovernanceService) CreatePlaybook(ctx context.Context, tenantID uuid.UUID, req *dto.CreatePlaybookRequest) (*model.VCISOPlaybook, error) {
+func (s *VCISOGovernanceService) CreatePlaybook(ctx context.Context, tenantID, callerID uuid.UUID, req *dto.CreatePlaybookRequest) (*model.VCISOPlaybook, error) {
 	if req.Name == "" {
 		return nil, fmt.Errorf("name is required")
 	}
-	ownerID, _ := uuid.Parse(req.OwnerID)
+	ownerID := callerID
+	if parsed := dto.ParseOptionalUUID(req.OwnerID); parsed != nil {
+		ownerID = *parsed
+	}
 	item := &model.VCISOPlaybook{
 		Name: req.Name, Scenario: req.Scenario, Status: req.Status,
 		NextTestDate: req.NextTestDate, OwnerID: ownerID, OwnerName: req.OwnerName,
@@ -810,7 +822,10 @@ func (s *VCISOGovernanceService) CreateControlOwnership(ctx context.Context, ten
 	if req.ControlID == "" {
 		return nil, fmt.Errorf("control_id is required")
 	}
-	ownerID, _ := uuid.Parse(req.OwnerID)
+	ownerID, err := uuid.Parse(req.OwnerID)
+	if err != nil {
+		return nil, fmt.Errorf("invalid owner_id: %w", err)
+	}
 	item := &model.VCISOControlOwnership{
 		ControlID: req.ControlID, ControlName: req.ControlName, Framework: req.Framework,
 		OwnerID: ownerID, OwnerName: req.OwnerName,

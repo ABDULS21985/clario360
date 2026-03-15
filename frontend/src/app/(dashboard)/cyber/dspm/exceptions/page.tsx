@@ -265,8 +265,10 @@ export default function RiskExceptionsPage() {
 
   const { tableProps, refetch, data } = useDataTable<DSPMRiskException>({
     queryKey: 'cyber-dspm-exceptions',
-    fetchFn: (params: FetchParams) =>
-      apiGet<PaginatedResponse<DSPMRiskException>>(API_ENDPOINTS.CYBER_DSPM_EXCEPTIONS, params as unknown as Record<string, unknown>),
+    fetchFn: (params: FetchParams) => {
+      const { filters, ...rest } = params;
+      return apiGet<PaginatedResponse<DSPMRiskException>>(API_ENDPOINTS.CYBER_DSPM_EXCEPTIONS, { ...rest, ...filters } as Record<string, unknown>);
+    },
     defaultSort: { column: 'created_at', direction: 'desc' },
   });
 

@@ -64,7 +64,7 @@ export function StepHistory({ steps }: StepHistoryProps) {
                       <div className="flex items-center gap-2 min-w-0">
                         <StepIcon className="h-4 w-4 text-muted-foreground shrink-0" />
                         <span className="text-sm font-medium truncate">
-                          {step.step_name}
+                          {step.step_name ?? step.step_id}
                         </span>
                         <Badge variant="outline" className="text-[10px] shrink-0">
                           {formatStepType(step.step_type)}
@@ -101,7 +101,15 @@ export function StepHistory({ steps }: StepHistoryProps) {
                           {formatDateTime(step.completed_at)}
                         </div>
                       )}
-                      {step.duration_seconds !== null && (
+                      {step.duration_ms != null && (
+                        <div>
+                          <span className="block text-[10px] uppercase font-medium">
+                            Duration
+                          </span>
+                          {formatDuration(Math.round(step.duration_ms / 1000))}
+                        </div>
+                      )}
+                      {step.duration_ms == null && step.duration_seconds != null && (
                         <div>
                           <span className="block text-[10px] uppercase font-medium">
                             Duration
@@ -119,20 +127,20 @@ export function StepHistory({ steps }: StepHistoryProps) {
                       )}
                     </div>
 
-                    {step.error && (
+                    {(step.error_message ?? step.error) && (
                       <div className="mt-2 text-xs text-red-600 bg-red-50 rounded p-2">
-                        {step.error}
+                        {step.error_message ?? step.error}
                       </div>
                     )}
 
-                    {step.output &&
-                      Object.keys(step.output).length > 0 && (
+                    {(step.output_data ?? step.output) &&
+                      Object.keys(step.output_data ?? step.output ?? {}).length > 0 && (
                         <details className="mt-2">
                           <summary className="text-xs text-muted-foreground cursor-pointer hover:text-foreground">
                             Output data
                           </summary>
                           <pre className="mt-1 text-xs bg-muted rounded p-2 overflow-x-auto">
-                            {JSON.stringify(step.output, null, 2)}
+                            {JSON.stringify(step.output_data ?? step.output, null, 2)}
                           </pre>
                         </details>
                       )}

@@ -51,7 +51,6 @@ describe('auth-store permissions', () => {
         status: 'active',
         mfa_enabled: false,
         last_login_at: null,
-        password_changed_at: '',
         roles: [],
         created_at: '',
         updated_at: '',

@@ -21,7 +21,7 @@ export default function VisusKpisPage() {
     queryKey: 'visus-kpis',
     fetchFn: (params) => enterpriseApi.visus.listKpis(params),
     defaultPageSize: 25,
-    defaultSort: { column: 'updated_at', direction: 'desc' },
+    defaultSort: { column: 'name', direction: 'asc' },
   });
   const selected = selectedId ?? data[0]?.id ?? null;
   const detailQuery = useQuery({

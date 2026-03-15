@@ -215,6 +215,14 @@ func (s *TaskService) RejectTask(ctx context.Context, tenantID, taskID, userID, 
 	return nil
 }
 
+// UpdateMetadata persists updated metadata for a task.
+func (s *TaskService) UpdateMetadata(ctx context.Context, tenantID, taskID string, metadata map[string]interface{}) error {
+	if err := s.taskRepo.UpdateMetadata(ctx, tenantID, taskID, metadata); err != nil {
+		return fmt.Errorf("updating task metadata: %w", err)
+	}
+	return nil
+}
+
 // CountTasks returns task counts bucketed by status for the user's dashboard.
 func (s *TaskService) CountTasks(ctx context.Context, tenantID, userID string, roles []string) (map[string]int, error) {
 	counts, err := s.taskRepo.CountByStatus(ctx, tenantID, userID, roles)

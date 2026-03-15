@@ -39,17 +39,17 @@ func (p *VCISOGovernanceListParams) Offset() int {
 
 // CreateRiskRequest is the JSON body for creating a risk entry.
 type CreateRiskRequest struct {
-	Title               string    `json:"title"`
+	Title               string    `json:"title" validate:"required,min=2,max=255"`
 	Description         string    `json:"description"`
-	Category            string    `json:"category"`
+	Category            string    `json:"category" validate:"required"`
 	Department          string    `json:"department"`
-	InherentScore       int       `json:"inherent_score"`
-	ResidualScore       int       `json:"residual_score"`
-	Likelihood          string    `json:"likelihood"`
-	Impact              string    `json:"impact"`
-	Status              string    `json:"status"`
-	Treatment           string    `json:"treatment"`
-	OwnerID             *string   `json:"owner_id,omitempty"`
+	InherentScore       int       `json:"inherent_score" validate:"gte=0,lte=100"`
+	ResidualScore       int       `json:"residual_score" validate:"gte=0,lte=100"`
+	Likelihood          string    `json:"likelihood" validate:"omitempty,oneof=low medium high critical"`
+	Impact              string    `json:"impact" validate:"omitempty,oneof=low medium high critical"`
+	Status              string    `json:"status" validate:"omitempty,oneof=open mitigated accepted closed"`
+	Treatment           string    `json:"treatment" validate:"omitempty,oneof=mitigate accept transfer avoid"`
+	OwnerID             *string   `json:"owner_id,omitempty" validate:"omitempty,uuid"`
 	OwnerName           string    `json:"owner_name"`
 	ReviewDate          *string   `json:"review_date,omitempty"`
 	BusinessServices    []string  `json:"business_services"`
@@ -67,15 +67,15 @@ type UpdateRiskRequest = CreateRiskRequest
 
 // CreatePolicyRequest is the JSON body for creating a policy.
 type CreatePolicyRequest struct {
-	Title      string   `json:"title"`
-	Domain     string   `json:"domain"`
-	Version    string   `json:"version"`
-	Status     string   `json:"status"`
-	Content    string   `json:"content"`
-	OwnerID    string   `json:"owner_id"`
-	OwnerName  string   `json:"owner_name"`
-	ReviewDue  string   `json:"review_due"`
-	Tags       []string `json:"tags"`
+	Title     string   `json:"title" validate:"required,min=2,max=255"`
+	Domain    string   `json:"domain" validate:"required"`
+	Version   string   `json:"version" validate:"omitempty,max=50"`
+	Status    string   `json:"status" validate:"omitempty,oneof=draft active under_review approved retired"`
+	Content   string   `json:"content"`
+	OwnerID   *string  `json:"owner_id,omitempty" validate:"omitempty,uuid"`
+	OwnerName string   `json:"owner_name"`
+	ReviewDue string   `json:"review_due" validate:"omitempty,datestr"`
+	Tags      []string `json:"tags"`
 }
 
 // UpdatePolicyRequest is the JSON body for updating a policy.
@@ -83,10 +83,10 @@ type UpdatePolicyRequest = CreatePolicyRequest
 
 // UpdatePolicyStatusRequest changes only the status of a policy.
 type UpdatePolicyStatusRequest struct {
-	Status         string  `json:"status"`
-	ReviewerID     *string `json:"reviewer_id,omitempty"`
+	Status         string  `json:"status" validate:"required,oneof=draft active under_review approved retired"`
+	ReviewerID     *string `json:"reviewer_id,omitempty" validate:"omitempty,uuid"`
 	ReviewerName   *string `json:"reviewer_name,omitempty"`
-	ApprovedBy     *string `json:"approved_by,omitempty"`
+	ApprovedBy     *string `json:"approved_by,omitempty" validate:"omitempty,uuid"`
 	ApprovedByName *string `json:"approved_by_name,omitempty"`
 }
 
@@ -94,17 +94,17 @@ type UpdatePolicyStatusRequest struct {
 
 // CreatePolicyExceptionRequest is the JSON body for creating a policy exception.
 type CreatePolicyExceptionRequest struct {
-	PolicyID              string `json:"policy_id"`
-	Title                 string `json:"title"`
-	Description           string `json:"description"`
-	Justification         string `json:"justification"`
-	CompensatingControls  string `json:"compensating_controls"`
-	ExpiresAt             string `json:"expires_at"`
+	PolicyID             string `json:"policy_id" validate:"required,uuid"`
+	Title                string `json:"title" validate:"required,min=2,max=255"`
+	Description          string `json:"description"`
+	Justification        string `json:"justification"`
+	CompensatingControls string `json:"compensating_controls"`
+	ExpiresAt            string `json:"expires_at" validate:"required,datestr"`
 }
 
 // DecidePolicyExceptionRequest records an approval/rejection decision.
 type DecidePolicyExceptionRequest struct {
-	Status        string  `json:"status"`
+	Status        string  `json:"status" validate:"required,oneof=approved rejected"`
 	DecisionNotes *string `json:"decision_notes,omitempty"`
 }
 
@@ -112,19 +112,19 @@ type DecidePolicyExceptionRequest struct {
 
 // CreateVendorRequest is the JSON body for creating a vendor.
 type CreateVendorRequest struct {
-	Name                 string   `json:"name"`
-	Category             string   `json:"category"`
-	RiskTier             string   `json:"risk_tier"`
-	Status               string   `json:"status"`
-	RiskScore            int      `json:"risk_score"`
-	NextReviewDate       string   `json:"next_review_date"`
+	Name                 string   `json:"name" validate:"required,min=2,max=255"`
+	Category             string   `json:"category" validate:"required"`
+	RiskTier             string   `json:"risk_tier" validate:"required,oneof=critical high medium low"`
+	Status               string   `json:"status" validate:"omitempty,oneof=active inactive under_review"`
+	RiskScore            int      `json:"risk_score" validate:"gte=0,lte=100"`
+	NextReviewDate       string   `json:"next_review_date" validate:"omitempty,datestr"`
 	ContactName          *string  `json:"contact_name,omitempty"`
-	ContactEmail         *string  `json:"contact_email,omitempty"`
+	ContactEmail         *string  `json:"contact_email,omitempty" validate:"omitempty,email"`
 	ServicesProvided     []string `json:"services_provided"`
 	DataShared           []string `json:"data_shared"`
 	ComplianceFrameworks []string `json:"compliance_frameworks"`
-	ControlsMet          int      `json:"controls_met"`
-	ControlsTotal        int      `json:"controls_total"`
+	ControlsMet          int      `json:"controls_met" validate:"gte=0"`
+	ControlsTotal        int      `json:"controls_total" validate:"gte=0"`
 }
 
 // UpdateVendorRequest is the JSON body for updating a vendor.
@@ -132,27 +132,27 @@ type UpdateVendorRequest = CreateVendorRequest
 
 // UpdateVendorStatusRequest changes vendor status.
 type UpdateVendorStatusRequest struct {
-	Status string `json:"status"`
+	Status string `json:"status" validate:"required"`
 }
 
 // ─── Questionnaires ─────────────────────────────────────────────────────────
 
 // CreateQuestionnaireRequest is the JSON body for creating a questionnaire.
 type CreateQuestionnaireRequest struct {
-	Title          string  `json:"title"`
-	Type           string  `json:"type"`
+	Title          string  `json:"title" validate:"required,min=2,max=255"`
+	Type           string  `json:"type" validate:"required"`
 	Status         string  `json:"status"`
-	VendorID       *string `json:"vendor_id,omitempty"`
+	VendorID       *string `json:"vendor_id,omitempty" validate:"omitempty,uuid"`
 	VendorName     *string `json:"vendor_name,omitempty"`
-	TotalQuestions int     `json:"total_questions"`
-	DueDate        string  `json:"due_date"`
-	AssignedTo     *string `json:"assigned_to,omitempty"`
+	TotalQuestions int     `json:"total_questions" validate:"gte=0"`
+	DueDate        string  `json:"due_date" validate:"omitempty,datestr"`
+	AssignedTo     *string `json:"assigned_to,omitempty" validate:"omitempty,uuid"`
 	AssignedToName *string `json:"assigned_to_name,omitempty"`
 }
 
 // UpdateQuestionnaireStatusRequest changes questionnaire status.
 type UpdateQuestionnaireStatusRequest struct {
-	Status            string  `json:"status"`
+	Status            string  `json:"status" validate:"required"`
 	AnsweredQuestions *int    `json:"answered_questions,omitempty"`
 	Score             *int    `json:"score,omitempty"`
 	CompletedAt       *string `json:"completed_at,omitempty"`
@@ -162,23 +162,23 @@ type UpdateQuestionnaireStatusRequest struct {
 
 // CreateEvidenceRequest is the JSON body for creating evidence.
 type CreateEvidenceRequest struct {
-	Title         string   `json:"title"`
+	Title         string   `json:"title" validate:"required,min=2,max=255"`
 	Description   string   `json:"description"`
-	Type          string   `json:"type"`
-	Source        string   `json:"source"`
+	Type          string   `json:"type" validate:"required"`
+	Source        string   `json:"source" validate:"required"`
 	Frameworks    []string `json:"frameworks"`
 	ControlIDs    []string `json:"control_ids"`
 	FileName      *string  `json:"file_name,omitempty"`
 	FileSize      *int     `json:"file_size,omitempty"`
 	FileURL       *string  `json:"file_url,omitempty"`
-	CollectedAt   string   `json:"collected_at"`
+	CollectedAt   string   `json:"collected_at" validate:"required"`
 	ExpiresAt     *string  `json:"expires_at,omitempty"`
 	CollectorName *string  `json:"collector_name,omitempty"`
 }
 
 // VerifyEvidenceRequest records a verification of evidence.
 type VerifyEvidenceRequest struct {
-	Status string `json:"status"`
+	Status string `json:"status" validate:"required,oneof=verified rejected pending active expired"`
 }
 
 // ─── Maturity Assessments ───────────────────────────────────────────────────
@@ -196,10 +196,10 @@ type MaturityDimensionInput struct {
 
 // CreateMaturityAssessmentRequest is the JSON body for creating a maturity assessment.
 type CreateMaturityAssessmentRequest struct {
-	Framework    string                   `json:"framework"`
+	Framework    string                   `json:"framework" validate:"required"`
 	Status       string                   `json:"status"`
-	OverallScore float64                  `json:"overall_score"`
-	OverallLevel int                      `json:"overall_level"`
+	OverallScore float64                  `json:"overall_score" validate:"gte=0"`
+	OverallLevel int                      `json:"overall_level" validate:"gte=0,lte=5"`
 	Dimensions   []MaturityDimensionInput `json:"dimensions"`
 	AssessorName *string                  `json:"assessor_name,omitempty"`
 	AssessedAt   string                   `json:"assessed_at"`
@@ -212,18 +212,18 @@ type UpdateMaturityAssessmentRequest = CreateMaturityAssessmentRequest
 
 // CreateBudgetItemRequest is the JSON body for creating a budget item.
 type CreateBudgetItemRequest struct {
-	Title                   string   `json:"title"`
-	Category                string   `json:"category"`
+	Title                   string   `json:"title" validate:"required,min=2,max=255"`
+	Category                string   `json:"category" validate:"required"`
 	Type                    string   `json:"type"`
-	Amount                  float64  `json:"amount"`
-	Currency                string   `json:"currency"`
+	Amount                  float64  `json:"amount" validate:"gte=0"`
+	Currency                string   `json:"currency" validate:"omitempty,len=3"`
 	Status                  string   `json:"status"`
 	RiskReductionEstimate   float64  `json:"risk_reduction_estimate"`
-	Priority                int      `json:"priority"`
+	Priority                int      `json:"priority" validate:"gte=0"`
 	Justification           string   `json:"justification"`
 	LinkedRiskIDs           []string `json:"linked_risk_ids"`
 	LinkedRecommendationIDs []string `json:"linked_recommendation_ids"`
-	FiscalYear              string   `json:"fiscal_year"`
+	FiscalYear              string   `json:"fiscal_year" validate:"required"`
 	Quarter                 *string  `json:"quarter,omitempty"`
 	OwnerName               *string  `json:"owner_name,omitempty"`
 }
@@ -235,15 +235,15 @@ type UpdateBudgetItemRequest = CreateBudgetItemRequest
 
 // CreateAwarenessProgramRequest is the JSON body for creating an awareness program.
 type CreateAwarenessProgramRequest struct {
-	Name           string `json:"name"`
-	Type           string `json:"type"`
+	Name           string `json:"name" validate:"required,min=2,max=255"`
+	Type           string `json:"type" validate:"required"`
 	Status         string `json:"status"`
-	TotalUsers     int    `json:"total_users"`
-	CompletedUsers int    `json:"completed_users"`
-	PassedUsers    int    `json:"passed_users"`
-	FailedUsers    int    `json:"failed_users"`
-	StartDate      string `json:"start_date"`
-	EndDate        string `json:"end_date"`
+	TotalUsers     int    `json:"total_users" validate:"gte=0"`
+	CompletedUsers int    `json:"completed_users" validate:"gte=0"`
+	PassedUsers    int    `json:"passed_users" validate:"gte=0"`
+	FailedUsers    int    `json:"failed_users" validate:"gte=0"`
+	StartDate      string `json:"start_date" validate:"required,datestr"`
+	EndDate        string `json:"end_date" validate:"required,datestr"`
 }
 
 // UpdateAwarenessProgramRequest is the JSON body for updating an awareness program.
@@ -253,7 +253,7 @@ type UpdateAwarenessProgramRequest = CreateAwarenessProgramRequest
 
 // UpdateIAMFindingRequest is the JSON body for updating an IAM finding.
 type UpdateIAMFindingRequest struct {
-	Status      string  `json:"status"`
+	Status      string  `json:"status" validate:"required"`
 	Remediation *string `json:"remediation,omitempty"`
 }
 
@@ -261,13 +261,13 @@ type UpdateIAMFindingRequest struct {
 
 // CreateEscalationRuleRequest is the JSON body for creating an escalation rule.
 type CreateEscalationRuleRequest struct {
-	Name                 string   `json:"name"`
+	Name                 string   `json:"name" validate:"required,min=2,max=255"`
 	Description          string   `json:"description"`
-	TriggerType          string   `json:"trigger_type"`
-	TriggerCondition     string   `json:"trigger_condition"`
-	EscalationTarget     string   `json:"escalation_target"`
+	TriggerType          string   `json:"trigger_type" validate:"required,oneof=severity time count custom"`
+	TriggerCondition     string   `json:"trigger_condition" validate:"required"`
+	EscalationTarget     string   `json:"escalation_target" validate:"required,oneof=management legal regulator board custom"`
 	TargetContacts       []string `json:"target_contacts"`
-	NotificationChannels []string `json:"notification_channels"`
+	NotificationChannels []string `json:"notification_channels" validate:"required,min=1"`
 	Enabled              bool     `json:"enabled"`
 }
 
@@ -278,13 +278,13 @@ type UpdateEscalationRuleRequest = CreateEscalationRuleRequest
 
 // CreatePlaybookRequest is the JSON body for creating a playbook.
 type CreatePlaybookRequest struct {
-	Name         string   `json:"name"`
-	Scenario     string   `json:"scenario"`
-	Status       string   `json:"status"`
-	NextTestDate string   `json:"next_test_date"`
-	OwnerID      string   `json:"owner_id"`
+	Name         string   `json:"name" validate:"required,min=2,max=255"`
+	Scenario     string   `json:"scenario" validate:"required"`
+	Status       string   `json:"status" validate:"omitempty,oneof=draft approved tested retired"`
+	NextTestDate string   `json:"next_test_date" validate:"required,datestr"`
+	OwnerID      *string  `json:"owner_id,omitempty" validate:"omitempty,uuid"`
 	OwnerName    string   `json:"owner_name"`
-	StepsCount   int      `json:"steps_count"`
+	StepsCount   int      `json:"steps_count" validate:"gte=0"`
 	Dependencies []string `json:"dependencies"`
 	RTOHours     *float64 `json:"rto_hours,omitempty"`
 	RPOHours     *float64 `json:"rpo_hours,omitempty"`
@@ -295,26 +295,26 @@ type UpdatePlaybookRequest = CreatePlaybookRequest
 
 // SimulatePlaybookRequest triggers a playbook simulation.
 type SimulatePlaybookRequest struct {
-	Result string `json:"result"` // pass | partial | fail
+	Result string `json:"result" validate:"required,oneof=pass partial fail"`
 }
 
 // ─── Obligations ────────────────────────────────────────────────────────────
 
 // CreateObligationRequest is the JSON body for creating an obligation.
 type CreateObligationRequest struct {
-	Name              string   `json:"name"`
-	Type              string   `json:"type"`
-	Jurisdiction      string   `json:"jurisdiction"`
+	Name              string   `json:"name" validate:"required,min=2,max=255"`
+	Type              string   `json:"type" validate:"required"`
+	Jurisdiction      string   `json:"jurisdiction" validate:"required"`
 	Description       string   `json:"description"`
 	Requirements      []string `json:"requirements"`
 	Status            string   `json:"status"`
-	MappedControls    int      `json:"mapped_controls"`
-	TotalRequirements int      `json:"total_requirements"`
-	MetRequirements   int      `json:"met_requirements"`
-	OwnerID           *string  `json:"owner_id,omitempty"`
+	MappedControls    int      `json:"mapped_controls" validate:"gte=0"`
+	TotalRequirements int      `json:"total_requirements" validate:"gte=0"`
+	MetRequirements   int      `json:"met_requirements" validate:"gte=0"`
+	OwnerID           *string  `json:"owner_id,omitempty" validate:"omitempty,uuid"`
 	OwnerName         *string  `json:"owner_name,omitempty"`
-	EffectiveDate     string   `json:"effective_date"`
-	ReviewDate        string   `json:"review_date"`
+	EffectiveDate     string   `json:"effective_date" validate:"omitempty,datestr"`
+	ReviewDate        string   `json:"review_date" validate:"omitempty,datestr"`
 }
 
 // UpdateObligationRequest is the JSON body for updating an obligation.
@@ -324,13 +324,13 @@ type UpdateObligationRequest = CreateObligationRequest
 
 // CreateControlTestRequest is the JSON body for creating a control test.
 type CreateControlTestRequest struct {
-	ControlID    string   `json:"control_id"`
-	ControlName  string   `json:"control_name"`
-	Framework    string   `json:"framework"`
-	TestType     string   `json:"test_type"`
-	Result       string   `json:"result"`
-	TesterName   string   `json:"tester_name"`
-	TestDate     string   `json:"test_date"`
+	ControlID    string   `json:"control_id" validate:"required"`
+	ControlName  string   `json:"control_name" validate:"required"`
+	Framework    string   `json:"framework" validate:"required"`
+	TestType     string   `json:"test_type" validate:"required,oneof=design operating_effectiveness"`
+	Result       string   `json:"result" validate:"required,oneof=effective partially_effective ineffective not_tested"`
+	TesterName   string   `json:"tester_name" validate:"required"`
+	TestDate     string   `json:"test_date" validate:"required,datestr"`
 	NextTestDate string   `json:"next_test_date"`
 	Findings     string   `json:"findings"`
 	EvidenceIDs  []string `json:"evidence_ids"`
@@ -340,11 +340,11 @@ type CreateControlTestRequest struct {
 
 // CreateIntegrationRequest is the JSON body for creating an integration.
 type CreateIntegrationRequest struct {
-	Name          string                 `json:"name"`
-	Type          string                 `json:"type"`
-	Provider      string                 `json:"provider"`
+	Name          string                 `json:"name" validate:"required,min=2,max=255"`
+	Type          string                 `json:"type" validate:"required,oneof=asset_management ticketing cloud_security data_protection siem iam"`
+	Provider      string                 `json:"provider" validate:"required"`
 	Status        string                 `json:"status"`
-	SyncFrequency string                 `json:"sync_frequency"`
+	SyncFrequency string                 `json:"sync_frequency" validate:"omitempty,oneof=every_5m every_15m every_hour every_6h daily"`
 	Config        map[string]interface{} `json:"config"`
 }
 
@@ -355,15 +355,15 @@ type UpdateIntegrationRequest = CreateIntegrationRequest
 
 // CreateControlOwnershipRequest is the JSON body for creating control ownership.
 type CreateControlOwnershipRequest struct {
-	ControlID      string  `json:"control_id"`
-	ControlName    string  `json:"control_name"`
-	Framework      string  `json:"framework"`
-	OwnerID        string  `json:"owner_id"`
-	OwnerName      string  `json:"owner_name"`
-	DelegateID     *string `json:"delegate_id,omitempty"`
+	ControlID      string  `json:"control_id" validate:"required"`
+	ControlName    string  `json:"control_name" validate:"required"`
+	Framework      string  `json:"framework" validate:"required"`
+	OwnerID        string  `json:"owner_id" validate:"required"`
+	OwnerName      string  `json:"owner_name" validate:"required"`
+	DelegateID     *string `json:"delegate_id,omitempty" validate:"omitempty,uuid"`
 	DelegateName   *string `json:"delegate_name,omitempty"`
 	Status         string  `json:"status"`
-	NextReviewDate string  `json:"next_review_date"`
+	NextReviewDate string  `json:"next_review_date" validate:"required,datestr"`
 }
 
 // UpdateControlOwnershipRequest is the JSON body for updating control ownership.
@@ -373,7 +373,7 @@ type UpdateControlOwnershipRequest = CreateControlOwnershipRequest
 
 // UpdateApprovalRequest records an approval decision.
 type UpdateApprovalRequest struct {
-	Status        string  `json:"status"`
+	Status        string  `json:"status" validate:"required,oneof=approved rejected"`
 	DecisionNotes *string `json:"decision_notes,omitempty"`
 }
 
@@ -424,12 +424,12 @@ type BudgetSummaryResponse struct {
 
 // CreateIAMFindingRequest is used by automated scanners to persist findings.
 type CreateIAMFindingRequest struct {
-	Type          string `json:"type"`
-	Severity      string `json:"severity"`
-	Title         string `json:"title"`
+	Type          string `json:"type" validate:"required"`
+	Severity      string `json:"severity" validate:"required"`
+	Title         string `json:"title" validate:"required"`
 	Description   string `json:"description"`
 	AffectedUsers int    `json:"affected_users"`
-	Status        string `json:"status"`
+	Status        string `json:"status" validate:"required"`
 	DiscoveredAt  string `json:"discovered_at"`
 }
 
@@ -437,13 +437,13 @@ type CreateIAMFindingRequest struct {
 
 // CreateApprovalRequest creates a new approval request.
 type CreateApprovalRequest struct {
-	Type             string `json:"type"`
-	Title            string `json:"title"`
+	Type             string `json:"type" validate:"required"`
+	Title            string `json:"title" validate:"required,min=2,max=255"`
 	Description      string `json:"description"`
-	ApproverID       string `json:"approver_id"`
-	ApproverName     string `json:"approver_name"`
-	Priority         string `json:"priority"`
-	Deadline         string `json:"deadline"`
+	ApproverID       string `json:"approver_id" validate:"required"`
+	ApproverName     string `json:"approver_name" validate:"required"`
+	Priority         string `json:"priority" validate:"required"`
+	Deadline         string `json:"deadline" validate:"required,datestr"`
 	LinkedEntityType string `json:"linked_entity_type"`
 	LinkedEntityID   string `json:"linked_entity_id"`
 }

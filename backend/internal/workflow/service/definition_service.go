@@ -244,6 +244,76 @@ func (s *DefinitionService) Activate(ctx context.Context, tenantID, id string) e
 	return nil
 }
 
+// Archive validates that the definition is active and sets its status to archived.
+func (s *DefinitionService) Archive(ctx context.Context, tenantID, id string) error {
+	def, err := s.repo.GetByID(ctx, tenantID, id)
+	if err != nil {
+		return fmt.Errorf("getting definition for archiving: %w", err)
+	}
+
+	if def.Status != model.DefinitionStatusActive {
+		return fmt.Errorf("only active definitions can be archived, current status: %s", def.Status)
+	}
+
+	def.Status = model.DefinitionStatusArchived
+	def.UpdatedAt = time.Now().UTC()
+
+	if err := s.repo.Update(ctx, def); err != nil {
+		return fmt.Errorf("archiving definition: %w", err)
+	}
+
+	s.logger.Info().
+		Str("id", def.ID).
+		Str("tenant_id", tenantID).
+		Str("name", def.Name).
+		Msg("workflow definition archived")
+
+	return nil
+}
+
+// Clone creates a copy of an existing workflow definition in draft status with version 1.
+func (s *DefinitionService) Clone(ctx context.Context, tenantID, id, userID string) (*model.WorkflowDefinition, error) {
+	src, err := s.repo.GetByID(ctx, tenantID, id)
+	if err != nil {
+		return nil, fmt.Errorf("getting definition for cloning: %w", err)
+	}
+
+	now := time.Now().UTC()
+	clone := &model.WorkflowDefinition{
+		ID:            generateUUID(),
+		TenantID:      tenantID,
+		Name:          src.Name + " (Copy)",
+		Description:   src.Description,
+		Version:       1,
+		Status:        model.DefinitionStatusDraft,
+		TriggerConfig: src.TriggerConfig,
+		Variables:     src.Variables,
+		Steps:         src.Steps,
+		CreatedBy:     userID,
+		CreatedAt:     now,
+		UpdatedAt:     now,
+	}
+
+	if clone.Variables == nil {
+		clone.Variables = make(map[string]model.VariableDef)
+	}
+	if clone.Steps == nil {
+		clone.Steps = []model.StepDefinition{}
+	}
+
+	if err := s.repo.Create(ctx, clone); err != nil {
+		return nil, fmt.Errorf("creating cloned definition: %w", err)
+	}
+
+	s.logger.Info().
+		Str("id", clone.ID).
+		Str("source_id", src.ID).
+		Str("tenant_id", tenantID).
+		Msg("workflow definition cloned")
+
+	return clone, nil
+}
+
 // Delete performs a soft-delete on a workflow definition.
 func (s *DefinitionService) Delete(ctx context.Context, tenantID, id string) error {
 	if err := s.repo.SoftDelete(ctx, tenantID, id); err != nil {

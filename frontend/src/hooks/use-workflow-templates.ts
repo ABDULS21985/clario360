@@ -17,11 +17,17 @@ const DEFINITIONS_KEY = 'workflow-definitions';
 export function useWorkflowTemplates(params?: Record<string, unknown>) {
   return useQuery({
     queryKey: [TEMPLATES_KEY, params],
-    queryFn: () =>
-      apiGet<PaginatedResponse<WorkflowTemplate>>(
+    queryFn: async () => {
+      const resp = await apiGet<{ templates: WorkflowTemplate[]; total: number }>(
         API_ENDPOINTS.WORKFLOWS_TEMPLATES,
         params,
-      ),
+      );
+      // Normalize to PaginatedResponse shape
+      return {
+        data: resp.templates ?? [],
+        meta: { page: 1, per_page: resp.total || 0, total: resp.total || 0, total_pages: 1 },
+      } as PaginatedResponse<WorkflowTemplate>;
+    },
   });
 }
 
@@ -95,8 +101,8 @@ export function useCreateDefinitionFromTemplate() {
   return useMutation({
     mutationFn: (data: CreateFromTemplateRequest) =>
       apiPost<WorkflowDefinition>(
-        API_ENDPOINTS.WORKFLOWS_DEFINITIONS_FROM_TEMPLATE,
-        data,
+        `${API_ENDPOINTS.WORKFLOWS_TEMPLATES}/${data.template_id}/instantiate`,
+        { name: data.name, description: data.description },
       ),
     onSuccess: () => {
       showSuccess('Workflow created from template.');

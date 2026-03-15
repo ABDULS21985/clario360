@@ -44,9 +44,9 @@ export function useInvitationStats() {
 
 export function useCreateInvitation() {
   const queryClient = useQueryClient();
-  return useMutation<Invitation, AxiosError<ApiError>, CreateInvitationRequest>({
+  return useMutation<unknown, AxiosError<ApiError>, CreateInvitationRequest>({
     mutationFn: async (payload) => {
-      const { data } = await api.post<Invitation>("/api/v1/invitations", payload);
+      const { data } = await api.post("/api/v1/invitations", payload);
       return data;
     },
     onSuccess: () => {
@@ -54,18 +54,30 @@ export function useCreateInvitation() {
       queryClient.invalidateQueries({ queryKey: ["invitations"] });
     },
     onError: (error) => {
-      toast.error(parseApiError(error));
+      const status = error.response?.status;
+      const serverMsg = (error.response?.data as { error?: string } | undefined)?.error;
+      if (status === 409 && serverMsg) {
+        toast.error(serverMsg.includes("already belongs")
+          ? "This user is already a member of your organization."
+          : "A pending invitation already exists for this email address.");
+      } else if (status === 429) {
+        toast.error("Too many pending invitations. Cancel some before sending new ones.");
+      } else {
+        toast.error(serverMsg || parseApiError(error));
+      }
     },
   });
 }
 
 export function useResendInvitation() {
+  const queryClient = useQueryClient();
   return useMutation<void, AxiosError<ApiError>, string>({
     mutationFn: async (invitationId) => {
-      await api.put(`/api/v1/invitations/${invitationId}/resend`);
+      await api.post(`/api/v1/invitations/resend/${invitationId}`);
     },
     onSuccess: () => {
       toast.success("Invitation resent");
+      queryClient.invalidateQueries({ queryKey: ["invitations"] });
     },
     onError: (error) => {
       toast.error(parseApiError(error));

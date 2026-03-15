@@ -71,13 +71,15 @@ export interface TenantPasswordPolicy {
 }
 
 /**
- * Provision request — maps to backend CreateTenantRequest.
- * owner_email/owner_name are embedded in settings for persistence.
+ * Provision request — maps to backend ProvisionTenantRequest.
+ * Creates tenant + owner user with tenant-admin role.
  */
 export interface ProvisionTenantRequest {
   name: string;
   slug: string;
   subscription_tier: SubscriptionTier;
+  owner_email: string;
+  owner_name: string;
   settings?: Partial<TenantSettings>;
 }
 

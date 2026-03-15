@@ -9,12 +9,13 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
 import { FormField } from "@/components/shared/forms/form-field";
 import { MultiSelect } from "@/components/shared/forms/multi-select";
 import { useApiQuery } from "@/hooks/use-api";
-import { useAuthStore } from "@/stores/auth-store";
 import api from "@/lib/api";
-import type { Role } from "@/types/models";
+import type { Role, User } from "@/types/models";
 
 const passwordRegex = /^(?=.*[A-Z])(?=.*[a-z])(?=.*\d)(?=.*[^A-Za-z\d]).{12,}$/;
 
@@ -28,6 +29,7 @@ const createUserSchema = z.object({
     .regex(passwordRegex, "Password must contain uppercase, lowercase, number, and special character"),
   status: z.enum(["active", "suspended", "inactive"]),
   role_ids: z.array(z.string()),
+  send_welcome_email: z.boolean(),
 });
 
 type CreateUserFormData = z.infer<typeof createUserSchema>;
@@ -38,13 +40,8 @@ interface UserCreateDialogProps {
   onSuccess: () => void;
 }
 
-interface RegisterResponse {
-  user: { id: string };
-}
-
 export function UserCreateDialog({ open, onOpenChange, onSuccess }: UserCreateDialogProps) {
   const [submitting, setSubmitting] = useState(false);
-  const user = useAuthStore((s) => s.user);
 
   const methods = useForm<CreateUserFormData>({
     resolver: zodResolver(createUserSchema),
@@ -55,6 +52,7 @@ export function UserCreateDialog({ open, onOpenChange, onSuccess }: UserCreateDi
       password: "",
       status: "active",
       role_ids: [],
+      send_welcome_email: true,
     },
   });
 
@@ -70,33 +68,17 @@ export function UserCreateDialog({ open, onOpenChange, onSuccess }: UserCreateDi
   const onSubmit = methods.handleSubmit(async (data) => {
     setSubmitting(true);
     try {
-      // Step 1: Register user via auth endpoint
-      // Backend RegisterRequest: { tenant_id, email, password, first_name, last_name }
-      const { data: registerResp } = await api.post<RegisterResponse>("/api/v1/auth/register", {
-        tenant_id: user?.tenant_id ?? "",
+      // Admin create endpoint: POST /api/v1/users
+      // Backend AdminCreateUserRequest: { email, password, first_name, last_name, status?, role_ids?, send_welcome_email? }
+      await api.post<User>("/api/v1/users", {
         email: data.email,
         password: data.password,
         first_name: data.first_name,
         last_name: data.last_name,
+        status: data.status,
+        role_ids: data.role_ids.length > 0 ? data.role_ids : undefined,
+        send_welcome_email: data.send_welcome_email,
       });
-
-      const newUserId = registerResp.user.id;
-
-      // Step 2: Set status if not "active" (register creates as active by default)
-      if (data.status !== "active") {
-        await api.put(`/api/v1/users/${newUserId}/status`, {
-          status: data.status,
-        });
-      }
-
-      // Step 3: Assign selected roles
-      if (data.role_ids.length > 0) {
-        await Promise.all(
-          data.role_ids.map((roleId) =>
-            api.post(`/api/v1/users/${newUserId}/roles`, { role_id: roleId })
-          )
-        );
-      }
 
       toast.success("User created successfully");
       onOpenChange(false);
@@ -241,6 +223,20 @@ export function UserCreateDialog({ open, onOpenChange, onSuccess }: UserCreateDi
                 disabled={submitting}
               />
             </FormField>
+
+            <div className="flex items-center gap-2">
+              <Checkbox
+                id="send_welcome_email"
+                checked={methods.watch("send_welcome_email")}
+                onCheckedChange={(checked) =>
+                  methods.setValue("send_welcome_email", checked === true)
+                }
+                disabled={submitting}
+              />
+              <Label htmlFor="send_welcome_email" className="text-sm font-normal cursor-pointer">
+                Send welcome email to the new user
+              </Label>
+            </div>
 
             <DialogFooter>
               <Button

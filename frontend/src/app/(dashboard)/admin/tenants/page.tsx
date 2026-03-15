@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, Building2, Ban, CheckCircle, Trash2 } from "lucide-react";
+import { Plus, Building2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/common/page-header";
@@ -12,7 +12,7 @@ import { StatusBadge } from "@/components/shared/status-badge";
 import { RelativeTime } from "@/components/shared/relative-time";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { tenantStatusConfig, tenantPlanConfig } from "@/lib/status-configs";
-import { formatBytes, formatNumber } from "@/lib/format";
+import { parseApiError } from "@/lib/format";
 import { useDataTable } from "@/hooks/use-data-table";
 import { useDeprovisionTenant } from "@/hooks/use-tenants";
 import api from "@/lib/api";
@@ -37,7 +37,7 @@ async function fetchTenants(params: {
       order: params.order,
       search: params.search || undefined,
       status: params.filters?.status,
-      plan: params.filters?.plan,
+      subscription_tier: params.filters?.subscription_tier,
     },
   });
   return data;
@@ -62,20 +62,22 @@ export default function TenantsPage() {
       type: "multi-select",
       options: [
         { label: "Active", value: "active" },
+        { label: "Inactive", value: "inactive" },
         { label: "Suspended", value: "suspended" },
-        { label: "Provisioning", value: "provisioning" },
+        { label: "Trial", value: "trial" },
+        { label: "Onboarding", value: "onboarding" },
         { label: "Deprovisioned", value: "deprovisioned" },
       ],
     },
     {
-      key: "plan",
+      key: "subscription_tier",
       label: "Plan",
       type: "multi-select",
       options: [
+        { label: "Free", value: "free" },
         { label: "Starter", value: "starter" },
         { label: "Professional", value: "professional" },
         { label: "Enterprise", value: "enterprise" },
-        { label: "Custom", value: "custom" },
       ],
     },
   ];
@@ -119,32 +121,12 @@ export default function TenantsPage() {
       ),
     },
     {
-      id: "plan",
+      id: "subscription_tier",
       header: "Plan",
-      accessorKey: "plan",
+      accessorKey: "subscription_tier",
       enableSorting: true,
       cell: ({ row }) => (
-        <StatusBadge status={row.original.plan} config={tenantPlanConfig} variant="outline" size="sm" />
-      ),
-    },
-    {
-      id: "user_count",
-      header: "Users",
-      accessorKey: "user_count",
-      enableSorting: true,
-      cell: ({ row }) => (
-        <span className="text-sm">{formatNumber(row.original.user_count)}</span>
-      ),
-    },
-    {
-      id: "storage_used_bytes",
-      header: "Storage",
-      accessorKey: "storage_used_bytes",
-      enableSorting: true,
-      cell: ({ row }) => (
-        <span className="text-sm text-muted-foreground">
-          {formatBytes(row.original.storage_used_bytes)}
-        </span>
+        <StatusBadge status={row.original.subscription_tier} config={tenantPlanConfig} variant="outline" size="sm" />
       ),
     },
     {
@@ -176,8 +158,8 @@ export default function TenantsPage() {
             await api.put(`/api/v1/tenants/${t.id}`, { status: "suspended" });
             toast.success("Tenant suspended");
             refetch();
-          } catch {
-            toast.error("Failed to suspend tenant");
+          } catch (error) {
+            toast.error(parseApiError(error));
           }
         },
       });
@@ -189,14 +171,14 @@ export default function TenantsPage() {
             await api.put(`/api/v1/tenants/${t.id}`, { status: "active" });
             toast.success("Tenant activated");
             refetch();
-          } catch {
-            toast.error("Failed to activate tenant");
+          } catch (error) {
+            toast.error(parseApiError(error));
           }
         },
       });
     }
 
-    if (tenant.status !== "deprovisioned" && tenant.status !== "deprovisioning") {
+    if (tenant.status !== "deprovisioned") {
       actions.push({
         label: "Deprovision",
         variant: "destructive" as const,

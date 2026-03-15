@@ -108,7 +108,7 @@ export function WorkflowsPageClient() {
       {cancelTarget && (
         <WorkflowCancelDialog
           instanceId={cancelTarget.id}
-          definitionName={cancelTarget.definition_name}
+          definitionName={cancelTarget.definition_name ?? 'Workflow'}
           open={Boolean(cancelTarget)}
           onOpenChange={(open) => {
             if (!open) setCancelTarget(null);

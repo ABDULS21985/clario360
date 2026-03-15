@@ -10,7 +10,7 @@ import {
   usePublishWorkflowDefinition,
 } from '@/hooks/use-workflow-definitions';
 import { WorkflowCanvas } from './components/workflow-canvas';
-import type { WorkflowStep } from '@/types/models';
+import type { WorkflowStep, BackendStepDefinition } from '@/types/models';
 
 export function DesignerPageClient() {
   const params = useParams();
@@ -43,7 +43,7 @@ export function DesignerPageClient() {
   function handleSave(steps: WorkflowStep[]) {
     updateMutation.mutate({
       defId: definition!.id,
-      data: { steps },
+      data: { steps: steps as unknown as BackendStepDefinition[] },
     });
   }
 

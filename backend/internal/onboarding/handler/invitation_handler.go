@@ -2,6 +2,7 @@ package handler
 
 import (
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/go-chi/chi/v5"
@@ -49,12 +50,64 @@ func (h *Handler) ListInvitations(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	invitations, err := h.invitationSvc.List(r.Context(), tenantID)
+	q := r.URL.Query()
+
+	page, _ := strconv.Atoi(q.Get("page"))
+	if page < 1 {
+		page = 1
+	}
+	perPage, _ := strconv.Atoi(q.Get("per_page"))
+	if perPage < 1 {
+		perPage = 25
+	}
+	if perPage > 100 {
+		perPage = 100
+	}
+
+	sort := strings.TrimSpace(q.Get("sort"))
+	if sort == "" {
+		sort = "created_at"
+	}
+	order := strings.TrimSpace(q.Get("order"))
+	if order == "" {
+		order = "desc"
+	}
+	search := strings.TrimSpace(q.Get("search"))
+	status := strings.TrimSpace(q.Get("status"))
+
+	items, total, err := h.invitationSvc.ListPaginated(r.Context(), tenantID, page, perPage, sort, order, search, status)
 	if err != nil {
 		handleServiceError(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"data": invitations})
+
+	totalPages := (total + perPage - 1) / perPage
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"data": items,
+		"meta": map[string]any{
+			"page":        page,
+			"per_page":    perPage,
+			"total":       total,
+			"total_pages": totalPages,
+		},
+	})
+}
+
+func (h *Handler) GetStats(w http.ResponseWriter, r *http.Request) {
+	currentUser := iamauth.MustUserFromContext(r.Context())
+	tenantID, err := uuid.Parse(currentUser.TenantID)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid tenant ID in token")
+		return
+	}
+
+	stats, err := h.invitationSvc.Stats(r.Context(), tenantID)
+	if err != nil {
+		handleServiceError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, stats)
 }
 
 func (h *Handler) CreateBatchInvitations(w http.ResponseWriter, r *http.Request) {

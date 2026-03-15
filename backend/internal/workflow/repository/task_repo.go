@@ -426,6 +426,29 @@ func (r *TaskRepository) EscalateTask(ctx context.Context, taskID, escalationRol
 	return nil
 }
 
+// UpdateMetadata replaces the metadata JSONB column for a task. Used to persist
+// comment additions and other metadata changes.
+func (r *TaskRepository) UpdateMetadata(ctx context.Context, tenantID, taskID string, metadata map[string]interface{}) error {
+	metadataJSON, err := json.Marshal(metadata)
+	if err != nil {
+		return fmt.Errorf("marshaling task metadata: %w", err)
+	}
+
+	query := `
+		UPDATE workflow_tasks
+		SET metadata = $3, updated_at = now()
+		WHERE id = $1 AND tenant_id = $2`
+
+	ct, err := r.pool.Exec(ctx, query, taskID, tenantID, metadataJSON)
+	if err != nil {
+		return fmt.Errorf("updating task metadata: %w", err)
+	}
+	if ct.RowsAffected() == 0 {
+		return fmt.Errorf("task %s: %w", taskID, model.ErrNotFound)
+	}
+	return nil
+}
+
 // CancelByInstance cancels all non-terminal tasks (pending and claimed) for a
 // given workflow instance. This is called when a workflow is cancelled or
 // fails.

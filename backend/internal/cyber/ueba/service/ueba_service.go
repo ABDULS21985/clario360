@@ -66,6 +66,9 @@ func (s *UEBAService) ListProfiles(ctx context.Context, tenantID uuid.UUID, para
 	if items == nil {
 		items = []*model.UEBAProfile{}
 	}
+	for _, p := range items {
+		p.EnsureDefaults()
+	}
 	return &dto.ProfileListResponse{
 		Data: items,
 		Meta: dto.NewPaginationMeta(params.Page, params.PerPage, total),
@@ -77,6 +80,7 @@ func (s *UEBAService) GetProfile(ctx context.Context, tenantID uuid.UUID, entity
 	if err != nil {
 		return nil, err
 	}
+	profile.EnsureDefaults()
 	heatmap, err := s.eventRepo.AggregateHeatmap(ctx, tenantID, entityID, 7)
 	if err != nil {
 		return nil, err

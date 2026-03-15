@@ -66,6 +66,7 @@ import type {
   LexExpiringContractSummary,
   LexWorkflowSummary,
   UserDirectoryEntry,
+  VisusAlertStats,
   VisusDashboard,
   VisusExecutiveAlert,
   VisusExecutiveSummary,
@@ -499,7 +500,7 @@ export const enterpriseApi = {
     updateAlertStatus: (id: string, payload: unknown) =>
       apiPut<{ data: VisusExecutiveAlert }>(`/api/v1/visus/alerts/${id}/status`, payload).then((res) => res.data),
     getAlertCount: (): Promise<{ count: number }> => fetchSuiteData('/api/v1/visus/alerts/count'),
-    getAlertStats: (): Promise<JsonObject> => fetchSuiteData('/api/v1/visus/alerts/stats'),
+    getAlertStats: (): Promise<VisusAlertStats> => fetchSuiteData('/api/v1/visus/alerts/stats'),
     getExecutiveView: (): Promise<VisusExecutiveSummary> => fetchSuiteData('/api/v1/visus/executive'),
   },
   ai: {

@@ -719,6 +719,34 @@ func (f *fakeInvitationRepo) ExpirePastDue(ctx context.Context) error {
 	return nil
 }
 
+func (f *fakeInvitationRepo) ListByTenantPaginated(_ context.Context, tenantID uuid.UUID, page, perPage int, sort, order, search, status string) ([]onboardingmodel.Invitation, int, error) {
+	all, err := f.ListByTenant(context.Background(), tenantID)
+	if err != nil {
+		return nil, 0, err
+	}
+	// Very simple: no filtering/sorting, just paginate
+	total := len(all)
+	start := (page - 1) * perPage
+	if start > total {
+		return []onboardingmodel.Invitation{}, total, nil
+	}
+	end := start + perPage
+	if end > total {
+		end = total
+	}
+	return all[start:end], total, nil
+}
+
+func (f *fakeInvitationRepo) CountByStatus(_ context.Context, tenantID uuid.UUID) (map[onboardingmodel.InvitationStatus]int, error) {
+	counts := make(map[onboardingmodel.InvitationStatus]int)
+	for _, inv := range f.byID {
+		if inv.TenantID == tenantID {
+			counts[inv.Status]++
+		}
+	}
+	return counts, nil
+}
+
 type fakeProvisioningRepo struct {
 	steps             map[uuid.UUID]map[int]*onboardingmodel.ProvisioningStep
 	tenantStatus      map[uuid.UUID]string

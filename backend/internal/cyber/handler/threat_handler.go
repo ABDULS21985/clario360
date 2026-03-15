@@ -283,7 +283,7 @@ func (h *ThreatHandler) BulkImportIndicators(w http.ResponseWriter, r *http.Requ
 	if !decodeJSON(w, r, &req) {
 		return
 	}
-	count, err := h.svc.BulkImport(r.Context(), tenantID, userID, actorFromRequest(r), req.Payload, req.Source)
+	count, err := h.svc.BulkImport(r.Context(), tenantID, userID, actorFromRequest(r), req.Payload, req.Source, req.ConflictMode)
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "BULK_IMPORT_FAILED", err.Error(), nil)
 		return
@@ -298,6 +298,11 @@ func (h *ThreatHandler) ListIndicators(w http.ResponseWriter, r *http.Request) {
 	}
 	params, err := parseIndicatorListParams(r)
 	if err != nil {
+		writeError(w, http.StatusBadRequest, "VALIDATION_ERROR", err.Error(), nil)
+		return
+	}
+	params.SetDefaults()
+	if err := params.Validate(); err != nil {
 		writeError(w, http.StatusBadRequest, "VALIDATION_ERROR", err.Error(), nil)
 		return
 	}

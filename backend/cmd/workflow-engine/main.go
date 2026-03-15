@@ -128,8 +128,9 @@ func main() {
 
 	// 13. Initialize handlers
 	defHandler := handler.NewDefinitionHandler(defSvc, logger)
-	instHandler := handler.NewInstanceHandler(engineSvc, instRepo, logger)
-	taskHandler := handler.NewTaskHandler(taskSvc, logger)
+	defHandler.SetTemplateService(templateSvc)
+	instHandler := handler.NewInstanceHandler(engineSvc, instRepo, defRepo, logger)
+	taskHandler := handler.NewTaskHandler(taskSvc, instRepo, defRepo, logger)
 	templateHandler := handler.NewTemplateHandler(templateSvc, logger)
 
 	// 14. Initialize health checker

@@ -1078,8 +1078,6 @@ export interface VisusReportDefinition {
   auto_send: boolean;
   last_generated_at?: string | null;
   total_generated: number;
-  type?: string;
-  file_url?: string | null;
   created_by: string;
   created_at: string;
   updated_at: string;
@@ -1089,7 +1087,6 @@ export type VisusReportFileFormat = 'json' | 'pdf' | 'html';
 
 export interface VisusReportSnapshot {
   id: string;
-  snapshot_id?: string;
   tenant_id: string;
   report_id: string;
   report_data: JsonObject;

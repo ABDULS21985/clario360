@@ -27,6 +27,19 @@ type DisableMFARequest struct {
 	Code string `json:"code" validate:"required,len=6"`
 }
 
+// AdminCreateUserRequest is used by admins to create users within their tenant.
+// Unlike the public Register endpoint, this allows setting initial status,
+// role assignments, and optionally sending a welcome email.
+type AdminCreateUserRequest struct {
+	Email            string   `json:"email" validate:"required,email"`
+	Password         string   `json:"password" validate:"required,min=12"`
+	FirstName        string   `json:"first_name" validate:"required,min=1,max=100"`
+	LastName         string   `json:"last_name" validate:"required,min=1,max=100"`
+	Status           string   `json:"status,omitempty" validate:"omitempty,oneof=active inactive suspended"`
+	RoleIDs          []string `json:"role_ids,omitempty"`
+	SendWelcomeEmail bool     `json:"send_welcome_email,omitempty"`
+}
+
 // ---------- Responses ----------
 
 type UserResponse struct {

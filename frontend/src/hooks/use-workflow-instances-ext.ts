@@ -26,10 +26,13 @@ export function useWorkflowInstance(instanceId: string) {
 export function useWorkflowInstanceHistory(instanceId: string) {
   return useQuery({
     queryKey: [INSTANCES_KEY, instanceId, 'history'],
-    queryFn: () =>
-      apiGet<{ steps: StepExecution[] }>(
+    queryFn: async () => {
+      const resp = await apiGet<{ instance_id: string; step_executions: StepExecution[] }>(
         `${API_ENDPOINTS.WORKFLOWS_INSTANCES}/${instanceId}/history`,
-      ),
+      );
+      // Normalize backend response to frontend shape
+      return { steps: resp.step_executions ?? [] };
+    },
     enabled: !!instanceId,
   });
 }
@@ -55,7 +58,7 @@ export function useUpdateWorkflowInstance() {
       data,
     }: {
       instanceId: string;
-      data: { variables?: Record<string, unknown>; context?: Record<string, unknown> };
+      data: { variables?: Record<string, unknown>; input_variables?: Record<string, unknown> };
     }) =>
       apiPut<WorkflowInstance>(
         `${API_ENDPOINTS.WORKFLOWS_INSTANCES}/${instanceId}`,

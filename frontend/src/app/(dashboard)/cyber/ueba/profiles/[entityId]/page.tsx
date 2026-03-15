@@ -125,7 +125,7 @@ export default function UebaProfileDetailPage() {
                 <CardHeader><CardTitle className="text-base">Recent Source IPs</CardTitle></CardHeader>
                 <CardContent>
                   <SourceIPList
-                    expectedIPs={profile.baseline.source_ips}
+                    expectedIPs={profile.baseline.source_ips ?? []}
                     actualIPs={recentIPs}
                   />
                 </CardContent>
@@ -147,7 +147,7 @@ export default function UebaProfileDetailPage() {
                 <CardHeader><CardTitle className="text-base">Recent Table Access</CardTitle></CardHeader>
                 <CardContent>
                   <TableAccessList
-                    expectedTables={profile.baseline.access_patterns.tables_accessed}
+                    expectedTables={profile.baseline.access_patterns?.tables_accessed ?? []}
                     actualTables={recentTables}
                   />
                 </CardContent>

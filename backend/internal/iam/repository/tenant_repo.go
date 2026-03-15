@@ -10,11 +10,20 @@ import (
 	"github.com/clario360/platform/internal/iam/model"
 )
 
+// TenantListParams holds optional filter/search/sort params for listing tenants.
+type TenantListParams struct {
+	Search           string
+	Status           string
+	SubscriptionTier string
+	Sort             string
+	Order            string
+}
+
 type TenantRepository interface {
 	Create(ctx context.Context, tenant *model.Tenant) error
 	GetByID(ctx context.Context, id string) (*model.Tenant, error)
 	GetBySlug(ctx context.Context, slug string) (*model.Tenant, error)
-	List(ctx context.Context, page, perPage int) ([]model.Tenant, int, error)
+	List(ctx context.Context, page, perPage int, params TenantListParams) ([]model.Tenant, int, error)
 	Update(ctx context.Context, tenant *model.Tenant) error
 }
 
@@ -79,17 +88,62 @@ func (r *tenantRepo) GetBySlug(ctx context.Context, slug string) (*model.Tenant,
 	return t, nil
 }
 
-func (r *tenantRepo) List(ctx context.Context, page, perPage int) ([]model.Tenant, int, error) {
+func (r *tenantRepo) List(ctx context.Context, page, perPage int, params TenantListParams) ([]model.Tenant, int, error) {
+	// Build WHERE clause from filters.
+	where := "WHERE 1=1"
+	args := []any{}
+	argIdx := 1
+
+	if params.Search != "" {
+		where += fmt.Sprintf(" AND (name ILIKE $%d OR slug ILIKE $%d)", argIdx, argIdx)
+		args = append(args, "%"+params.Search+"%")
+		argIdx++
+	}
+	if params.Status != "" {
+		where += fmt.Sprintf(" AND status = $%d", argIdx)
+		args = append(args, params.Status)
+		argIdx++
+	}
+	if params.SubscriptionTier != "" {
+		where += fmt.Sprintf(" AND subscription_tier = $%d", argIdx)
+		args = append(args, params.SubscriptionTier)
+		argIdx++
+	}
+
+	// Count with filters.
 	var total int
-	if err := r.pool.QueryRow(ctx, "SELECT COUNT(*) FROM tenants").Scan(&total); err != nil {
+	countQuery := "SELECT COUNT(*) FROM tenants " + where
+	if err := r.pool.QueryRow(ctx, countQuery, args...).Scan(&total); err != nil {
 		return nil, 0, fmt.Errorf("counting tenants: %w", err)
 	}
 
-	offset := (page - 1) * perPage
-	query := `SELECT id, name, slug, domain, settings, status, subscription_tier, created_at, updated_at
-		FROM tenants ORDER BY created_at DESC LIMIT $1 OFFSET $2`
+	// Determine ORDER BY.
+	allowedSorts := map[string]string{
+		"name":              "name",
+		"slug":              "slug",
+		"status":            "status",
+		"subscription_tier": "subscription_tier",
+		"created_at":        "created_at",
+		"updated_at":        "updated_at",
+	}
+	sortCol := "created_at"
+	if col, ok := allowedSorts[params.Sort]; ok {
+		sortCol = col
+	}
+	sortDir := "DESC"
+	if params.Order == "asc" {
+		sortDir = "ASC"
+	}
 
-	rows, err := r.pool.Query(ctx, query, perPage, offset)
+	offset := (page - 1) * perPage
+	query := fmt.Sprintf(
+		`SELECT id, name, slug, domain, settings, status, subscription_tier, created_at, updated_at
+		FROM tenants %s ORDER BY %s %s LIMIT $%d OFFSET $%d`,
+		where, sortCol, sortDir, argIdx, argIdx+1,
+	)
+	args = append(args, perPage, offset)
+
+	rows, err := r.pool.Query(ctx, query, args...)
 	if err != nil {
 		return nil, 0, fmt.Errorf("listing tenants: %w", err)
 	}

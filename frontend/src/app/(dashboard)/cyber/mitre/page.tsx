@@ -70,6 +70,7 @@ export default function MitreCoveragePage() {
                 currentFilters={{}}
                 totalCount={coverage.total_techniques}
                 enabledFormats={['csv', 'json']}
+                csvDataKey="techniques"
               />
             ) : undefined
           }

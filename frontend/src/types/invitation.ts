@@ -2,24 +2,25 @@ export interface Invitation {
   id: string;
   tenant_id: string;
   email: string;
-  role_id: string;
+  role_slug: string;
   role_name: string;
   status: InvitationStatus;
   message: string | null;
   invited_by: string;
-  inviter_name: string;
+  invited_by_name: string;
   expires_at: string;
   accepted_at: string | null;
   created_at: string;
 }
 
-export type InvitationStatus = 'pending' | 'accepted' | 'expired' | 'cancelled';
+export type InvitationStatus = 'pending' | 'accepted' | 'expired' | 'cancelled' | 'revoked';
 
 export interface CreateInvitationRequest {
-  email: string;
-  role_id: string;
-  message?: string;
-  expires_in_days?: number;
+  invitations: Array<{
+    email: string;
+    role_slug: string;
+    message?: string;
+  }>;
 }
 
 export interface InvitationStats {

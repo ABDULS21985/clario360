@@ -131,9 +131,10 @@ export interface HumanTask {
   name: string;
   description: string;
   instance_id: string;
-  definition_name: string;
-  workflow_name: string;
   step_id: string;
+  step_exec_id?: string;
+  definition_name?: string;
+  workflow_name?: string;
   status: HumanTaskStatus;
   priority: TaskPriority;
   form_schema: FormField[];
@@ -141,9 +142,11 @@ export interface HumanTask {
   sla_deadline: string | null;
   sla_breached: boolean;
   claimed_by: string | null;
-  claimed_by_name: string | null;
+  claimed_by_name?: string | null;
   assignee_role: string | null;
   assignee_id: string | null;
+  escalated_to?: string | null;
+  escalation_role?: string | null;
   metadata: Record<string, unknown>;
   claimed_at?: string | null;
   delegated_by?: string | null;
@@ -165,19 +168,26 @@ export interface StepDefinition {
 
 export interface StepExecution {
   id: string;
+  instance_id?: string;
   step_id: string;
-  step_name: string;
-  step_type: StepType;
+  step_name?: string;
+  step_type: string;
   status: StepStatus;
   started_at: string | null;
   completed_at: string | null;
-  duration_seconds: number | null;
+  duration_ms?: number | null;
   attempt: number;
-  input: Record<string, unknown> | null;
-  output: Record<string, unknown> | null;
-  error: string | null;
-  assigned_to: string | null;
-  completed_by: string | null;
+  input_data?: Record<string, unknown> | null;
+  output_data?: Record<string, unknown> | null;
+  error_message?: string | null;
+  created_at?: string;
+  // Legacy field names for backward compat with components
+  duration_seconds?: number | null;
+  input?: Record<string, unknown> | null;
+  output?: Record<string, unknown> | null;
+  error?: string | null;
+  assigned_to?: string | null;
+  completed_by?: string | null;
 }
 
 export type WorkflowInstanceStatus = 'running' | 'completed' | 'failed' | 'cancelled' | 'suspended';
@@ -185,22 +195,25 @@ export type WorkflowInstanceStatus = 'running' | 'completed' | 'failed' | 'cance
 export interface WorkflowInstance {
   id: string;
   definition_id: string;
-  definition_name: string;
+  definition_name?: string;
   tenant_id: string;
+  definition_ver?: number;
   status: WorkflowInstanceStatus;
   current_step_id: string | null;
-  current_step_name: string | null;
-  total_steps: number;
-  completed_steps: number;
+  current_step_name?: string | null;
+  total_steps?: number;
+  completed_steps?: number;
   started_at: string;
   completed_at: string | null;
   started_by: string | null;
-  started_by_name: string | null;
+  started_by_name?: string | null;
   variables: Record<string, unknown>;
-  step_outputs: Record<string, Record<string, unknown>>;
-  definition_steps: StepDefinition[];
+  step_outputs?: Record<string, Record<string, unknown>>;
+  trigger_data?: unknown;
+  definition_steps?: StepDefinition[];
   error_message?: string | null;
   updated_at?: string;
+  duration_ms?: number | null;
 }
 
 export interface TaskCounts {
@@ -323,6 +336,33 @@ export interface Alert {
 export type WorkflowDefinitionStatus = 'draft' | 'active' | 'archived';
 export type WorkflowCategory = 'approval' | 'onboarding' | 'review' | 'escalation' | 'notification' | 'data_pipeline' | 'compliance' | 'custom';
 
+// Backend DTO shapes — these match what the API actually returns
+export interface BackendTriggerConfig {
+  type: 'manual' | 'event' | 'schedule';
+  topic?: string;
+  filter?: Record<string, unknown>;
+  cron?: string;
+}
+
+export interface BackendTransition {
+  condition?: string;
+  target: string;
+}
+
+export interface BackendStepDefinition {
+  id: string;
+  type: string;
+  name: string;
+  config: Record<string, unknown>;
+  transitions: BackendTransition[];
+}
+
+export interface BackendVariableDef {
+  type: string;
+  source?: string;
+  default?: unknown;
+}
+
 export interface WorkflowTrigger {
   type: 'manual' | 'event' | 'schedule' | 'webhook';
   event_type?: string;
@@ -407,32 +447,44 @@ export interface WorkflowDefinition {
   id: string;
   name: string;
   description: string;
-  category: WorkflowCategory;
+  category?: WorkflowCategory;
   status: WorkflowDefinitionStatus;
   version: number;
-  trigger: WorkflowTrigger;
-  steps: WorkflowStep[];
-  variables: WorkflowVariable[];
+  trigger_config: BackendTriggerConfig;
+  steps: BackendStepDefinition[];
+  variables: Record<string, BackendVariableDef>;
+  step_count?: number;
   created_by: string;
+  updated_by?: string;
   created_at: string;
   updated_at: string;
-  published_at: string | null;
-  instance_count: number;
+  published_at?: string | null;
+  instance_count?: number;
 }
 
 export interface WorkflowDefinitionVersion {
+  id?: string;
   version: number;
   status: WorkflowDefinitionStatus;
-  published_at: string | null;
-  published_by: string | null;
-  change_summary: string;
-  step_count: number;
+  name?: string;
+  description?: string;
+  step_count?: number;
+  steps?: BackendStepDefinition[];
+  trigger_config?: BackendTriggerConfig;
+  variables?: Record<string, BackendVariableDef>;
+  created_by?: string;
+  updated_by?: string;
+  published_at?: string | null;
+  published_by?: string | null;
+  change_summary?: string;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface CreateInstanceRequest {
   definition_id: string;
-  variables?: Record<string, unknown>;
-  context?: Record<string, unknown>;
+  input_variables?: Record<string, unknown>;
+  trigger_data?: unknown;
 }
 
 export interface TaskComment {
@@ -458,13 +510,15 @@ export interface WorkflowTemplate {
   id: string;
   name: string;
   description: string;
-  category: WorkflowCategory;
-  preview_image_url: string | null;
-  steps: WorkflowStep[];
-  variables: WorkflowVariable[];
-  trigger: WorkflowTrigger;
-  usage_count: number;
-  tags: string[];
+  category: string;
+  icon?: string;
+  preview_image_url?: string | null;
+  steps?: WorkflowStep[];
+  variables?: WorkflowVariable[];
+  trigger?: WorkflowTrigger;
+  usage_count?: number;
+  tags?: string[];
+  created_at?: string;
 }
 
 export interface CreateFromTemplateRequest {

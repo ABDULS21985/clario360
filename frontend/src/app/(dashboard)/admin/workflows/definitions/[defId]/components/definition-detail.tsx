@@ -115,7 +115,7 @@ export function DefinitionDetailClient() {
     );
   }
 
-  const TriggerIcon = triggerIcons[definition.trigger.type] ?? Globe;
+  const TriggerIcon = triggerIcons[definition.trigger_config.type] ?? Globe;
   const versions = versionsData?.versions ?? [];
 
   return (
@@ -140,9 +140,11 @@ export function DefinitionDetailClient() {
               config={workflowDefinitionStatusConfig}
             />
             <span>v{definition.version}</span>
-            <Badge variant="secondary" className="text-xs">
-              {titleCase(definition.category)}
-            </Badge>
+            {definition.category && (
+              <Badge variant="secondary" className="text-xs">
+                {titleCase(definition.category)}
+              </Badge>
+            )}
           </div>
           {definition.description && (
             <p className="mt-2 text-sm text-muted-foreground max-w-xl">
@@ -228,17 +230,17 @@ export function DefinitionDetailClient() {
                 <div className="flex items-center gap-2">
                   <TriggerIcon className="h-4 w-4 text-muted-foreground" />
                   <span className="text-sm font-medium">
-                    {titleCase(definition.trigger.type)}
+                    {titleCase(definition.trigger_config.type)}
                   </span>
                 </div>
-                {definition.trigger.event_type && (
+                {definition.trigger_config.topic && (
                   <p className="text-xs text-muted-foreground mt-1">
-                    Event: {definition.trigger.event_type}
+                    Topic: {definition.trigger_config.topic}
                   </p>
                 )}
-                {definition.trigger.schedule_cron && (
+                {definition.trigger_config.cron && (
                   <p className="text-xs text-muted-foreground mt-1 font-mono">
-                    {definition.trigger.schedule_cron}
+                    {definition.trigger_config.cron}
                   </p>
                 )}
               </CardContent>
@@ -252,15 +254,15 @@ export function DefinitionDetailClient() {
               <CardContent className="space-y-1">
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">Steps</span>
-                  <span className="font-medium">{definition.steps.length}</span>
+                  <span className="font-medium">{definition.step_count ?? definition.steps.length}</span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">Instances</span>
-                  <span className="font-medium">{definition.instance_count}</span>
+                  <span className="font-medium">{definition.instance_count ?? 0}</span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">Variables</span>
-                  <span className="font-medium">{definition.variables.length}</span>
+                  <span className="font-medium">{Object.keys(definition.variables).length}</span>
                 </div>
               </CardContent>
             </Card>
@@ -290,7 +292,7 @@ export function DefinitionDetailClient() {
           </div>
 
           {/* Variables */}
-          {definition.variables.length > 0 && (
+          {Object.keys(definition.variables).length > 0 && (
             <Card>
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm font-medium">Variables</CardTitle>
@@ -301,40 +303,28 @@ export function DefinitionDetailClient() {
                     <TableRow>
                       <TableHead>Name</TableHead>
                       <TableHead>Type</TableHead>
-                      <TableHead>Required</TableHead>
+                      <TableHead>Source</TableHead>
                       <TableHead>Default</TableHead>
-                      <TableHead>Description</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {definition.variables.map((v) => (
-                      <TableRow key={v.name}>
+                    {Object.entries(definition.variables).map(([name, v]) => (
+                      <TableRow key={name}>
                         <TableCell className="font-mono text-xs">
-                          {v.name}
+                          {name}
                         </TableCell>
                         <TableCell>
                           <Badge variant="outline" className="text-xs">
                             {v.type}
                           </Badge>
                         </TableCell>
-                        <TableCell>
-                          {v.required ? (
-                            <Badge variant="default" className="text-xs">
-                              Required
-                            </Badge>
-                          ) : (
-                            <span className="text-xs text-muted-foreground">
-                              Optional
-                            </span>
-                          )}
+                        <TableCell className="text-xs text-muted-foreground">
+                          {v.source || '—'}
                         </TableCell>
                         <TableCell className="text-xs font-mono">
-                          {v.default_value !== undefined
-                            ? String(v.default_value)
+                          {v.default !== undefined
+                            ? String(v.default)
                             : '—'}
-                        </TableCell>
-                        <TableCell className="text-xs text-muted-foreground">
-                          {v.description || '—'}
                         </TableCell>
                       </TableRow>
                     ))}

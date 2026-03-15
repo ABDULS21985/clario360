@@ -35,6 +35,16 @@ type SettingsFormData = z.infer<typeof settingsSchema>;
 
 const AVAILABLE_SUITES = ["cyber", "data", "acta", "lex", "visus"];
 
+const DEFAULT_PASSWORD_POLICY = {
+  min_length: 8,
+  require_uppercase: true,
+  require_lowercase: true,
+  require_numbers: true,
+  require_special: false,
+  max_age_days: 90,
+  history_count: 5,
+};
+
 interface TenantSettingsFormProps {
   tenant: Tenant;
   onSuccess: () => void;
@@ -46,14 +56,14 @@ export function TenantSettingsForm({ tenant, onSuccess }: TenantSettingsFormProp
   const methods = useForm<SettingsFormData>({
     resolver: zodResolver(settingsSchema),
     defaultValues: {
-      max_users: tenant.settings.max_users,
-      max_storage_gb: tenant.settings.max_storage_gb,
-      mfa_required: tenant.settings.mfa_required,
-      session_timeout_minutes: tenant.settings.session_timeout_minutes,
-      enabled_suites: tenant.settings.enabled_suites,
-      ip_whitelist_raw: tenant.settings.ip_whitelist.join("\n"),
-      custom_domain: tenant.settings.custom_domain,
-      password_policy: tenant.settings.password_policy,
+      max_users: tenant.settings?.max_users ?? 10,
+      max_storage_gb: tenant.settings?.max_storage_gb ?? 10,
+      mfa_required: tenant.settings?.mfa_required ?? false,
+      session_timeout_minutes: tenant.settings?.session_timeout_minutes ?? 30,
+      enabled_suites: tenant.settings?.enabled_suites ?? [],
+      ip_whitelist_raw: (tenant.settings?.ip_whitelist ?? []).join("\n"),
+      custom_domain: tenant.settings?.custom_domain ?? null,
+      password_policy: tenant.settings?.password_policy ?? DEFAULT_PASSWORD_POLICY,
     },
   });
 
@@ -64,9 +74,16 @@ export function TenantSettingsForm({ tenant, onSuccess }: TenantSettingsFormProp
       .map((ip) => ip.trim())
       .filter(Boolean);
 
+    // Merge with existing settings to preserve branding and other fields
+    const mergedSettings = {
+      ...tenant.settings,
+      ...rest,
+      ip_whitelist,
+    };
+
     await updateSettings.mutateAsync({
       tenantId: tenant.id,
-      settings: { ...rest, ip_whitelist },
+      settings: mergedSettings,
     });
     onSuccess();
   });

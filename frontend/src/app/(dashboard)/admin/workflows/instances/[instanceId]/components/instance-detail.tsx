@@ -107,7 +107,7 @@ export function InstanceDetailClient() {
       {/* Header */}
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold">{instance.definition_name}</h1>
+          <h1 className="text-2xl font-bold">{instance.definition_name ?? 'Workflow Instance'}</h1>
           <div className="mt-1.5 flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
             <StatusBadge
               status={instance.status}

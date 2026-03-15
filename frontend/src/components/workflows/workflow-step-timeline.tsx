@@ -6,7 +6,7 @@ import { cn } from '@/lib/utils';
 import { formatDateTime } from '@/lib/utils';
 import { getStepIcon, formatStepType } from '@/lib/workflow-utils';
 import { Badge } from '@/components/ui/badge';
-import type { StepExecution, StepDefinition } from '@/types/models';
+import type { StepExecution, StepDefinition, StepType } from '@/types/models';
 
 interface WorkflowStepTimelineProps {
   steps: StepExecution[];
@@ -165,7 +165,7 @@ export function WorkflowStepTimeline({
   const displaySteps =
     definitionSteps.length > 0
       ? definitionSteps
-      : steps.map((s) => ({ id: s.step_id, name: s.step_name, type: s.step_type }));
+      : steps.map((s) => ({ id: s.step_id, name: s.step_name ?? s.step_id, type: s.step_type as StepType }));
 
   return (
     <div className="space-y-0">

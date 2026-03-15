@@ -47,6 +47,8 @@ type TaskResponse struct {
 	InstanceID     string                 `json:"instance_id"`
 	StepID         string                 `json:"step_id"`
 	StepExecID     string                 `json:"step_exec_id"`
+	DefinitionName string                 `json:"definition_name,omitempty"`
+	WorkflowName   string                 `json:"workflow_name,omitempty"`
 	Name           string                 `json:"name"`
 	Description    string                 `json:"description"`
 	Status         string                 `json:"status"`
@@ -87,6 +89,7 @@ type ListTasksResponse struct {
 type TaskCountResponse struct {
 	Pending     int `json:"pending"`
 	ClaimedByMe int `json:"claimed_by_me"`
+	Completed   int `json:"completed"`
 	Overdue     int `json:"overdue"`
 	Escalated   int `json:"escalated"`
 }

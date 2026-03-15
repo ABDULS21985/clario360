@@ -116,12 +116,12 @@ export default function InvitationsPage() {
       ),
     },
     {
-      id: "inviter_name",
+      id: "invited_by_name",
       header: "Invited By",
-      accessorKey: "inviter_name",
+      accessorKey: "invited_by_name",
       enableSorting: false,
       cell: ({ row }) => (
-        <span className="text-sm text-muted-foreground">{row.original.inviter_name}</span>
+        <span className="text-sm text-muted-foreground">{row.original.invited_by_name}</span>
       ),
     },
     {

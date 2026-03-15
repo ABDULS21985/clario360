@@ -122,7 +122,7 @@ export default function VisusPage() {
                       {dashboard.is_default ? <Badge variant="success">Default</Badge> : null}
                     </div>
                     <div className="mt-2 text-xs text-muted-foreground">
-                      {dashboard.widget_count} widget{dashboard.widget_count === 1 ? '' : 's'}
+                      {dashboard.widget_count ?? 0} widget{(dashboard.widget_count ?? 0) === 1 ? '' : 's'}
                     </div>
                   </div>
                 ))
@@ -163,12 +163,12 @@ export default function VisusPage() {
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
                       <p className="font-medium">{report.name}</p>
-                      <p className="text-xs text-muted-foreground capitalize">{(report.report_type ?? report.type ?? 'custom').replace(/_/g, ' ')}</p>
+                      <p className="text-xs text-muted-foreground capitalize">{(report.report_type ?? 'custom').replace(/_/g, ' ')}</p>
                     </div>
                     {report.schedule ? <Badge variant="outline">{report.schedule}</Badge> : null}
                   </div>
                   <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground">
-                    <span>{report.file_url ? 'Last output available' : 'No output generated yet'}</span>
+                    <span>{report.last_generated_at ? 'Last output available' : 'No output generated yet'}</span>
                     {report.last_generated_at ? <RelativeTime date={report.last_generated_at} /> : <span>Never generated</span>}
                   </div>
                 </div>

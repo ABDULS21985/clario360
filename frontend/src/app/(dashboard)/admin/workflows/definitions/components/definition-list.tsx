@@ -121,9 +121,9 @@ export function DefinitionList() {
         name: 'Untitled Workflow',
         description: '',
         category: 'custom',
-        trigger: { type: 'manual' },
+        trigger_config: { type: 'manual' },
         steps: [],
-        variables: [],
+        variables: {},
       },
       {
         onSuccess: (newDef) => {

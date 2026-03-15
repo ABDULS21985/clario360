@@ -23,24 +23,79 @@ vi.mock('next/navigation', () => ({
   redirect: vi.fn(),
 }));
 
+// Mock coverage response matching MITRECoverageResponseDTO from backend
 const mockCoverage = {
   tactics: [
-    { id: 'TA0002', name: 'Execution', short_name: 'Execution', technique_count: 3, covered_count: 2 },
-    { id: 'TA0001', name: 'Initial Access', short_name: 'Init Accs', technique_count: 2, covered_count: 1 },
+    { id: 'TA0002', name: 'Execution', short_name: 'execution', technique_count: 3, covered_count: 2 },
+    { id: 'TA0001', name: 'Initial Access', short_name: 'initial-access', technique_count: 2, covered_count: 1 },
   ],
   techniques: [
-    { technique_id: 'T1059', technique_name: 'PowerShell', tactic_id: 'TA0002', tactic_name: 'Execution', rule_count: 2, alert_count: 3, has_detection: true },
-    { technique_id: 'T1203', technique_name: 'Exploitation', tactic_id: 'TA0002', tactic_name: 'Execution', rule_count: 1, alert_count: 0, has_detection: true },
-    { technique_id: 'T1106', technique_name: 'Native API', tactic_id: 'TA0002', tactic_name: 'Execution', rule_count: 0, alert_count: 0, has_detection: false },
-    { technique_id: 'T1190', technique_name: 'Exploit Public-Facing', tactic_id: 'TA0001', tactic_name: 'Initial Access', rule_count: 1, alert_count: 1, has_detection: true },
-    { technique_id: 'T1133', technique_name: 'External Remote Services', tactic_id: 'TA0001', tactic_name: 'Initial Access', rule_count: 0, alert_count: 0, has_detection: false },
+    {
+      technique_id: 'T1059', technique_name: 'PowerShell',
+      tactic_ids: ['TA0002'], rule_count: 2, alert_count: 3, threat_count: 1,
+      active_threat_count: 0, has_detection: true, coverage_state: 'covered',
+      high_fp_rule_count: 0, description: 'Command interpreter', platforms: ['Windows'],
+      rule_names: ['Rule A', 'Rule B'],
+    },
+    {
+      technique_id: 'T1203', technique_name: 'Exploitation',
+      tactic_ids: ['TA0002'], rule_count: 1, alert_count: 0, threat_count: 0,
+      active_threat_count: 0, has_detection: true, coverage_state: 'covered',
+      high_fp_rule_count: 0, description: 'Exploitation for client execution', platforms: ['Windows'],
+      rule_names: ['Rule C'],
+    },
+    {
+      technique_id: 'T1106', technique_name: 'Native API',
+      tactic_ids: ['TA0002'], rule_count: 0, alert_count: 0, threat_count: 0,
+      active_threat_count: 1, has_detection: false, coverage_state: 'gap',
+      high_fp_rule_count: 0, description: 'Native API abuse', platforms: ['Windows'],
+      rule_names: [],
+    },
+    {
+      technique_id: 'T1190', technique_name: 'Exploit Public-Facing',
+      tactic_ids: ['TA0001'], rule_count: 1, alert_count: 1, threat_count: 0,
+      active_threat_count: 0, has_detection: true, coverage_state: 'covered',
+      high_fp_rule_count: 0, description: 'Exploit public-facing app', platforms: ['Linux', 'Windows'],
+      rule_names: ['Rule D'],
+    },
+    {
+      technique_id: 'T1133', technique_name: 'External Remote Services',
+      tactic_ids: ['TA0001'], rule_count: 0, alert_count: 0, threat_count: 0,
+      active_threat_count: 0, has_detection: false, coverage_state: 'idle',
+      high_fp_rule_count: 0, description: 'External remote services', platforms: ['Windows', 'Linux'],
+      rule_names: [],
+    },
   ],
   total_techniques: 5,
   covered_techniques: 3,
   coverage_percent: 60,
   active_techniques: 2,
   passive_techniques: 1,
-  total_alerts_90d: 4,
+  critical_gap_count: 1,
+};
+
+// Mock technique detail matching MITRETechniqueDetailDTO from backend
+const mockTechniqueDetail = {
+  id: 'T1059',
+  name: 'PowerShell',
+  description: 'Command and scripting interpreter used for execution.',
+  tactic_ids: ['TA0002'],
+  platforms: ['Windows'],
+  data_sources: ['Process Creation'],
+  coverage_state: 'covered',
+  rule_count: 2,
+  alert_count: 3,
+  threat_count: 1,
+  active_threat_count: 0,
+  high_fp_rule_count: 0,
+  linked_rules: [
+    {
+      id: 'r1', name: 'PowerShell Rule', rule_type: 'sigma', severity: 'high',
+      enabled: true, trigger_count: 5, true_positive_count: 4, false_positive_count: 1,
+    },
+  ],
+  linked_threats: [],
+  recent_alerts: [],
 };
 
 const server = setupServer(
@@ -48,13 +103,7 @@ const server = setupServer(
     HttpResponse.json({ data: mockCoverage }),
   ),
   http.get(`${API_URL}/api/v1/cyber/mitre/techniques/:id`, () =>
-    HttpResponse.json({ data: { description: 'Test description', platforms: ['Windows'] } }),
-  ),
-  http.get(`${API_URL}/api/v1/cyber/rules`, () =>
-    HttpResponse.json({ data: [], meta: { total: 0, page: 1, per_page: 20, total_pages: 0 } }),
-  ),
-  http.get(`${API_URL}/api/v1/cyber/alerts`, () =>
-    HttpResponse.json({ data: [], meta: { total: 0, page: 1, per_page: 10, total_pages: 0 } }),
+    HttpResponse.json({ data: mockTechniqueDetail }),
   ),
 );
 
@@ -76,24 +125,25 @@ async function renderMitrePage() {
 }
 
 describe('MITRE Matrix Integration', () => {
-  it('test_matrixLoads: MSW returns tactics + techniques + coverage → matrix renders', async () => {
+  it('renders matrix with technique cells after loading', async () => {
     await renderMitrePage();
     await waitFor(() => {
-      expect(screen.getByText('MITRE ATT&CK Coverage')).toBeTruthy();
+      // Page header title is 'MITRE ATT&CK'
+      expect(screen.getByText('MITRE ATT\u0026CK')).toBeTruthy();
     });
     await waitFor(() => {
       expect(screen.getByText('T1059')).toBeTruthy();
     });
   });
 
-  it('test_coverageStats: 3/5 covered → "60%" shown', async () => {
+  it('displays coverage percentage from response', async () => {
     await renderMitrePage();
     await waitFor(() => {
-      expect(screen.getByText(/60%/)).toBeTruthy();
+      expect(screen.getByText(/60\.0% of techniques covered/)).toBeTruthy();
     });
   });
 
-  it('test_filterGapsOnly: click "Gaps Only" → shows gap techniques', async () => {
+  it('filters to gap techniques when Gaps Only is clicked', async () => {
     await renderMitrePage();
     await waitFor(() => screen.getByText('T1059'));
     fireEvent.click(screen.getByText('Gaps Only ⚠'));
@@ -102,7 +152,7 @@ describe('MITRE Matrix Integration', () => {
     });
   });
 
-  it('test_filterWithAlerts: click "With Alerts" → only active cells visible', async () => {
+  it('filters to techniques with alerts when With Alerts is clicked', async () => {
     await renderMitrePage();
     await waitFor(() => screen.getByText('T1059'));
     fireEvent.click(screen.getByText('With Alerts'));
@@ -111,7 +161,7 @@ describe('MITRE Matrix Integration', () => {
     });
   });
 
-  it('test_searchTechnique: type "T1059" → shows matching cell', async () => {
+  it('filters techniques by search input', async () => {
     await renderMitrePage();
     await waitFor(() => screen.getByText('T1059'));
     const searchInput = screen.getByPlaceholderText(/Search T1059/i);
@@ -121,25 +171,17 @@ describe('MITRE Matrix Integration', () => {
     });
   });
 
-  it('test_cellClickOpensPanel: click technique cell → panel appears', async () => {
+  it('opens technique panel on cell click', async () => {
     await renderMitrePage();
     await waitFor(() => screen.getByText('T1059'));
     fireEvent.click(screen.getByText('T1059'));
     await waitFor(() => {
-      // Panel should appear with technique name
-      expect(screen.getByText('PowerShell')).toBeTruthy();
+      // Panel loads technique detail and shows description unique to the detail response
+      expect(screen.getByText(/Command and scripting interpreter used for execution/i)).toBeTruthy();
     });
   });
 
-  it('test_panelShowsRules: technique with rules → panel opens', async () => {
-    server.use(
-      http.get(`${API_URL}/api/v1/cyber/rules`, () =>
-        HttpResponse.json({
-          data: [{ id: 'r1', name: 'PowerShell Rule', type: 'sigma', severity: 'high', enabled: true, trigger_count: 5, false_positive_rate: 0.1, mitre_technique_ids: ['T1059'], mitre_tactic_ids: [], is_template: false, tags: [], tenant_id: 't1', description: '', created_at: '', updated_at: '' }],
-          meta: { total: 1, page: 1, per_page: 20, total_pages: 1 },
-        }),
-      ),
-    );
+  it('shows linked rules in panel on cell click', async () => {
     await renderMitrePage();
     await waitFor(() => screen.getByText('T1059'));
     fireEvent.click(screen.getByText('T1059'));
@@ -148,20 +190,9 @@ describe('MITRE Matrix Integration', () => {
     });
   });
 
-  it('test_createRuleFromGap: gap technique → panel shows create rule button', async () => {
-    await renderMitrePage();
-    await waitFor(() => screen.getAllByText('T1106'));
-    fireEvent.click(screen.getAllByText('T1106')[0]);
-    // Panel opens — if no rules → create rule button
-    await waitFor(() => {
-      expect(screen.getAllByText('T1106').length).toBeGreaterThan(0);
-    });
-  });
-
-  it('test_allFilterShows_allTechniques', async () => {
+  it('shows all techniques with All filter (default)', async () => {
     await renderMitrePage();
     await waitFor(() => screen.getByText('T1059'));
-    // All filter should be the default
     const allBtn = screen.getByText('All');
     expect(allBtn).toBeTruthy();
     expect(screen.getByText('T1059')).toBeTruthy();

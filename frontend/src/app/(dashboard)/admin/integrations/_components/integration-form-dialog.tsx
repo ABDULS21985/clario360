@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { AlertCircle, ExternalLink, KeyRound, Sparkles } from "lucide-react";
+import { AlertCircle, ExternalLink, KeyRound, Plus, Sparkles, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -31,7 +31,9 @@ import type { ApiResponse } from "@/types/api";
 import type { IntegrationProviderStatus, IntegrationRecord, IntegrationType } from "@/types/integration";
 import {
   buildIntegrationPayload,
+  emptyFilterState,
   EVENT_TYPE_OPTIONS,
+  type EventFilterFormState,
   formStateFromIntegration,
   getDefaultFormState,
   prepareOAuthInstall,
@@ -301,6 +303,9 @@ function ConnectionFields({
             <Field label="Bot token" hint={secretHint}>
               <Input value={state.config.bot_token} onChange={(event) => updateConfig("bot_token", event.target.value)} placeholder="xoxb-..." />
             </Field>
+            <Field label="Signing secret" hint={secretHint}>
+              <Input value={state.config.signing_secret} onChange={(event) => updateConfig("signing_secret", event.target.value)} type="password" placeholder="Set via OAuth or enter manually" />
+            </Field>
             <Field label="Workspace ID">
               <Input value={state.config.team_id} onChange={(event) => updateConfig("team_id", event.target.value)} placeholder="T12345678" />
             </Field>
@@ -491,63 +496,88 @@ function EventFilterEditor({
   state: IntegrationFormState;
   onChange: React.Dispatch<React.SetStateAction<IntegrationFormState>>;
 }) {
+  const updateFilter = (index: number, patch: Partial<EventFilterFormState>) => {
+    onChange((current) => ({
+      ...current,
+      filters: current.filters.map((f, i) => (i === index ? { ...f, ...patch } : f)),
+    }));
+  };
+
+  const addFilter = () => {
+    onChange((current) => ({ ...current, filters: [...current.filters, emptyFilterState()] }));
+  };
+
+  const removeFilter = (index: number) => {
+    onChange((current) => ({
+      ...current,
+      filters: current.filters.length > 1 ? current.filters.filter((_, i) => i !== index) : [emptyFilterState()],
+    }));
+  };
+
   return (
     <section className="space-y-4">
-      <SectionTitle title="Event Filters" description="Leave everything empty to deliver every event. Otherwise Clario will only send matching events." />
+      <SectionTitle title="Event Filters" description="Leave everything empty to deliver every event. Multiple filter rules are evaluated with OR logic — an event matching any rule is delivered." />
 
-      <FilterGroup
-        title="Event types"
-        options={EVENT_TYPE_OPTIONS}
-        selected={state.eventTypes}
-        onToggle={(value) =>
-          onChange((current) => ({
-            ...current,
-            eventTypes: toggleArrayValue(current.eventTypes, value),
-          }))
-        }
-      />
+      {state.filters.map((filter, index) => (
+        <div key={index} className="space-y-4 rounded-lg border p-4">
+          <div className="flex items-center justify-between">
+            <div className="text-sm font-semibold">
+              {state.filters.length > 1 ? `Filter rule ${index + 1}` : "Filter rule"}
+            </div>
+            {state.filters.length > 1 ? (
+              <Button type="button" variant="ghost" size="sm" onClick={() => removeFilter(index)}>
+                <Trash2 className="mr-1 h-3.5 w-3.5" />
+                Remove
+              </Button>
+            ) : null}
+          </div>
 
-      <div className="grid gap-4 md:grid-cols-2">
-        <FilterGroup
-          title="Severities"
-          options={SEVERITY_OPTIONS}
-          selected={state.severities}
-          onToggle={(value) =>
-            onChange((current) => ({
-              ...current,
-              severities: toggleArrayValue(current.severities, value),
-            }))
-          }
-        />
-        <FilterGroup
-          title="Suites"
-          options={SUITE_OPTIONS}
-          selected={state.suites}
-          onToggle={(value) =>
-            onChange((current) => ({
-              ...current,
-              suites: toggleArrayValue(current.suites, value),
-            }))
-          }
-        />
-      </div>
+          <FilterGroup
+            title="Event types"
+            options={EVENT_TYPE_OPTIONS}
+            selected={filter.eventTypes}
+            onToggle={(value) =>
+              updateFilter(index, { eventTypes: toggleArrayValue(filter.eventTypes, value) })
+            }
+          />
 
-      <Field label="Minimum confidence">
-        <Input
-          type="number"
-          min={0}
-          max={1}
-          step="0.01"
-          value={state.minConfidence}
-          onChange={(event) =>
-            onChange((current) => ({
-              ...current,
-              minConfidence: event.target.value,
-            }))
-          }
-          placeholder="0.70"
-        />
-      </Field>
+          <div className="grid gap-4 md:grid-cols-2">
+            <FilterGroup
+              title="Severities"
+              options={SEVERITY_OPTIONS}
+              selected={filter.severities}
+              onToggle={(value) =>
+                updateFilter(index, { severities: toggleArrayValue(filter.severities, value) })
+              }
+            />
+            <FilterGroup
+              title="Suites"
+              options={SUITE_OPTIONS}
+              selected={filter.suites}
+              onToggle={(value) =>
+                updateFilter(index, { suites: toggleArrayValue(filter.suites, value) })
+              }
+            />
+          </div>
+
+          <Field label="Minimum confidence">
+            <Input
+              type="number"
+              min={0}
+              max={1}
+              step="0.01"
+              value={filter.minConfidence}
+              onChange={(event) => updateFilter(index, { minConfidence: event.target.value })}
+              placeholder="0.70"
+            />
+          </Field>
+        </div>
+      ))}
+
+      <Button type="button" variant="outline" size="sm" onClick={addFilter}>
+        <Plus className="mr-1 h-3.5 w-3.5" />
+        Add filter rule
+      </Button>
     </section>
   );
 }

@@ -12,7 +12,6 @@ import type {
   WorkflowStepType,
   WorkflowTransition,
   WorkflowDefinition,
-  StepExecution,
 } from '@/types/models';
 
 const NODE_WIDTH = 200;
@@ -37,7 +36,9 @@ export function WorkflowCanvas({
   onSave,
   onPublish,
 }: WorkflowCanvasProps) {
-  const canvas = useCanvasState(definition.steps);
+  // Cast backend step definitions to designer WorkflowStep shape.
+  // The backend stores the full step data; the designer enriches it with position/transitions.
+  const canvas = useCanvasState(definition.steps as unknown as WorkflowStep[]);
   const containerRef = useRef<HTMLDivElement>(null);
   const svgRef = useRef<SVGSVGElement>(null);
 

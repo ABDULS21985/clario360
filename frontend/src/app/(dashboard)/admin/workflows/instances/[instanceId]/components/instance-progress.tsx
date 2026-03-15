@@ -9,9 +9,11 @@ interface InstanceProgressProps {
 }
 
 export function InstanceProgress({ instance }: InstanceProgressProps) {
+  const totalSteps = instance.total_steps ?? 0;
+  const completedSteps = instance.completed_steps ?? 0;
   const percent =
-    instance.total_steps > 0
-      ? Math.round((instance.completed_steps / instance.total_steps) * 100)
+    totalSteps > 0
+      ? Math.round((completedSteps / totalSteps) * 100)
       : 0;
 
   const startTime = new Date(instance.started_at).getTime();
@@ -25,7 +27,7 @@ export function InstanceProgress({ instance }: InstanceProgressProps) {
       <CardContent className="py-4">
         <div className="flex items-center justify-between text-sm mb-2">
           <span className="text-muted-foreground">
-            Step {instance.completed_steps} of {instance.total_steps}
+            Step {completedSteps} of {totalSteps}
           </span>
           <span className="font-medium">{percent}%</span>
         </div>

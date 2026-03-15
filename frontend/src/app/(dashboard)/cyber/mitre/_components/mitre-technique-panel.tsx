@@ -1,8 +1,9 @@
 'use client';
 
 import Link from 'next/link';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { ExternalLink } from 'lucide-react';
+import { toast } from 'sonner';
 
 import { DetailPanel } from '@/components/shared/detail-panel';
 import { SeverityIndicator } from '@/components/shared/severity-indicator';
@@ -23,6 +24,7 @@ interface MitreTechniquePanelProps {
 }
 
 export function MitreTechniquePanel({ technique, onClose }: MitreTechniquePanelProps) {
+  const queryClient = useQueryClient();
   const { data, isLoading, refetch } = useQuery({
     queryKey: ['mitre-technique-detail', technique?.technique_id],
     queryFn: () => apiGet<{ data: MITRETechniqueDetail }>(API_ENDPOINTS.CYBER_MITRE_TECHNIQUE_DETAIL(technique!.technique_id)),
@@ -97,8 +99,8 @@ export function MitreTechniquePanel({ technique, onClose }: MitreTechniquePanelP
               </Button>
             </div>
             <div className="space-y-2">
-              {detail.linked_rules.length > 0 ? (
-                detail.linked_rules.map((rule) => (
+              {(detail.linked_rules ?? []).length > 0 ? (
+                (detail.linked_rules ?? []).map((rule) => (
                   <div key={rule.id} className="flex items-center justify-between rounded-2xl border p-4">
                     <div className="space-y-1">
                       <Link href={`/cyber/detection-rules/${rule.id}`} className="font-medium hover:text-emerald-700 hover:underline">
@@ -113,8 +115,14 @@ export function MitreTechniquePanel({ technique, onClose }: MitreTechniquePanelP
                       variant="outline"
                       size="sm"
                       onClick={async () => {
-                        await apiPut(API_ENDPOINTS.CYBER_RULE_TOGGLE(rule.id), { enabled: !rule.enabled });
-                        void refetch();
+                        try {
+                          await apiPut(API_ENDPOINTS.CYBER_RULE_TOGGLE(rule.id), { enabled: !rule.enabled });
+                          toast.success(`Rule ${rule.enabled ? 'disabled' : 'enabled'}`);
+                          void refetch();
+                          void queryClient.invalidateQueries({ queryKey: ['cyber-mitre-coverage'] });
+                        } catch {
+                          toast.error('Failed to toggle rule');
+                        }
                       }}
                     >
                       {rule.enabled ? 'Disable' : 'Enable'}
@@ -132,8 +140,8 @@ export function MitreTechniquePanel({ technique, onClose }: MitreTechniquePanelP
           <div className="space-y-3">
             <p className="text-sm font-medium">Associated Threats</p>
             <div className="space-y-2">
-              {detail.linked_threats.length > 0 ? (
-                detail.linked_threats.map((threat) => (
+              {(detail.linked_threats ?? []).length > 0 ? (
+                (detail.linked_threats ?? []).map((threat) => (
                   <Link key={threat.id} href={`/cyber/threats/${threat.id}`} className="block rounded-2xl border p-4 transition hover:bg-muted/20">
                     <div className="flex items-center justify-between gap-3">
                       <div>
@@ -158,8 +166,8 @@ export function MitreTechniquePanel({ technique, onClose }: MitreTechniquePanelP
           <div className="space-y-3">
             <p className="text-sm font-medium">Recent Alerts</p>
             <div className="space-y-2">
-              {detail.recent_alerts.length > 0 ? (
-                detail.recent_alerts.map((alert) => (
+              {(detail.recent_alerts ?? []).length > 0 ? (
+                (detail.recent_alerts ?? []).map((alert) => (
                   <Link key={alert.id} href={`/cyber/alerts/${alert.id}`} className="block rounded-2xl border p-4 transition hover:bg-muted/20">
                     <div className="flex items-start justify-between gap-3">
                       <div>

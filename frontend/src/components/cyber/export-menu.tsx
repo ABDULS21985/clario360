@@ -31,6 +31,8 @@ export interface ExportMenuProps {
   enabledFormats?: ('csv' | 'json' | 'pdf')[];
   selectedCount?: number;
   getSelectedIds?: () => string[];
+  /** For nested responses, specify the key to extract the array for CSV export (e.g., 'techniques'). */
+  csvDataKey?: string;
 }
 
 const EXPORT_LIMIT = 50000;
@@ -84,6 +86,7 @@ export function ExportMenu({
   pdfReportUrl,
   enabledFormats = ['csv', 'json', 'pdf'],
   selectedCount = 0,
+  csvDataKey,
 }: ExportMenuProps) {
   const [warnOpen, setWarnOpen] = useState(false);
   const [blockedOpen, setBlockedOpen] = useState(false);
@@ -115,9 +118,18 @@ export function ExportMenu({
           // fallthrough to JSON-based CSV
         }
         // Fallback: fetch JSON and convert
-        const data = await apiGet<{ data: unknown[] }>(baseUrl, params);
-        const rows = Array.isArray(data) ? data : (data.data ?? []);
-        const csv = jsonToCsv(rows as unknown[]);
+        const data = await apiGet<{ data: unknown }>(baseUrl, params);
+        let rows: unknown[];
+        if (Array.isArray(data)) {
+          rows = data;
+        } else if (Array.isArray(data.data)) {
+          rows = data.data;
+        } else if (csvDataKey && data.data && typeof data.data === 'object' && Array.isArray((data.data as Record<string, unknown>)[csvDataKey])) {
+          rows = (data.data as Record<string, unknown>)[csvDataKey] as unknown[];
+        } else {
+          rows = data.data ? [data.data] : [];
+        }
+        const csv = jsonToCsv(rows);
         downloadBlob(
           new Blob([csv], { type: 'text/csv;charset=utf-8;' }),
           `${entityType}-export-${dateSuffix()}.csv`,

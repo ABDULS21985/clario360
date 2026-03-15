@@ -21,6 +21,9 @@ async function fetchThreatFeeds(params: FetchParams): Promise<PaginatedResponse<
   return apiGet<PaginatedResponse<ThreatFeedConfig>>(API_ENDPOINTS.CYBER_THREAT_FEEDS, {
     page: params.page,
     per_page: params.per_page,
+    search: params.search || undefined,
+    sort: params.sort || undefined,
+    order: params.order || undefined,
   });
 }
 

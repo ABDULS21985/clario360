@@ -36,12 +36,40 @@ func (h *UserHandler) Routes() chi.Router {
 
 	// /users CRUD
 	r.Get("/", h.List)
+	r.Post("/", h.Create)
 	r.Get("/{id}", h.GetByID)
 	r.Put("/{id}", h.Update)
 	r.Delete("/{id}", h.Delete)
 	r.Put("/{id}/status", h.UpdateStatus)
 
 	return r
+}
+
+func (h *UserHandler) Create(w http.ResponseWriter, r *http.Request) {
+	currentUser := iamauth.UserFromContext(r.Context())
+	if currentUser == nil {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
+	if !iamauth.HasPermission(currentUser.Roles, "users:create") && !iamauth.HasPermission(currentUser.Roles, "users:*") {
+		writeError(w, http.StatusForbidden, "forbidden")
+		return
+	}
+
+	var req dto.AdminCreateUserRequest
+	if err := parseBody(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	resp, err := h.userSvc.AdminCreateUser(r.Context(), currentUser.TenantID, &req, currentUser.ID)
+	if err != nil {
+		handleServiceError(w, err)
+		return
+	}
+
+	writeJSON(w, http.StatusCreated, resp)
 }
 
 func (h *UserHandler) List(w http.ResponseWriter, r *http.Request) {

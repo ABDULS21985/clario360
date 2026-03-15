@@ -32,21 +32,25 @@ type ListInstancesRequest struct {
 
 // InstanceResponse wraps a WorkflowInstance for API responses.
 type InstanceResponse struct {
-	ID            string                 `json:"id"`
-	TenantID      string                 `json:"tenant_id"`
-	DefinitionID  string                 `json:"definition_id"`
-	DefinitionVer int                    `json:"definition_ver"`
-	Status        string                 `json:"status"`
-	CurrentStepID *string                `json:"current_step_id,omitempty"`
-	Variables     map[string]interface{} `json:"variables"`
-	StepOutputs   map[string]interface{} `json:"step_outputs"`
-	TriggerData   json.RawMessage        `json:"trigger_data,omitempty"`
-	ErrorMessage  *string                `json:"error_message,omitempty"`
-	StartedBy     *string                `json:"started_by,omitempty"`
-	StartedAt     time.Time              `json:"started_at"`
-	CompletedAt   *time.Time             `json:"completed_at,omitempty"`
-	UpdatedAt     time.Time              `json:"updated_at"`
-	DurationMs    *int64                 `json:"duration_ms,omitempty"`
+	ID              string                 `json:"id"`
+	TenantID        string                 `json:"tenant_id"`
+	DefinitionID    string                 `json:"definition_id"`
+	DefinitionVer   int                    `json:"definition_ver"`
+	DefinitionName  string                 `json:"definition_name,omitempty"`
+	Status          string                 `json:"status"`
+	CurrentStepID   *string                `json:"current_step_id,omitempty"`
+	CurrentStepName *string                `json:"current_step_name,omitempty"`
+	CompletedSteps  int                    `json:"completed_steps"`
+	TotalSteps      int                    `json:"total_steps"`
+	Variables       map[string]interface{} `json:"variables"`
+	StepOutputs     map[string]interface{} `json:"step_outputs"`
+	TriggerData     json.RawMessage        `json:"trigger_data,omitempty"`
+	ErrorMessage    *string                `json:"error_message,omitempty"`
+	StartedBy       *string                `json:"started_by,omitempty"`
+	StartedAt       time.Time              `json:"started_at"`
+	CompletedAt     *time.Time             `json:"completed_at,omitempty"`
+	UpdatedAt       time.Time              `json:"updated_at"`
+	DurationMs      *int64                 `json:"duration_ms,omitempty"`
 }
 
 // ListInstancesResponse is the paginated response for listing instances.

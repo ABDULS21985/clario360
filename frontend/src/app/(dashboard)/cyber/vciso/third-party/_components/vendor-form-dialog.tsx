@@ -137,6 +137,8 @@ export function VendorFormDialog({
       name: name.trim(),
       category,
       risk_tier: riskTier,
+      status: isEditing ? (vendor?.status ?? 'active') : 'active',
+      risk_score: isEditing ? (vendor?.risk_score ?? 0) : 0,
       services_provided: servicesProvided
         .split(',')
         .map((s) => s.trim())
@@ -145,6 +147,9 @@ export function VendorFormDialog({
         .split(',')
         .map((s) => s.trim())
         .filter(Boolean),
+      compliance_frameworks: isEditing ? (vendor?.compliance_frameworks ?? []) : [],
+      controls_met: isEditing ? (vendor?.controls_met ?? 0) : 0,
+      controls_total: isEditing ? (vendor?.controls_total ?? 0) : 0,
       contact_name: contactName.trim() || undefined,
       contact_email: contactEmail.trim() || undefined,
       next_review_date: nextReviewDate,

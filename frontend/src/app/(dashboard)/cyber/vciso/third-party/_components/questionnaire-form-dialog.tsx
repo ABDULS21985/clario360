@@ -119,6 +119,7 @@ export function QuestionnaireFormDialog({
     const payload: Record<string, unknown> = {
       title: title.trim(),
       type,
+      status: isEditing ? (questionnaire?.status ?? 'draft') : 'draft',
       total_questions: parseInt(totalQuestions, 10),
       due_date: dueDate,
       vendor_id: vendorId.trim() || undefined,

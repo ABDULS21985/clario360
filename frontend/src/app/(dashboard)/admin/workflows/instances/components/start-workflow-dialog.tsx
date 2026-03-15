@@ -55,7 +55,7 @@ export function StartWorkflowDialog({
     return activeDefinitions.filter(
       (d) =>
         d.name.toLowerCase().includes(q) ||
-        d.category.toLowerCase().includes(q),
+        (d.category ?? '').toLowerCase().includes(q),
     );
   }, [activeDefinitions, defSearch]);
 
@@ -77,8 +77,8 @@ export function StartWorkflowDialog({
     setSelectedDefId(def.id);
     // Initialize variables with defaults
     const defaults: Record<string, unknown> = {};
-    for (const v of def.variables) {
-      defaults[v.name] = v.default_value ?? getDefaultForType(v.type);
+    for (const [name, v] of Object.entries(def.variables)) {
+      defaults[name] = v.default ?? getDefaultForType(v.type);
     }
     setVariables(defaults);
     setStep(2);
@@ -86,7 +86,7 @@ export function StartWorkflowDialog({
 
   function handleStart() {
     createMutation.mutate(
-      { definition_id: selectedDefId, variables },
+      { definition_id: selectedDefId, input_variables: variables },
       {
         onSuccess: (instance) => {
           handleOpenChange(false);
@@ -146,18 +146,18 @@ export function StartWorkflowDialog({
         {/* Step 2: Variables */}
         {step === 2 && selectedDef && (
           <div className="space-y-3 max-h-80 overflow-y-auto">
-            {selectedDef.variables.length === 0 ? (
+            {Object.keys(selectedDef.variables).length === 0 ? (
               <p className="text-sm text-muted-foreground text-center py-4">
                 This workflow has no input variables.
               </p>
             ) : (
-              selectedDef.variables.map((v) => (
+              Object.entries(selectedDef.variables).map(([name, v]) => (
                 <VariableField
-                  key={v.name}
-                  variable={v}
-                  value={variables[v.name]}
+                  key={name}
+                  variable={{ name, type: v.type as 'string' | 'number' | 'boolean' | 'date' | 'json', default_value: v.default, required: false, description: '' }}
+                  value={variables[name]}
                   onChange={(val) =>
-                    setVariables((prev) => ({ ...prev, [v.name]: val }))
+                    setVariables((prev) => ({ ...prev, [name]: val }))
                   }
                 />
               ))

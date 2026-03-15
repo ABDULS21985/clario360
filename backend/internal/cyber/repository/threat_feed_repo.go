@@ -98,7 +98,7 @@ func (r *ThreatFeedRepository) GetByID(ctx context.Context, tenantID, feedID uui
 	return item, nil
 }
 
-func (r *ThreatFeedRepository) List(ctx context.Context, tenantID uuid.UUID, page, perPage int) ([]*model.ThreatFeedConfig, int, error) {
+func (r *ThreatFeedRepository) List(ctx context.Context, tenantID uuid.UUID, page, perPage int, search, sort, order string) ([]*model.ThreatFeedConfig, int, error) {
 	if page < 1 {
 		page = 1
 	}
@@ -109,27 +109,56 @@ func (r *ThreatFeedRepository) List(ctx context.Context, tenantID uuid.UUID, pag
 		perPage = 200
 	}
 
+	where := " WHERE tenant_id = $1"
+	args := []interface{}{tenantID}
+	argIdx := 2
+
+	if search != "" {
+		where += fmt.Sprintf(" AND (name ILIKE $%d OR url ILIKE $%d)", argIdx, argIdx)
+		args = append(args, "%"+search+"%")
+		argIdx++
+	}
+
 	var total int
-	if err := r.db.QueryRow(ctx, `
-		SELECT COUNT(*)
-		FROM threat_feed_configs
-		WHERE tenant_id = $1`,
-		tenantID,
+	if err := r.db.QueryRow(ctx,
+		"SELECT COUNT(*) FROM threat_feed_configs"+where,
+		args...,
 	).Scan(&total); err != nil {
 		return nil, 0, fmt.Errorf("count threat feed configs: %w", err)
 	}
 
-	rows, err := r.db.Query(ctx, `
+	orderClause := "updated_at DESC, name ASC"
+	switch sort {
+	case "name":
+		orderClause = "name"
+	case "type":
+		orderClause = "type"
+	case "status":
+		orderClause = "status"
+	case "last_sync_at":
+		orderClause = "last_sync_at"
+	case "created_at":
+		orderClause = "created_at"
+	case "updated_at":
+		orderClause = "updated_at"
+	}
+	if sort != "" && order == "asc" {
+		orderClause += " ASC"
+	} else if sort != "" {
+		orderClause += " DESC"
+	}
+
+	dataQuery := fmt.Sprintf(`
 		SELECT
 			id, tenant_id, name, type, url, auth_type, auth_config, sync_interval,
 			default_severity, default_confidence, default_tags, indicator_types,
 			enabled, status, last_sync_at, last_sync_status, last_error, created_by, created_at, updated_at
-		FROM threat_feed_configs
-		WHERE tenant_id = $1
-		ORDER BY updated_at DESC, name ASC
-		LIMIT $2 OFFSET $3`,
-		tenantID, perPage, (page-1)*perPage,
-	)
+		FROM threat_feed_configs%s
+		ORDER BY %s
+		LIMIT $%d OFFSET $%d`, where, orderClause, argIdx, argIdx+1)
+	args = append(args, perPage, (page-1)*perPage)
+
+	rows, err := r.db.Query(ctx, dataQuery, args...)
 	if err != nil {
 		return nil, 0, fmt.Errorf("list threat feed configs: %w", err)
 	}
