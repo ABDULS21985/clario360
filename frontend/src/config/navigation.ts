@@ -98,8 +98,8 @@ export const navigation: NavSection[] = [
     ],
   },
   {
-    id: 'cybersecurity',
-    label: 'CYBERSECURITY',
+    id: 'security-operations',
+    label: 'SECURITY OPERATIONS',
     permission: 'cyber:read',
     items: [
       { id: 'cyber-overview', label: 'Overview', href: '/cyber', icon: Shield },
@@ -119,6 +119,15 @@ export const navigation: NavSection[] = [
       { id: 'cyber-indicators', label: 'IOC Management', href: '/cyber/indicators', icon: Fingerprint, permission: 'cyber:read' },
       { id: 'cyber-feeds', label: 'Threat Feeds', href: '/cyber/threat-feeds', icon: Rss, permission: 'cyber:manage' },
       { id: 'cyber-threats', label: 'Threat Hunting', href: '/cyber/threats', icon: Search },
+      { id: 'cyber-detection', label: 'Detection Rules', href: '/cyber/detection-rules', icon: ShieldCheck, permission: 'cyber:read' },
+      { id: 'cyber-events', label: 'Event Explorer', href: '/cyber/events', icon: Terminal, permission: 'cyber:read' },
+    ],
+  },
+  {
+    id: 'cyber-programs',
+    label: 'CYBER PROGRAMS',
+    permission: 'cyber:read',
+    items: [
       {
         id: 'cyber-ctem',
         label: 'CTEM',
@@ -170,9 +179,7 @@ export const navigation: NavSection[] = [
           { id: 'cyber-vciso-workflows', label: 'Workflows', href: '/cyber/vciso/workflows', icon: ListChecks },
         ],
       },
-      { id: 'cyber-detection', label: 'Detection Rules', href: '/cyber/detection-rules', icon: ShieldCheck, permission: 'cyber:read' },
       { id: 'cyber-mitre', label: 'MITRE ATT&CK', href: '/cyber/mitre-attack', icon: Grid3X3, permission: 'cyber:read' },
-      { id: 'cyber-events', label: 'Event Explorer', href: '/cyber/events', icon: Terminal, permission: 'cyber:read' },
       { id: 'cyber-analytics', label: 'Analytics', href: '/cyber/analytics', icon: TrendingUp, permission: 'cyber:read' },
     ],
   },
@@ -203,28 +210,42 @@ export const navigation: NavSection[] = [
     ],
   },
   {
-    id: 'enterprise',
-    label: 'ENTERPRISE',
-    permission: '*:read',
+    id: 'acta',
+    label: 'ACTA',
+    permission: 'acta:read',
     items: [
-      { id: 'acta-overview', label: 'Acta Overview', href: '/acta', icon: Building2, permission: 'acta:read' },
-      { id: 'acta-committees', label: 'Acta Committees', href: '/acta/committees', icon: Users, permission: 'acta:read' },
-      { id: 'acta-meetings', label: 'Acta Meetings', href: '/acta/meetings', icon: BookOpen, permission: 'acta:read' },
-      { id: 'acta-actions', label: 'Acta Action Items', href: '/acta/action-items', icon: ClipboardList, permission: 'acta:read' },
-      { id: 'lex-overview', label: 'Lex Overview', href: '/lex', icon: Gavel, permission: 'lex:read' },
-      { id: 'lex-contracts', label: 'Lex Contracts', href: '/lex/contracts', icon: FileText, permission: 'lex:read' },
-      { id: 'lex-documents', label: 'Lex Documents', href: '/lex/documents', icon: File, permission: 'lex:read' },
-      { id: 'lex-compliance', label: 'Lex Compliance', href: '/lex/compliance', icon: Scale, permission: 'lex:read' },
-      { id: 'visus-dashboard', label: 'Visus Overview', href: '/visus', icon: Eye, permission: 'visus:read' },
-      { id: 'visus-dashboards', label: 'Visus Dashboards', href: '/visus/dashboards', icon: Layout, permission: 'visus:read' },
-      { id: 'visus-kpis', label: 'Visus KPIs', href: '/visus/kpis', icon: TrendingUp, permission: 'visus:read' },
-      { id: 'visus-reports', label: 'Visus Reports', href: '/visus/reports', icon: FileBarChart, permission: 'visus:read' },
-      { id: 'visus-alerts', label: 'Visus Alerts', href: '/visus/alerts', icon: Bell, permission: 'visus:read' },
+      { id: 'acta-overview', label: 'Overview', href: '/acta', icon: Building2 },
+      { id: 'acta-committees', label: 'Committees', href: '/acta/committees', icon: Users },
+      { id: 'acta-meetings', label: 'Meetings', href: '/acta/meetings', icon: BookOpen },
+      { id: 'acta-actions', label: 'Action Items', href: '/acta/action-items', icon: ClipboardList },
     ],
   },
   {
-    id: 'platform',
-    label: 'PLATFORM',
+    id: 'lex',
+    label: 'LEX',
+    permission: 'lex:read',
+    items: [
+      { id: 'lex-overview', label: 'Overview', href: '/lex', icon: Gavel },
+      { id: 'lex-contracts', label: 'Contracts', href: '/lex/contracts', icon: FileText },
+      { id: 'lex-documents', label: 'Documents', href: '/lex/documents', icon: File },
+      { id: 'lex-compliance', label: 'Compliance', href: '/lex/compliance', icon: Scale },
+    ],
+  },
+  {
+    id: 'visus',
+    label: 'VISUS',
+    permission: 'visus:read',
+    items: [
+      { id: 'visus-dashboard', label: 'Overview', href: '/visus', icon: Eye },
+      { id: 'visus-dashboards', label: 'Dashboards', href: '/visus/dashboards', icon: Layout },
+      { id: 'visus-kpis', label: 'KPIs', href: '/visus/kpis', icon: TrendingUp },
+      { id: 'visus-reports', label: 'Reports', href: '/visus/reports', icon: FileBarChart },
+      { id: 'visus-alerts', label: 'Alerts', href: '/visus/alerts', icon: Bell },
+    ],
+  },
+  {
+    id: 'administration',
+    label: 'ADMINISTRATION',
     permission: 'users:read',
     items: [
       {
@@ -296,6 +317,20 @@ export const navigation: NavSection[] = [
         permission: 'tenant:write',
       },
       {
+        id: 'admin-notification-management',
+        label: 'Notification Mgmt',
+        href: '/admin/notifications',
+        icon: BellRing,
+        permission: 'tenant:write',
+      },
+    ],
+  },
+  {
+    id: 'workspace',
+    label: 'WORKSPACE',
+    permission: '*:read',
+    items: [
+      {
         id: 'admin-workflows',
         label: 'Workflows',
         href: '/workflows',
@@ -329,13 +364,6 @@ export const navigation: NavSection[] = [
       },
       { id: 'admin-files', label: 'Files', href: '/files', icon: File },
       { id: 'admin-notifications', label: 'Notifications', href: '/notifications', icon: Bell },
-      {
-        id: 'admin-notification-management',
-        label: 'Notification Mgmt',
-        href: '/admin/notifications',
-        icon: BellRing,
-        permission: 'tenant:write',
-      },
     ],
   },
 ];

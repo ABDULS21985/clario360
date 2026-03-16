@@ -10,7 +10,7 @@ interface QualityGateResultsProps {
 export function QualityGateResults({
   results,
 }: QualityGateResultsProps) {
-  if (results.length === 0) {
+  if (!results || results.length === 0) {
     return <p className="text-sm text-muted-foreground">No quality gates were evaluated for this run.</p>;
   }
 

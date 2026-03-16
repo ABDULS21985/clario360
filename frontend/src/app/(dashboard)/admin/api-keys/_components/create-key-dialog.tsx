@@ -78,14 +78,18 @@ export function CreateKeyDialog({ open, onOpenChange, onCreated }: CreateKeyDial
   };
 
   const handleCreate = async () => {
-    const name = getValues("name");
-    const result = await createMutation.mutateAsync({
-      name,
-      scopes: selectedScopes,
-      expires_at: neverExpires || !expiryDate ? null : expiryDate.toISOString(),
-    });
-    handleClose();
-    onCreated(result.secret);
+    try {
+      const name = getValues("name");
+      const result = await createMutation.mutateAsync({
+        name,
+        scopes: selectedScopes,
+        expires_at: neverExpires || !expiryDate ? null : expiryDate.toISOString(),
+      });
+      handleClose();
+      onCreated(result.secret);
+    } catch {
+      // Error toast is handled by the mutation's onError callback
+    }
   };
 
   return (
