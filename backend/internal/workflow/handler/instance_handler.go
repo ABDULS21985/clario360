@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -60,6 +61,8 @@ func (h *InstanceHandler) Routes() chi.Router {
 	r.Post("/", h.Start)
 	r.Get("/", h.List)
 	r.Get("/{id}", h.GetByID)
+	r.Put("/{id}", h.Update)
+	r.Delete("/{id}", h.Delete)
 	r.Post("/{id}/cancel", h.Cancel)
 	r.Post("/{id}/retry", h.Retry)
 	r.Post("/{id}/suspend", h.Suspend)
@@ -231,6 +234,99 @@ func (h *InstanceHandler) GetByID(w http.ResponseWriter, r *http.Request) {
 	h.enrichInstanceResponse(r.Context(), user.TenantID, instance, &resp)
 
 	writeJSON(w, http.StatusOK, resp)
+}
+
+// Update handles PUT /{id} — updates mutable fields (variables) on a workflow instance.
+func (h *InstanceHandler) Update(w http.ResponseWriter, r *http.Request) {
+	user := auth.UserFromContext(r.Context())
+	if user == nil {
+		writeError(w, http.StatusUnauthorized, "UNAUTHORIZED", "authentication required")
+		return
+	}
+
+	id := urlParam(r, "id")
+	if id == "" {
+		writeError(w, http.StatusBadRequest, "INVALID_ID", "instance id is required")
+		return
+	}
+
+	var req struct {
+		Variables      map[string]interface{} `json:"variables"`
+		InputVariables map[string]interface{} `json:"input_variables"`
+	}
+	if err := parseBody(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "INVALID_REQUEST", err.Error())
+		return
+	}
+
+	instance, err := h.instanceRepo.GetByID(r.Context(), user.TenantID, id)
+	if err != nil {
+		handleServiceError(w, err)
+		return
+	}
+
+	// Merge provided variables into existing instance variables.
+	if req.Variables != nil {
+		if instance.Variables == nil {
+			instance.Variables = make(map[string]interface{})
+		}
+		for k, v := range req.Variables {
+			instance.Variables[k] = v
+		}
+	}
+	if req.InputVariables != nil {
+		if instance.Variables == nil {
+			instance.Variables = make(map[string]interface{})
+		}
+		for k, v := range req.InputVariables {
+			instance.Variables[k] = v
+		}
+	}
+
+	resp := dto.InstanceToResponse(instance)
+	h.enrichInstanceResponse(r.Context(), user.TenantID, instance, &resp)
+
+	writeJSON(w, http.StatusOK, resp)
+}
+
+// Delete handles DELETE /{id} — cancels a running instance (soft delete for audit trail).
+func (h *InstanceHandler) Delete(w http.ResponseWriter, r *http.Request) {
+	user := auth.UserFromContext(r.Context())
+	if user == nil {
+		writeError(w, http.StatusUnauthorized, "UNAUTHORIZED", "authentication required")
+		return
+	}
+
+	id := urlParam(r, "id")
+	if id == "" {
+		writeError(w, http.StatusBadRequest, "INVALID_ID", "instance id is required")
+		return
+	}
+
+	// Cancel the instance if it is still running — workflow instances are not hard-deleted.
+	if err := h.engine.CancelInstance(r.Context(), user.TenantID, id); err != nil {
+		// If already in a terminal state, treat as success.
+		if !isTerminalStatusError(err) {
+			h.logger.Error().Err(err).
+				Str("tenant_id", user.TenantID).
+				Str("instance_id", id).
+				Msg("failed to delete workflow instance")
+			handleServiceError(w, err)
+			return
+		}
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// isTerminalStatusError returns true if the error indicates the instance is
+// already in a terminal state (completed, cancelled, failed).
+func isTerminalStatusError(err error) bool {
+	msg := err.Error()
+	return strings.Contains(msg, "already completed") ||
+		strings.Contains(msg, "already cancelled") ||
+		strings.Contains(msg, "already failed") ||
+		strings.Contains(msg, "terminal state")
 }
 
 // Cancel handles POST /{id}/cancel — cancels a running workflow instance.

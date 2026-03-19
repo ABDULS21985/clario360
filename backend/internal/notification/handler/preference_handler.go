@@ -218,7 +218,13 @@ func (h *PreferenceHandler) UpdateWebhook(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+	// Return the updated webhook so the frontend receives the full NotificationWebhook object.
+	updated, err := h.webhookRepo.FindByID(r.Context(), tenantID, id)
+	if err != nil || updated == nil {
+		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+		return
+	}
+	writeJSON(w, http.StatusOK, updated)
 }
 
 // DeleteWebhook handles DELETE /api/v1/notifications/webhooks/{id}.

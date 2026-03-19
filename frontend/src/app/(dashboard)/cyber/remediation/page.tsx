@@ -54,8 +54,8 @@ export default function CyberRemediationPage() {
       bg: 'bg-amber-50 dark:bg-amber-950/20',
     },
     {
-      label: 'Execution Pending',
-      value: stats?.execution_pending ?? 0,
+      label: 'Executing',
+      value: stats?.executing ?? 0,
       icon: PlayCircle,
       color: 'text-blue-600',
       bg: 'bg-blue-50 dark:bg-blue-950/20',
@@ -69,7 +69,7 @@ export default function CyberRemediationPage() {
     },
     {
       label: 'Verified & Closed',
-      value: (stats?.by_status?.['verified'] ?? 0) + (stats?.by_status?.['closed'] ?? 0),
+      value: (stats?.verified ?? 0) + (stats?.closed ?? 0),
       icon: CheckCircle,
       color: 'text-green-600',
       bg: 'bg-green-50 dark:bg-green-950/20',
@@ -103,7 +103,7 @@ export default function CyberRemediationPage() {
       key: 'type',
       label: 'Type',
       type: 'multi-select' as const,
-      options: ['patch', 'config_change', 'firewall_rule', 'user_action', 'script', 'manual'].map((t) => ({
+      options: ['patch', 'config_change', 'block_ip', 'isolate_asset', 'firewall_rule', 'access_revoke', 'certificate_renew', 'custom'].map((t) => ({
         label: t.replace(/_/g, ' '),
         value: t,
       })),
@@ -144,31 +144,29 @@ export default function CyberRemediationPage() {
           ))}
         </div>
 
-        {/* Severity breakdown bar */}
+        {/* Status breakdown bar */}
         {stats && (
           <div className="rounded-xl border bg-card p-4">
-            <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">By Severity</p>
-            <div className="flex items-center gap-4">
-              {(['critical', 'high', 'medium', 'low'] as const).map((sev) => {
-                const count = stats.by_severity?.[sev] ?? 0;
-                const colors: Record<string, string> = {
-                  critical: 'bg-red-500 text-red-700',
-                  high: 'bg-orange-500 text-orange-700',
-                  medium: 'bg-amber-500 text-amber-700',
-                  low: 'bg-blue-400 text-blue-700',
-                };
-                return (
-                  <div key={sev} className="flex items-center gap-2">
-                    <span className={`h-2.5 w-2.5 rounded-full ${colors[sev]?.split(' ')[0]}`} />
-                    <span className="capitalize text-sm font-medium">{sev}</span>
-                    <span className={`text-sm font-bold ${colors[sev]?.split(' ')[1]}`}>{count}</span>
-                  </div>
-                );
-              })}
-              {(stats.by_status?.['rollback_pending'] ?? 0) + (stats.by_status?.['rollback_failed'] ?? 0) > 0 && (
+            <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">By Status</p>
+            <div className="flex items-center gap-4 flex-wrap">
+              {([
+                { label: 'Pending', value: stats.pending_approval, color: 'bg-amber-500 text-amber-700' },
+                { label: 'Executing', value: stats.executing, color: 'bg-blue-500 text-blue-700' },
+                { label: 'Verified', value: stats.verified, color: 'bg-green-500 text-green-700' },
+                { label: 'Failed', value: stats.failed, color: 'bg-red-500 text-red-700' },
+                { label: 'Rolled Back', value: stats.rolled_back, color: 'bg-orange-500 text-orange-700' },
+                { label: 'Closed', value: stats.closed, color: 'bg-slate-400 text-slate-700' },
+              ] as const).map(({ label, value, color }) => (
+                <div key={label} className="flex items-center gap-2">
+                  <span className={`h-2.5 w-2.5 rounded-full ${color.split(' ')[0]}`} />
+                  <span className="text-sm font-medium">{label}</span>
+                  <span className={`text-sm font-bold ${color.split(' ')[1]}`}>{value}</span>
+                </div>
+              ))}
+              {(stats.rolled_back > 0 || stats.verification_failed > 0) && (
                 <div className="ml-auto flex items-center gap-1.5 rounded-full bg-orange-100 px-3 py-1 text-xs font-medium text-orange-700">
                   <AlertTriangle className="h-3.5 w-3.5" />
-                  {(stats.by_status?.['rollback_pending'] ?? 0) + (stats.by_status?.['rollback_failed'] ?? 0)} rollback issue(s)
+                  {stats.rolled_back + stats.verification_failed} issue(s)
                 </div>
               )}
             </div>

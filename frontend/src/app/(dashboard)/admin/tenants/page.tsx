@@ -155,7 +155,7 @@ export default function TenantsPage() {
         label: "Suspend",
         onClick: async (t: Tenant) => {
           try {
-            await api.put(`/api/v1/tenants/${t.id}`, { status: "suspended" });
+            await api.put(`/api/v1/tenants/${t.id}/status`, { status: "suspended" });
             toast.success("Tenant suspended");
             refetch();
           } catch (error) {
@@ -168,7 +168,7 @@ export default function TenantsPage() {
         label: "Activate",
         onClick: async (t: Tenant) => {
           try {
-            await api.put(`/api/v1/tenants/${t.id}`, { status: "active" });
+            await api.put(`/api/v1/tenants/${t.id}/status`, { status: "active" });
             toast.success("Tenant activated");
             refetch();
           } catch (error) {

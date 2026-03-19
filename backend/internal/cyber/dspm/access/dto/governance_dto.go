@@ -96,8 +96,7 @@ type PolicyListResponse struct {
 
 // PolicyViolationListResponse wraps a list of policy violations.
 type PolicyViolationListResponse struct {
-	Data  []model.PolicyViolation `json:"data"`
-	Total int                     `json:"total"`
+	Data []model.PolicyViolation `json:"data"`
 }
 
 // RecommendationListResponse wraps a list of recommendations.

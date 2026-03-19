@@ -81,17 +81,19 @@ type AuditResourceStat struct {
 // AuditStats holds aggregated statistics for the audit dashboard.
 // Field names match the frontend AuditLogStats interface exactly.
 type AuditStats struct {
-	TotalEvents    int64                 `json:"total_events"`
-	EventsToday    int64                 `json:"events_today"`
-	UniqueUsers    int64                 `json:"unique_users"`
-	UniqueServices int64                 `json:"unique_services"`
-	ByService      []AuditGroupStat      `json:"by_service"`
-	ByAction       []AuditGroupStat      `json:"by_action"`
-	BySeverity     []AuditGroupStat      `json:"by_severity"`
-	ByHour         []AuditTimeseriesStat `json:"by_hour"`
-	ByDay          []AuditTimeseriesStat `json:"by_day"`
-	TopUsers       []AuditUserStat       `json:"top_users"`
-	TopResources   []AuditResourceStat   `json:"top_resources"`
+	TotalEvents     int64                 `json:"total_events"`
+	EventsToday     int64                 `json:"events_today"`
+	EventsThisWeek  int64                 `json:"events_this_week"`
+	EventsThisMonth int64                 `json:"events_this_month"`
+	UniqueUsers     int64                 `json:"unique_users"`
+	UniqueServices  int64                 `json:"unique_services"`
+	ByService       []AuditGroupStat      `json:"by_service"`
+	ByAction        []AuditGroupStat      `json:"by_action"`
+	BySeverity      []AuditGroupStat      `json:"by_severity"`
+	ByHour          []AuditTimeseriesStat `json:"by_hour"`
+	ByDay           []AuditTimeseriesStat `json:"by_day"`
+	TopUsers        []AuditUserStat       `json:"top_users"`
+	TopResources    []AuditResourceStat   `json:"top_resources"`
 }
 
 // ──────────────────────────────────────────────────────────────────────────────

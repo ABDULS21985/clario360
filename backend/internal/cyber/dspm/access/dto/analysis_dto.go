@@ -6,14 +6,12 @@ import (
 
 // OverprivilegeListResponse is returned for the overprivileged mappings endpoint.
 type OverprivilegeListResponse struct {
-	Data  []model.OverprivilegeResult `json:"data"`
-	Total int                         `json:"total"`
+	Data []model.OverprivilegeResult `json:"data"`
 }
 
 // StaleAccessListResponse is returned for the stale mappings endpoint.
 type StaleAccessListResponse struct {
-	Data  []model.StaleAccessResult `json:"data"`
-	Total int                       `json:"total"`
+	Data []model.StaleAccessResult `json:"data"`
 }
 
 // BlastRadiusResponse wraps a blast radius calculation result.
@@ -23,14 +21,12 @@ type BlastRadiusResponse struct {
 
 // RiskRankingResponse wraps the risk-ranked identity list.
 type RiskRankingResponse struct {
-	Data  []model.IdentityProfile `json:"data"`
-	Total int                     `json:"total"`
+	Data []model.IdentityProfile `json:"data"`
 }
 
 // BlastRadiusRankingResponse wraps the blast-radius-ranked identity list.
 type BlastRadiusRankingResponse struct {
-	Data  []model.IdentityProfile `json:"data"`
-	Total int                     `json:"total"`
+	Data []model.IdentityProfile `json:"data"`
 }
 
 // EscalationPathResponse wraps escalation path results.
@@ -40,8 +36,7 @@ type EscalationPathResponse struct {
 
 // CrossAssetResponse wraps cross-asset analysis results.
 type CrossAssetResponse struct {
-	Data  []model.CrossAssetResult `json:"data"`
-	Total int                      `json:"total"`
+	Data []model.CrossAssetResult `json:"data"`
 }
 
 // AuditListParams are query parameters for listing audit events.

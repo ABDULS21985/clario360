@@ -232,12 +232,35 @@ func (r *AuditRepository) GetStats(ctx context.Context, tenantID string, dateFro
 	}
 
 	// Events today (UTC calendar day)
-	todayStart := time.Now().UTC().Truncate(24 * time.Hour)
+	now := time.Now().UTC()
+	todayStart := now.Truncate(24 * time.Hour)
 	if err = r.db.QueryRow(ctx,
 		`SELECT COUNT(*) FROM audit_logs WHERE tenant_id = $1::uuid AND created_at >= $2::timestamptz`,
 		tenantID, todayStart,
 	).Scan(&stats.EventsToday); err != nil {
 		return nil, fmt.Errorf("count events today: %w", err)
+	}
+
+	// Events this week (ISO week, Monday start)
+	weekday := int(now.Weekday())
+	if weekday == 0 {
+		weekday = 7
+	}
+	weekStart := todayStart.AddDate(0, 0, -(weekday - 1))
+	if err = r.db.QueryRow(ctx,
+		`SELECT COUNT(*) FROM audit_logs WHERE tenant_id = $1::uuid AND created_at >= $2::timestamptz`,
+		tenantID, weekStart,
+	).Scan(&stats.EventsThisWeek); err != nil {
+		return nil, fmt.Errorf("count events this week: %w", err)
+	}
+
+	// Events this month (first day of current month)
+	monthStart := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.UTC)
+	if err = r.db.QueryRow(ctx,
+		`SELECT COUNT(*) FROM audit_logs WHERE tenant_id = $1::uuid AND created_at >= $2::timestamptz`,
+		tenantID, monthStart,
+	).Scan(&stats.EventsThisMonth); err != nil {
+		return nil, fmt.Errorf("count events this month: %w", err)
 	}
 
 	// Unique users in range

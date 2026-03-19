@@ -137,7 +137,13 @@ func (h *BenchmarkHandler) UpdateServerStatus(w http.ResponseWriter, r *http.Req
 		writeError(h.logger, w, r, err)
 		return
 	}
-	suiteapi.WriteData(w, http.StatusOK, map[string]string{"status": "updated"})
+	// Return the updated server so the frontend receives a full AIInferenceServer object.
+	updated, err := h.svc.GetServer(r.Context(), tid, serverID)
+	if err != nil {
+		writeError(h.logger, w, r, err)
+		return
+	}
+	suiteapi.WriteData(w, http.StatusOK, updated)
 }
 
 func (h *BenchmarkHandler) DeleteServer(w http.ResponseWriter, r *http.Request) {
@@ -401,7 +407,7 @@ func (h *BenchmarkHandler) ListCostModels(w http.ResponseWriter, r *http.Request
 		writeError(h.logger, w, r, err)
 		return
 	}
-	suiteapi.WriteData(w, http.StatusOK, map[string]any{"items": items})
+	suiteapi.WriteData(w, http.StatusOK, items)
 }
 
 func (h *BenchmarkHandler) EstimateCostSavings(w http.ResponseWriter, r *http.Request) {

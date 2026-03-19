@@ -32,6 +32,7 @@ import type {
   AIBenchmarkRun,
   AIBenchmarkComparison,
   AIComputeCostModel,
+  CostSavingsEstimate,
 } from '@/types/ai-governance';
 import type {
   ActaActionItem,
@@ -563,7 +564,7 @@ export const enterpriseApi = {
     getServer: (id: string): Promise<AIInferenceServer> => fetchSuiteData(`/api/v1/ai/inference-servers/${id}`),
     updateServerStatus: (id: string, payload: { status: string }) =>
       apiPut<{ data: AIInferenceServer }>(`/api/v1/ai/inference-servers/${id}/status`, payload).then((res) => res.data),
-    deleteServer: (id: string) => apiDelete<{ message: string }>(`/api/v1/ai/inference-servers/${id}`),
+    deleteServer: (id: string) => apiDelete<{ data: AIInferenceServer }>(`/api/v1/ai/inference-servers/${id}`),
 
     // ── Benchmark Suites ───────────────────────────
     createBenchmarkSuite: (payload: Omit<AIBenchmarkSuite, 'id' | 'tenant_id' | 'created_by' | 'created_at' | 'updated_at'>): Promise<AIBenchmarkSuite> =>
@@ -583,8 +584,8 @@ export const enterpriseApi = {
     createCostModel: (payload: Omit<AIComputeCostModel, 'id' | 'tenant_id' | 'created_at'>): Promise<AIComputeCostModel> =>
       apiPost<{ data: AIComputeCostModel }>('/api/v1/ai/compute-costs', payload).then((res) => res.data),
     listCostModels: (): Promise<AIComputeCostModel[]> => fetchSuiteData('/api/v1/ai/compute-costs'),
-    estimateCostSavings: (payload: { cpu_run_id: string; gpu_run_id: string; monthly_predictions: number }): Promise<{ monthly_savings_usd: number; annual_savings_usd: number; latency_trade_off_ms: number }> =>
-      apiPost<{ data: { monthly_savings_usd: number; annual_savings_usd: number; latency_trade_off_ms: number } }>('/api/v1/ai/compute-costs/estimate', payload).then((res) => res.data),
+    estimateCostSavings: (payload: { cpu_run_id: string; gpu_run_id: string }): Promise<CostSavingsEstimate> =>
+      apiPost<{ data: CostSavingsEstimate }>('/api/v1/ai/compute-costs/estimate', payload).then((res) => res.data),
   },
 };
 

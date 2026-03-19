@@ -381,17 +381,15 @@ type UpdateApprovalRequest struct {
 
 // GovernanceListResponse wraps a paginated governance list for the handler layer.
 type GovernanceListResponse struct {
-	Data       interface{}    `json:"data"`
-	Meta       PaginationMeta `json:"meta"`
-	Total      int            `json:"total"`
+	Data interface{}    `json:"data"`
+	Meta PaginationMeta `json:"meta"`
 }
 
 // NewGovernanceListResponse builds a paginated response.
 func NewGovernanceListResponse(data interface{}, page, perPage, total int) *GovernanceListResponse {
 	return &GovernanceListResponse{
-		Data:  data,
-		Meta:  NewPaginationMeta(page, perPage, total),
-		Total: total,
+		Data: data,
+		Meta: NewPaginationMeta(page, perPage, total),
 	}
 }
 

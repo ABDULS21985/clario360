@@ -8,7 +8,7 @@ import type { DeliveryStats, TestNotificationRequest, RetryFailedRequest } from 
 
 interface DeliveryStatsParams {
   period?: '7d' | '30d' | '90d';
-  channel?: 'email' | 'in_app' | 'push' | 'webhook';
+  channel?: 'email' | 'in_app' | 'websocket' | 'webhook';
 }
 
 export function useDeliveryStats(params?: DeliveryStatsParams) {

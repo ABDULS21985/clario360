@@ -203,6 +203,11 @@ func (s *NotificationService) Delete(ctx context.Context, tenantID, userID, id s
 	return s.notifRepo.Delete(ctx, tenantID, userID, id)
 }
 
+// BulkDelete deletes multiple notifications by ID.
+func (s *NotificationService) BulkDelete(ctx context.Context, tenantID, userID string, ids []string) (int64, error) {
+	return s.notifRepo.BulkDelete(ctx, tenantID, userID, ids)
+}
+
 // UnreadCount returns the unread notification count.
 func (s *NotificationService) UnreadCount(ctx context.Context, tenantID, userID string) (int64, error) {
 	return s.notifRepo.UnreadCount(ctx, tenantID, userID)

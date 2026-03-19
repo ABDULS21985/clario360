@@ -28,42 +28,16 @@ export interface Role {
   updated_at: string;
 }
 
-export interface Tenant {
-  id: string;
-  name: string;
-  slug: string;
-  status: TenantStatus;
-  settings: TenantSettings;
-  max_users: number;
-  created_at: string;
-  updated_at: string;
-}
-
-export type TenantStatus = 'active' | 'suspended' | 'deactivated';
-
-export interface TenantSettings {
-  self_registration_enabled: boolean;
-  mfa_required: boolean;
-  session_timeout_minutes: number;
-  password_policy: PasswordPolicy;
-  branding: BrandingSettings;
-}
-
-export interface PasswordPolicy {
-  min_length: number;
-  require_uppercase: boolean;
-  require_lowercase: boolean;
-  require_digit: boolean;
-  require_special: boolean;
-  max_age_days: number;
-}
-
-export interface BrandingSettings {
-  primary_color: string;
-  accent_color: string;
-  logo_url: string | null;
-  app_name: string;
-}
+// Tenant types — re-exported from the canonical tenant.ts to avoid duplication.
+// tenant.ts is aligned with the backend iam/dto/tenant_dto.go contract.
+export type {
+  Tenant,
+  TenantStatus,
+  SubscriptionTier,
+  TenantSettings,
+  TenantBranding,
+  TenantPasswordPolicy,
+} from './tenant';
 
 export type SuiteName = 'cyber' | 'data' | 'acta' | 'lex' | 'visus';
 
@@ -103,7 +77,7 @@ export interface WorkflowTask {
   name: string;
   workflow_id: string;
   workflow_name: string;
-  status: 'pending' | 'claimed' | 'completed' | 'failed' | 'overdue';
+  status: 'pending' | 'claimed' | 'completed' | 'rejected' | 'escalated' | 'cancelled';
   assigned_to: string | null;
   due_at: string | null;
   created_at: string;
@@ -156,7 +130,7 @@ export interface HumanTask {
   updated_at: string;
 }
 
-export type StepType = 'human_task' | 'service_task' | 'condition' | 'parallel_gateway' | 'timer' | 'end';
+export type StepType = 'human_task' | 'service_task' | 'event_task' | 'condition' | 'parallel_gateway' | 'timer' | 'end';
 export type StepStatus = 'completed' | 'running' | 'failed' | 'pending' | 'skipped' | 'cancelled';
 
 export interface StepDefinition {
@@ -333,7 +307,7 @@ export interface Alert {
 
 // ── Workflow Definition types ──
 
-export type WorkflowDefinitionStatus = 'draft' | 'active' | 'archived';
+export type WorkflowDefinitionStatus = 'draft' | 'active' | 'deprecated' | 'archived';
 export type WorkflowCategory = 'approval' | 'onboarding' | 'review' | 'escalation' | 'notification' | 'data_pipeline' | 'compliance' | 'custom';
 
 // Backend DTO shapes — these match what the API actually returns
@@ -364,7 +338,7 @@ export interface BackendVariableDef {
 }
 
 export interface WorkflowTrigger {
-  type: 'manual' | 'event' | 'schedule' | 'webhook';
+  type: 'manual' | 'event' | 'schedule';
   event_type?: string;
   schedule_cron?: string;
   webhook_path?: string;
@@ -615,7 +589,7 @@ export type NotificationType =
 
 export interface TestNotificationRequest {
   type: NotificationType;
-  channel: 'email' | 'in_app' | 'push' | 'webhook';
+  channel: 'email' | 'in_app' | 'websocket' | 'webhook';
   recipient_user_id?: string;
   webhook_id?: string;
 }

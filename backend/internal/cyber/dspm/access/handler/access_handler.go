@@ -192,8 +192,7 @@ func (h *AccessIntelligenceHandler) GetOverprivileged(w http.ResponseWriter, r *
 		return
 	}
 	writeJSON(w, http.StatusOK, dto.OverprivilegeListResponse{
-		Data:  results,
-		Total: len(results),
+		Data: results,
 	})
 }
 
@@ -208,8 +207,7 @@ func (h *AccessIntelligenceHandler) GetStaleAccess(w http.ResponseWriter, r *htt
 		return
 	}
 	writeJSON(w, http.StatusOK, dto.StaleAccessListResponse{
-		Data:  results,
-		Total: len(results),
+		Data: results,
 	})
 }
 
@@ -226,8 +224,7 @@ func (h *AccessIntelligenceHandler) GetRiskRanking(w http.ResponseWriter, r *htt
 		return
 	}
 	writeJSON(w, http.StatusOK, dto.RiskRankingResponse{
-		Data:  items,
-		Total: len(items),
+		Data: items,
 	})
 }
 
@@ -242,8 +239,7 @@ func (h *AccessIntelligenceHandler) GetBlastRadiusRanking(w http.ResponseWriter,
 		return
 	}
 	writeJSON(w, http.StatusOK, dto.BlastRadiusRankingResponse{
-		Data:  items,
-		Total: len(items),
+		Data: items,
 	})
 }
 
@@ -271,8 +267,7 @@ func (h *AccessIntelligenceHandler) GetCrossAsset(w http.ResponseWriter, r *http
 		return
 	}
 	writeJSON(w, http.StatusOK, dto.CrossAssetResponse{
-		Data:  results,
-		Total: len(results),
+		Data: results,
 	})
 }
 
@@ -364,8 +359,7 @@ func (h *AccessIntelligenceHandler) GetPolicyViolations(w http.ResponseWriter, r
 		return
 	}
 	writeJSON(w, http.StatusOK, dto.PolicyViolationListResponse{
-		Data:  violations,
-		Total: len(violations),
+		Data: violations,
 	})
 }
 

@@ -39,12 +39,14 @@ func (h *EventHandler) ListEvents(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "LIST_FAILED", err.Error(), nil)
 		return
 	}
+	totalPages := (total + params.PerPage - 1) / params.PerPage
 	writeJSON(w, http.StatusOK, envelope{
 		"data": events,
 		"meta": envelope{
-			"total":    total,
-			"page":     params.Page,
-			"per_page": params.PerPage,
+			"total":       total,
+			"page":        params.Page,
+			"per_page":    params.PerPage,
+			"total_pages": totalPages,
 		},
 	})
 }

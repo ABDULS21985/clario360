@@ -56,6 +56,13 @@ type UpdateCommitteeRequest struct {
 	Status           string         `json:"status"`
 	Tags             []string       `json:"tags"`
 	Metadata         map[string]any `json:"metadata"`
+	// Name/email fields accepted from frontend (used for member management).
+	ChairName      string  `json:"chair_name"`
+	ChairEmail     string  `json:"chair_email"`
+	ViceChairName  *string `json:"vice_chair_name"`
+	ViceChairEmail *string `json:"vice_chair_email"`
+	SecretaryName  *string `json:"secretary_name"`
+	SecretaryEmail *string `json:"secretary_email"`
 }
 
 func (r *UpdateCommitteeRequest) Normalize() {

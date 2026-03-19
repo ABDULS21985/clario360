@@ -274,7 +274,13 @@ func (h *DefinitionHandler) Activate(w http.ResponseWriter, r *http.Request) {
 		Str("user_id", user.ID).
 		Msg("workflow definition activated")
 
-	writeJSON(w, http.StatusOK, map[string]string{"message": "definition activated"})
+	// Return the updated definition so the frontend can update its cache.
+	updated, err := h.service.GetByID(r.Context(), user.TenantID, id)
+	if err != nil {
+		handleServiceError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, dto.DefinitionToResponse(updated))
 }
 
 // ListVersions handles GET /{id}/versions — lists all versions of a workflow definition.
@@ -340,7 +346,13 @@ func (h *DefinitionHandler) Archive(w http.ResponseWriter, r *http.Request) {
 		Str("user_id", user.ID).
 		Msg("workflow definition archived")
 
-	writeJSON(w, http.StatusOK, map[string]string{"message": "definition archived"})
+	// Return the updated definition so the frontend can update its cache.
+	updated, err := h.service.GetByID(r.Context(), user.TenantID, id)
+	if err != nil {
+		handleServiceError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, dto.DefinitionToResponse(updated))
 }
 
 // Clone handles POST /{id}/clone — creates a copy of a workflow definition in draft status.

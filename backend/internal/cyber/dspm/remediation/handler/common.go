@@ -106,6 +106,24 @@ func parseCSV(s string) []string {
 	return result
 }
 
+// writePaginated writes a standard paginated response with {data, meta} envelope
+// matching the frontend PaginatedResponse<T> contract.
+func writePaginated(w http.ResponseWriter, status int, data any, page, perPage, total int) {
+	totalPages := total / perPage
+	if total%perPage != 0 {
+		totalPages++
+	}
+	writeJSON(w, status, envelope{
+		"data": data,
+		"meta": map[string]int{
+			"page":        page,
+			"per_page":    perPage,
+			"total":       total,
+			"total_pages": totalPages,
+		},
+	})
+}
+
 func boolPtr(s string) *bool {
 	if s == "" {
 		return nil

@@ -35,7 +35,10 @@ export default function CTEMAssessmentDetailPage({ params }: Props) {
   const { data: envelope, isLoading, error, refetch } = useQuery({
     queryKey: [`ctem-assessment-${id}`],
     queryFn: () => apiGet<{ data: CTEMAssessment }>(`${API_ENDPOINTS.CYBER_CTEM_ASSESSMENTS}/${id}`),
-    refetchInterval: (q) => q.state.data?.data.status === 'running' ? 10000 : false,
+    refetchInterval: (q) => {
+      const s = q.state.data?.data.status;
+      return s && !['completed', 'failed', 'cancelled'].includes(s) ? 10000 : false;
+    },
   });
 
   const assessment = envelope?.data;

@@ -26,6 +26,7 @@ func (h *UserHandler) Routes() chi.Router {
 
 	// /users/me routes (must be before /{id} to avoid conflict)
 	r.Get("/me", h.GetProfile)
+	r.Put("/me", h.UpdateProfile)
 	r.Put("/me/password", h.ChangePassword)
 	r.Get("/me/sessions", h.ListSessions)
 	r.Delete("/me/sessions", h.DeleteSessions)
@@ -210,6 +211,28 @@ func (h *UserHandler) UpdateStatus(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, dto.MessageResponse{Message: "user status updated"})
+}
+
+func (h *UserHandler) UpdateProfile(w http.ResponseWriter, r *http.Request) {
+	currentUser := iamauth.UserFromContext(r.Context())
+	if currentUser == nil {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
+	var req dto.UpdateUserRequest
+	if err := parseBody(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	resp, err := h.userSvc.Update(r.Context(), currentUser.ID, &req, currentUser.ID)
+	if err != nil {
+		handleServiceError(w, err)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, resp)
 }
 
 func (h *UserHandler) GetProfile(w http.ResponseWriter, r *http.Request) {

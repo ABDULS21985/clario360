@@ -552,3 +552,14 @@ export interface AIComputeCostModel {
   notes?: string | null;
   created_at: string;
 }
+
+/** Matches the backend benchmark_service.go EstimateCostSavings response shape. */
+export interface CostSavingsEstimate {
+  cpu_monthly_cost: number;
+  gpu_monthly_cost: number;
+  monthly_savings: number;
+  savings_percent: number;
+  cpu_tokens_per_sec: number;
+  gpu_tokens_per_sec: number;
+  latency_increase_pct: number;
+}

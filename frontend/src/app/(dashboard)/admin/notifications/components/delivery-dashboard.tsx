@@ -13,7 +13,7 @@ import { Send, CheckCircle, XCircle, Clock, TrendingUp, RotateCw } from 'lucide-
 import { DeliveryCharts } from './delivery-charts';
 
 type Period = '7d' | '30d' | '90d';
-type Channel = 'email' | 'in_app' | 'push' | 'webhook' | undefined;
+type Channel = 'email' | 'in_app' | 'websocket' | 'webhook' | undefined;
 
 export function DeliveryDashboard() {
   const [period, setPeriod] = useState<Period>('7d');
@@ -22,7 +22,7 @@ export function DeliveryDashboard() {
 
   const { data: stats, isLoading, isError, refetch } = useDeliveryStats({
     period,
-    channel: channel as 'email' | 'in_app' | 'push' | 'webhook' | undefined,
+    channel: channel as 'email' | 'in_app' | 'websocket' | 'webhook' | undefined,
   });
 
   const retryMutation = useRetryFailedDeliveries();
@@ -67,7 +67,7 @@ export function DeliveryDashboard() {
             { value: undefined, label: 'All' },
             { value: 'email' as const, label: 'Email' },
             { value: 'in_app' as const, label: 'In-App' },
-            { value: 'push' as const, label: 'Push' },
+            { value: 'websocket' as const, label: 'Real-time' },
             { value: 'webhook' as const, label: 'Webhook' },
           ].map((ch) => (
             <Button

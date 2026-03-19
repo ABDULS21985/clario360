@@ -23,7 +23,7 @@ const statusVariant = (
       return 'destructive';
     case 'in_remediation':
       return 'default';
-    case 'resolved':
+    case 'remediated':
       return 'secondary';
     default:
       return 'outline';
@@ -33,9 +33,10 @@ const statusVariant = (
 const statusLabel: Record<CTEMFinding['status'], string> = {
   open: 'Open',
   in_remediation: 'In Remediation',
-  resolved: 'Resolved',
-  accepted: 'Accepted',
+  remediated: 'Remediated',
+  accepted_risk: 'Accepted Risk',
   false_positive: 'False Positive',
+  deferred: 'Deferred',
 };
 
 export function AssessmentReportView({ assessment }: { assessment: CTEMAssessment }) {

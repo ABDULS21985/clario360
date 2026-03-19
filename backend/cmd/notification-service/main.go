@@ -337,6 +337,7 @@ func main() {
 		r.Get("/unread-count", notifHandler.UnreadCount)
 		r.Get("/read-all", notifHandler.MarkAllRead) // PUT mapped to GET for simplicity; see below
 		r.Put("/read-all", notifHandler.MarkAllRead)
+		r.Post("/bulk", notifHandler.BulkDeleteNotifications)
 		r.Get("/{id}", notifHandler.GetNotification)
 		r.Put("/{id}/read", notifHandler.MarkRead)
 		r.Delete("/{id}", notifHandler.DeleteNotification)

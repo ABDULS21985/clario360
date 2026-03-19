@@ -34,13 +34,13 @@ const NOTIFICATION_TYPES: { value: NotificationType; label: string }[] = [
 const CHANNELS = [
   { value: 'email', label: 'Email' },
   { value: 'in_app', label: 'In-App' },
-  { value: 'push', label: 'Push' },
+  { value: 'websocket', label: 'Real-time' },
   { value: 'webhook', label: 'Webhook' },
 ] as const;
 
 const testSchema = z.object({
   type: z.enum(['alert', 'task', 'approval', 'system', 'mention', 'deadline', 'completion', 'error', 'report']),
-  channel: z.enum(['email', 'in_app', 'push', 'webhook']),
+  channel: z.enum(['email', 'in_app', 'websocket', 'webhook']),
   webhook_id: z.string().optional(),
 });
 

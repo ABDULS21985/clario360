@@ -767,7 +767,7 @@ export interface CTEMFinding {
   description: string;
   severity: CyberSeverity;
   priority_score: number;
-  status: 'open' | 'in_remediation' | 'resolved' | 'accepted' | 'false_positive';
+  status: 'open' | 'in_remediation' | 'remediated' | 'accepted_risk' | 'false_positive' | 'deferred';
   asset_id?: string;
   asset_name?: string;
   cvss_score?: number;
@@ -783,7 +783,7 @@ export interface CTEMAssessment {
   tenant_id: string;
   name: string;
   description?: string;
-  status: 'draft' | 'running' | 'completed' | 'failed' | 'cancelled';
+  status: 'created' | 'scoping' | 'discovery' | 'prioritizing' | 'validating' | 'mobilizing' | 'completed' | 'failed' | 'cancelled';
   current_phase?: CTEMPhase;
   phases: CTEMPhaseInfo[];
   scope: {
@@ -839,7 +839,8 @@ export type RemediationStatus =
   | 'execution_pending'
   | 'executing'
   | 'executed'
-  | 'verification_running'
+  | 'execution_failed'
+  | 'verification_pending'
   | 'verified'
   | 'verification_failed'
   | 'rollback_pending'
@@ -880,6 +881,7 @@ export interface SimulatedChange {
 export interface ImpactEstimate {
   downtime: string;
   services_affected: number;
+  users_affected: number;
   risk_level: string;
   recommend_window: string;
 }
@@ -980,13 +982,23 @@ export interface RemediationAuditEntry {
   created_at: string;
 }
 
+/** Matches backend cyber/model/remediation.go RemediationStats (flat fields, not maps). */
 export interface RemediationStats {
   total: number;
-  by_status: Record<string, number>;
-  by_severity: Record<string, number>;
-  by_type: Record<string, number>;
+  draft: number;
   pending_approval: number;
-  execution_pending: number;
+  approved: number;
+  dry_run_completed: number;
+  executing: number;
+  executed: number;
+  verified: number;
+  verification_failed: number;
+  rolled_back: number;
+  failed: number;
+  closed: number;
+  avg_execution_hours: number;
+  verification_success_rate: number;
+  rollback_rate: number;
 }
 
 // ─── DSPM ─────────────────────────────────────────────────────────────────────

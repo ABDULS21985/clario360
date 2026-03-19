@@ -14,6 +14,7 @@ export function buildAlertFilters(tactics: MITRETacticItem[]): FilterConfig[] {
         { label: 'High', value: 'high' },
         { label: 'Medium', value: 'medium' },
         { label: 'Low', value: 'low' },
+        { label: 'Info', value: 'info' },
       ],
     },
     {

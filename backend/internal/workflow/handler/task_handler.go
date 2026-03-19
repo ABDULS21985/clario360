@@ -221,7 +221,16 @@ func (h *TaskHandler) ClaimTask(w http.ResponseWriter, r *http.Request) {
 		Str("user_id", user.ID).
 		Msg("task claimed")
 
-	writeJSON(w, http.StatusOK, map[string]string{"message": "task claimed"})
+	// Return the updated task so the frontend can update its cache.
+	updated, err := h.service.GetTask(r.Context(), user.TenantID, id)
+	if err != nil {
+		// Claim succeeded but re-fetch failed — return a minimal success response.
+		writeJSON(w, http.StatusOK, map[string]string{"message": "task claimed"})
+		return
+	}
+	resp := dto.TaskToResponse(updated)
+	h.enrichTaskResponse(r.Context(), user.TenantID, updated, &resp, nil)
+	writeJSON(w, http.StatusOK, resp)
 }
 
 // CompleteTask handles POST /{id}/complete — completes a claimed task with form data.
@@ -265,7 +274,14 @@ func (h *TaskHandler) CompleteTask(w http.ResponseWriter, r *http.Request) {
 		Str("user_id", user.ID).
 		Msg("task completed")
 
-	writeJSON(w, http.StatusOK, map[string]string{"message": "task completed"})
+	updated, err := h.service.GetTask(r.Context(), user.TenantID, id)
+	if err != nil {
+		writeJSON(w, http.StatusOK, map[string]string{"message": "task completed"})
+		return
+	}
+	resp := dto.TaskToResponse(updated)
+	h.enrichTaskResponse(r.Context(), user.TenantID, updated, &resp, nil)
+	writeJSON(w, http.StatusOK, resp)
 }
 
 // DelegateTask handles POST /{id}/delegate — delegates a task to another user.
@@ -311,7 +327,14 @@ func (h *TaskHandler) DelegateTask(w http.ResponseWriter, r *http.Request) {
 		Str("to_user", req.DelegateTo).
 		Msg("task delegated")
 
-	writeJSON(w, http.StatusOK, map[string]string{"message": "task delegated"})
+	updated, err := h.service.GetTask(r.Context(), user.TenantID, id)
+	if err != nil {
+		writeJSON(w, http.StatusOK, map[string]string{"message": "task delegated"})
+		return
+	}
+	resp := dto.TaskToResponse(updated)
+	h.enrichTaskResponse(r.Context(), user.TenantID, updated, &resp, nil)
+	writeJSON(w, http.StatusOK, resp)
 }
 
 // RejectTask handles POST /{id}/reject — rejects a task with a reason.
@@ -355,7 +378,14 @@ func (h *TaskHandler) RejectTask(w http.ResponseWriter, r *http.Request) {
 		Str("user_id", user.ID).
 		Msg("task rejected")
 
-	writeJSON(w, http.StatusOK, map[string]string{"message": "task rejected"})
+	updated, err := h.service.GetTask(r.Context(), user.TenantID, id)
+	if err != nil {
+		writeJSON(w, http.StatusOK, map[string]string{"message": "task rejected"})
+		return
+	}
+	resp := dto.TaskToResponse(updated)
+	h.enrichTaskResponse(r.Context(), user.TenantID, updated, &resp, nil)
+	writeJSON(w, http.StatusOK, resp)
 }
 
 // AssignTask handles POST /{id}/assign — assigns a task to a specific user.
@@ -400,7 +430,14 @@ func (h *TaskHandler) AssignTask(w http.ResponseWriter, r *http.Request) {
 		Str("to_user", req.UserID).
 		Msg("task assigned")
 
-	writeJSON(w, http.StatusOK, map[string]string{"message": "task assigned"})
+	updated, err := h.service.GetTask(r.Context(), user.TenantID, id)
+	if err != nil {
+		writeJSON(w, http.StatusOK, map[string]string{"message": "task assigned"})
+		return
+	}
+	resp := dto.TaskToResponse(updated)
+	h.enrichTaskResponse(r.Context(), user.TenantID, updated, &resp, nil)
+	writeJSON(w, http.StatusOK, resp)
 }
 
 // AddComment handles POST /{id}/comment — adds a comment to a task's metadata.
@@ -436,11 +473,13 @@ func (h *TaskHandler) AddComment(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Build comment.
+	// Build comment. ContextUser only carries Email — include user_email
+	// so the frontend can resolve the display name from its user cache.
 	comment := map[string]interface{}{
 		"id":         generateCommentID(),
 		"user_id":    user.ID,
 		"user_name":  user.Email,
+		"user_email": user.Email,
 		"content":    req.Content,
 		"created_at": time.Now().UTC().Format(time.RFC3339),
 	}

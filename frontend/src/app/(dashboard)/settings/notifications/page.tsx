@@ -36,13 +36,44 @@ import { Checkbox } from '@/components/ui/checkbox';
 /* Notification type labels — keys MUST match backend NotificationType */
 /* ------------------------------------------------------------------ */
 const NOTIFICATION_TYPE_LABELS: Record<string, string> = {
+  // Security & Alerts
   'alert.created': 'Security Alerts',
+  'alert.escalated': 'Alert Escalations',
+  'security.incident': 'Security Incidents',
+  'login.anomaly': 'Login Anomalies',
+  'malware.detected': 'Malware Detection',
+  // Remediation
+  'remediation.approval_required': 'Remediation Approvals',
+  'remediation.completed': 'Remediation Completed',
+  'remediation.failed': 'Remediation Failures',
+  // Tasks & Workflows
   'task.assigned': 'Task Assignments',
-  'pipeline.failed': 'Pipeline Events',
+  'task.overdue': 'Task Overdue',
+  'task.escalated': 'Task Escalations',
+  'workflow.failed': 'Workflow Failures',
+  'workflow.completed': 'Workflow Completions',
+  // Data & Pipelines
+  'pipeline.failed': 'Pipeline Failures',
+  'pipeline.completed': 'Pipeline Completions',
   'data_quality.issue_detected': 'Data Quality Issues',
+  'contradiction.detected': 'Contradiction Detected',
+  // Contracts & Legal
   'contract.expiring': 'Contract Expirations',
+  'contract.created': 'Contract Created',
+  'analysis.ready': 'Analysis Ready',
+  'clause.risk_flagged': 'Clause Risk Flagged',
+  // Meetings & Governance
+  'meeting.scheduled': 'Meeting Scheduled',
   'meeting.reminder': 'Meeting Reminders',
+  'action_item.assigned': 'Action Item Assigned',
+  'action_item.overdue': 'Action Item Overdue',
+  'minutes.approved': 'Minutes Approved',
+  // KPI & Reporting
+  'kpi.threshold_breached': 'KPI Threshold Breached',
+  // Account & System
+  'password.expiring': 'Password Expiring',
   'system.maintenance': 'System Maintenance',
+  'welcome': 'Welcome',
 };
 
 const NOTIFICATION_TYPES = Object.keys(NOTIFICATION_TYPE_LABELS);

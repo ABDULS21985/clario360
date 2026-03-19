@@ -186,6 +186,22 @@ func (r *NotificationRepository) Delete(ctx context.Context, tenantID, userID, i
 	return nil
 }
 
+// BulkDelete deletes multiple notifications by ID, scoped to tenant and user.
+func (r *NotificationRepository) BulkDelete(ctx context.Context, tenantID, userID string, ids []string) (int64, error) {
+	if len(ids) == 0 {
+		return 0, nil
+	}
+	// Build parameterized query with ANY($3)
+	tag, err := r.db.Exec(ctx,
+		"DELETE FROM notifications WHERE tenant_id = $1 AND user_id = $2 AND id = ANY($3)",
+		tenantID, userID, ids,
+	)
+	if err != nil {
+		return 0, fmt.Errorf("bulk delete notifications: %w", err)
+	}
+	return tag.RowsAffected(), nil
+}
+
 // GetUnreadForDigest returns unread notifications created since a cutoff for a list of users.
 func (r *NotificationRepository) GetUnreadForDigest(ctx context.Context, tenantID string, since time.Time) ([]model.Notification, error) {
 	query := `

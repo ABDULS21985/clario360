@@ -62,7 +62,7 @@ func (h *DSPMRemediationHandler) ListRemediations(w http.ResponseWriter, r *http
 		writeError(w, http.StatusInternalServerError, "INTERNAL_ERROR", err.Error())
 		return
 	}
-	writeJSON(w, http.StatusOK, envelope{"data": data, "total": total, "page": page, "limit": perPage})
+	writePaginated(w, http.StatusOK, data, page, perPage, total)
 }
 
 // GetRemediation handles GET /api/v1/cyber/dspm/remediations/{id}
@@ -242,7 +242,7 @@ func (h *DSPMRemediationHandler) GetHistory(w http.ResponseWriter, r *http.Reque
 		writeError(w, http.StatusInternalServerError, "INTERNAL_ERROR", err.Error())
 		return
 	}
-	writeJSON(w, http.StatusOK, envelope{"data": data, "total": total})
+	writePaginated(w, http.StatusOK, data, page, perPage, total)
 }
 
 // GetStats handles GET /api/v1/cyber/dspm/remediations/stats
@@ -297,7 +297,7 @@ func (h *DSPMRemediationHandler) ListPolicies(w http.ResponseWriter, r *http.Req
 		writeError(w, http.StatusInternalServerError, "INTERNAL_ERROR", err.Error())
 		return
 	}
-	writeJSON(w, http.StatusOK, envelope{"data": data, "total": total})
+	writePaginated(w, http.StatusOK, data, page, perPage, total)
 }
 
 // CreatePolicy handles POST /api/v1/cyber/dspm/policies
@@ -529,7 +529,7 @@ func (h *DSPMRemediationHandler) ListExceptions(w http.ResponseWriter, r *http.R
 		writeError(w, http.StatusInternalServerError, "INTERNAL_ERROR", err.Error())
 		return
 	}
-	writeJSON(w, http.StatusOK, envelope{"data": data, "total": total})
+	writePaginated(w, http.StatusOK, data, page, perPage, total)
 }
 
 // CreateException handles POST /api/v1/cyber/dspm/exceptions
