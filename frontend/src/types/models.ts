@@ -543,7 +543,7 @@ export interface WebhookDelivery {
   id: string;
   webhook_id: string;
   event_type: string;
-  status: 'success' | 'failed' | 'pending' | 'retrying';
+  status: 'delivered' | 'failed' | 'pending' | 'retrying';
   request_url: string;
   request_body: Record<string, unknown>;
   response_status: number | null;

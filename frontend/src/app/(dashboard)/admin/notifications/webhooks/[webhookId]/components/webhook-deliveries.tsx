@@ -22,7 +22,7 @@ import type { PaginatedResponse } from '@/types/api';
 import type { FetchParams, RowAction, FilterConfig } from '@/types/table';
 
 const statusVariants: Record<string, 'success' | 'secondary' | 'destructive' | 'warning'> = {
-  success: 'success',
+  delivered: 'success',
   failed: 'destructive',
   pending: 'secondary',
   retrying: 'warning',
@@ -90,7 +90,7 @@ const filters: FilterConfig[] = [
     label: 'Status',
     type: 'select',
     options: [
-      { label: 'Success', value: 'success' },
+      { label: 'Delivered', value: 'delivered' },
       { label: 'Failed', value: 'failed' },
       { label: 'Pending', value: 'pending' },
       { label: 'Retrying', value: 'retrying' },

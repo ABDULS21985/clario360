@@ -30,15 +30,6 @@ export interface VerifyMFARequest {
   code: string;
 }
 
-export interface RegisterRequest {
-  email: string;
-  password: string;
-  first_name: string;
-  last_name: string;
-  tenant_name?: string;
-  invite_code?: string;
-}
-
 export interface RefreshRequest {
   refresh_token: string;
 }
@@ -46,9 +37,9 @@ export interface RefreshRequest {
 export interface RefreshResponse {
   access_token: string;
   refresh_token: string;
-  expires_at?: string;
-  token_type?: string;
-  user?: User;
+  expires_at: string;
+  token_type: string;
+  user: User;
 }
 
 export interface ForgotPasswordRequest {

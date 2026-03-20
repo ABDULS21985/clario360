@@ -204,6 +204,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const resp = await apiPost<{
         access_token: string;
         refresh_token: string;
+        expires_at: string;
+        token_type: string;
         user: User;
       }>(API_ENDPOINTS.AUTH_VERIFY_MFA, { mfa_token: mfaToken, code });
 
