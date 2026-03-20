@@ -1606,9 +1606,9 @@ export interface CorrelationRuleContent {
 
 // ─── vCISO Governance — Risk Register ────────────────────────────────────────
 
-export type RiskLikelihood = 'rare' | 'unlikely' | 'possible' | 'likely' | 'almost_certain';
-export type RiskImpact = 'negligible' | 'minor' | 'moderate' | 'major' | 'catastrophic';
-export type RiskStatus = 'identified' | 'assessed' | 'mitigating' | 'accepted' | 'closed';
+export type RiskLikelihood = 'low' | 'medium' | 'high' | 'critical';
+export type RiskImpact = 'low' | 'medium' | 'high' | 'critical';
+export type RiskStatus = 'open' | 'mitigated' | 'accepted' | 'closed';
 export type RiskTreatment = 'mitigate' | 'transfer' | 'accept' | 'avoid';
 
 export interface VCISORiskEntry {

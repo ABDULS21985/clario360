@@ -75,9 +75,8 @@ const RISK_FILTERS: FilterConfig[] = [
     label: 'Status',
     type: 'select',
     options: [
-      { label: 'Identified', value: 'identified' },
-      { label: 'Assessed', value: 'assessed' },
-      { label: 'Mitigating', value: 'mitigating' },
+      { label: 'Open', value: 'open' },
+      { label: 'Mitigated', value: 'mitigated' },
       { label: 'Accepted', value: 'accepted' },
       { label: 'Closed', value: 'closed' },
     ],
@@ -98,11 +97,10 @@ const RISK_FILTERS: FilterConfig[] = [
     label: 'Likelihood',
     type: 'select',
     options: [
-      { label: 'Rare', value: 'rare' },
-      { label: 'Unlikely', value: 'unlikely' },
-      { label: 'Possible', value: 'possible' },
-      { label: 'Likely', value: 'likely' },
-      { label: 'Almost Certain', value: 'almost_certain' },
+      { label: 'Low', value: 'low' },
+      { label: 'Medium', value: 'medium' },
+      { label: 'High', value: 'high' },
+      { label: 'Critical', value: 'critical' },
     ],
   },
   {
@@ -110,11 +108,10 @@ const RISK_FILTERS: FilterConfig[] = [
     label: 'Impact',
     type: 'select',
     options: [
-      { label: 'Negligible', value: 'negligible' },
-      { label: 'Minor', value: 'minor' },
-      { label: 'Moderate', value: 'moderate' },
-      { label: 'Major', value: 'major' },
-      { label: 'Catastrophic', value: 'catastrophic' },
+      { label: 'Low', value: 'low' },
+      { label: 'Medium', value: 'medium' },
+      { label: 'High', value: 'high' },
+      { label: 'Critical', value: 'critical' },
     ],
   },
 ];
@@ -297,10 +294,10 @@ function getAcceptanceColumns(): ColumnDef<VCISORiskEntry>[] {
 
 // ── Likelihood / Impact score mapping for heat matrix ────────────────────────
 
-const LIKELIHOOD_LABELS = ['Rare', 'Unlikely', 'Possible', 'Likely', 'Almost Certain'];
-const IMPACT_LABELS = ['Negligible', 'Minor', 'Moderate', 'Major', 'Catastrophic'];
-const LIKELIHOOD_VALUES = ['rare', 'unlikely', 'possible', 'likely', 'almost_certain'];
-const IMPACT_VALUES = ['negligible', 'minor', 'moderate', 'major', 'catastrophic'];
+const LIKELIHOOD_LABELS = ['Low', 'Medium', 'High', 'Critical'];
+const IMPACT_LABELS = ['Low', 'Medium', 'High', 'Critical'];
+const LIKELIHOOD_VALUES = ['low', 'medium', 'high', 'critical'];
+const IMPACT_VALUES = ['low', 'medium', 'high', 'critical'];
 
 function getHeatColor(likelihoodIdx: number, impactIdx: number): string {
   const score = (likelihoodIdx + 1) * (impactIdx + 1);
@@ -878,7 +875,7 @@ export default function RiskRegisterPage() {
           if (!o) setRevokeTarget(null);
         }}
         title="Revoke Risk Acceptance"
-        description={`Are you sure you want to revoke the acceptance for "${revokeTarget?.title ?? ''}"? The risk will be moved back to "assessed" status for re-evaluation.`}
+        description={`Are you sure you want to revoke the acceptance for "${revokeTarget?.title ?? ''}"? The risk will be moved back to "open" status for re-evaluation.`}
         confirmLabel="Revoke Acceptance"
         variant="destructive"
         loading={revokeMutation.isPending}
@@ -886,7 +883,7 @@ export default function RiskRegisterPage() {
           if (revokeTarget) {
             revokeMutation.mutate({
               id: revokeTarget.id,
-              status: 'assessed',
+              status: 'open',
               acceptance_rationale: null,
               acceptance_approved_by: null,
               acceptance_approved_by_name: null,

@@ -63,10 +63,18 @@ CREATE TABLE IF NOT EXISTS notification_delivery_log (
     id              UUID            PRIMARY KEY DEFAULT gen_random_uuid(),
     notification_id UUID            NOT NULL REFERENCES notifications(id) ON DELETE CASCADE,
     channel         TEXT            NOT NULL CHECK (channel IN ('in_app', 'email', 'websocket', 'webhook')),
-    status          TEXT            NOT NULL CHECK (status IN ('pending', 'delivered', 'failed', 'skipped')),
+    status          TEXT            NOT NULL CHECK (status IN ('pending', 'delivered', 'failed', 'skipped', 'retrying')),
     attempt         INT             NOT NULL DEFAULT 1,
     error_message   TEXT,
     metadata        JSONB           NOT NULL DEFAULT '{}',
+    webhook_id      UUID,
+    event_type      TEXT,
+    request_url     TEXT,
+    request_body    JSONB,
+    response_status INT,
+    response_body   TEXT,
+    duration_ms     INT,
+    next_retry_at   TIMESTAMPTZ,
     delivered_at    TIMESTAMPTZ,
     created_at      TIMESTAMPTZ     NOT NULL DEFAULT now()
 );
@@ -74,6 +82,8 @@ CREATE TABLE IF NOT EXISTS notification_delivery_log (
 CREATE INDEX IF NOT EXISTS idx_delivery_notification ON notification_delivery_log (notification_id);
 CREATE INDEX IF NOT EXISTS idx_delivery_status ON notification_delivery_log (status, created_at)
     WHERE status = 'failed';
+CREATE INDEX IF NOT EXISTS idx_delivery_webhook ON notification_delivery_log (webhook_id)
+    WHERE webhook_id IS NOT NULL;
 
 -- =============================================================================
 -- WEBHOOK REGISTRATIONS — Per-tenant external webhook endpoints

@@ -51,25 +51,22 @@ interface RiskDetailPanelProps {
 }
 
 const LIKELIHOOD_OPTIONS: { label: string; value: RiskLikelihood }[] = [
-  { label: 'Rare', value: 'rare' },
-  { label: 'Unlikely', value: 'unlikely' },
-  { label: 'Possible', value: 'possible' },
-  { label: 'Likely', value: 'likely' },
-  { label: 'Almost Certain', value: 'almost_certain' },
+  { label: 'Low', value: 'low' },
+  { label: 'Medium', value: 'medium' },
+  { label: 'High', value: 'high' },
+  { label: 'Critical', value: 'critical' },
 ];
 
 const IMPACT_OPTIONS: { label: string; value: RiskImpact }[] = [
-  { label: 'Negligible', value: 'negligible' },
-  { label: 'Minor', value: 'minor' },
-  { label: 'Moderate', value: 'moderate' },
-  { label: 'Major', value: 'major' },
-  { label: 'Catastrophic', value: 'catastrophic' },
+  { label: 'Low', value: 'low' },
+  { label: 'Medium', value: 'medium' },
+  { label: 'High', value: 'high' },
+  { label: 'Critical', value: 'critical' },
 ];
 
 const STATUS_OPTIONS: { label: string; value: RiskStatus }[] = [
-  { label: 'Identified', value: 'identified' },
-  { label: 'Assessed', value: 'assessed' },
-  { label: 'Mitigating', value: 'mitigating' },
+  { label: 'Open', value: 'open' },
+  { label: 'Mitigated', value: 'mitigated' },
   { label: 'Accepted', value: 'accepted' },
   { label: 'Closed', value: 'closed' },
 ];

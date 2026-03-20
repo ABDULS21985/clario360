@@ -12,7 +12,7 @@ import { useAuditExport } from "@/hooks/use-audit";
 import { cn } from "@/lib/utils";
 
 const EXPORT_COLUMNS = [
-  { id: "timestamp", label: "Timestamp" },
+  { id: "created_at", label: "Timestamp" },
   { id: "user_email", label: "User Email" },
   { id: "action", label: "Action" },
   { id: "resource_type", label: "Resource Type" },

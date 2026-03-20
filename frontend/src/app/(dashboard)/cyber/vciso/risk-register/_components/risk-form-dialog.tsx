@@ -38,25 +38,22 @@ interface RiskFormDialogProps {
 }
 
 const LIKELIHOOD_OPTIONS: { label: string; value: RiskLikelihood }[] = [
-  { label: 'Rare', value: 'rare' },
-  { label: 'Unlikely', value: 'unlikely' },
-  { label: 'Possible', value: 'possible' },
-  { label: 'Likely', value: 'likely' },
-  { label: 'Almost Certain', value: 'almost_certain' },
+  { label: 'Low', value: 'low' },
+  { label: 'Medium', value: 'medium' },
+  { label: 'High', value: 'high' },
+  { label: 'Critical', value: 'critical' },
 ];
 
 const IMPACT_OPTIONS: { label: string; value: RiskImpact }[] = [
-  { label: 'Negligible', value: 'negligible' },
-  { label: 'Minor', value: 'minor' },
-  { label: 'Moderate', value: 'moderate' },
-  { label: 'Major', value: 'major' },
-  { label: 'Catastrophic', value: 'catastrophic' },
+  { label: 'Low', value: 'low' },
+  { label: 'Medium', value: 'medium' },
+  { label: 'High', value: 'high' },
+  { label: 'Critical', value: 'critical' },
 ];
 
 const STATUS_OPTIONS: { label: string; value: RiskStatus }[] = [
-  { label: 'Identified', value: 'identified' },
-  { label: 'Assessed', value: 'assessed' },
-  { label: 'Mitigating', value: 'mitigating' },
+  { label: 'Open', value: 'open' },
+  { label: 'Mitigated', value: 'mitigated' },
 ];
 
 const TREATMENT_OPTIONS: { label: string; value: RiskTreatment }[] = [
@@ -85,9 +82,9 @@ const initialFormState: FormState = {
   title: '',
   description: '',
   category: '',
-  likelihood: 'possible',
-  impact: 'moderate',
-  status: 'identified',
+  likelihood: 'medium',
+  impact: 'medium',
+  status: 'open',
   treatment: 'mitigate',
   department: '',
   business_services: '',
