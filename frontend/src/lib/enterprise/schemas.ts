@@ -7,6 +7,7 @@ const optionalStringSchema = z.string().trim().optional().nullable();
 export const committeeSchema = z.object({
   name: z.string().trim().min(3, 'Committee name is required.'),
   type: z.enum(['board', 'audit', 'risk', 'compensation', 'nomination', 'executive', 'governance', 'ad_hoc']),
+  status: z.enum(['active', 'inactive', 'dissolved']).default('active'),
   description: z.string().trim().min(5, 'Description is required.'),
   chair_user_id: uuidSchema,
   vice_chair_user_id: optionalUuidSchema,
@@ -70,7 +71,7 @@ export const postponeMeetingSchema = z.object({
 
 export const attendanceSchema = z.object({
   user_id: uuidSchema,
-  status: z.enum(['present', 'absent', 'proxy', 'excused']),
+  status: z.enum(['invited', 'confirmed', 'declined', 'present', 'absent', 'proxy', 'excused']),
   notes: optionalStringSchema,
   proxy_user_id: optionalUuidSchema,
   proxy_user_name: optionalStringSchema,

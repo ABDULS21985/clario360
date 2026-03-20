@@ -227,6 +227,7 @@ interface ExceptionForm {
   remediation_id: string;
   expires_at: string;
   risk_score: string;
+  risk_level: 'low' | 'medium' | 'high' | 'critical';
 }
 
 const INITIAL_FORM: ExceptionForm = {
@@ -239,6 +240,7 @@ const INITIAL_FORM: ExceptionForm = {
   remediation_id: '',
   expires_at: '',
   risk_score: '50',
+  risk_level: 'medium',
 };
 
 export default function RiskExceptionsPage() {
@@ -266,8 +268,10 @@ export default function RiskExceptionsPage() {
   }
 
   async function handleReject(exceptionId: string) {
+    const reason = window.prompt('Provide a rejection reason:');
+    if (!reason) return;
     try {
-      await apiPost(API_ENDPOINTS.CYBER_DSPM_EXCEPTIONS + '/' + exceptionId + '/reject');
+      await apiPost(API_ENDPOINTS.CYBER_DSPM_EXCEPTIONS + '/' + exceptionId + '/reject', { reason });
       toast.success('Exception rejected');
       refetch();
     } catch {
@@ -333,6 +337,7 @@ export default function RiskExceptionsPage() {
         remediation_id: form.remediation_id || undefined,
         expires_at: new Date(form.expires_at).toISOString(),
         risk_score: parseInt(form.risk_score, 10) || 50,
+        risk_level: form.risk_level,
       });
       toast.success('Exception request submitted');
       setCreateOpen(false);

@@ -40,7 +40,7 @@ export function TemplateCard({ template, onClick }: TemplateCardProps) {
           </span>
           <span className="flex items-center gap-1">
             <Layers className="h-3 w-3" />
-            {template.variables?.length ?? 0} vars
+            {template.variables ? Object.keys(template.variables).length : 0} vars
           </span>
           <span className="flex items-center gap-1">
             <BarChart3 className="h-3 w-3" />

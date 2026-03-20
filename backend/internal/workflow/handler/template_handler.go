@@ -116,6 +116,15 @@ func (h *TemplateHandler) InstantiateTemplate(w http.ResponseWriter, r *http.Req
 		return
 	}
 
+	// Parse optional name/description overrides from request body.
+	var overrides struct {
+		Name        string `json:"name"`
+		Description string `json:"description"`
+	}
+	if r.Body != nil && r.ContentLength > 0 {
+		_ = json.NewDecoder(r.Body).Decode(&overrides)
+	}
+
 	def, err := h.service.InstantiateTemplate(r.Context(), user.TenantID, user.ID, id)
 	if err != nil {
 		h.logger.Error().Err(err).
@@ -125,6 +134,14 @@ func (h *TemplateHandler) InstantiateTemplate(w http.ResponseWriter, r *http.Req
 			Msg("failed to instantiate workflow template")
 		handleServiceError(w, err)
 		return
+	}
+
+	// Apply overrides if provided by the caller.
+	if overrides.Name != "" {
+		def.Name = overrides.Name
+	}
+	if overrides.Description != "" {
+		def.Description = overrides.Description
 	}
 
 	h.logger.Info().

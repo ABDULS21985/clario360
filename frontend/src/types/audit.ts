@@ -99,18 +99,31 @@ export interface AuditTimelineParams {
   user_id?: string;
   date_from?: string;
   date_to?: string;
+  page?: number;
+  per_page?: number;
 }
 
 // ── Export types ──────────────────────────────────────────────────────────────
 
 export interface AuditExportParams {
   format: "csv" | "ndjson";
-  date_from?: string;
+  date_from: string;
   date_to?: string;
   service?: string;
   action?: string;
   user_id?: string;
+  resource_type?: string;
+  severity?: string;
   columns?: string[];
+}
+
+export interface AuditExportJobStatus {
+  job_id: string;
+  status: "queued" | "processing" | "completed" | "failed";
+  poll_url?: string;
+  download_url?: string;
+  record_count?: number;
+  error?: string;
 }
 
 // ── Verification types ───────────────────────────────────────────────────────

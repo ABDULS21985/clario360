@@ -150,11 +150,11 @@ export function TemplateDetailClient() {
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium">
-              Variables ({template.variables?.length ?? 0})
+              Variables ({template.variables ? Object.keys(template.variables).length : 0})
             </CardTitle>
           </CardHeader>
           <CardContent>
-            {(template.variables?.length ?? 0) === 0 ? (
+            {(!template.variables || Object.keys(template.variables).length === 0) ? (
               <p className="text-xs text-muted-foreground">
                 No variables defined.
               </p>
@@ -164,14 +164,14 @@ export function TemplateDetailClient() {
                   <TableRow>
                     <TableHead className="text-xs">Name</TableHead>
                     <TableHead className="text-xs">Type</TableHead>
-                    <TableHead className="text-xs">Required</TableHead>
+                    <TableHead className="text-xs">Default</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {template.variables!.map((v) => (
-                    <TableRow key={v.name}>
+                  {Object.entries(template.variables).map(([name, v]) => (
+                    <TableRow key={name}>
                       <TableCell className="font-mono text-xs py-1.5">
-                        {v.name}
+                        {name}
                       </TableCell>
                       <TableCell className="text-xs py-1.5">
                         <Badge variant="outline" className="text-[10px]">
@@ -179,7 +179,7 @@ export function TemplateDetailClient() {
                         </Badge>
                       </TableCell>
                       <TableCell className="text-xs py-1.5">
-                        {v.required ? 'Yes' : 'No'}
+                        {v.default != null ? String(v.default) : '—'}
                       </TableCell>
                     </TableRow>
                   ))}

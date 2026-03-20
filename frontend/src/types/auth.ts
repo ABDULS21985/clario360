@@ -8,6 +8,8 @@ export interface LoginRequest {
 export interface LoginResponse {
   access_token: string;
   refresh_token: string;
+  expires_at: string;
+  token_type: string;
   user: User;
   mfa_required?: undefined;
 }
@@ -44,10 +46,14 @@ export interface RefreshRequest {
 export interface RefreshResponse {
   access_token: string;
   refresh_token: string;
+  expires_at?: string;
+  token_type?: string;
+  user?: User;
 }
 
 export interface ForgotPasswordRequest {
   email: string;
+  tenant_id?: string;
 }
 
 export interface ResetPasswordRequest {
@@ -56,8 +62,8 @@ export interface ResetPasswordRequest {
 }
 
 export interface EnableMFAResponse {
-  totp_uri: string;
-  manual_key: string;
+  otp_url: string;
+  secret: string;
   recovery_codes: string[];
 }
 

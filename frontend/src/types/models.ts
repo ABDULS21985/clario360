@@ -487,9 +487,8 @@ export interface WorkflowTemplate {
   category: string;
   icon?: string;
   preview_image_url?: string | null;
-  steps?: WorkflowStep[];
-  variables?: WorkflowVariable[];
-  trigger?: WorkflowTrigger;
+  steps?: BackendStepDefinition[];
+  variables?: Record<string, BackendVariableDef>;
   usage_count?: number;
   tags?: string[];
   created_at?: string;

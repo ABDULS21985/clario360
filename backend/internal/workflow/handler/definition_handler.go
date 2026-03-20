@@ -128,6 +128,7 @@ func (h *DefinitionHandler) List(w http.ResponseWriter, r *http.Request) {
 	if nameFilter == "" {
 		nameFilter = r.URL.Query().Get("search")
 	}
+	category := r.URL.Query().Get("category")
 	page, pageSize := parsePagination(r)
 
 	defs, total, err := h.service.List(r.Context(), user.TenantID, status, nameFilter, page, pageSize)
@@ -137,10 +138,14 @@ func (h *DefinitionHandler) List(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Convert model pointers to response DTOs.
-	items := make([]dto.DefinitionResponse, len(defs))
-	for i, d := range defs {
-		items[i] = dto.DefinitionToResponse(d)
+	// Convert model pointers to response DTOs, applying optional category filter.
+	items := make([]dto.DefinitionResponse, 0, len(defs))
+	for _, d := range defs {
+		if category != "" && d.Category != category {
+			total--
+			continue
+		}
+		items = append(items, dto.DefinitionToResponse(d))
 	}
 
 	writeJSON(w, http.StatusOK, dto.ListDefinitionsResponse{

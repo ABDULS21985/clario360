@@ -18,14 +18,9 @@ import type { AccessDashboard, IdentityProfile } from '@/types/cyber';
 interface RiskRankingEntry {
   identity_id: string;
   identity_name: string;
-  risk_score: number;
+  access_risk_score: number;
   blast_radius_score: number;
   overprivileged_count: number;
-}
-
-interface OverprivilegedResult {
-  data: Array<Record<string, unknown>>;
-  total: number;
 }
 
 export default function AccessIntelligencePage() {
@@ -50,19 +45,19 @@ export default function AccessIntelligencePage() {
   const {
     data: overprivEnvelope,
     isLoading: overprivLoading,
-  } = useRealtimeData<{ data: OverprivilegedResult }>(API_ENDPOINTS.CYBER_DSPM_ACCESS_OVERPRIVILEGED, {
+  } = useRealtimeData<{ data: Array<Record<string, unknown>> }>(API_ENDPOINTS.CYBER_DSPM_ACCESS_OVERPRIVILEGED, {
     pollInterval: 120000,
   });
 
   const dashboard = dashEnvelope?.data;
   const riskRanking = riskRankingEnvelope?.data ?? [];
-  const overprivData = overprivEnvelope?.data;
+  const overprivData = overprivEnvelope?.data ?? [];
 
   const riskChartData = riskRanking.slice(0, 10).map((entry) => ({
     name: entry.identity_name.length > 20
       ? `${entry.identity_name.slice(0, 18)}...`
       : entry.identity_name,
-    risk_score: entry.risk_score,
+    risk_score: entry.access_risk_score,
   }));
 
   function getRiskBadgeVariant(score: number): 'destructive' | 'secondary' | 'outline' {
@@ -144,7 +139,7 @@ export default function AccessIntelligencePage() {
                   </CardHeader>
                   <CardContent>
                     <p className="text-3xl font-bold tabular-nums">
-                      {overprivLoading ? '...' : (overprivData?.total ?? dashboard.overprivileged_mappings)}
+                      {overprivLoading ? '...' : (overprivData.length || dashboard.overprivileged_mappings)}
                     </p>
                     <p className="mt-1 text-xs text-muted-foreground">
                       Access mappings exceeding required permissions

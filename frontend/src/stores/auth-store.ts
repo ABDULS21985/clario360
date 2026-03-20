@@ -287,7 +287,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   ): Promise<void> => {
     set({ isLoading: true, error: null });
     try {
-      const updated = await apiPatch<User>(API_ENDPOINTS.USERS_ME, data);
+      const updated = await apiPutLazy<User>(API_ENDPOINTS.USERS_ME, data);
       set({ user: updated, isLoading: false });
     } catch (err) {
       const msg = extractErrorMessage(err);
@@ -302,7 +302,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       // Fall back to user roles if token not yet loaded
       const { user } = get();
       if (!user) return false;
-      const rolePerms = user.roles.flatMap((r) => r.permissions);
+      const rolePerms = (user.roles ?? []).flatMap((r) => r.permissions);
       return checkPermission(rolePerms, permission);
     }
     return checkPermission(perms, permission);
@@ -321,10 +321,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 }));
 
-// Lazy import to avoid circular dependency (apiPatch lives in api.ts which imports auth-store indirectly)
-async function apiPatch<T>(url: string, data?: unknown): Promise<T> {
-  const { apiPatch: patch } = await import('@/lib/api');
-  return patch<T>(url, data);
+// Lazy import to avoid circular dependency (apiPut lives in api.ts which imports auth-store indirectly)
+async function apiPutLazy<T>(url: string, data?: unknown): Promise<T> {
+  const { apiPut: put } = await import('@/lib/api');
+  return put<T>(url, data);
 }
 
 function extractErrorMessage(err: unknown): string {

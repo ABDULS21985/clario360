@@ -122,7 +122,7 @@ export function DefinitionList() {
         description: '',
         category: 'custom',
         trigger_config: { type: 'manual' },
-        steps: [],
+        steps: [{ id: 'end_1', type: 'end', name: 'End', config: {}, transitions: [] }],
         variables: {},
       },
       {

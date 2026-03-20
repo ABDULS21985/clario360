@@ -34,7 +34,7 @@ export function useAssignTask() {
     }) =>
       apiPost<HumanTask>(
         `${API_ENDPOINTS.WORKFLOWS_TASKS}/${taskId}/assign`,
-        data,
+        { user_id: data.user_id },
       ),
     onSuccess: (_data, variables) => {
       showSuccess('Task assigned.');

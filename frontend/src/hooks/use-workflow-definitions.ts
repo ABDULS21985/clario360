@@ -67,11 +67,14 @@ export function useUpdateWorkflowDefinition() {
     }: {
       defId: string;
       data: Partial<WorkflowDefinition>;
-    }) =>
-      apiPut<WorkflowDefinition>(
+    }) => {
+      // Strip read-only fields — backend uses DisallowUnknownFields
+      const { id, tenant_id, version, status, step_count, created_by, updated_by, created_at, updated_at, published_at, instance_count, ...updatePayload } = data as Record<string, unknown>;
+      return apiPut<WorkflowDefinition>(
         `${API_ENDPOINTS.WORKFLOWS_DEFINITIONS}/${defId}`,
-        data,
-      ),
+        updatePayload,
+      );
+    },
     onSuccess: (_data, variables) => {
       showSuccess('Workflow definition updated.');
       queryClient.invalidateQueries({ queryKey: [DEFINITIONS_KEY] });
