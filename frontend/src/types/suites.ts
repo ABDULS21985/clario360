@@ -370,7 +370,6 @@ export interface ActaMeeting {
   created_at: string;
   updated_at: string;
   deleted_at?: string | null;
-  attendees?: ActaAttendee[];
   agenda?: ActaAgendaItem[];
   attendance?: ActaAttendee[];
   latest_minutes?: ActaMeetingMinutes | null;

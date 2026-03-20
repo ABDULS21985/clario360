@@ -114,12 +114,20 @@ func (r *PolicyRepository) List(ctx context.Context, tenantID uuid.UUID, params 
 
 	conditions = append(conditions, "tenant_id = "+nextArg(tenantID))
 
-	if params.Category != "" {
-		conditions = append(conditions, "category = "+nextArg(params.Category))
+	if len(params.Category) > 0 {
+		placeholders := make([]string, len(params.Category))
+		for i, v := range params.Category {
+			placeholders[i] = nextArg(v)
+		}
+		conditions = append(conditions, "category IN ("+strings.Join(placeholders, ", ")+")")
 	}
 
-	if params.Enforcement != "" {
-		conditions = append(conditions, "enforcement = "+nextArg(params.Enforcement))
+	if len(params.Enforcement) > 0 {
+		placeholders := make([]string, len(params.Enforcement))
+		for i, v := range params.Enforcement {
+			placeholders[i] = nextArg(v)
+		}
+		conditions = append(conditions, "enforcement IN ("+strings.Join(placeholders, ", ")+")")
 	}
 
 	if params.Enabled != nil {

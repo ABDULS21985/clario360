@@ -147,6 +147,8 @@ func (m *mockSessionRepo) GetByUserID(ctx context.Context, userID string) ([]mod
 	return nil, nil
 }
 
+func (m *mockSessionRepo) UpdateLastActive(ctx context.Context, id string) error { return nil }
+
 func (m *mockSessionRepo) Delete(ctx context.Context, id string) error {
 	if s, ok := m.sessions[id]; ok {
 		delete(m.byHash, s.RefreshTokenHash)
@@ -263,7 +265,7 @@ func (m *mockTenantRepo) GetBySlug(ctx context.Context, slug string) (*model.Ten
 	return nil, model.ErrNotFound
 }
 
-func (m *mockTenantRepo) List(ctx context.Context, page, perPage int) ([]model.Tenant, int, error) {
+func (m *mockTenantRepo) List(ctx context.Context, page, perPage int, _ repository.TenantListParams) ([]model.Tenant, int, error) {
 	return nil, 0, nil
 }
 

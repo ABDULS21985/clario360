@@ -47,10 +47,12 @@ type InstanceResponse struct {
 	TriggerData     json.RawMessage        `json:"trigger_data,omitempty"`
 	ErrorMessage    *string                `json:"error_message,omitempty"`
 	StartedBy       *string                `json:"started_by,omitempty"`
+	StartedByName   *string                `json:"started_by_name,omitempty"`
 	StartedAt       time.Time              `json:"started_at"`
 	CompletedAt     *time.Time             `json:"completed_at,omitempty"`
 	UpdatedAt       time.Time              `json:"updated_at"`
 	DurationMs      *int64                 `json:"duration_ms,omitempty"`
+	DefinitionSteps []model.StepDefinition `json:"definition_steps,omitempty"`
 }
 
 // ListInstancesResponse is the paginated response for listing instances.
@@ -64,6 +66,7 @@ type StepExecutionResponse struct {
 	ID           string          `json:"id"`
 	InstanceID   string          `json:"instance_id"`
 	StepID       string          `json:"step_id"`
+	StepName     string          `json:"step_name,omitempty"`
 	StepType     string          `json:"step_type"`
 	Status       string          `json:"status"`
 	InputData    json.RawMessage `json:"input_data,omitempty"`

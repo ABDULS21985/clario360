@@ -25,8 +25,25 @@ type ExportConfig struct {
 	ResourceType string       `json:"resource_type,omitempty"`
 	Severity     string       `json:"severity,omitempty"`
 	Search       string       `json:"search,omitempty"`
+	Columns      []string     `json:"columns,omitempty"` // optional: filter output to these columns only
 	CallerRole   string       `json:"-"`
 }
+
+// AllExportColumns is the full ordered set of export columns.
+var AllExportColumns = []string{
+	"id", "tenant_id", "user_id", "user_email", "service", "action",
+	"severity", "resource_type", "resource_id", "ip_address",
+	"user_agent", "event_id", "correlation_id", "created_at",
+}
+
+// ValidExportColumns is a set for O(1) membership checks.
+var ValidExportColumns = func() map[string]bool {
+	m := make(map[string]bool, len(AllExportColumns))
+	for _, c := range AllExportColumns {
+		m[c] = true
+	}
+	return m
+}()
 
 // Validate checks that the export configuration is valid.
 func (ec *ExportConfig) Validate() error {

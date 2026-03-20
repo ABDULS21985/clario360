@@ -15,8 +15,21 @@ import (
 type UserFilter struct {
 	Status  *string
 	Search  *string
+	Sort    string
+	SortDir string
 	Page    int
 	PerPage int
+}
+
+// validUserSortColumns is an allowlist of columns that can be used for sorting.
+var validUserSortColumns = map[string]string{
+	"email":         "u.email",
+	"first_name":    "u.first_name",
+	"last_name":     "u.last_name",
+	"created_at":    "u.created_at",
+	"last_login_at": "u.last_login_at",
+	"status":        "u.status",
+	"name":          "u.first_name",
 }
 
 type UserRepository interface {
@@ -181,6 +194,16 @@ func (r *userRepo) List(ctx context.Context, tenantID string, filter UserFilter)
 		return nil, 0, fmt.Errorf("counting users: %w", err)
 	}
 
+	// Determine sort column and direction from allowlist
+	orderCol := "u.created_at"
+	if col, ok := validUserSortColumns[filter.Sort]; ok {
+		orderCol = col
+	}
+	orderDir := "DESC"
+	if strings.EqualFold(filter.SortDir, "asc") {
+		orderDir = "ASC"
+	}
+
 	// Fetch page
 	offset := (filter.Page - 1) * filter.PerPage
 	dataQuery := fmt.Sprintf(`
@@ -189,8 +212,8 @@ func (r *userRepo) List(ctx context.Context, tenantID string, filter UserFilter)
 		       u.created_at, u.updated_at, u.created_by, u.updated_by, u.deleted_at
 		FROM users u
 		WHERE %s
-		ORDER BY u.created_at DESC
-		LIMIT $%d OFFSET $%d`, where, argIdx, argIdx+1)
+		ORDER BY %s %s
+		LIMIT $%d OFFSET $%d`, where, orderCol, orderDir, argIdx, argIdx+1)
 	args = append(args, filter.PerPage, offset)
 
 	rows, err := r.pool.Query(ctx, dataQuery, args...)

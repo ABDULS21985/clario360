@@ -169,3 +169,30 @@ func ptr[T any](value T) *T {
 func notFoundError(entity string, id uuid.UUID) error {
 	return fmt.Errorf("%s %s not found", entity, id)
 }
+
+// GetMeetingTitles returns a map of meeting IDs to their titles for the given tenant.
+// Unknown IDs are silently omitted from the result.
+func (s *Store) GetMeetingTitles(ctx context.Context, tenantID uuid.UUID, meetingIDs []uuid.UUID) (map[uuid.UUID]string, error) {
+	if len(meetingIDs) == 0 {
+		return map[uuid.UUID]string{}, nil
+	}
+	rows, err := s.db.Query(ctx,
+		`SELECT id, title FROM meetings WHERE tenant_id = $1 AND id = ANY($2)`,
+		tenantID, meetingIDs,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("get meeting titles: %w", err)
+	}
+	defer rows.Close()
+
+	out := make(map[uuid.UUID]string, len(meetingIDs))
+	for rows.Next() {
+		var id uuid.UUID
+		var title string
+		if err := rows.Scan(&id, &title); err != nil {
+			return nil, fmt.Errorf("scan meeting title: %w", err)
+		}
+		out[id] = title
+	}
+	return out, rows.Err()
+}

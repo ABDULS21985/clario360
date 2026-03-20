@@ -83,8 +83,10 @@ func (h *UserHandler) List(w http.ResponseWriter, r *http.Request) {
 	page, perPage := parsePagination(r)
 	search := r.URL.Query().Get("search")
 	status := r.URL.Query().Get("status")
+	sort := r.URL.Query().Get("sort")
+	order := r.URL.Query().Get("order")
 
-	users, total, err := h.userSvc.List(r.Context(), user.TenantID, page, perPage, search, status)
+	users, total, err := h.userSvc.List(r.Context(), user.TenantID, page, perPage, search, status, sort, order)
 	if err != nil {
 		handleServiceError(w, err)
 		return

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 
@@ -91,17 +92,24 @@ func parsePageParams(r *http.Request, defaultPerPage int) (int, int) {
 	return page, perPage
 }
 
-func parseCSV(s string) []string {
-	if s == "" {
+// parseMultiValue collects all values for a query key, supporting both
+// repeated params (?k=a&k=b) and CSV (?k=a,b) formats.
+func parseMultiValue(q url.Values, key string) []string {
+	vals := q[key]
+	if len(vals) == 0 {
 		return nil
 	}
-	parts := strings.Split(s, ",")
-	result := make([]string, 0, len(parts))
-	for _, p := range parts {
-		p = strings.TrimSpace(p)
-		if p != "" {
-			result = append(result, p)
+	var result []string
+	for _, v := range vals {
+		for _, part := range strings.Split(v, ",") {
+			part = strings.TrimSpace(part)
+			if part != "" {
+				result = append(result, part)
+			}
 		}
+	}
+	if len(result) == 0 {
+		return nil
 	}
 	return result
 }

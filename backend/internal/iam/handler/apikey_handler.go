@@ -39,8 +39,10 @@ func (h *APIKeyHandler) List(w http.ResponseWriter, r *http.Request) {
 	page, perPage := parsePagination(r)
 	search := r.URL.Query().Get("search")
 	status := r.URL.Query().Get("status")
+	sort := r.URL.Query().Get("sort")
+	order := r.URL.Query().Get("order")
 
-	items, total, err := h.keySvc.ListPaginated(r.Context(), user.TenantID, page, perPage, search, status)
+	items, total, err := h.keySvc.ListPaginated(r.Context(), user.TenantID, page, perPage, search, status, sort, order)
 	if err != nil {
 		handleServiceError(w, err)
 		return

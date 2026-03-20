@@ -453,7 +453,7 @@ func (f *fakeTenantRepo) GetBySlug(_ context.Context, slug string) (*model.Tenan
 	}
 	return nil, model.ErrNotFound
 }
-func (f *fakeTenantRepo) List(context.Context, int, int) ([]model.Tenant, int, error) {
+func (f *fakeTenantRepo) List(context.Context, int, int, repository.TenantListParams) ([]model.Tenant, int, error) {
 	return nil, 0, nil
 }
 func (f *fakeTenantRepo) Update(context.Context, *model.Tenant) error { return nil }
@@ -486,6 +486,7 @@ func (f *fakeSessionRepo) GetByUserID(_ context.Context, userID string) ([]model
 	}
 	return out, nil
 }
+func (f *fakeSessionRepo) UpdateLastActive(_ context.Context, _ string) error { return nil }
 func (f *fakeSessionRepo) Delete(_ context.Context, id string) error {
 	for key, session := range f.sessions {
 		if session.ID == id {

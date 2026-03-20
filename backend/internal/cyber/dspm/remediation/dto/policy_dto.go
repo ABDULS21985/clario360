@@ -82,12 +82,12 @@ func (r *UpdatePolicyRequest) Validate() error {
 
 // PolicyListParams defines filtering and pagination for listing policies.
 type PolicyListParams struct {
-	Category    string `json:"category,omitempty"`
-	Enforcement string `json:"enforcement,omitempty"`
-	Enabled     *bool  `json:"enabled,omitempty"`
-	Search      string `json:"search,omitempty"`
-	Page        int    `json:"page"`
-	PerPage     int    `json:"per_page"`
+	Category    []string `json:"category,omitempty"`
+	Enforcement []string `json:"enforcement,omitempty"`
+	Enabled     *bool    `json:"enabled,omitempty"`
+	Search      string   `json:"search,omitempty"`
+	Page        int      `json:"page"`
+	PerPage     int      `json:"per_page"`
 }
 
 // SetDefaults applies default pagination values.

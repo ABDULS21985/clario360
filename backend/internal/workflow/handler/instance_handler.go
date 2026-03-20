@@ -41,6 +41,7 @@ type InstanceHandler struct {
 	engine       engineService
 	instanceRepo instanceReader
 	defReader    definitionReader
+	userLookup   UserNameLookup
 	logger       zerolog.Logger
 }
 
@@ -52,6 +53,11 @@ func NewInstanceHandler(engine engineService, instanceRepo instanceReader, defRe
 		defReader:    defReader,
 		logger:       logger.With().Str("handler", "workflow_instance").Logger(),
 	}
+}
+
+// SetUserLookup sets the optional user name resolver for enriching display names.
+func (h *InstanceHandler) SetUserLookup(lookup UserNameLookup) {
+	h.userLookup = lookup
 }
 
 // Routes returns a chi.Router with all instance routes mounted.
@@ -481,9 +487,25 @@ func (h *InstanceHandler) GetHistory(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Build a step-ID → name map from the definition for enrichment.
+	stepNames := make(map[string]string)
+	if h.defReader != nil {
+		inst, err := h.instanceRepo.GetByID(r.Context(), user.TenantID, id)
+		if err == nil {
+			if def, err := h.defReader.GetByID(r.Context(), user.TenantID, inst.DefinitionID); err == nil {
+				for _, s := range def.Steps {
+					stepNames[s.ID] = s.Name
+				}
+			}
+		}
+	}
+
 	items := make([]dto.StepExecutionResponse, len(executions))
 	for i, se := range executions {
 		items[i] = dto.StepExecutionToResponse(se)
+		if name, ok := stepNames[se.StepID]; ok {
+			items[i].StepName = name
+		}
 	}
 
 	writeJSON(w, http.StatusOK, dto.InstanceHistoryResponse{
@@ -507,6 +529,7 @@ func (h *InstanceHandler) enrichInstanceResponse(ctx context.Context, tenantID s
 
 	resp.DefinitionName = def.Name
 	resp.TotalSteps = len(def.Steps)
+	resp.DefinitionSteps = def.Steps
 
 	if inst.CurrentStepID != nil {
 		for _, s := range def.Steps {
@@ -527,4 +550,7 @@ func (h *InstanceHandler) enrichInstanceResponse(ctx context.Context, tenantID s
 		}
 		resp.CompletedSteps = completed
 	}
+
+	// Resolve started_by to a display name.
+	resp.StartedByName = resolveUserName(ctx, h.userLookup, resp.StartedBy)
 }

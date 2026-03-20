@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
@@ -138,22 +139,52 @@ func (h *TemplateHandler) InstantiateTemplate(w http.ResponseWriter, r *http.Req
 
 // templateResponse is the API response shape for a workflow template.
 type templateResponse struct {
-	ID          string `json:"id"`
-	Name        string `json:"name"`
-	Description string `json:"description"`
-	Category    string `json:"category"`
-	Icon        string `json:"icon"`
-	CreatedAt   string `json:"created_at"`
+	ID              string                       `json:"id"`
+	Name            string                       `json:"name"`
+	Description     string                       `json:"description"`
+	Category        string                       `json:"category"`
+	Icon            string                       `json:"icon"`
+	PreviewImageURL *string                      `json:"preview_image_url"`
+	Steps           []model.StepDefinition       `json:"steps"`
+	Variables       map[string]model.VariableDef `json:"variables"`
+	Tags            []string                     `json:"tags"`
+	UsageCount      int                          `json:"usage_count"`
+	CreatedAt       string                       `json:"created_at"`
 }
 
 // toTemplateResponse converts a WorkflowTemplate model to its API response form.
 func toTemplateResponse(t *model.WorkflowTemplate) templateResponse {
-	return templateResponse{
-		ID:          t.ID,
-		Name:        t.Name,
-		Description: t.Description,
-		Category:    t.Category,
-		Icon:        t.Icon,
-		CreatedAt:   t.CreatedAt.UTC().Format("2006-01-02T15:04:05Z"),
+	resp := templateResponse{
+		ID:              t.ID,
+		Name:            t.Name,
+		Description:     t.Description,
+		Category:        t.Category,
+		Icon:            t.Icon,
+		PreviewImageURL: t.PreviewImageURL,
+		Tags:            t.Tags,
+		UsageCount:      t.UsageCount,
+		CreatedAt:       t.CreatedAt.UTC().Format("2006-01-02T15:04:05Z"),
 	}
+
+	// Parse definition JSON to extract steps and variables for the response.
+	if len(t.DefinitionJSON) > 0 {
+		var content model.TemplateDefinitionContent
+		if err := json.Unmarshal(t.DefinitionJSON, &content); err == nil {
+			resp.Steps = content.Steps
+			resp.Variables = content.Variables
+		}
+	}
+
+	// Ensure non-nil slices/maps for JSON serialization.
+	if resp.Steps == nil {
+		resp.Steps = []model.StepDefinition{}
+	}
+	if resp.Variables == nil {
+		resp.Variables = make(map[string]model.VariableDef)
+	}
+	if resp.Tags == nil {
+		resp.Tags = []string{}
+	}
+
+	return resp
 }

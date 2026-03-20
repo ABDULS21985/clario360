@@ -337,6 +337,7 @@ func (m *memSessionRepo) GetByTokenHash(_ context.Context, hash string) (*model.
 func (m *memSessionRepo) GetByUserID(_ context.Context, _ string) ([]model.Session, error) {
 	return nil, nil
 }
+func (m *memSessionRepo) UpdateLastActive(_ context.Context, _ string) error { return nil }
 func (m *memSessionRepo) Delete(_ context.Context, id string) error {
 	if s, ok := m.sessions[id]; ok {
 		delete(m.byHash, s.RefreshTokenHash)
@@ -423,7 +424,7 @@ func (m *memTenantRepo) GetByID(_ context.Context, id string) (*model.Tenant, er
 func (m *memTenantRepo) GetBySlug(_ context.Context, _ string) (*model.Tenant, error) {
 	return nil, model.ErrNotFound
 }
-func (m *memTenantRepo) List(_ context.Context, _, _ int) ([]model.Tenant, int, error) {
+func (m *memTenantRepo) List(_ context.Context, _, _ int, _ repository.TenantListParams) ([]model.Tenant, int, error) {
 	return nil, 0, nil
 }
 func (m *memTenantRepo) Update(_ context.Context, _ *model.Tenant) error { return nil }

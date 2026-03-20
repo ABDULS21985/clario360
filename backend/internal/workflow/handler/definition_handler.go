@@ -227,6 +227,13 @@ func (h *DefinitionHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Fetch before deleting so we can return the definition in the response.
+	def, err := h.service.GetByID(r.Context(), user.TenantID, id)
+	if err != nil {
+		handleServiceError(w, err)
+		return
+	}
+
 	if err := h.service.Delete(r.Context(), user.TenantID, id); err != nil {
 		h.logger.Error().Err(err).
 			Str("tenant_id", user.TenantID).
@@ -242,7 +249,7 @@ func (h *DefinitionHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		Str("user_id", user.ID).
 		Msg("workflow definition deleted")
 
-	writeJSON(w, http.StatusOK, map[string]string{"message": "definition deleted"})
+	writeJSON(w, http.StatusOK, dto.DefinitionToResponse(def))
 }
 
 // Activate handles POST /{id}/activate — activates a draft workflow definition.

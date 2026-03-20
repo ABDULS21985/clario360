@@ -136,7 +136,12 @@ func (s *ActionItemService) CreateFromExtracted(ctx context.Context, tenantID, u
 }
 
 func (s *ActionItemService) ListActionItems(ctx context.Context, tenantID uuid.UUID, filters model.ActionItemFilters) ([]model.ActionItem, int, error) {
-	return s.store.ListActionItems(ctx, tenantID, filters)
+	items, total, err := s.store.ListActionItems(ctx, tenantID, filters)
+	if err != nil {
+		return nil, 0, err
+	}
+	s.enrichMeetingTitles(ctx, tenantID, items)
+	return items, total, nil
 }
 
 func (s *ActionItemService) GetActionItem(ctx context.Context, tenantID, actionItemID uuid.UUID) (*model.ActionItem, error) {
@@ -144,7 +149,33 @@ func (s *ActionItemService) GetActionItem(ctx context.Context, tenantID, actionI
 	if err != nil {
 		return nil, notFoundError("action item not found")
 	}
+	titles, _ := s.store.GetMeetingTitles(ctx, tenantID, []uuid.UUID{item.MeetingID})
+	if t, ok := titles[item.MeetingID]; ok {
+		item.MeetingTitle = t
+	}
 	return item, nil
+}
+
+// enrichMeetingTitles sets MeetingTitle on each action item via a batch lookup.
+func (s *ActionItemService) enrichMeetingTitles(ctx context.Context, tenantID uuid.UUID, items []model.ActionItem) {
+	ids := make(map[uuid.UUID]struct{})
+	for _, item := range items {
+		ids[item.MeetingID] = struct{}{}
+	}
+	meetingIDs := make([]uuid.UUID, 0, len(ids))
+	for id := range ids {
+		meetingIDs = append(meetingIDs, id)
+	}
+	titles, err := s.store.GetMeetingTitles(ctx, tenantID, meetingIDs)
+	if err != nil {
+		s.logger.Warn().Err(err).Msg("failed to enrich action item meeting titles")
+		return
+	}
+	for i := range items {
+		if t, ok := titles[items[i].MeetingID]; ok {
+			items[i].MeetingTitle = t
+		}
+	}
 }
 
 func (s *ActionItemService) UpdateActionItem(ctx context.Context, tenantID, userID, actionItemID uuid.UUID, req dto.UpdateActionItemRequest) (*model.ActionItem, error) {

@@ -391,8 +391,8 @@ func (h *AccessIntelligenceHandler) handleError(w http.ResponseWriter, err error
 func parseIdentityListParams(r *http.Request) *dto.IdentityListParams {
 	q := r.URL.Query()
 	params := &dto.IdentityListParams{
-		IdentityType: stringPtr(q.Get("identity_type")),
-		Status:       stringPtr(q.Get("status")),
+		IdentityType: parseMultiValue(q, "identity_type"),
+		Status:       parseMultiValue(q, "status"),
 		MinRiskScore: floatPtr(q.Get("min_risk_score")),
 		Search:       stringPtr(q.Get("search")),
 		Sort:         q.Get("sort"),
@@ -406,11 +406,11 @@ func parseIdentityListParams(r *http.Request) *dto.IdentityListParams {
 func parseAccessMappingListParams(r *http.Request) *dto.AccessMappingListParams {
 	q := r.URL.Query()
 	params := &dto.AccessMappingListParams{
-		IdentityType:       stringPtr(q.Get("identity_type")),
+		IdentityType:       parseMultiValue(q, "identity_type"),
 		IdentityID:         stringPtr(q.Get("identity_id")),
-		PermissionType:     stringPtr(q.Get("permission_type")),
-		DataClassification: stringPtr(q.Get("data_classification")),
-		Status:             stringPtr(q.Get("status")),
+		PermissionType:     parseMultiValue(q, "permission_type"),
+		DataClassification: parseMultiValue(q, "data_classification"),
+		Status:             parseMultiValue(q, "status"),
 		IsStale:            boolPtr(q.Get("is_stale")),
 		Search:             stringPtr(q.Get("search")),
 		Sort:               q.Get("sort"),

@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -15,7 +16,7 @@ type APIKeyRepository interface {
 	GetByKeyHash(ctx context.Context, keyHash string) (*model.APIKey, error)
 	GetByID(ctx context.Context, id, tenantID string) (*model.APIKey, error)
 	List(ctx context.Context, tenantID string) ([]model.APIKey, error)
-	ListPaginated(ctx context.Context, tenantID string, page, perPage int, search, status string) ([]model.APIKey, int, error)
+	ListPaginated(ctx context.Context, tenantID string, page, perPage int, search, status, sort, order string) ([]model.APIKey, int, error)
 	Revoke(ctx context.Context, id, tenantID string) error
 	RotateKey(ctx context.Context, id, tenantID, newKeyHash, newKeyPrefix string) error
 	UpdateLastUsed(ctx context.Context, id string) error
@@ -113,7 +114,15 @@ func (r *apiKeyRepo) GetByID(ctx context.Context, id, tenantID string) (*model.A
 	return k, nil
 }
 
-func (r *apiKeyRepo) ListPaginated(ctx context.Context, tenantID string, page, perPage int, search, status string) ([]model.APIKey, int, error) {
+// validAPIKeySortColumns is an allowlist of columns that can be used for sorting API keys.
+var validAPIKeySortColumns = map[string]string{
+	"name":         "name",
+	"created_at":   "created_at",
+	"last_used_at": "last_used_at",
+	"expires_at":   "expires_at",
+}
+
+func (r *apiKeyRepo) ListPaginated(ctx context.Context, tenantID string, page, perPage int, search, status, sort, order string) ([]model.APIKey, int, error) {
 	if page < 1 {
 		page = 1
 	}
@@ -151,12 +160,22 @@ func (r *apiKeyRepo) ListPaginated(ctx context.Context, tenantID string, page, p
 		return []model.APIKey{}, 0, nil
 	}
 
+	// Determine sort column and direction from allowlist.
+	orderCol := "created_at"
+	if col, ok := validAPIKeySortColumns[sort]; ok {
+		orderCol = col
+	}
+	orderDir := "DESC"
+	if strings.EqualFold(order, "asc") {
+		orderDir = "ASC"
+	}
+
 	query := fmt.Sprintf(`
 		SELECT id, tenant_id, name, key_hash, key_prefix, permissions, last_used_at, expires_at, created_at, created_by, revoked_at
 		FROM api_keys
 		WHERE %s
-		ORDER BY created_at DESC
-		LIMIT $%d OFFSET $%d`, where, argIdx, argIdx+1)
+		ORDER BY %s %s
+		LIMIT $%d OFFSET $%d`, where, orderCol, orderDir, argIdx, argIdx+1)
 	args = append(args, perPage, (page-1)*perPage)
 
 	rows, err := r.pool.Query(ctx, query, args...)

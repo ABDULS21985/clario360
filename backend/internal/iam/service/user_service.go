@@ -111,10 +111,12 @@ func (s *UserService) AdminCreateUser(ctx context.Context, tenantID string, req 
 	return &resp, nil
 }
 
-func (s *UserService) List(ctx context.Context, tenantID string, page, perPage int, search, status string) ([]dto.UserResponse, int, error) {
+func (s *UserService) List(ctx context.Context, tenantID string, page, perPage int, search, status, sort, order string) ([]dto.UserResponse, int, error) {
 	filter := repository.UserFilter{
 		Page:    page,
 		PerPage: perPage,
+		Sort:    sort,
+		SortDir: order,
 	}
 	if search != "" {
 		filter.Search = &search

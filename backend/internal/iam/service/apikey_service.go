@@ -136,8 +136,8 @@ func (s *APIKeyService) Create(ctx context.Context, tenantID string, req *Create
 	}, nil
 }
 
-func (s *APIKeyService) ListPaginated(ctx context.Context, tenantID string, page, perPage int, search, status string) ([]APIKeyListItem, int, error) {
-	keys, total, err := s.keyRepo.ListPaginated(ctx, tenantID, page, perPage, search, status)
+func (s *APIKeyService) ListPaginated(ctx context.Context, tenantID string, page, perPage int, search, status, sort, order string) ([]APIKeyListItem, int, error) {
+	keys, total, err := s.keyRepo.ListPaginated(ctx, tenantID, page, perPage, search, status, sort, order)
 	if err != nil {
 		return nil, 0, err
 	}

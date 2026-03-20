@@ -4,7 +4,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strconv"
+	"strings"
 
 	"github.com/google/uuid"
 
@@ -106,6 +108,28 @@ func floatPtr(s string) *float64 {
 		return nil
 	}
 	return &v
+}
+
+// parseMultiValue collects all values for a query key, supporting both
+// repeated params (?k=a&k=b) and CSV (?k=a,b) formats.
+func parseMultiValue(q url.Values, key string) []string {
+	vals := q[key]
+	if len(vals) == 0 {
+		return nil
+	}
+	var result []string
+	for _, v := range vals {
+		for _, part := range strings.Split(v, ",") {
+			part = strings.TrimSpace(part)
+			if part != "" {
+				result = append(result, part)
+			}
+		}
+	}
+	if len(result) == 0 {
+		return nil
+	}
+	return result
 }
 
 func boolPtr(s string) *bool {

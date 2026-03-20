@@ -44,9 +44,9 @@ func (h *DSPMRemediationHandler) ListRemediations(w http.ResponseWriter, r *http
 	q := r.URL.Query()
 	page, perPage := parsePageParams(r, 25)
 	params := &dto.RemediationListParams{
-		Status:      parseCSV(q.Get("status")),
-		Severity:    parseCSV(q.Get("severity")),
-		FindingType: parseCSV(q.Get("finding_type")),
+		Status:      parseMultiValue(q, "status"),
+		Severity:    parseMultiValue(q, "severity"),
+		FindingType: parseMultiValue(q, "finding_type"),
 		AssignedTo:  uuidPtr(q.Get("assigned_to")),
 		AssetID:     uuidPtr(q.Get("asset_id")),
 		SLABreached: boolPtr(q.Get("sla_breached")),
@@ -284,8 +284,8 @@ func (h *DSPMRemediationHandler) ListPolicies(w http.ResponseWriter, r *http.Req
 	q := r.URL.Query()
 	page, perPage := parsePageParams(r, 25)
 	params := &dto.PolicyListParams{
-		Category:    q.Get("category"),
-		Enforcement: q.Get("enforcement"),
+		Category:    parseMultiValue(q, "category"),
+		Enforcement: parseMultiValue(q, "enforcement"),
 		Enabled:     boolPtr(q.Get("enabled")),
 		Search:      q.Get("search"),
 		Page:        page,
@@ -515,9 +515,9 @@ func (h *DSPMRemediationHandler) ListExceptions(w http.ResponseWriter, r *http.R
 	q := r.URL.Query()
 	page, perPage := parsePageParams(r, 25)
 	params := &dto.ExceptionListParams{
-		Status:         q.Get("status"),
-		ApprovalStatus: q.Get("approval_status"),
-		ExceptionType:  q.Get("exception_type"),
+		Status:         parseMultiValue(q, "status"),
+		ApprovalStatus: parseMultiValue(q, "approval_status"),
+		ExceptionType:  parseMultiValue(q, "exception_type"),
 		AssetID:        uuidPtr(q.Get("asset_id")),
 		Search:         q.Get("search"),
 		Page:           page,

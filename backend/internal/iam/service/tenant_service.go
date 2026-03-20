@@ -81,6 +81,13 @@ func (s *TenantService) Create(ctx context.Context, req *dto.CreateTenantRequest
 		return nil, fmt.Errorf("tenant slug %s: %w", req.Slug, model.ErrConflict)
 	}
 
+	// Validate settings structure if provided.
+	if len(req.Settings) > 0 {
+		if err := model.ValidateSettingsJSON(req.Settings); err != nil {
+			return nil, fmt.Errorf("%s: %w", err.Error(), model.ErrValidation)
+		}
+	}
+
 	tier := model.SubscriptionTier(req.SubscriptionTier)
 	if tier == "" {
 		tier = model.TierFree
@@ -211,6 +218,10 @@ func (s *TenantService) Update(ctx context.Context, tenantID string, req *dto.Up
 		tenant.SubscriptionTier = model.SubscriptionTier(*req.SubscriptionTier)
 	}
 	if req.Settings != nil {
+		// Validate the incoming settings structure before merging.
+		if err := model.ValidateSettingsJSON(req.Settings); err != nil {
+			return nil, fmt.Errorf("%s: %w", err.Error(), model.ErrValidation)
+		}
 		// Server-side merge: merge incoming settings on top of existing ones
 		// to prevent concurrent overwrites of unrelated fields.
 		merged, err := mergeSettingsJSON(tenant.Settings, req.Settings)

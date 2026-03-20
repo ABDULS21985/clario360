@@ -55,6 +55,7 @@ type TaskResponse struct {
 	AssigneeID     *string                `json:"assignee_id,omitempty"`
 	AssigneeRole   *string                `json:"assignee_role,omitempty"`
 	ClaimedBy      *string                `json:"claimed_by,omitempty"`
+	ClaimedByName  *string                `json:"claimed_by_name,omitempty"`
 	ClaimedAt      *time.Time             `json:"claimed_at,omitempty"`
 	FormSchema     []model.FormField      `json:"form_schema"`
 	FormData       map[string]interface{} `json:"form_data,omitempty"`

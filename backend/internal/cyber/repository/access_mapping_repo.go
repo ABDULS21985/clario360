@@ -120,10 +120,14 @@ func (r *AccessMappingRepository) ListMappings(ctx context.Context, tenantID uui
 	args = append(args, tenantID)
 	argIdx++
 
-	if params.IdentityType != nil {
-		conditions = append(conditions, fmt.Sprintf("identity_type = $%d", argIdx))
-		args = append(args, *params.IdentityType)
-		argIdx++
+	if len(params.IdentityType) > 0 {
+		placeholders := make([]string, len(params.IdentityType))
+		for i, v := range params.IdentityType {
+			placeholders[i] = fmt.Sprintf("$%d", argIdx)
+			args = append(args, v)
+			argIdx++
+		}
+		conditions = append(conditions, "identity_type IN ("+strings.Join(placeholders, ", ")+")")
 	}
 	if params.IdentityID != nil {
 		conditions = append(conditions, fmt.Sprintf("identity_id = $%d", argIdx))
@@ -135,20 +139,32 @@ func (r *AccessMappingRepository) ListMappings(ctx context.Context, tenantID uui
 		args = append(args, *params.DataAssetID)
 		argIdx++
 	}
-	if params.PermissionType != nil {
-		conditions = append(conditions, fmt.Sprintf("permission_type = $%d", argIdx))
-		args = append(args, *params.PermissionType)
-		argIdx++
+	if len(params.PermissionType) > 0 {
+		placeholders := make([]string, len(params.PermissionType))
+		for i, v := range params.PermissionType {
+			placeholders[i] = fmt.Sprintf("$%d", argIdx)
+			args = append(args, v)
+			argIdx++
+		}
+		conditions = append(conditions, "permission_type IN ("+strings.Join(placeholders, ", ")+")")
 	}
-	if params.DataClassification != nil {
-		conditions = append(conditions, fmt.Sprintf("data_classification = $%d", argIdx))
-		args = append(args, *params.DataClassification)
-		argIdx++
+	if len(params.DataClassification) > 0 {
+		placeholders := make([]string, len(params.DataClassification))
+		for i, v := range params.DataClassification {
+			placeholders[i] = fmt.Sprintf("$%d", argIdx)
+			args = append(args, v)
+			argIdx++
+		}
+		conditions = append(conditions, "data_classification IN ("+strings.Join(placeholders, ", ")+")")
 	}
-	if params.Status != nil {
-		conditions = append(conditions, fmt.Sprintf("status = $%d", argIdx))
-		args = append(args, *params.Status)
-		argIdx++
+	if len(params.Status) > 0 {
+		placeholders := make([]string, len(params.Status))
+		for i, v := range params.Status {
+			placeholders[i] = fmt.Sprintf("$%d", argIdx)
+			args = append(args, v)
+			argIdx++
+		}
+		conditions = append(conditions, "status IN ("+strings.Join(placeholders, ", ")+")")
 	}
 	if params.IsStale != nil {
 		conditions = append(conditions, fmt.Sprintf("is_stale = $%d", argIdx))
@@ -441,15 +457,23 @@ func (r *AccessMappingRepository) ListIdentityProfiles(ctx context.Context, tena
 	args = append(args, tenantID)
 	argIdx++
 
-	if params.IdentityType != nil {
-		conditions = append(conditions, fmt.Sprintf("identity_type = $%d", argIdx))
-		args = append(args, *params.IdentityType)
-		argIdx++
+	if len(params.IdentityType) > 0 {
+		placeholders := make([]string, len(params.IdentityType))
+		for i, v := range params.IdentityType {
+			placeholders[i] = fmt.Sprintf("$%d", argIdx)
+			args = append(args, v)
+			argIdx++
+		}
+		conditions = append(conditions, "identity_type IN ("+strings.Join(placeholders, ", ")+")")
 	}
-	if params.Status != nil {
-		conditions = append(conditions, fmt.Sprintf("status = $%d", argIdx))
-		args = append(args, *params.Status)
-		argIdx++
+	if len(params.Status) > 0 {
+		placeholders := make([]string, len(params.Status))
+		for i, v := range params.Status {
+			placeholders[i] = fmt.Sprintf("$%d", argIdx)
+			args = append(args, v)
+			argIdx++
+		}
+		conditions = append(conditions, "status IN ("+strings.Join(placeholders, ", ")+")")
 	}
 	if params.MinRiskScore != nil {
 		conditions = append(conditions, fmt.Sprintf("access_risk_score >= $%d", argIdx))

@@ -155,16 +155,28 @@ func (r *ExceptionRepository) List(ctx context.Context, tenantID uuid.UUID, para
 
 	conditions = append(conditions, "tenant_id = "+nextArg(tenantID))
 
-	if params.Status != "" {
-		conditions = append(conditions, "status = "+nextArg(params.Status))
+	if len(params.Status) > 0 {
+		placeholders := make([]string, len(params.Status))
+		for i, v := range params.Status {
+			placeholders[i] = nextArg(v)
+		}
+		conditions = append(conditions, "status IN ("+strings.Join(placeholders, ", ")+")")
 	}
 
-	if params.ApprovalStatus != "" {
-		conditions = append(conditions, "approval_status = "+nextArg(params.ApprovalStatus))
+	if len(params.ApprovalStatus) > 0 {
+		placeholders := make([]string, len(params.ApprovalStatus))
+		for i, v := range params.ApprovalStatus {
+			placeholders[i] = nextArg(v)
+		}
+		conditions = append(conditions, "approval_status IN ("+strings.Join(placeholders, ", ")+")")
 	}
 
-	if params.ExceptionType != "" {
-		conditions = append(conditions, "exception_type = "+nextArg(params.ExceptionType))
+	if len(params.ExceptionType) > 0 {
+		placeholders := make([]string, len(params.ExceptionType))
+		for i, v := range params.ExceptionType {
+			placeholders[i] = nextArg(v)
+		}
+		conditions = append(conditions, "exception_type IN ("+strings.Join(placeholders, ", ")+")")
 	}
 
 	if params.AssetID != nil {

@@ -72,9 +72,9 @@ func (r *RejectExceptionRequest) Validate() error {
 
 // ExceptionListParams defines filtering and pagination for listing exceptions.
 type ExceptionListParams struct {
-	Status         string     `json:"status,omitempty"`
-	ApprovalStatus string     `json:"approval_status,omitempty"`
-	ExceptionType  string     `json:"exception_type,omitempty"`
+	Status         []string   `json:"status,omitempty"`
+	ApprovalStatus []string   `json:"approval_status,omitempty"`
+	ExceptionType  []string   `json:"exception_type,omitempty"`
 	AssetID        *uuid.UUID `json:"asset_id,omitempty"`
 	Search         string     `json:"search,omitempty"`
 	Page           int        `json:"page"`

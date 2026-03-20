@@ -133,12 +133,16 @@ func SessionsToResponse(sessions []model.Session) []SessionResponse {
 		if session.IPAddress != nil {
 			ipAddress = *session.IPAddress
 		}
+		lastActive := session.LastActiveAt
+		if lastActive.IsZero() {
+			lastActive = session.CreatedAt
+		}
 		resp = append(resp, SessionResponse{
 			ID:           session.ID,
 			UserAgent:    userAgent,
 			IPAddress:    ipAddress,
 			CreatedAt:    session.CreatedAt,
-			LastActiveAt: session.CreatedAt,
+			LastActiveAt: lastActive,
 			IsCurrent:    session.ID == currentID,
 		})
 	}

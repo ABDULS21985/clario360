@@ -85,11 +85,25 @@ func (s *MinutesService) GetLatestMinutes(ctx context.Context, tenantID, meeting
 	if err != nil {
 		return nil, notFoundError("minutes not found")
 	}
+	titles, _ := s.store.GetMeetingTitles(ctx, tenantID, []uuid.UUID{meetingID})
+	if t, ok := titles[meetingID]; ok {
+		minutes.MeetingTitle = t
+	}
 	return minutes, nil
 }
 
 func (s *MinutesService) ListVersions(ctx context.Context, tenantID, meetingID uuid.UUID) ([]model.MeetingMinutes, error) {
-	return s.store.ListMinutesVersions(ctx, tenantID, meetingID)
+	versions, err := s.store.ListMinutesVersions(ctx, tenantID, meetingID)
+	if err != nil {
+		return nil, err
+	}
+	titles, _ := s.store.GetMeetingTitles(ctx, tenantID, []uuid.UUID{meetingID})
+	if t, ok := titles[meetingID]; ok {
+		for i := range versions {
+			versions[i].MeetingTitle = t
+		}
+	}
+	return versions, nil
 }
 
 func (s *MinutesService) GenerateMinutes(ctx context.Context, tenantID, userID, meetingID uuid.UUID) (*model.MeetingMinutes, error) {

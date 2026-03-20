@@ -14,6 +14,7 @@ type SessionRepository interface {
 	Create(ctx context.Context, session *model.Session) error
 	GetByTokenHash(ctx context.Context, tokenHash string) (*model.Session, error)
 	GetByUserID(ctx context.Context, userID string) ([]model.Session, error)
+	UpdateLastActive(ctx context.Context, id string) error
 	Delete(ctx context.Context, id string) error
 	DeleteByUserID(ctx context.Context, userID string) error
 	DeleteExpired(ctx context.Context) (int64, error)
@@ -41,14 +42,14 @@ func (r *sessionRepo) Create(ctx context.Context, session *model.Session) error 
 
 func (r *sessionRepo) GetByTokenHash(ctx context.Context, tokenHash string) (*model.Session, error) {
 	query := `
-		SELECT id, user_id, tenant_id, refresh_token_hash, host(ip_address), user_agent, expires_at, created_at
+		SELECT id, user_id, tenant_id, refresh_token_hash, host(ip_address), user_agent, expires_at, created_at, last_active_at
 		FROM sessions
 		WHERE refresh_token_hash = $1 AND expires_at > NOW()`
 
 	s := &model.Session{}
 	err := r.pool.QueryRow(ctx, query, tokenHash).Scan(
 		&s.ID, &s.UserID, &s.TenantID, &s.RefreshTokenHash,
-		&s.IPAddress, &s.UserAgent, &s.ExpiresAt, &s.CreatedAt,
+		&s.IPAddress, &s.UserAgent, &s.ExpiresAt, &s.CreatedAt, &s.LastActiveAt,
 	)
 	if err != nil {
 		if err == pgx.ErrNoRows {
@@ -61,10 +62,10 @@ func (r *sessionRepo) GetByTokenHash(ctx context.Context, tokenHash string) (*mo
 
 func (r *sessionRepo) GetByUserID(ctx context.Context, userID string) ([]model.Session, error) {
 	query := `
-		SELECT id, user_id, tenant_id, refresh_token_hash, host(ip_address), user_agent, expires_at, created_at
+		SELECT id, user_id, tenant_id, refresh_token_hash, host(ip_address), user_agent, expires_at, created_at, last_active_at
 		FROM sessions
 		WHERE user_id = $1 AND expires_at > NOW()
-		ORDER BY created_at DESC`
+		ORDER BY last_active_at DESC`
 
 	rows, err := r.pool.Query(ctx, query, userID)
 	if err != nil {
@@ -77,13 +78,18 @@ func (r *sessionRepo) GetByUserID(ctx context.Context, userID string) ([]model.S
 		var s model.Session
 		if err := rows.Scan(
 			&s.ID, &s.UserID, &s.TenantID, &s.RefreshTokenHash,
-			&s.IPAddress, &s.UserAgent, &s.ExpiresAt, &s.CreatedAt,
+			&s.IPAddress, &s.UserAgent, &s.ExpiresAt, &s.CreatedAt, &s.LastActiveAt,
 		); err != nil {
 			return nil, fmt.Errorf("scanning session: %w", err)
 		}
 		sessions = append(sessions, s)
 	}
 	return sessions, nil
+}
+
+func (r *sessionRepo) UpdateLastActive(ctx context.Context, id string) error {
+	_, err := r.pool.Exec(ctx, "UPDATE sessions SET last_active_at = NOW() WHERE id = $1", id)
+	return err
 }
 
 func (r *sessionRepo) Delete(ctx context.Context, id string) error {

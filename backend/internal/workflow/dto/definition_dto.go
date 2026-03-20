@@ -12,6 +12,7 @@ import (
 type CreateDefinitionRequest struct {
 	Name          string                       `json:"name" validate:"required,min=1,max=255"`
 	Description   string                       `json:"description" validate:"max=2000"`
+	Category      string                       `json:"category,omitempty"`
 	TriggerConfig model.TriggerConfig          `json:"trigger_config" validate:"required"`
 	Variables     map[string]model.VariableDef `json:"variables"`
 	Steps         []model.StepDefinition       `json:"steps" validate:"required,min=1"`
@@ -21,6 +22,7 @@ type CreateDefinitionRequest struct {
 type UpdateDefinitionRequest struct {
 	Name          *string                      `json:"name,omitempty" validate:"omitempty,min=1,max=255"`
 	Description   *string                      `json:"description,omitempty" validate:"omitempty,max=2000"`
+	Category      *string                      `json:"category,omitempty"`
 	TriggerConfig *model.TriggerConfig         `json:"trigger_config,omitempty"`
 	Variables     map[string]model.VariableDef `json:"variables,omitempty"`
 	Steps         []model.StepDefinition       `json:"steps,omitempty" validate:"omitempty,min=1"`
@@ -43,6 +45,7 @@ type DefinitionResponse struct {
 	TenantID      string                       `json:"tenant_id"`
 	Name          string                       `json:"name"`
 	Description   string                       `json:"description"`
+	Category      string                       `json:"category,omitempty"`
 	Version       int                          `json:"version"`
 	Status        string                       `json:"status"`
 	TriggerConfig model.TriggerConfig          `json:"trigger_config"`
@@ -85,6 +88,7 @@ func DefinitionToResponse(d *model.WorkflowDefinition) DefinitionResponse {
 		TenantID:      d.TenantID,
 		Name:          d.Name,
 		Description:   d.Description,
+		Category:      d.Category,
 		Version:       d.Version,
 		Status:        d.Status,
 		TriggerConfig: d.TriggerConfig,

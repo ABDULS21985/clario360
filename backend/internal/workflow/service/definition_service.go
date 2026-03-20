@@ -56,6 +56,7 @@ func (s *DefinitionService) Create(ctx context.Context, tenantID, userID string,
 		TenantID:      tenantID,
 		Name:          req.Name,
 		Description:   req.Description,
+		Category:      req.Category,
 		Version:       1,
 		Status:        model.DefinitionStatusDraft,
 		TriggerConfig: req.TriggerConfig,
@@ -155,6 +156,7 @@ func (s *DefinitionService) Update(ctx context.Context, tenantID, id, userID str
 		TenantID:      tenantID,
 		Name:          current.Name,
 		Description:   current.Description,
+		Category:      current.Category,
 		Version:       maxVersion + 1,
 		Status:        model.DefinitionStatusDraft,
 		TriggerConfig: current.TriggerConfig,
@@ -172,6 +174,9 @@ func (s *DefinitionService) Update(ctx context.Context, tenantID, id, userID str
 	}
 	if req.Description != nil {
 		newDef.Description = *req.Description
+	}
+	if req.Category != nil {
+		newDef.Category = *req.Category
 	}
 	if req.TriggerConfig != nil {
 		newDef.TriggerConfig = *req.TriggerConfig

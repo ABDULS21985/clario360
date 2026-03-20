@@ -40,10 +40,11 @@ type taskDefinitionReader interface {
 
 // TaskHandler handles HTTP requests for human task operations within workflows.
 type TaskHandler struct {
-	service   taskService
-	instRepo  taskInstanceReader
-	defReader taskDefinitionReader
-	logger    zerolog.Logger
+	service    taskService
+	instRepo   taskInstanceReader
+	defReader  taskDefinitionReader
+	userLookup UserNameLookup
+	logger     zerolog.Logger
 }
 
 // NewTaskHandler creates a new TaskHandler with the given service and logger.
@@ -54,6 +55,11 @@ func NewTaskHandler(service taskService, instRepo taskInstanceReader, defReader 
 		defReader: defReader,
 		logger:    logger.With().Str("handler", "workflow_task").Logger(),
 	}
+}
+
+// SetUserLookup sets the optional user name resolver for enriching display names.
+func (h *TaskHandler) SetUserLookup(lookup UserNameLookup) {
+	h.userLookup = lookup
 }
 
 // Routes returns a chi.Router with all task routes mounted.
@@ -551,4 +557,7 @@ func (h *TaskHandler) enrichTaskResponse(ctx context.Context, tenantID string, t
 	if defCache != nil {
 		defCache[inst.DefinitionID] = def.Name
 	}
+
+	// Resolve claimed_by to a display name.
+	resp.ClaimedByName = resolveUserName(ctx, h.userLookup, resp.ClaimedBy)
 }

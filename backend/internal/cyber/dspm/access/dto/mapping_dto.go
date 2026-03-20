@@ -10,12 +10,12 @@ import (
 
 // AccessMappingListParams are query parameters for listing access mappings.
 type AccessMappingListParams struct {
-	IdentityType       *string    `json:"identity_type"`
+	IdentityType       []string   `json:"identity_type"`
 	IdentityID         *string    `json:"identity_id"`
 	DataAssetID        *uuid.UUID `json:"data_asset_id"`
-	PermissionType     *string    `json:"permission_type"`
-	DataClassification *string    `json:"data_classification"`
-	Status             *string    `json:"status"`
+	PermissionType     []string   `json:"permission_type"`
+	DataClassification []string   `json:"data_classification"`
+	Status             []string   `json:"status"`
 	IsStale            *bool      `json:"is_stale"`
 	Search             *string    `json:"search"`
 	Sort               string     `json:"sort"`
@@ -58,14 +58,14 @@ func (p *AccessMappingListParams) Validate() error {
 
 // IdentityListParams are query parameters for listing identity profiles.
 type IdentityListParams struct {
-	IdentityType *string `json:"identity_type"`
-	Status       *string `json:"status"`
+	IdentityType []string `json:"identity_type"`
+	Status       []string `json:"status"`
 	MinRiskScore *float64 `json:"min_risk_score"`
-	Search       *string `json:"search"`
-	Sort         string  `json:"sort"`
-	Order        string  `json:"order"`
-	Page         int     `json:"page"`
-	PerPage      int     `json:"per_page"`
+	Search       *string  `json:"search"`
+	Sort         string   `json:"sort"`
+	Order        string   `json:"order"`
+	Page         int      `json:"page"`
+	PerPage      int      `json:"per_page"`
 }
 
 func (p *IdentityListParams) SetDefaults() {
