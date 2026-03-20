@@ -704,7 +704,7 @@ func (s *MeetingService) ensureWorkflow(ctx context.Context, tenantID, userID uu
 }
 
 func (s *MeetingService) ensureBoardMeetingDefinition(ctx context.Context, templateSvc *workflowservice.TemplateService, tenantID, userID uuid.UUID) (*workflowmodel.WorkflowDefinition, error) {
-	definitions, _, err := s.workflowDefRepo.List(ctx, tenantID.String(), "active", "Board Meeting", 10, 0)
+	definitions, _, err := s.workflowDefRepo.List(ctx, tenantID.String(), "active", "Board Meeting", "", "", "", 10, 0)
 	if err != nil {
 		return nil, err
 	}
@@ -713,7 +713,7 @@ func (s *MeetingService) ensureBoardMeetingDefinition(ctx context.Context, templ
 			return definition, nil
 		}
 	}
-	definition, err := templateSvc.InstantiateTemplate(ctx, tenantID.String(), userID.String(), "tmpl-board-meeting")
+	definition, err := templateSvc.InstantiateTemplate(ctx, tenantID.String(), userID.String(), "tmpl-board-meeting", "", "")
 	if err != nil {
 		return nil, err
 	}

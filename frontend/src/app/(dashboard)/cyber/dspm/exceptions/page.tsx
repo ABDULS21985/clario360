@@ -487,15 +487,29 @@ export default function RiskExceptionsPage() {
                   />
                 </div>
               </div>
+              <div className="space-y-2">
+                <Label htmlFor="exc-remediation-id">Remediation ID</Label>
+                <Input
+                  id="exc-remediation-id"
+                  placeholder="Optional"
+                  value={form.remediation_id}
+                  onChange={(e) => setForm({ ...form, remediation_id: e.target.value })}
+                />
+              </div>
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
-                  <Label htmlFor="exc-remediation-id">Remediation ID</Label>
-                  <Input
-                    id="exc-remediation-id"
-                    placeholder="Optional"
-                    value={form.remediation_id}
-                    onChange={(e) => setForm({ ...form, remediation_id: e.target.value })}
-                  />
+                  <Label>Risk Level</Label>
+                  <Select value={form.risk_level} onValueChange={(v) => setForm({ ...form, risk_level: v as ExceptionForm['risk_level'] })}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="low">Low</SelectItem>
+                      <SelectItem value="medium">Medium</SelectItem>
+                      <SelectItem value="high">High</SelectItem>
+                      <SelectItem value="critical">Critical</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="exc-risk-score">Risk Score</Label>

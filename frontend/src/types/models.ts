@@ -419,6 +419,7 @@ export interface WorkflowVariable {
 
 export interface WorkflowDefinition {
   id: string;
+  tenant_id?: string;
   name: string;
   description: string;
   category?: WorkflowCategory;
@@ -428,31 +429,32 @@ export interface WorkflowDefinition {
   steps: BackendStepDefinition[];
   variables: Record<string, BackendVariableDef>;
   step_count?: number;
+  instance_count?: number;
   created_by: string;
   updated_by?: string;
   created_at: string;
   updated_at: string;
   published_at?: string | null;
-  instance_count?: number;
 }
 
 export interface WorkflowDefinitionVersion {
   id?: string;
+  tenant_id?: string;
   version: number;
   status: WorkflowDefinitionStatus;
   name?: string;
   description?: string;
+  category?: string;
   step_count?: number;
+  instance_count?: number;
   steps?: BackendStepDefinition[];
   trigger_config?: BackendTriggerConfig;
   variables?: Record<string, BackendVariableDef>;
   created_by?: string;
   updated_by?: string;
-  published_at?: string | null;
-  published_by?: string | null;
-  change_summary?: string;
   created_at?: string;
   updated_at?: string;
+  published_at?: string | null;
 }
 
 export interface CreateInstanceRequest {

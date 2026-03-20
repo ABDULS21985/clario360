@@ -75,7 +75,7 @@ func (l *WorkflowRemediationLauncher) StartRemediation(ctx context.Context, tena
 }
 
 func (l *WorkflowRemediationLauncher) ensureActiveChangeRequestDefinition(ctx context.Context, tenantID, userID string) (string, error) {
-	defs, _, err := l.defRepo.List(ctx, tenantID, "active", "Change Request", 10, 0)
+	defs, _, err := l.defRepo.List(ctx, tenantID, "active", "Change Request", "", "", "", 10, 0)
 	if err != nil {
 		return "", err
 	}
@@ -84,7 +84,7 @@ func (l *WorkflowRemediationLauncher) ensureActiveChangeRequestDefinition(ctx co
 			return def.ID, nil
 		}
 	}
-	def, err := l.templateSvc.InstantiateTemplate(ctx, tenantID, userID, "tmpl-change-request")
+	def, err := l.templateSvc.InstantiateTemplate(ctx, tenantID, userID, "tmpl-change-request", "", "")
 	if err != nil {
 		return "", err
 	}

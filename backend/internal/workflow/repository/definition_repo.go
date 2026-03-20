@@ -42,15 +42,16 @@ func (r *DefinitionRepository) Create(ctx context.Context, def *model.WorkflowDe
 
 	query := `
 		INSERT INTO workflow_definitions (
-			tenant_id, name, description, version, status,
-			trigger_config, variables, steps, created_by, updated_by
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+			tenant_id, name, description, category, version, status,
+			trigger_config, variables, steps, created_by, updated_by, published_at
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
 		RETURNING id, created_at, updated_at`
 
 	return r.pool.QueryRow(ctx, query,
 		def.TenantID,
 		def.Name,
 		def.Description,
+		def.Category,
 		def.Version,
 		def.Status,
 		triggerJSON,
@@ -58,6 +59,7 @@ func (r *DefinitionRepository) Create(ctx context.Context, def *model.WorkflowDe
 		stepsJSON,
 		def.CreatedBy,
 		nilIfEmpty(def.UpdatedBy),
+		def.PublishedAt,
 	).Scan(&def.ID, &def.CreatedAt, &def.UpdatedAt)
 }
 
@@ -65,9 +67,10 @@ func (r *DefinitionRepository) Create(ctx context.Context, def *model.WorkflowDe
 // model.ErrNotFound if the row does not exist or has been soft-deleted.
 func (r *DefinitionRepository) GetByID(ctx context.Context, tenantID, id string) (*model.WorkflowDefinition, error) {
 	query := `
-		SELECT id, tenant_id, name, description, version, status,
+		SELECT id, tenant_id, name, description, category, version, status,
 		       trigger_config, variables, steps,
-		       created_by, updated_by, created_at, updated_at, deleted_at
+		       created_by, updated_by, created_at, updated_at, published_at, deleted_at,
+		       (SELECT COUNT(*) FROM workflow_instances WHERE definition_id = workflow_definitions.id) AS instance_count
 		FROM workflow_definitions
 		WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL`
 
@@ -78,9 +81,10 @@ func (r *DefinitionRepository) GetByID(ctx context.Context, tenantID, id string)
 // has not been soft-deleted.
 func (r *DefinitionRepository) GetActiveByID(ctx context.Context, tenantID, id string) (*model.WorkflowDefinition, error) {
 	query := `
-		SELECT id, tenant_id, name, description, version, status,
+		SELECT id, tenant_id, name, description, category, version, status,
 		       trigger_config, variables, steps,
-		       created_by, updated_by, created_at, updated_at, deleted_at
+		       created_by, updated_by, created_at, updated_at, published_at, deleted_at,
+		       (SELECT COUNT(*) FROM workflow_instances WHERE definition_id = workflow_definitions.id) AS instance_count
 		FROM workflow_definitions
 		WHERE id = $1 AND tenant_id = $2 AND status = 'active' AND deleted_at IS NULL`
 
@@ -90,19 +94,33 @@ func (r *DefinitionRepository) GetActiveByID(ctx context.Context, tenantID, id s
 // GetByIDAndVersion retrieves a specific version of a definition.
 func (r *DefinitionRepository) GetByIDAndVersion(ctx context.Context, tenantID, id string, version int) (*model.WorkflowDefinition, error) {
 	query := `
-		SELECT id, tenant_id, name, description, version, status,
+		SELECT id, tenant_id, name, description, category, version, status,
 		       trigger_config, variables, steps,
-		       created_by, updated_by, created_at, updated_at, deleted_at
+		       created_by, updated_by, created_at, updated_at, published_at, deleted_at,
+		       (SELECT COUNT(*) FROM workflow_instances WHERE definition_id = workflow_definitions.id) AS instance_count
 		FROM workflow_definitions
 		WHERE id = $1 AND tenant_id = $2 AND version = $3 AND deleted_at IS NULL`
 
 	return r.scanDefinition(ctx, r.pool.QueryRow(ctx, query, id, tenantID, version))
 }
 
-// List returns paginated definitions filtered by tenant, optional status, and
-// optional name search (case-insensitive ILIKE). The second return value is
-// the total count matching the filters (for pagination metadata).
-func (r *DefinitionRepository) List(ctx context.Context, tenantID, status, nameFilter string, limit, offset int) ([]*model.WorkflowDefinition, int, error) {
+// validSortColumns defines the allowed sort columns to prevent SQL injection.
+var validSortColumns = map[string]string{
+	"name":       "name",
+	"category":   "category",
+	"status":     "status",
+	"version":    "version",
+	"created_at":     "created_at",
+	"updated_at":     "updated_at",
+	"published_at":   "published_at",
+	"instance_count": "(SELECT COUNT(*) FROM workflow_instances WHERE definition_id = workflow_definitions.id)",
+}
+
+// List returns paginated definitions filtered by tenant, optional status
+// (comma-separated for multiple values), optional category, and optional
+// name search (case-insensitive ILIKE). Supports sort column and direction.
+// The second return value is the total count for pagination metadata.
+func (r *DefinitionRepository) List(ctx context.Context, tenantID, status, nameFilter, category, sortBy, sortOrder string, limit, offset int) ([]*model.WorkflowDefinition, int, error) {
 	var conditions []string
 	var args []any
 	argIdx := 1
@@ -114,9 +132,36 @@ func (r *DefinitionRepository) List(ctx context.Context, tenantID, status, nameF
 	conditions = append(conditions, "deleted_at IS NULL")
 
 	if status != "" {
-		conditions = append(conditions, fmt.Sprintf("status = $%d", argIdx))
-		args = append(args, status)
-		argIdx++
+		statuses := strings.Split(status, ",")
+		if len(statuses) == 1 {
+			conditions = append(conditions, fmt.Sprintf("status = $%d", argIdx))
+			args = append(args, strings.TrimSpace(statuses[0]))
+			argIdx++
+		} else {
+			placeholders := make([]string, len(statuses))
+			for i, s := range statuses {
+				placeholders[i] = fmt.Sprintf("$%d", argIdx)
+				args = append(args, strings.TrimSpace(s))
+				argIdx++
+			}
+			conditions = append(conditions, fmt.Sprintf("status IN (%s)", strings.Join(placeholders, ",")))
+		}
+	}
+	if category != "" {
+		categories := strings.Split(category, ",")
+		if len(categories) == 1 {
+			conditions = append(conditions, fmt.Sprintf("category = $%d", argIdx))
+			args = append(args, strings.TrimSpace(categories[0]))
+			argIdx++
+		} else {
+			placeholders := make([]string, len(categories))
+			for i, c := range categories {
+				placeholders[i] = fmt.Sprintf("$%d", argIdx)
+				args = append(args, strings.TrimSpace(c))
+				argIdx++
+			}
+			conditions = append(conditions, fmt.Sprintf("category IN (%s)", strings.Join(placeholders, ",")))
+		}
 	}
 	if nameFilter != "" {
 		conditions = append(conditions, fmt.Sprintf("name ILIKE $%d", argIdx))
@@ -137,15 +182,26 @@ func (r *DefinitionRepository) List(ctx context.Context, tenantID, status, nameF
 		return []*model.WorkflowDefinition{}, 0, nil
 	}
 
+	// Resolve sort column with whitelist; default to updated_at DESC.
+	orderCol := "updated_at"
+	if col, ok := validSortColumns[sortBy]; ok {
+		orderCol = col
+	}
+	orderDir := "DESC"
+	if strings.EqualFold(sortOrder, "asc") {
+		orderDir = "ASC"
+	}
+
 	// Paginated data query.
 	dataQuery := fmt.Sprintf(`
-		SELECT id, tenant_id, name, description, version, status,
+		SELECT id, tenant_id, name, description, category, version, status,
 		       trigger_config, variables, steps,
-		       created_by, updated_by, created_at, updated_at, deleted_at
+		       created_by, updated_by, created_at, updated_at, published_at, deleted_at,
+		       (SELECT COUNT(*) FROM workflow_instances WHERE definition_id = workflow_definitions.id) AS instance_count
 		FROM workflow_definitions
 		WHERE %s
-		ORDER BY created_at DESC
-		LIMIT $%d OFFSET $%d`, where, argIdx, argIdx+1)
+		ORDER BY %s %s
+		LIMIT $%d OFFSET $%d`, where, orderCol, orderDir, argIdx, argIdx+1)
 	args = append(args, limit, offset)
 
 	rows, err := r.pool.Query(ctx, dataQuery, args...)
@@ -179,9 +235,10 @@ func (r *DefinitionRepository) ListVersions(ctx context.Context, tenantID, id st
 	}
 
 	query := `
-		SELECT id, tenant_id, name, description, version, status,
+		SELECT id, tenant_id, name, description, category, version, status,
 		       trigger_config, variables, steps,
-		       created_by, updated_by, created_at, updated_at, deleted_at
+		       created_by, updated_by, created_at, updated_at, published_at, deleted_at,
+		       (SELECT COUNT(*) FROM workflow_instances WHERE definition_id = workflow_definitions.id) AS instance_count
 		FROM workflow_definitions
 		WHERE tenant_id = $1 AND name = $2 AND deleted_at IS NULL
 		ORDER BY version DESC`
@@ -215,11 +272,13 @@ func (r *DefinitionRepository) Update(ctx context.Context, def *model.WorkflowDe
 	query := `
 		UPDATE workflow_definitions
 		SET description = $3,
-		    status = $4,
-		    trigger_config = $5,
-		    variables = $6,
-		    steps = $7,
-		    updated_by = $8,
+		    category = $4,
+		    status = $5,
+		    trigger_config = $6,
+		    variables = $7,
+		    steps = $8,
+		    updated_by = $9,
+		    published_at = $10,
 		    updated_at = now()
 		WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL`
 
@@ -227,11 +286,13 @@ func (r *DefinitionRepository) Update(ctx context.Context, def *model.WorkflowDe
 		def.ID,
 		def.TenantID,
 		def.Description,
+		def.Category,
 		def.Status,
 		triggerJSON,
 		variablesJSON,
 		stepsJSON,
 		nilIfEmpty(def.UpdatedBy),
+		def.PublishedAt,
 	)
 	if err != nil {
 		return fmt.Errorf("updating workflow definition: %w", err)
@@ -281,9 +342,10 @@ func (r *DefinitionRepository) GetMaxVersion(ctx context.Context, tenantID, name
 // query uses a JSONB containment operator to match the topic field.
 func (r *DefinitionRepository) GetActiveByTriggerTopic(ctx context.Context, topic string) ([]*model.WorkflowDefinition, error) {
 	query := `
-		SELECT id, tenant_id, name, description, version, status,
+		SELECT id, tenant_id, name, description, category, version, status,
 		       trigger_config, variables, steps,
-		       created_by, updated_by, created_at, updated_at, deleted_at
+		       created_by, updated_by, created_at, updated_at, published_at, deleted_at,
+		       (SELECT COUNT(*) FROM workflow_instances WHERE definition_id = workflow_definitions.id) AS instance_count
 		FROM workflow_definitions
 		WHERE status = 'active'
 		  AND deleted_at IS NULL
@@ -320,6 +382,7 @@ func (r *DefinitionRepository) scanDefinition(_ context.Context, row pgx.Row) (*
 		&def.TenantID,
 		&def.Name,
 		&def.Description,
+		&def.Category,
 		&def.Version,
 		&def.Status,
 		&triggerJSON,
@@ -329,7 +392,9 @@ func (r *DefinitionRepository) scanDefinition(_ context.Context, row pgx.Row) (*
 		&updatedByNullable,
 		&def.CreatedAt,
 		&def.UpdatedAt,
+		&def.PublishedAt,
 		&def.DeletedAt,
+		&def.InstanceCount,
 	)
 	if err != nil {
 		if err == pgx.ErrNoRows {
@@ -372,6 +437,7 @@ func (r *DefinitionRepository) scanDefinitions(rows pgx.Rows) ([]*model.Workflow
 			&def.TenantID,
 			&def.Name,
 			&def.Description,
+			&def.Category,
 			&def.Version,
 			&def.Status,
 			&triggerJSON,
@@ -381,7 +447,9 @@ func (r *DefinitionRepository) scanDefinitions(rows pgx.Rows) ([]*model.Workflow
 			&updatedByNullable,
 			&def.CreatedAt,
 			&def.UpdatedAt,
+			&def.PublishedAt,
 			&def.DeletedAt,
+			&def.InstanceCount,
 		); err != nil {
 			return nil, fmt.Errorf("scanning workflow definition row: %w", err)
 		}

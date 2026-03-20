@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"net/http"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/rs/zerolog"
@@ -16,7 +17,7 @@ import (
 type definitionService interface {
 	Create(ctx context.Context, tenantID, userID string, req dto.CreateDefinitionRequest) (*model.WorkflowDefinition, error)
 	GetByID(ctx context.Context, tenantID, id string) (*model.WorkflowDefinition, error)
-	List(ctx context.Context, tenantID, status, nameFilter string, page, pageSize int) ([]*model.WorkflowDefinition, int, error)
+	List(ctx context.Context, tenantID, status, nameFilter, category, sortBy, sortOrder string, page, pageSize int) ([]*model.WorkflowDefinition, int, error)
 	Update(ctx context.Context, tenantID, id, userID string, req dto.UpdateDefinitionRequest) (*model.WorkflowDefinition, error)
 	Activate(ctx context.Context, tenantID, id string) error
 	Archive(ctx context.Context, tenantID, id string) error
@@ -27,7 +28,7 @@ type definitionService interface {
 
 // definitionTemplateService is an optional service for creating definitions from templates.
 type definitionTemplateService interface {
-	InstantiateTemplate(ctx context.Context, tenantID, userID, templateID string) (*model.WorkflowDefinition, error)
+	InstantiateTemplate(ctx context.Context, tenantID, userID, templateID, name, description string) (*model.WorkflowDefinition, error)
 }
 
 // DefinitionHandler handles HTTP requests for workflow definition CRUD operations.
@@ -119,9 +120,15 @@ func (h *DefinitionHandler) List(w http.ResponseWriter, r *http.Request) {
 	}
 
 	status := r.URL.Query().Get("status")
-	if status != "" && !model.ValidDefinitionStatuses[status] {
-		writeError(w, http.StatusBadRequest, "INVALID_STATUS", "status must be one of: draft, active, deprecated, archived")
-		return
+	if status != "" {
+		// Validate each comma-separated status value.
+		for _, s := range strings.Split(status, ",") {
+			s = strings.TrimSpace(s)
+			if s != "" && !model.ValidDefinitionStatuses[s] {
+				writeError(w, http.StatusBadRequest, "INVALID_STATUS", "status must be one of: draft, active, deprecated, archived")
+				return
+			}
+		}
 	}
 
 	nameFilter := r.URL.Query().Get("name")
@@ -129,22 +136,30 @@ func (h *DefinitionHandler) List(w http.ResponseWriter, r *http.Request) {
 		nameFilter = r.URL.Query().Get("search")
 	}
 	category := r.URL.Query().Get("category")
+	if category != "" {
+		// Validate each comma-separated category value.
+		for _, c := range strings.Split(category, ",") {
+			c = strings.TrimSpace(c)
+			if c != "" && !model.ValidCategories[c] {
+				writeError(w, http.StatusBadRequest, "INVALID_CATEGORY",
+					"category must be one of: approval, onboarding, review, escalation, notification, data_pipeline, compliance, custom")
+				return
+			}
+		}
+	}
+	sortBy := r.URL.Query().Get("sort")
+	sortOrder := r.URL.Query().Get("order")
 	page, pageSize := parsePagination(r)
 
-	defs, total, err := h.service.List(r.Context(), user.TenantID, status, nameFilter, page, pageSize)
+	defs, total, err := h.service.List(r.Context(), user.TenantID, status, nameFilter, category, sortBy, sortOrder, page, pageSize)
 	if err != nil {
 		h.logger.Error().Err(err).Str("tenant_id", user.TenantID).Msg("failed to list workflow definitions")
 		handleServiceError(w, err)
 		return
 	}
 
-	// Convert model pointers to response DTOs, applying optional category filter.
 	items := make([]dto.DefinitionResponse, 0, len(defs))
 	for _, d := range defs {
-		if category != "" && d.Category != category {
-			total--
-			continue
-		}
 		items = append(items, dto.DefinitionToResponse(d))
 	}
 
@@ -428,7 +443,7 @@ func (h *DefinitionHandler) CreateFromTemplate(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	def, err := h.tmplSvc.InstantiateTemplate(r.Context(), user.TenantID, user.ID, req.TemplateID)
+	def, err := h.tmplSvc.InstantiateTemplate(r.Context(), user.TenantID, user.ID, req.TemplateID, req.Name, req.Description)
 	if err != nil {
 		h.logger.Error().Err(err).
 			Str("tenant_id", user.TenantID).

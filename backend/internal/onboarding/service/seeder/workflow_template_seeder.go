@@ -30,7 +30,7 @@ func (s *WorkflowTemplateSeeder) Seed(ctx context.Context, tenantID, adminUserID
 		return err
 	}
 	for _, tmpl := range templates {
-		definitions, _, err := s.definitions.List(ctx, tenantID, "", tmpl.Name, 25, 0)
+		definitions, _, err := s.definitions.List(ctx, tenantID, "", tmpl.Name, "", "", "", 25, 0)
 		if err != nil {
 			return err
 		}
@@ -44,7 +44,7 @@ func (s *WorkflowTemplateSeeder) Seed(ctx context.Context, tenantID, adminUserID
 		if exists {
 			continue
 		}
-		if _, err := s.templates.InstantiateTemplate(ctx, tenantID, adminUserID, tmpl.ID); err != nil {
+		if _, err := s.templates.InstantiateTemplate(ctx, tenantID, adminUserID, tmpl.ID, "", ""); err != nil {
 			return fmt.Errorf("instantiate workflow template %s: %w", tmpl.ID, err)
 		}
 	}

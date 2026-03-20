@@ -52,10 +52,12 @@ type DefinitionResponse struct {
 	Variables     map[string]model.VariableDef `json:"variables"`
 	Steps         []model.StepDefinition       `json:"steps"`
 	StepCount     int                          `json:"step_count"`
+	InstanceCount int                          `json:"instance_count"`
 	CreatedBy     string                       `json:"created_by"`
 	UpdatedBy     string                       `json:"updated_by,omitempty"`
 	CreatedAt     time.Time                    `json:"created_at"`
 	UpdatedAt     time.Time                    `json:"updated_at"`
+	PublishedAt   *time.Time                   `json:"published_at,omitempty"`
 }
 
 // ListDefinitionsResponse is the paginated response for listing definitions.
@@ -95,10 +97,12 @@ func DefinitionToResponse(d *model.WorkflowDefinition) DefinitionResponse {
 		Variables:     vars,
 		Steps:         steps,
 		StepCount:     len(steps),
+		InstanceCount: d.InstanceCount,
 		CreatedBy:     d.CreatedBy,
 		UpdatedBy:     d.UpdatedBy,
 		CreatedAt:     d.CreatedAt,
 		UpdatedAt:     d.UpdatedAt,
+		PublishedAt:   d.PublishedAt,
 	}
 }
 

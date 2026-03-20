@@ -22,7 +22,9 @@ type WorkflowDefinition struct {
 	UpdatedBy     string                 `json:"updated_by,omitempty" db:"updated_by"`
 	CreatedAt     time.Time              `json:"created_at" db:"created_at"`
 	UpdatedAt     time.Time              `json:"updated_at" db:"updated_at"`
+	PublishedAt   *time.Time             `json:"published_at,omitempty" db:"published_at"`
 	DeletedAt     *time.Time             `json:"deleted_at,omitempty" db:"deleted_at"`
+	InstanceCount int                    `json:"instance_count" db:"-"` // computed, not persisted
 }
 
 // Valid workflow definition categories.

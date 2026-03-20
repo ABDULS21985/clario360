@@ -34,12 +34,12 @@ export function RoleAssignDialog({
   onSuccess,
 }: RoleAssignDialogProps) {
   const [selectedRoleIds, setSelectedRoleIds] = useState<Set<string>>(
-    new Set(user.roles.map((r) => r.id))
+    new Set((user.roles ?? []).map((r) => r.id))
   );
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    setSelectedRoleIds(new Set(user.roles.map((r) => r.id)));
+    setSelectedRoleIds(new Set((user.roles ?? []).map((r) => r.id)));
   }, [user]);
 
   const { data: rolesData, isLoading } = useApiQuery<{ data: Role[] }>(
@@ -62,7 +62,7 @@ export function RoleAssignDialog({
   const handleSave = async () => {
     setSaving(true);
     try {
-      const currentIds = new Set(user.roles.map((r) => r.id));
+      const currentIds = new Set((user.roles ?? []).map((r) => r.id));
       const toAdd = [...selectedRoleIds].filter((id) => !currentIds.has(id));
       const toRemove = [...currentIds].filter((id) => !selectedRoleIds.has(id));
 

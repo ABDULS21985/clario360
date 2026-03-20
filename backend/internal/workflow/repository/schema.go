@@ -19,6 +19,7 @@ CREATE TABLE IF NOT EXISTS workflow_definitions (
     tenant_id UUID NOT NULL,
     name TEXT NOT NULL,
     description TEXT NOT NULL DEFAULT '',
+    category TEXT NOT NULL DEFAULT '',
     version INT NOT NULL DEFAULT 1,
     status TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'active', 'deprecated', 'archived')),
     trigger_config JSONB NOT NULL DEFAULT '{}',
@@ -31,6 +32,10 @@ CREATE TABLE IF NOT EXISTS workflow_definitions (
     deleted_at TIMESTAMPTZ,
     UNIQUE (tenant_id, name, version)
 );
+
+-- Add columns if they do not already exist (idempotent).
+ALTER TABLE workflow_definitions ADD COLUMN IF NOT EXISTS category TEXT NOT NULL DEFAULT '';
+ALTER TABLE workflow_definitions ADD COLUMN IF NOT EXISTS published_at TIMESTAMPTZ;
 
 CREATE INDEX IF NOT EXISTS idx_workflow_definitions_tenant
     ON workflow_definitions (tenant_id);

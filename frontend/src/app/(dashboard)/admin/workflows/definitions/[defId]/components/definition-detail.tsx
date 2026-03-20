@@ -366,8 +366,8 @@ export function DefinitionDetailClient() {
                       <TableHead>Version</TableHead>
                       <TableHead>Status</TableHead>
                       <TableHead>Published At</TableHead>
-                      <TableHead>Published By</TableHead>
-                      <TableHead>Change Summary</TableHead>
+                      <TableHead>Updated By</TableHead>
+                      <TableHead>Updated At</TableHead>
                       <TableHead>Steps</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -388,9 +388,13 @@ export function DefinitionDetailClient() {
                             ? formatDateTime(v.published_at)
                             : '—'}
                         </TableCell>
-                        <TableCell>{v.published_by ?? '—'}</TableCell>
-                        <TableCell className="text-sm max-w-xs truncate">
-                          {v.change_summary || '—'}
+                        <TableCell className="text-sm">
+                          {v.updated_by ?? '—'}
+                        </TableCell>
+                        <TableCell>
+                          {v.updated_at
+                            ? formatDateTime(v.updated_at)
+                            : '—'}
                         </TableCell>
                         <TableCell>{v.step_count}</TableCell>
                       </TableRow>

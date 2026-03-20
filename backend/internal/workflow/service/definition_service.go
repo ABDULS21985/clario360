@@ -17,7 +17,7 @@ type definitionRepo interface {
 	Create(ctx context.Context, def *model.WorkflowDefinition) error
 	GetByID(ctx context.Context, tenantID, id string) (*model.WorkflowDefinition, error)
 	GetActiveByID(ctx context.Context, tenantID, id string) (*model.WorkflowDefinition, error)
-	List(ctx context.Context, tenantID, status, nameFilter string, limit, offset int) ([]*model.WorkflowDefinition, int, error)
+	List(ctx context.Context, tenantID, status, nameFilter, category, sortBy, sortOrder string, limit, offset int) ([]*model.WorkflowDefinition, int, error)
 	ListVersions(ctx context.Context, tenantID, id string) ([]*model.WorkflowDefinition, error)
 	Update(ctx context.Context, def *model.WorkflowDefinition) error
 	SoftDelete(ctx context.Context, tenantID, id string) error
@@ -102,8 +102,9 @@ func (s *DefinitionService) GetByID(ctx context.Context, tenantID, id string) (*
 }
 
 // List returns a paginated list of workflow definitions for a tenant,
-// optionally filtered by status and name substring.
-func (s *DefinitionService) List(ctx context.Context, tenantID, status, nameFilter string, page, pageSize int) ([]*model.WorkflowDefinition, int, error) {
+// optionally filtered by status (comma-separated for multiple), category,
+// and name substring. Supports sortBy column and sortOrder (asc/desc).
+func (s *DefinitionService) List(ctx context.Context, tenantID, status, nameFilter, category, sortBy, sortOrder string, page, pageSize int) ([]*model.WorkflowDefinition, int, error) {
 	if page < 1 {
 		page = 1
 	}
@@ -117,7 +118,7 @@ func (s *DefinitionService) List(ctx context.Context, tenantID, status, nameFilt
 	limit := pageSize
 	offset := (page - 1) * pageSize
 
-	defs, total, err := s.repo.List(ctx, tenantID, status, nameFilter, limit, offset)
+	defs, total, err := s.repo.List(ctx, tenantID, status, nameFilter, category, sortBy, sortOrder, limit, offset)
 	if err != nil {
 		return nil, 0, fmt.Errorf("listing workflow definitions: %w", err)
 	}
@@ -233,8 +234,10 @@ func (s *DefinitionService) Activate(ctx context.Context, tenantID, id string) e
 			len(validationErrors), formatValidationErrors(validationErrors))
 	}
 
+	now := time.Now().UTC()
 	def.Status = model.DefinitionStatusActive
-	def.UpdatedAt = time.Now().UTC()
+	def.UpdatedAt = now
+	def.PublishedAt = &now
 
 	if err := s.repo.Update(ctx, def); err != nil {
 		return fmt.Errorf("activating definition: %w", err)

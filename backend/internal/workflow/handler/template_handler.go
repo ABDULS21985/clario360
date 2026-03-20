@@ -17,7 +17,7 @@ import (
 type templateService interface {
 	ListTemplates(ctx context.Context, category string) ([]*model.WorkflowTemplate, error)
 	GetTemplate(ctx context.Context, id string) (*model.WorkflowTemplate, error)
-	InstantiateTemplate(ctx context.Context, tenantID, userID, templateID string) (*model.WorkflowDefinition, error)
+	InstantiateTemplate(ctx context.Context, tenantID, userID, templateID, name, description string) (*model.WorkflowDefinition, error)
 }
 
 // TemplateHandler handles HTTP requests for workflow template operations.
@@ -125,7 +125,7 @@ func (h *TemplateHandler) InstantiateTemplate(w http.ResponseWriter, r *http.Req
 		_ = json.NewDecoder(r.Body).Decode(&overrides)
 	}
 
-	def, err := h.service.InstantiateTemplate(r.Context(), user.TenantID, user.ID, id)
+	def, err := h.service.InstantiateTemplate(r.Context(), user.TenantID, user.ID, id, overrides.Name, overrides.Description)
 	if err != nil {
 		h.logger.Error().Err(err).
 			Str("tenant_id", user.TenantID).
@@ -134,14 +134,6 @@ func (h *TemplateHandler) InstantiateTemplate(w http.ResponseWriter, r *http.Req
 			Msg("failed to instantiate workflow template")
 		handleServiceError(w, err)
 		return
-	}
-
-	// Apply overrides if provided by the caller.
-	if overrides.Name != "" {
-		def.Name = overrides.Name
-	}
-	if overrides.Description != "" {
-		def.Description = overrides.Description
 	}
 
 	h.logger.Info().
