@@ -482,7 +482,7 @@ func (s *FileService) ConfirmPresignedUpload(ctx context.Context, fileID, tenant
 		versionID = info.VersionID
 	}
 
-	if err := s.repo.UpdateAfterPresignedUpload(ctx, fileID, info.Size, versionID); err != nil {
+	if err := s.repo.UpdateAfterPresignedUpload(ctx, tenantID, fileID, info.Size, versionID); err != nil {
 		return nil, fmt.Errorf("updating file record: %w", err)
 	}
 
@@ -533,8 +533,8 @@ func (s *FileService) GeneratePresignedDownload(ctx context.Context, tenantID, f
 }
 
 // RescanFile re-triggers a virus scan for a file.
-func (s *FileService) RescanFile(ctx context.Context, fileID string) error {
-	record, err := s.repo.GetByIDNoTenant(ctx, fileID)
+func (s *FileService) RescanFile(ctx context.Context, tenantID, fileID string) error {
+	record, err := s.repo.GetByID(ctx, tenantID, fileID)
 	if err != nil {
 		return fmt.Errorf("loading file: %w", err)
 	}
@@ -544,7 +544,7 @@ func (s *FileService) RescanFile(ctx context.Context, fileID string) error {
 
 	// Reset scan status to pending
 	now := time.Now()
-	s.repo.UpdateScanStatus(ctx, fileID, record.VirusScanStatus, model.ScanStatusPending, nil, &now)
+	s.repo.UpdateScanStatus(ctx, tenantID, fileID, record.VirusScanStatus, model.ScanStatusPending, nil, &now)
 
 	s.publishFileEvent(ctx, "com.clario360.file.uploaded", record.TenantID, "", map[string]interface{}{
 		"file_id":      fileID,
@@ -559,18 +559,18 @@ func (s *FileService) RescanFile(ctx context.Context, fileID string) error {
 }
 
 // GetStorageStats returns storage usage statistics.
-func (s *FileService) GetStorageStats(ctx context.Context) ([]repository.StorageStat, error) {
-	return s.repo.GetStorageStats(ctx)
+func (s *FileService) GetStorageStats(ctx context.Context, tenantID string) ([]repository.StorageStat, error) {
+	return s.repo.GetStorageStats(ctx, tenantID)
 }
 
 // ListQuarantined lists unresolved quarantine entries.
-func (s *FileService) ListQuarantined(ctx context.Context, page, perPage int) ([]*model.QuarantineLog, int, error) {
-	return s.repo.ListQuarantined(ctx, page, perPage)
+func (s *FileService) ListQuarantined(ctx context.Context, tenantID string, page, perPage int) ([]*model.QuarantineLog, int, error) {
+	return s.repo.ListQuarantined(ctx, tenantID, page, perPage)
 }
 
 // ResolveQuarantine marks a quarantine entry as resolved.
-func (s *FileService) ResolveQuarantine(ctx context.Context, quarantineID, resolvedBy, action string) error {
-	return s.repo.ResolveQuarantine(ctx, quarantineID, resolvedBy, action)
+func (s *FileService) ResolveQuarantine(ctx context.Context, tenantID, quarantineID, resolvedBy, action string) error {
+	return s.repo.ResolveQuarantine(ctx, tenantID, quarantineID, resolvedBy, action)
 }
 
 func (s *FileService) bucketName(suite string) string {

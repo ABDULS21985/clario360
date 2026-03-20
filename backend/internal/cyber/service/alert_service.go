@@ -2,8 +2,10 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -19,6 +21,7 @@ import (
 type AlertService struct {
 	alertRepo   *repository.AlertRepository
 	commentRepo *repository.CommentRepository
+	ruleRepo    *repository.RuleRepository
 	db          *pgxpool.Pool
 	producer    *events.Producer
 	logger      zerolog.Logger
@@ -28,6 +31,7 @@ type AlertService struct {
 func NewAlertService(
 	alertRepo *repository.AlertRepository,
 	commentRepo *repository.CommentRepository,
+	ruleRepo *repository.RuleRepository,
 	db *pgxpool.Pool,
 	producer *events.Producer,
 	logger zerolog.Logger,
@@ -35,6 +39,7 @@ func NewAlertService(
 	return &AlertService{
 		alertRepo:   alertRepo,
 		commentRepo: commentRepo,
+		ruleRepo:    ruleRepo,
 		db:          db,
 		producer:    producer,
 		logger:      logger,
@@ -51,20 +56,16 @@ func (s *AlertService) ListAlerts(ctx context.Context, tenantID uuid.UUID, param
 	if err != nil {
 		return nil, err
 	}
+	if alerts == nil {
+		alerts = []*model.Alert{}
+	}
 	_ = publishAuditEvent(ctx, s.producer, "cyber.alert.listed", tenantID, actor, map[string]interface{}{
 		"filters": params,
 		"count":   len(alerts),
 	})
-	totalPages := (total + params.PerPage - 1) / params.PerPage
-	if totalPages < 1 {
-		totalPages = 1
-	}
 	return &dto.AlertListResponse{
-		Data:       alerts,
-		Total:      total,
-		Page:       params.Page,
-		PerPage:    params.PerPage,
-		TotalPages: totalPages,
+		Data: alerts,
+		Meta: dto.NewPaginationMeta(params.Page, params.PerPage, total),
 	}, nil
 }
 
@@ -85,6 +86,15 @@ func (s *AlertService) UpdateStatus(ctx context.Context, tenantID, alertID uuid.
 	before, err := s.alertRepo.GetByID(ctx, tenantID, alertID)
 	if err != nil {
 		return nil, err
+	}
+	if err := validateAlertStatusTransition(before.Status, req.Status); err != nil {
+		return nil, err
+	}
+	if req.Status == model.AlertStatusResolved && (req.Notes == nil || strings.TrimSpace(*req.Notes) == "") {
+		return nil, fmt.Errorf("resolution notes are required when resolving an alert")
+	}
+	if req.Status == model.AlertStatusFalsePositive && (req.Reason == nil || strings.TrimSpace(*req.Reason) == "") {
+		return nil, fmt.Errorf("reason is required when marking an alert as false positive")
 	}
 	after, err := s.alertRepo.UpdateStatus(ctx, tenantID, alertID, req.Status, req.Notes, req.Reason)
 	if err != nil {
@@ -132,6 +142,26 @@ func (s *AlertService) UpdateStatus(ctx context.Context, tenantID, alertID uuid.
 		"before": before.Status,
 		"after":  after.Status,
 	})
+	if before.AssignedTo == nil && req.Status == model.AlertStatusAcknowledged && actor != nil && actor.UserID != uuid.Nil {
+		assigned, assignErr := s.alertRepo.Assign(ctx, tenantID, alertID, actor.UserID)
+		if assignErr == nil {
+			after = assigned
+			_ = s.alertRepo.InsertTimeline(ctx, &model.AlertTimelineEntry{
+				TenantID:    tenantID,
+				AlertID:     alertID,
+				Action:      "assigned",
+				ActorID:     actorUUID(actor),
+				ActorName:   actorName(actor),
+				OldValue:    uuidPtrString(before.AssignedTo),
+				NewValue:    stringPtr(actor.UserID.String()),
+				Description: fmt.Sprintf("Alert assigned to %s", safeActorName(actor)),
+				Metadata:    mustJSON(map[string]interface{}{"assigned_to": actor.UserID.String(), "auto_assigned": true}),
+			})
+		}
+	}
+	if before.Status != model.AlertStatusFalsePositive && req.Status == model.AlertStatusFalsePositive && after.RuleID != nil && s.ruleRepo != nil {
+		_, _ = s.ruleRepo.UpdateFeedbackCounters(ctx, tenantID, *after.RuleID, "false_positive")
+	}
 	return after, nil
 }
 
@@ -210,6 +240,8 @@ func (s *AlertService) Escalate(ctx context.Context, tenantID, alertID uuid.UUID
 
 // AddComment adds an analyst comment to an alert.
 func (s *AlertService) AddComment(ctx context.Context, tenantID, alertID uuid.UUID, actor *Actor, req *dto.AlertCommentRequest) (*model.AlertComment, error) {
+	mentions := extractCommentMentions(req.Content)
+	metadata := mergeAlertCommentMetadata(req.Metadata, mentions)
 	comment, err := s.commentRepo.Create(ctx, &model.AlertComment{
 		TenantID:  tenantID,
 		AlertID:   alertID,
@@ -217,7 +249,7 @@ func (s *AlertService) AddComment(ctx context.Context, tenantID, alertID uuid.UU
 		UserName:  safeActorName(actor),
 		UserEmail: actor.UserEmail,
 		Content:   req.Content,
-		Metadata:  req.Metadata,
+		Metadata:  metadata,
 	})
 	if err != nil {
 		return nil, err
@@ -240,7 +272,22 @@ func (s *AlertService) AddComment(ctx context.Context, tenantID, alertID uuid.UU
 		"id":         alertID.String(),
 		"comment_id": comment.ID.String(),
 	})
+	if len(mentions) > 0 {
+		_ = publishEvent(ctx, s.producer, events.Topics.AlertEvents, "cyber.alert.mentioned", tenantID, actor, map[string]interface{}{
+			"id":         alertID.String(),
+			"comment_id": comment.ID.String(),
+			"mentions":   mentions,
+		})
+	}
 	return comment, nil
+}
+
+func (s *AlertService) MarkFalsePositive(ctx context.Context, tenantID, alertID uuid.UUID, actor *Actor, reason string) (*model.Alert, error) {
+	req := &dto.AlertStatusUpdateRequest{
+		Status: model.AlertStatusFalsePositive,
+		Reason: stringPtr(reason),
+	}
+	return s.UpdateStatus(ctx, tenantID, alertID, actor, req)
 }
 
 // ListComments returns all alert comments.
@@ -436,6 +483,75 @@ func (s *AlertService) CreateOrMergeDetectionAlert(ctx context.Context, alert *m
 	return created, true, nil
 }
 
+// CreateFromEvent persists a custom cross-suite alert and emits the standard
+// cyber alert created event without applying the detection-engine merge rules.
+func (s *AlertService) CreateFromEvent(ctx context.Context, alert *model.Alert) (*model.Alert, error) {
+	if alert == nil {
+		return nil, fmt.Errorf("alert is required")
+	}
+	if alert.Status == "" {
+		alert.Status = model.AlertStatusNew
+	}
+	if alert.EventCount == 0 {
+		alert.EventCount = 1
+	}
+	if alert.FirstEventAt.IsZero() {
+		alert.FirstEventAt = time.Now().UTC()
+	}
+	if alert.LastEventAt.IsZero() {
+		alert.LastEventAt = alert.FirstEventAt
+	}
+	if alert.AssetIDs == nil {
+		alert.AssetIDs = []uuid.UUID{}
+	}
+	if alert.Tags == nil {
+		alert.Tags = []string{}
+	}
+
+	created, err := s.alertRepo.Create(ctx, alert)
+	if err != nil {
+		return nil, err
+	}
+	_ = s.alertRepo.InsertTimeline(ctx, &model.AlertTimelineEntry{
+		TenantID:    alert.TenantID,
+		AlertID:     created.ID,
+		Action:      "created",
+		Description: fmt.Sprintf("Alert created by event source %q", alert.Source),
+		Metadata:    mustJSON(map[string]interface{}{"event_count": alert.EventCount}),
+	})
+	_ = publishEvent(ctx, s.producer, events.Topics.AlertEvents, "cyber.alert.created", alert.TenantID, nil, map[string]interface{}{
+		"id":                   created.ID.String(),
+		"title":                created.Title,
+		"severity":             created.Severity,
+		"confidence_score":     created.ConfidenceScore,
+		"affected_asset_count": len(created.AssetIDs),
+		"source":               created.Source,
+		"mitre_technique_id":   created.MITRETechniqueID,
+		"mitre_tactic_id":      created.MITRETacticID,
+	})
+	return created, nil
+}
+
+func (s *AlertService) FindRecentEventAlert(ctx context.Context, tenantID uuid.UUID, source, metadataKey, metadataValue string, window time.Duration) (*model.Alert, error) {
+	since := time.Now().UTC().Add(-window)
+	return s.alertRepo.FindRecentOpenBySourceAndMetadataValue(ctx, tenantID, source, metadataKey, metadataValue, since)
+}
+
+func (s *AlertService) UpdateEventAlert(ctx context.Context, alert *model.Alert) (*model.Alert, error) {
+	updated, err := s.alertRepo.UpdateEventAlert(ctx, alert)
+	if err != nil {
+		return nil, err
+	}
+	_ = s.alertRepo.InsertTimeline(ctx, &model.AlertTimelineEntry{
+		TenantID:    alert.TenantID,
+		AlertID:     updated.ID,
+		Action:      "correlated",
+		Description: fmt.Sprintf("Cross-suite event alert updated to %d correlated events", updated.EventCount),
+		Metadata:    mustJSON(map[string]interface{}{"event_count": updated.EventCount}),
+	})
+	return updated, nil
+}
+
 func actorUUID(actor *Actor) *uuid.UUID {
 	if actor == nil || actor.UserID == uuid.Nil {
 		return nil
@@ -499,4 +615,88 @@ func uniqueUUIDs(ids []uuid.UUID) []uuid.UUID {
 		out = append(out, id)
 	}
 	return out
+}
+
+func validateAlertStatusTransition(current, next model.AlertStatus) error {
+	if current == next {
+		return nil
+	}
+	allowed := map[model.AlertStatus][]model.AlertStatus{
+		model.AlertStatusNew: {
+			model.AlertStatusAcknowledged,
+			model.AlertStatusEscalated,
+			model.AlertStatusFalsePositive,
+		},
+		model.AlertStatusAcknowledged: {
+			model.AlertStatusInvestigating,
+			model.AlertStatusEscalated,
+			model.AlertStatusFalsePositive,
+		},
+		model.AlertStatusInvestigating: {
+			model.AlertStatusInProgress,
+			model.AlertStatusResolved,
+			model.AlertStatusEscalated,
+			model.AlertStatusFalsePositive,
+		},
+		model.AlertStatusInProgress: {
+			model.AlertStatusResolved,
+			model.AlertStatusEscalated,
+			model.AlertStatusFalsePositive,
+		},
+		model.AlertStatusResolved: {
+			model.AlertStatusClosed,
+			model.AlertStatusInvestigating,
+		},
+		model.AlertStatusClosed: {
+			model.AlertStatusInvestigating,
+		},
+		model.AlertStatusFalsePositive: {
+			model.AlertStatusInvestigating,
+		},
+		model.AlertStatusEscalated: {
+			model.AlertStatusInvestigating,
+			model.AlertStatusInProgress,
+			model.AlertStatusResolved,
+			model.AlertStatusFalsePositive,
+			model.AlertStatusClosed,
+		},
+	}
+	for _, candidate := range allowed[current] {
+		if candidate == next {
+			return nil
+		}
+	}
+	return fmt.Errorf("invalid alert status transition: %s -> %s", current, next)
+}
+
+func mergeAlertCommentMetadata(raw json.RawMessage, mentions []string) json.RawMessage {
+	payload := map[string]interface{}{}
+	if len(raw) > 0 {
+		_ = json.Unmarshal(raw, &payload)
+	}
+	if len(mentions) > 0 {
+		payload["mentions"] = mentions
+	}
+	return mustJSON(payload)
+}
+
+func extractCommentMentions(content string) []string {
+	seen := make(map[string]struct{})
+	mentions := make([]string, 0)
+	for _, token := range strings.Fields(content) {
+		if !strings.HasPrefix(token, "@") || len(token) < 2 {
+			continue
+		}
+		mention := strings.Trim(token, "@,.;:!?()[]{}<>\"'")
+		mention = strings.ToLower(strings.TrimSpace(mention))
+		if mention == "" {
+			continue
+		}
+		if _, ok := seen[mention]; ok {
+			continue
+		}
+		seen[mention] = struct{}{}
+		mentions = append(mentions, mention)
+	}
+	return mentions
 }

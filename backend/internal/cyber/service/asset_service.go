@@ -15,6 +15,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog"
 
+	aigovmiddleware "github.com/clario360/platform/internal/aigovernance/middleware"
 	"github.com/clario360/platform/internal/cyber/classifier"
 	cyberconfig "github.com/clario360/platform/internal/cyber/config"
 	"github.com/clario360/platform/internal/cyber/dto"
@@ -28,20 +29,21 @@ import (
 
 // AssetService contains the business logic for asset management.
 type AssetService struct {
-	assetRepo    *repository.AssetRepository
-	vulnRepo     *repository.VulnerabilityRepository
-	relRepo      *repository.RelationshipRepository
-	scanRepo     *repository.ScanRepository
-	scanRegistry *scanner.Registry
-	classifier   *classifier.AssetClassifier
-	enrichSvc    *EnrichmentService
-	producer     *events.Producer
-	metrics      *metrics.Metrics
-	cfg          *cyberconfig.Config
-	db           *pgxpool.Pool
-	logger       zerolog.Logger
-	runningScans map[uuid.UUID]context.CancelFunc
-	scanMu       sync.Mutex
+	assetRepo        *repository.AssetRepository
+	vulnRepo         *repository.VulnerabilityRepository
+	relRepo          *repository.RelationshipRepository
+	scanRepo         *repository.ScanRepository
+	scanRegistry     *scanner.Registry
+	classifier       *classifier.AssetClassifier
+	enrichSvc        *EnrichmentService
+	producer         *events.Producer
+	metrics          *metrics.Metrics
+	cfg              *cyberconfig.Config
+	db               *pgxpool.Pool
+	logger           zerolog.Logger
+	runningScans     map[uuid.UUID]context.CancelFunc
+	scanMu           sync.Mutex
+	predictionLogger *aigovmiddleware.PredictionLogger
 }
 
 // NewAssetService creates a new AssetService.
@@ -87,6 +89,7 @@ func (s *AssetService) CreateAsset(ctx context.Context, tenantID, userID uuid.UU
 
 	if s.cfg.ClassifyOnCreate {
 		crit, ruleName, _ := s.classifier.Classify(asset)
+		s.recordAssetClassificationPrediction(ctx, tenantID, asset, crit, ruleName)
 		s.metrics.ClassificationsTotal.WithLabelValues(tenantID.String(), ruleName).Inc()
 		if crit != asset.Criticality {
 			s.metrics.ClassificationChanged.WithLabelValues(tenantID.String(), string(asset.Criticality), string(crit)).Inc()
@@ -135,18 +138,13 @@ func (s *AssetService) ListAssets(ctx context.Context, tenantID uuid.UUID, param
 	if err != nil {
 		return nil, err
 	}
-
-	totalPages := (total + params.PerPage - 1) / params.PerPage
-	if totalPages < 1 {
-		totalPages = 1
+	if assets == nil {
+		assets = []*model.Asset{}
 	}
 
 	return &dto.AssetListResponse{
-		Data:       assets,
-		Total:      total,
-		Page:       params.Page,
-		PerPage:    params.PerPage,
-		TotalPages: totalPages,
+		Data: assets,
+		Meta: dto.NewPaginationMeta(params.Page, params.PerPage, total),
 	}, nil
 }
 
@@ -273,8 +271,15 @@ func (s *AssetService) BulkCreate(ctx context.Context, tenantID, userID uuid.UUI
 		}
 		if s.cfg.ClassifyOnCreate {
 			results := s.classifier.ClassifyBatch(fetchedAssets)
+			assetsByID := make(map[uuid.UUID]*model.Asset, len(fetchedAssets))
+			for _, asset := range fetchedAssets {
+				assetsByID[asset.ID] = asset
+			}
 			updates := make(map[uuid.UUID]model.Criticality)
 			for _, r := range results {
+				if asset := assetsByID[r.AssetID]; asset != nil {
+					s.recordAssetClassificationPrediction(bgCtx, tenantID, asset, r.Criticality, r.RuleName)
+				}
 				if r.Changed {
 					updates[r.AssetID] = r.Criticality
 				}
@@ -293,7 +298,13 @@ func (s *AssetService) BulkCreate(ctx context.Context, tenantID, userID uuid.UUI
 		"discovery_source": "import",
 	})
 
-	return &dto.BulkCreateResult{Count: len(ids), IDs: ids}, nil
+	return &dto.BulkCreateResult{
+		Count:   len(ids),
+		Created: len(ids),
+		Updated: 0,
+		Failed:  0,
+		IDs:     ids,
+	}, nil
 }
 
 // BulkCreateFromCSV parses a CSV reader and delegates to BulkCreate.
@@ -424,7 +435,7 @@ func (s *AssetService) TriggerScan(ctx context.Context, tenantID, userID uuid.UU
 		return nil, err
 	}
 
-	scanCtx, cancel := context.WithTimeout(scanner.WithTenantID(context.Background(), tenantID), scanTimeout(req.Options))
+	scanCtx, cancel := context.WithTimeout(scanner.WithScanID(scanner.WithTenantID(context.Background(), tenantID), scan.ID), scanTimeout(req.Options))
 	s.scanMu.Lock()
 	s.runningScans[scan.ID] = cancel
 	s.scanMu.Unlock()
@@ -508,12 +519,16 @@ func (s *AssetService) GetStats(ctx context.Context, tenantID uuid.UUID) (*dto.A
 		s.logger.Warn().Err(err).Msg("failed to query last scan time")
 	}
 
+	totalAssets := getInt(assetStats, "total_assets")
 	result := &dto.AssetStats{
-		TotalAssets:          getInt(assetStats, "total_assets"),
-		ActiveAssets:         getInt(assetStats, "active_assets"),
-		TotalVulnerabilities: getInt(vulnStats, "total_vulnerabilities"),
-		OpenVulnerabilities:  getInt(vulnStats, "open_vulnerabilities"),
-		AssetsWithCritical:   getInt(vulnStats, "assets_with_critical_vulns"),
+		Total:                    totalAssets,
+		TotalAssets:              totalAssets,
+		ActiveAssets:             getInt(assetStats, "active_assets"),
+		AssetsWithVulns:          getInt(vulnStats, "assets_with_open_vulns"),
+		AssetsDiscoveredThisWeek: getInt(assetStats, "discovered_this_week"),
+		TotalVulnerabilities:     getInt(vulnStats, "total_vulnerabilities"),
+		OpenVulnerabilities:      getInt(vulnStats, "open_vulnerabilities"),
+		AssetsWithCritical:       getInt(vulnStats, "assets_with_critical_vulns"),
 	}
 
 	if v, ok := assetStats["by_type"].(map[string]int); ok {
@@ -551,6 +566,10 @@ func (s *AssetService) GetStats(ctx context.Context, tenantID uuid.UUID) (*dto.A
 	return result, nil
 }
 
+func (s *AssetService) SetPredictionLogger(predictionLogger *aigovmiddleware.PredictionLogger) {
+	s.predictionLogger = predictionLogger
+}
+
 // BulkValidationError is a typed error for bulk validation failures.
 type BulkValidationError struct {
 	Code    string
@@ -578,46 +597,91 @@ func uuidsToStrings(ids []uuid.UUID) []string {
 	return out
 }
 
-// ListRelationships returns all relationships for an asset.
+// ListRelationships returns all relationships for an asset as a flat list
+// matching the frontend AssetRelationship interface.
 func (s *AssetService) ListRelationships(ctx context.Context, tenantID, assetID uuid.UUID) (any, error) {
 	rels, err := s.relRepo.ListForAsset(ctx, tenantID, assetID)
 	if err != nil {
 		return nil, err
 	}
-	response := map[string][]map[string]any{
-		"outgoing": {},
-		"incoming": {},
-	}
+	flat := make([]map[string]any, 0, len(rels))
 	for _, rel := range rels {
-		if rel.SourceAssetID == assetID {
-			response["outgoing"] = append(response["outgoing"], map[string]any{
-				"id":   rel.ID,
-				"type": rel.RelationshipType,
-				"target": map[string]any{
-					"id":          rel.TargetAssetID,
-					"name":        rel.TargetAssetName,
-					"type":        rel.TargetAssetType,
-					"criticality": rel.TargetAssetCriticality,
-				},
-				"metadata":   rel.Metadata,
-				"created_at": rel.CreatedAt,
-			})
-		} else {
-			response["incoming"] = append(response["incoming"], map[string]any{
-				"id":   rel.ID,
-				"type": rel.RelationshipType,
-				"source": map[string]any{
-					"id":          rel.SourceAssetID,
-					"name":        rel.SourceAssetName,
-					"type":        rel.SourceAssetType,
-					"criticality": rel.SourceAssetCriticality,
-				},
-				"metadata":   rel.Metadata,
-				"created_at": rel.CreatedAt,
+		entry := map[string]any{
+			"id":                rel.ID,
+			"source_asset_id":   rel.SourceAssetID,
+			"source_asset_name": derefStr(rel.SourceAssetName),
+			"source_asset_type": derefAssetType(rel.SourceAssetType),
+			"source_criticality": derefCriticality(rel.SourceAssetCriticality),
+			"target_asset_id":   rel.TargetAssetID,
+			"target_asset_name": derefStr(rel.TargetAssetName),
+			"target_asset_type": derefAssetType(rel.TargetAssetType),
+			"target_criticality": derefCriticality(rel.TargetAssetCriticality),
+			"relationship_type": rel.RelationshipType,
+			"created_at":        rel.CreatedAt,
+		}
+		flat = append(flat, entry)
+	}
+	return flat, nil
+}
+
+func derefStr(s *string) string {
+	if s == nil {
+		return ""
+	}
+	return *s
+}
+
+func derefAssetType(t *model.AssetType) string {
+	if t == nil {
+		return ""
+	}
+	return string(*t)
+}
+
+func derefCriticality(c *model.Criticality) string {
+	if c == nil {
+		return ""
+	}
+	return string(*c)
+}
+
+// ListAssetActivity returns a synthetic timeline of activity for an asset.
+// This aggregates vulnerability discoveries, alert associations, and scan events.
+func (s *AssetService) ListAssetActivity(ctx context.Context, tenantID, assetID uuid.UUID) ([]map[string]any, error) {
+	// Get recent vulnerabilities for this asset as activity entries
+	vulnParams := &dto.VulnerabilityListParams{Page: 1, PerPage: 20}
+	vulnParams.SetDefaults()
+	vulns, _, err := s.vulnRepo.List(ctx, tenantID, assetID, vulnParams)
+	if err != nil {
+		return nil, err
+	}
+
+	entries := make([]map[string]any, 0, len(vulns))
+	for _, v := range vulns {
+		entries = append(entries, map[string]any{
+			"id":          v.ID,
+			"alert_id":    v.AssetID,
+			"action":      "vulnerability_discovered",
+			"description": v.Title + " (" + v.Severity + ")",
+			"created_at":  v.DetectedAt,
+		})
+	}
+
+	// If no vulns, include a creation entry from the asset itself
+	if len(entries) == 0 {
+		asset, err := s.assetRepo.GetByID(ctx, tenantID, assetID)
+		if err == nil && asset != nil {
+			entries = append(entries, map[string]any{
+				"id":          asset.ID,
+				"alert_id":    asset.ID,
+				"action":      "asset_created",
+				"description": "Asset " + asset.Name + " was added to inventory",
+				"created_at":  asset.CreatedAt,
 			})
 		}
 	}
-	return response, nil
+
+	return entries, nil
 }
 
 // CreateRelationship creates a directed relationship between two assets.

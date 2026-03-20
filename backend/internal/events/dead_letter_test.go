@@ -145,3 +145,53 @@ func TestDeadLetterConsumer_Handle(t *testing.T) {
 		t.Errorf("expected status pending, got %s", entry.Status)
 	}
 }
+
+func TestDeadLetterConsumer_HandleWrappedEvent(t *testing.T) {
+	store := NewDeadLetterStore()
+	consumer := NewDeadLetterConsumer(store, nil, testLogger())
+
+	original := &Event{
+		ID:       "orig-evt-1",
+		Type:     "com.clario360.test",
+		TenantID: "t1",
+		Data:     json.RawMessage(`{"key":"value"}`),
+	}
+	payload, err := json.Marshal(map[string]any{
+		"original_event": original,
+		"error":          "handler failed",
+		"retry_count":    3,
+		"timestamp":      time.Now().UTC(),
+	})
+	if err != nil {
+		t.Fatalf("marshal wrapped payload: %v", err)
+	}
+
+	event := &Event{
+		ID:       "dlq-evt-2",
+		Type:     "com.clario360.test",
+		TenantID: "t1",
+		Time:     time.Now().UTC(),
+		Data:     payload,
+		Metadata: map[string]string{
+			"dlq.original_topic": "cyber.alert.events",
+		},
+	}
+
+	if err := consumer.Handle(context.Background(), event); err != nil {
+		t.Fatalf("Handle failed: %v", err)
+	}
+
+	entry, ok := store.Get("dlq-evt-2")
+	if !ok {
+		t.Fatal("expected entry to be stored")
+	}
+	if entry.OriginalEventID != "orig-evt-1" {
+		t.Fatalf("expected original event id orig-evt-1, got %s", entry.OriginalEventID)
+	}
+	if string(entry.EventData) != `{"key":"value"}` {
+		t.Fatalf("expected original event data to be stored, got %s", string(entry.EventData))
+	}
+	if entry.RetryCount != 3 {
+		t.Fatalf("expected retry count 3, got %d", entry.RetryCount)
+	}
+}

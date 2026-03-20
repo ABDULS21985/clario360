@@ -1,20 +1,21 @@
 "use client";
 
-import { useEffect } from "react";
+import { useState, useEffect } from "react";
 import { useForm, FormProvider } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
+import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
 import { FormField } from "@/components/shared/forms/form-field";
 import { MultiSelect } from "@/components/shared/forms/multi-select";
-import { useApiMutation } from "@/hooks/use-api-mutation";
 import { useApiQuery } from "@/hooks/use-api";
-import type { Role } from "@/types/models";
+import api from "@/lib/api";
+import type { Role, User } from "@/types/models";
 
 const passwordRegex = /^(?=.*[A-Z])(?=.*[a-z])(?=.*\d)(?=.*[^A-Za-z\d]).{12,}$/;
 
@@ -26,7 +27,7 @@ const createUserSchema = z.object({
     .string()
     .min(12, "Password must be at least 12 characters")
     .regex(passwordRegex, "Password must contain uppercase, lowercase, number, and special character"),
-  status: z.enum(["active", "suspended", "deactivated"]),
+  status: z.enum(["active", "suspended", "inactive"]),
   role_ids: z.array(z.string()),
   send_welcome_email: z.boolean(),
 });
@@ -40,6 +41,8 @@ interface UserCreateDialogProps {
 }
 
 export function UserCreateDialog({ open, onOpenChange, onSuccess }: UserCreateDialogProps) {
+  const [submitting, setSubmitting] = useState(false);
+
   const methods = useForm<CreateUserFormData>({
     resolver: zodResolver(createUserSchema),
     defaultValues: {
@@ -53,29 +56,43 @@ export function UserCreateDialog({ open, onOpenChange, onSuccess }: UserCreateDi
     },
   });
 
-  const { data: rolesData } = useApiQuery<{ data: Role[] }>(
+  // Backend returns plain Role[] (not paginated)
+  const { data: roles } = useApiQuery<Role[]>(
     ["roles"],
     "/api/v1/roles",
     { enabled: open }
   );
 
-  const createMutation = useApiMutation<unknown, CreateUserFormData>(
-    "post",
-    "/api/v1/auth/register",
-    {
-      successMessage: "User created successfully",
-      onSuccess: () => {
-        onOpenChange(false);
-        methods.reset();
-        onSuccess();
-      },
-    }
-  );
-
-  const roleOptions = rolesData?.data?.map((r) => ({ label: r.name, value: r.id })) ?? [];
+  const roleOptions = (roles ?? []).map((r) => ({ label: r.name, value: r.id }));
 
   const onSubmit = methods.handleSubmit(async (data) => {
-    await createMutation.mutate(data);
+    setSubmitting(true);
+    try {
+      // Admin create endpoint: POST /api/v1/users
+      // Backend AdminCreateUserRequest: { email, password, first_name, last_name, status?, role_ids?, send_welcome_email? }
+      await api.post<User>("/api/v1/users", {
+        email: data.email,
+        password: data.password,
+        first_name: data.first_name,
+        last_name: data.last_name,
+        status: data.status,
+        role_ids: data.role_ids.length > 0 ? data.role_ids : undefined,
+        send_welcome_email: data.send_welcome_email,
+      });
+
+      toast.success("User created successfully");
+      onOpenChange(false);
+      methods.reset();
+      onSuccess();
+    } catch (err) {
+      const message =
+        err && typeof err === "object" && "message" in err
+          ? String((err as { message: string }).message)
+          : "Failed to create user";
+      toast.error(message);
+    } finally {
+      setSubmitting(false);
+    }
   });
 
   useEffect(() => {
@@ -102,12 +119,12 @@ export function UserCreateDialog({ open, onOpenChange, onSuccess }: UserCreateDi
 
         <FormProvider {...methods}>
           <form onSubmit={onSubmit} className="space-y-5" noValidate>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <FormField name="first_name" label="First Name" required>
                 <Input
                   {...methods.register("first_name")}
                   placeholder="John"
-                  disabled={createMutation.isPending}
+                  disabled={submitting}
                   aria-invalid={!!methods.formState.errors.first_name}
                 />
               </FormField>
@@ -115,7 +132,7 @@ export function UserCreateDialog({ open, onOpenChange, onSuccess }: UserCreateDi
                 <Input
                   {...methods.register("last_name")}
                   placeholder="Doe"
-                  disabled={createMutation.isPending}
+                  disabled={submitting}
                   aria-invalid={!!methods.formState.errors.last_name}
                 />
               </FormField>
@@ -126,7 +143,7 @@ export function UserCreateDialog({ open, onOpenChange, onSuccess }: UserCreateDi
                 {...methods.register("email")}
                 type="email"
                 placeholder="john@company.com"
-                disabled={createMutation.isPending}
+                disabled={submitting}
                 aria-invalid={!!methods.formState.errors.email}
               />
             </FormField>
@@ -137,7 +154,7 @@ export function UserCreateDialog({ open, onOpenChange, onSuccess }: UserCreateDi
                   {...methods.register("password")}
                   type="password"
                   placeholder="Create a strong password"
-                  disabled={createMutation.isPending}
+                  disabled={submitting}
                   aria-invalid={!!methods.formState.errors.password}
                 />
                 {password.length > 0 && (
@@ -158,7 +175,7 @@ export function UserCreateDialog({ open, onOpenChange, onSuccess }: UserCreateDi
                         />
                       ))}
                     </div>
-                    <ul className="grid grid-cols-2 gap-x-4 gap-y-0.5 text-xs text-muted-foreground">
+                    <ul className="grid grid-cols-1 gap-x-4 gap-y-0.5 text-xs text-muted-foreground sm:grid-cols-2">
                       {Object.entries({
                         "12+ characters": strength.length,
                         Uppercase: strength.upper,
@@ -176,14 +193,14 @@ export function UserCreateDialog({ open, onOpenChange, onSuccess }: UserCreateDi
               </div>
             </FormField>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <FormField name="status" label="Initial Status">
                 <Select
                   defaultValue="active"
                   onValueChange={(v) =>
-                    methods.setValue("status", v as "active" | "suspended" | "deactivated")
+                    methods.setValue("status", v as "active" | "suspended" | "inactive")
                   }
-                  disabled={createMutation.isPending}
+                  disabled={submitting}
                 >
                   <SelectTrigger>
                     <SelectValue />
@@ -191,7 +208,7 @@ export function UserCreateDialog({ open, onOpenChange, onSuccess }: UserCreateDi
                   <SelectContent>
                     <SelectItem value="active">Active</SelectItem>
                     <SelectItem value="suspended">Suspended</SelectItem>
-                    <SelectItem value="deactivated">Deactivated</SelectItem>
+                    <SelectItem value="inactive">Inactive</SelectItem>
                   </SelectContent>
                 </Select>
               </FormField>
@@ -203,7 +220,7 @@ export function UserCreateDialog({ open, onOpenChange, onSuccess }: UserCreateDi
                 selected={methods.watch("role_ids")}
                 onChange={(vals) => methods.setValue("role_ids", vals)}
                 placeholder="Select roles..."
-                disabled={createMutation.isPending}
+                disabled={submitting}
               />
             </FormField>
 
@@ -212,12 +229,12 @@ export function UserCreateDialog({ open, onOpenChange, onSuccess }: UserCreateDi
                 id="send_welcome_email"
                 checked={methods.watch("send_welcome_email")}
                 onCheckedChange={(checked) =>
-                  methods.setValue("send_welcome_email", !!checked)
+                  methods.setValue("send_welcome_email", checked === true)
                 }
-                disabled={createMutation.isPending}
+                disabled={submitting}
               />
-              <Label htmlFor="send_welcome_email" className="text-sm cursor-pointer">
-                Send welcome email
+              <Label htmlFor="send_welcome_email" className="text-sm font-normal cursor-pointer">
+                Send welcome email to the new user
               </Label>
             </div>
 
@@ -226,12 +243,12 @@ export function UserCreateDialog({ open, onOpenChange, onSuccess }: UserCreateDi
                 type="button"
                 variant="outline"
                 onClick={() => onOpenChange(false)}
-                disabled={createMutation.isPending}
+                disabled={submitting}
               >
                 Cancel
               </Button>
-              <Button type="submit" disabled={createMutation.isPending}>
-                {createMutation.isPending ? "Creating..." : "Create User"}
+              <Button type="submit" disabled={submitting}>
+                {submitting ? "Creating..." : "Create User"}
               </Button>
             </DialogFooter>
           </form>

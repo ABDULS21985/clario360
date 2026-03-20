@@ -2,6 +2,7 @@ package handler
 
 import (
 	"net/http"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/rs/zerolog"
@@ -157,6 +158,28 @@ func (h *RoleHandler) ListUsersByRole(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, users)
+}
+
+func (h *RoleHandler) InternalUserIDsByRole(w http.ResponseWriter, r *http.Request) {
+	if r.Header.Get("X-Internal-Service") == "" {
+		writeError(w, http.StatusUnauthorized, "internal access required")
+		return
+	}
+
+	tenantID := strings.TrimSpace(r.URL.Query().Get("tenant_id"))
+	roleSlug := strings.TrimSpace(r.URL.Query().Get("role"))
+	if tenantID == "" || roleSlug == "" {
+		writeError(w, http.StatusBadRequest, "tenant_id and role are required")
+		return
+	}
+
+	userIDs, err := h.roleSvc.ListUserIDsByRole(r.Context(), tenantID, roleSlug)
+	if err != nil {
+		handleServiceError(w, err)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string][]string{"user_ids": userIDs})
 }
 
 func (h *RoleHandler) GetUserRoles(w http.ResponseWriter, r *http.Request) {

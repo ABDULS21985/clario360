@@ -1,0 +1,16 @@
+{{- if .Values.dataService.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "clario360.componentName" (dict "root" . "component" "data-service") }}-config
+  namespace: {{ include "clario360.namespace" . }}
+  labels:
+    {{- include "clario360.componentLabels" (dict "root" . "component" "data-service") | nindent 4 }}
+data:
+  DATA_HTTP_PORT: "8091"
+  METRICS_PORT: "9090"
+  DATA_KAFKA_GROUP_ID: "data-service"
+  {{- with .Values.dataService.config }}
+  {{- toYaml . | nindent 2 }}
+  {{- end }}
+{{- end }}

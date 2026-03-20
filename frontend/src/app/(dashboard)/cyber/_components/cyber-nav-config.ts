@@ -1,0 +1,82 @@
+// Cyber suite sidebar navigation configuration.
+// These items mirror the cybersecurity section in /src/config/navigation.ts
+// and can be imported by any component needing cyber nav context.
+
+import {
+  Shield,
+  Monitor,
+  AlertTriangle,
+  Search,
+  Target,
+  Wrench,
+  Database,
+  Bot,
+  ShieldCheck,
+  Grid3X3,
+  Fingerprint,
+  Rss,
+  FileCheck,
+  ShieldAlert,
+  Scale,
+  BarChart3,
+  GitBranch,
+  Brain,
+  DollarSign,
+  TrendingUp,
+} from 'lucide-react';
+import type { NavItem } from '@/config/navigation';
+
+export const CYBER_NAV_ITEMS: NavItem[] = [
+  { id: 'cyber-overview', label: 'Overview', href: '/cyber', icon: Shield },
+  { id: 'cyber-assets', label: 'Assets', href: '/cyber/assets', icon: Monitor },
+  {
+    id: 'cyber-alerts',
+    label: 'Alerts',
+    href: '/cyber/alerts',
+    icon: AlertTriangle,
+    badge: {
+      endpoint: '/api/v1/cyber/alerts/count?status=new,acknowledged',
+      key: 'count',
+      variant: 'destructive',
+      pollIntervalMs: 30000,
+    },
+  },
+  { id: 'cyber-indicators', label: 'IOC Management', href: '/cyber/indicators', icon: Fingerprint, permission: 'cyber:read' },
+  { id: 'cyber-feeds', label: 'Threat Feeds', href: '/cyber/threat-feeds', icon: Rss, permission: 'cyber:manage' },
+  { id: 'cyber-threats', label: 'Threat Hunting', href: '/cyber/threats', icon: Search },
+  { id: 'cyber-ctem', label: 'CTEM Assessments', href: '/cyber/ctem', icon: Target },
+  {
+    id: 'cyber-remediation',
+    label: 'Remediation',
+    href: '/cyber/remediation',
+    icon: Wrench,
+    permission: 'remediation:read',
+  },
+  { id: 'cyber-dspm', label: 'DSPM', href: '/cyber/dspm', icon: Database },
+  { id: 'cyber-dspm-assets', label: 'Data Assets', href: '/cyber/dspm/assets', icon: Database },
+  { id: 'cyber-dspm-access', label: 'Access Intelligence', href: '/cyber/dspm/access', icon: Shield },
+  { id: 'cyber-dspm-remediations', label: 'Remediations', href: '/cyber/dspm/remediations', icon: Wrench },
+  { id: 'cyber-dspm-policies', label: 'Data Policies', href: '/cyber/dspm/policies', icon: FileCheck },
+  { id: 'cyber-dspm-exceptions', label: 'Risk Exceptions', href: '/cyber/dspm/exceptions', icon: ShieldAlert },
+  { id: 'cyber-dspm-compliance', label: 'Compliance', href: '/cyber/dspm/compliance', icon: Scale },
+  { id: 'cyber-dspm-lineage', label: 'Data Lineage', href: '/cyber/dspm/lineage', icon: GitBranch },
+  { id: 'cyber-dspm-ai-security', label: 'AI Data Security', href: '/cyber/dspm/ai-security', icon: Brain },
+  { id: 'cyber-dspm-financial', label: 'Financial Risk', href: '/cyber/dspm/financial', icon: DollarSign },
+  { id: 'cyber-dspm-proliferation', label: 'Data Proliferation', href: '/cyber/dspm/proliferation', icon: TrendingUp },
+  { id: 'cyber-ueba', label: 'UEBA', href: '/cyber/ueba', icon: Fingerprint },
+  { id: 'cyber-vciso', label: 'Virtual CISO', href: '/cyber/vciso', icon: Bot },
+  {
+    id: 'cyber-detection',
+    label: 'Detection Rules',
+    href: '/cyber/detection-rules',
+    icon: ShieldCheck,
+    permission: 'cyber:read',
+  },
+  {
+    id: 'cyber-mitre',
+    label: 'MITRE ATT&CK',
+    href: '/cyber/mitre-attack',
+    icon: Grid3X3,
+    permission: 'cyber:read',
+  },
+];

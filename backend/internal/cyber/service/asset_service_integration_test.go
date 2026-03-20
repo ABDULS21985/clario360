@@ -97,8 +97,8 @@ func TestAssetService_Integration_CRUDRelationshipsAndVulnerabilities(t *testing
 	if err != nil {
 		t.Fatalf("ListAssets(all prod) error = %v", err)
 	}
-	if list.Total != 2 || len(list.Data) != 2 {
-		t.Fatalf("expected 2 assets in list, got total=%d len=%d", list.Total, len(list.Data))
+	if list.Meta.Total != 2 || len(list.Data) != 2 {
+		t.Fatalf("expected 2 assets in list, got total=%d len=%d", list.Meta.Total, len(list.Data))
 	}
 
 	appOnly, err := assetSvc.ListAssets(ctx, tenantID, &dto.AssetListParams{
@@ -112,8 +112,8 @@ func TestAssetService_Integration_CRUDRelationshipsAndVulnerabilities(t *testing
 	if err != nil {
 		t.Fatalf("ListAssets(application) error = %v", err)
 	}
-	if appOnly.Total != 1 || len(appOnly.Data) != 1 {
-		t.Fatalf("expected filtered list to contain one asset, got total=%d len=%d", appOnly.Total, len(appOnly.Data))
+	if appOnly.Meta.Total != 1 || len(appOnly.Data) != 1 {
+		t.Fatalf("expected filtered list to contain one asset, got total=%d len=%d", appOnly.Meta.Total, len(appOnly.Data))
 	}
 	if appOnly.Data[0].ID != appAsset.ID {
 		t.Fatalf("expected filtered asset %s, got %s", appAsset.ID, appOnly.Data[0].ID)
@@ -193,8 +193,8 @@ func TestAssetService_Integration_CRUDRelationshipsAndVulnerabilities(t *testing
 	if err != nil {
 		t.Fatalf("ListAssets(has_vulnerabilities=true) error = %v", err)
 	}
-	if withVulns.Total != 1 || len(withVulns.Data) != 1 {
-		t.Fatalf("expected one asset with vulnerabilities, got total=%d len=%d", withVulns.Total, len(withVulns.Data))
+	if withVulns.Meta.Total != 1 || len(withVulns.Data) != 1 {
+		t.Fatalf("expected one asset with vulnerabilities, got total=%d len=%d", withVulns.Meta.Total, len(withVulns.Data))
 	}
 	if withVulns.Data[0].ID != appAsset.ID {
 		t.Fatalf("expected vulnerable asset %s, got %s", appAsset.ID, withVulns.Data[0].ID)

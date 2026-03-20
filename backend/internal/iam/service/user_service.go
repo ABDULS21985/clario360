@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/pquerna/otp/totp"
 	"github.com/redis/go-redis/v9"
@@ -52,10 +53,70 @@ func (s *UserService) SetMFAEncryptionKey(key []byte) {
 	s.mfaKey = key
 }
 
-func (s *UserService) List(ctx context.Context, tenantID string, page, perPage int, search, status string) ([]dto.UserResponse, int, error) {
+// AdminCreateUser creates a user within a tenant with optional status and role assignments.
+// This is the admin-only endpoint (requires users:create permission, enforced by handler).
+func (s *UserService) AdminCreateUser(ctx context.Context, tenantID string, req *dto.AdminCreateUserRequest, createdBy string) (*dto.UserResponse, error) {
+	if err := validatePassword(req.Password); err != nil {
+		return nil, fmt.Errorf("%s: %w", err.Error(), model.ErrValidation)
+	}
+
+	// Check if email already exists in tenant
+	_, err := s.userRepo.GetByEmail(ctx, tenantID, req.Email)
+	if err == nil {
+		return nil, fmt.Errorf("email %s already exists: %w", req.Email, model.ErrConflict)
+	}
+
+	hash, err := bcrypt.GenerateFromPassword([]byte(req.Password), s.bcryptCost)
+	if err != nil {
+		return nil, fmt.Errorf("hashing password: %w", err)
+	}
+
+	status := model.UserStatusActive
+	if req.Status != "" {
+		status = model.UserStatus(req.Status)
+	}
+
+	user := &model.User{
+		TenantID:     tenantID,
+		Email:        req.Email,
+		PasswordHash: string(hash),
+		FirstName:    req.FirstName,
+		LastName:     req.LastName,
+		Status:       status,
+		CreatedBy:    &createdBy,
+	}
+
+	if err := s.userRepo.Create(ctx, user); err != nil {
+		return nil, fmt.Errorf("creating user: %w", err)
+	}
+
+	// Assign roles if provided
+	for _, roleID := range req.RoleIDs {
+		if err := s.roleRepo.AssignToUser(ctx, user.ID, roleID, tenantID, createdBy); err != nil {
+			s.logger.Error().Err(err).Str("role_id", roleID).Msg("failed to assign role during admin create")
+		}
+	}
+
+	s.publishEvent(ctx, "user.created", tenantID, user.ID, map[string]any{
+		"created_by":         createdBy,
+		"send_welcome_email": req.SendWelcomeEmail,
+	})
+
+	// Re-fetch with roles populated
+	created, err := s.userRepo.GetByID(ctx, user.ID)
+	if err != nil {
+		return nil, err
+	}
+	resp := dto.UserToResponse(created)
+	return &resp, nil
+}
+
+func (s *UserService) List(ctx context.Context, tenantID string, page, perPage int, search, status, sort, order string) ([]dto.UserResponse, int, error) {
 	filter := repository.UserFilter{
 		Page:    page,
 		PerPage: perPage,
+		Sort:    sort,
+		SortDir: order,
 	}
 	if search != "" {
 		filter.Search = &search
@@ -81,6 +142,25 @@ func (s *UserService) GetByID(ctx context.Context, userID string) (*dto.UserResp
 	return &resp, nil
 }
 
+func (s *UserService) GetByEmail(ctx context.Context, tenantID, email string) (*dto.UserResponse, error) {
+	var (
+		user *model.User
+		err  error
+	)
+
+	if tenantID != "" {
+		user, err = s.userRepo.GetByEmail(ctx, tenantID, email)
+	} else {
+		user, err = s.userRepo.GetByEmailGlobal(ctx, email)
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	resp := dto.UserToResponse(user)
+	return &resp, nil
+}
+
 func (s *UserService) Update(ctx context.Context, userID string, req *dto.UpdateUserRequest, updatedBy string) (*dto.UserResponse, error) {
 	user, err := s.userRepo.GetByID(ctx, userID)
 	if err != nil {
@@ -102,7 +182,7 @@ func (s *UserService) Update(ctx context.Context, userID string, req *dto.Update
 		return nil, err
 	}
 
-	s.publishEvent(ctx, "user.updated", user.TenantID, user.ID)
+	s.publishEvent(ctx, "user.updated", user.TenantID, user.ID, nil)
 
 	updated, err := s.userRepo.GetByID(ctx, userID)
 	if err != nil {
@@ -125,7 +205,7 @@ func (s *UserService) Delete(ctx context.Context, userID, deletedBy string) erro
 	// Invalidate all sessions
 	_ = s.sessionRepo.DeleteByUserID(ctx, userID)
 
-	s.publishEvent(ctx, "user.deleted", user.TenantID, user.ID)
+	s.publishEvent(ctx, "user.deleted", user.TenantID, user.ID, nil)
 	return nil
 }
 
@@ -145,7 +225,7 @@ func (s *UserService) UpdateStatus(ctx context.Context, userID string, req *dto.
 		_ = s.sessionRepo.DeleteByUserID(ctx, userID)
 	}
 
-	s.publishEvent(ctx, "user.updated", user.TenantID, user.ID)
+	s.publishEvent(ctx, "user.updated", user.TenantID, user.ID, nil)
 	return nil
 }
 
@@ -175,6 +255,50 @@ func (s *UserService) ChangePassword(ctx context.Context, userID string, req *dt
 	// Invalidate all other sessions
 	_ = s.sessionRepo.DeleteByUserID(ctx, userID)
 
+	return nil
+}
+
+func (s *UserService) ListSessions(ctx context.Context, userID string) ([]dto.SessionResponse, error) {
+	sessions, err := s.sessionRepo.GetByUserID(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	return dto.SessionsToResponse(sessions), nil
+}
+
+func (s *UserService) DeleteSession(ctx context.Context, userID, sessionID string) error {
+	sessions, err := s.sessionRepo.GetByUserID(ctx, userID)
+	if err != nil {
+		return err
+	}
+	if len(sessions) > 0 && sessions[0].ID == sessionID {
+		return fmt.Errorf("cannot revoke current session: %w", model.ErrForbidden)
+	}
+	for _, session := range sessions {
+		if session.ID == sessionID {
+			return s.sessionRepo.Delete(ctx, sessionID)
+		}
+	}
+	return model.ErrNotFound
+}
+
+func (s *UserService) DeleteSessions(ctx context.Context, userID string, excludeCurrent bool) error {
+	if !excludeCurrent {
+		return s.sessionRepo.DeleteByUserID(ctx, userID)
+	}
+
+	sessions, err := s.sessionRepo.GetByUserID(ctx, userID)
+	if err != nil {
+		return err
+	}
+	for idx, session := range sessions {
+		if idx == 0 {
+			continue
+		}
+		if err := s.sessionRepo.Delete(ctx, session.ID); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
@@ -277,7 +401,11 @@ func (s *UserService) VerifyMFASetup(ctx context.Context, userID string, code st
 		return err
 	}
 
-	s.publishEvent(ctx, "user.mfa.enabled", user.TenantID, user.ID)
+	s.publishEvent(ctx, "user.mfa.enabled", user.TenantID, user.ID, map[string]any{
+		"user_id":   user.ID,
+		"email":     user.Email,
+		"timestamp": time.Now().UTC(),
+	})
 	return nil
 }
 
@@ -312,7 +440,13 @@ func (s *UserService) DisableMFA(ctx context.Context, userID string, req *dto.Di
 	// Remove recovery codes
 	s.redis.Del(ctx, recoveryPrefix+userID)
 
-	s.publishEvent(ctx, "user.mfa.disabled", user.TenantID, user.ID)
+	s.publishEvent(ctx, "user.mfa.disabled", user.TenantID, user.ID, map[string]any{
+		"user_id":     user.ID,
+		"email":       user.Email,
+		"disabled_by": user.ID,
+		"reason":      "user_requested",
+		"timestamp":   time.Now().UTC(),
+	})
 	return nil
 }
 
@@ -328,11 +462,22 @@ func (s *UserService) decryptMFASecret(stored string) (string, error) {
 	return stored, nil
 }
 
-func (s *UserService) publishEvent(ctx context.Context, eventType, tenantID, userID string) {
+func (s *UserService) publishEvent(ctx context.Context, eventType, tenantID, userID string, data map[string]any) {
 	if s.producer == nil {
 		return
 	}
-	evt, err := events.NewEvent(eventType, "iam-service", tenantID, nil)
+	payload := map[string]any{}
+	for key, value := range data {
+		payload[key] = value
+	}
+	if tenantID != "" {
+		payload["tenant_id"] = tenantID
+	}
+	if userID != "" {
+		payload["user_id"] = userID
+	}
+
+	evt, err := events.NewEvent(normalizeIAMEventType(eventType), "iam-service", tenantID, payload)
 	if err != nil {
 		s.logger.Error().Err(err).Str("event_type", eventType).Msg("failed to create event")
 		return

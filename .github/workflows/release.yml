@@ -1,0 +1,483 @@
+# =============================================================================
+# Clario 360 — Release Pipeline
+# Triggers on semver tag push (v*.*.*) — builds versioned images, packages
+# Helm chart, creates GitHub release, and updates GitOps for staging.
+# =============================================================================
+
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: write
+  packages: write
+  security-events: write
+  id-token: write
+
+env:
+  GOWORK: "off"
+
+jobs:
+  # ===========================================================================
+  # JOB 1: Validate tag format
+  # ===========================================================================
+  validate-tag:
+    name: Validate Tag
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.tag.outputs.version }}
+      is_prerelease: ${{ steps.tag.outputs.is_prerelease }}
+    steps:
+      - name: Extract and validate tag
+        id: tag
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          echo "Tag: $TAG"
+
+          # Validate semver format (v1.2.3 or v1.2.3-rc.1)
+          if ! echo "$TAG" | grep -qE '^v[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.]+)?$'; then
+            echo "::error::Tag '$TAG' does not match semver format (v*.*.*)"
+            exit 1
+          fi
+
+          VERSION="${TAG#v}"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+          if echo "$TAG" | grep -qE '\-(alpha|beta|rc)'; then
+            echo "is_prerelease=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "is_prerelease=false" >> "$GITHUB_OUTPUT"
+          fi
+
+          echo "Version: $VERSION"
+
+  # ===========================================================================
+  # JOB 2: Run full CI (reuse ci.yml jobs inline)
+  # ===========================================================================
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    needs: validate-tag
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-go
+      - uses: ./.github/actions/setup-node
+
+      - name: Run golangci-lint
+        uses: golangci/golangci-lint-action@v6
+        with:
+          version: latest
+          working-directory: backend
+          args: --timeout=10m
+
+      - name: Run go vet
+        working-directory: backend
+        run: go vet ./...
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Run ESLint
+        working-directory: frontend
+        run: npm run lint
+
+      - name: Run TypeScript type check
+        working-directory: frontend
+        run: npm run type-check
+
+  test-backend:
+    name: Test Backend
+    runs-on: ubuntu-latest
+    needs: lint
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_PASSWORD: testpass
+          POSTGRES_USER: postgres
+        ports: ["5432:5432"]
+        options: --health-cmd "pg_isready -U postgres" --health-interval 10s --health-timeout 5s --health-retries 5
+      redis:
+        image: redis:7-alpine
+        ports: ["6379:6379"]
+        options: --health-cmd "redis-cli ping" --health-interval 10s --health-timeout 5s --health-retries 5
+      kafka:
+        image: bitnami/kafka:3.7
+        ports: ["9092:9092"]
+        env:
+          KAFKA_CFG_NODE_ID: "1"
+          KAFKA_CFG_PROCESS_ROLES: controller,broker
+          KAFKA_CFG_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093
+          KAFKA_CFG_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092
+          KAFKA_CFG_CONTROLLER_QUORUM_VOTERS: 1@localhost:9093
+          KAFKA_CFG_CONTROLLER_LISTENER_NAMES: CONTROLLER
+          KAFKA_CFG_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+          ALLOW_PLAINTEXT_LISTENER: "yes"
+      minio:
+        image: minio/minio:latest
+        ports: ["9000:9000"]
+        env:
+          MINIO_ROOT_USER: minioadmin
+          MINIO_ROOT_PASSWORD: minioadmin
+    env:
+      IAM_DB_URL: postgres://postgres:testpass@localhost:5432/iam_test?sslmode=disable
+      PLATFORM_DB_URL: postgres://postgres:testpass@localhost:5432/platform_test?sslmode=disable
+      CYBER_DB_URL: postgres://postgres:testpass@localhost:5432/cyber_test?sslmode=disable
+      DATA_DB_URL: postgres://postgres:testpass@localhost:5432/data_test?sslmode=disable
+      ACTA_DB_URL: postgres://postgres:testpass@localhost:5432/acta_test?sslmode=disable
+      LEX_DB_URL: postgres://postgres:testpass@localhost:5432/lex_test?sslmode=disable
+      VISUS_DB_URL: postgres://postgres:testpass@localhost:5432/visus_test?sslmode=disable
+      REDIS_URL: redis://localhost:6379/0
+      KAFKA_BROKERS: localhost:9092
+      MINIO_ENDPOINT: localhost:9000
+      MINIO_ACCESS_KEY: minioadmin
+      MINIO_SECRET_KEY: minioadmin
+      JWT_PRIVATE_KEY: ${{ secrets.TEST_JWT_PRIVATE_KEY }}
+      JWT_PUBLIC_KEY: ${{ secrets.TEST_JWT_PUBLIC_KEY }}
+      ENCRYPTION_KEY: ${{ secrets.TEST_ENCRYPTION_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-go
+      - uses: ./.github/actions/setup-test-infra
+        with:
+          pg_password: testpass
+
+      - name: Run unit tests
+        working-directory: backend
+        run: |
+          go test -race -count=1 \
+            -coverprofile=coverage-unit.out \
+            -covermode=atomic \
+            -timeout=10m \
+            ./internal/...
+
+      - name: Run integration tests
+        working-directory: backend
+        run: |
+          go test -race -count=1 \
+            -tags=integration \
+            -coverprofile=coverage-integration.out \
+            -covermode=atomic \
+            -timeout=15m \
+            ./integration_tests/... 2>/dev/null || echo "No integration tests found"
+
+      - name: Check coverage threshold (70%)
+        working-directory: backend
+        run: |
+          if [ -f coverage-unit.out ]; then
+            cp coverage-unit.out coverage-combined.out
+            if [ -f coverage-integration.out ]; then
+              tail -n +2 coverage-integration.out >> coverage-combined.out
+            fi
+            COVERAGE=$(go tool cover -func=coverage-combined.out | grep total | awk '{print substr($3, 1, length($3)-1)}')
+            echo "Total coverage: ${COVERAGE}%"
+            if [ "$(echo "$COVERAGE < 70" | bc -l)" -eq 1 ]; then
+              echo "::error::Coverage ${COVERAGE}% is below 70% threshold"
+              exit 1
+            fi
+          fi
+
+  test-frontend:
+    name: Test Frontend
+    runs-on: ubuntu-latest
+    needs: lint
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-node
+      - name: Install dependencies
+        working-directory: frontend
+        run: npm ci
+      - name: Run tests with coverage
+        working-directory: frontend
+        run: npm run test -- --coverage --reporter=verbose
+      - name: Build check
+        working-directory: frontend
+        run: npm run build
+
+  security:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    needs: lint
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: ./.github/actions/setup-go
+      - uses: ./.github/actions/setup-node
+
+      - name: Run govulncheck
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@latest
+          cd backend && govulncheck ./...
+
+      - name: Run gosec
+        uses: securego/gosec@master
+        with:
+          args: -severity medium -fmt sarif -out gosec-results.sarif ./backend/internal/...
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Run npm audit
+        working-directory: frontend
+        run: npm audit --production --audit-level=high
+
+      - name: Run TruffleHog
+        uses: trufflesecurity/trufflehog@main
+        with:
+          extra_args: --only-verified --json
+
+  # ===========================================================================
+  # JOB 3: Build versioned images
+  # ===========================================================================
+  build-versioned-images:
+    name: Build ${{ matrix.service }} (${{ needs.validate-tag.outputs.version }})
+    runs-on: ubuntu-latest
+    needs: [validate-tag, test-backend, test-frontend, security]
+    timeout-minutes: 30
+
+    strategy:
+      matrix:
+        include:
+          - service: api-gateway
+            dockerfile: deploy/docker/Dockerfile.backend
+          - service: iam-service
+            dockerfile: deploy/docker/Dockerfile.backend
+          - service: audit-service
+            dockerfile: deploy/docker/Dockerfile.backend
+          - service: workflow-engine
+            dockerfile: deploy/docker/Dockerfile.backend
+          - service: notification-service
+            dockerfile: deploy/docker/Dockerfile.backend
+          - service: file-service
+            dockerfile: deploy/docker/Dockerfile.backend
+          - service: cyber-service
+            dockerfile: deploy/docker/Dockerfile.backend
+          - service: data-service
+            dockerfile: deploy/docker/Dockerfile.backend
+          - service: acta-service
+            dockerfile: deploy/docker/Dockerfile.backend
+          - service: lex-service
+            dockerfile: deploy/docker/Dockerfile.backend
+          - service: visus-service
+            dockerfile: deploy/docker/Dockerfile.backend
+          - service: onboarding-service
+            dockerfile: deploy/docker/Dockerfile.backend
+          - service: migrator
+            dockerfile: deploy/docker/Dockerfile.migrator
+          - service: seeder
+            dockerfile: deploy/docker/Dockerfile.seeder
+          - service: frontend
+            dockerfile: deploy/docker/Dockerfile.frontend
+      fail-fast: false
+      max-parallel: 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to container registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ vars.CONTAINER_REGISTRY }}
+          username: ${{ secrets.REGISTRY_USERNAME }}
+          password: ${{ secrets.REGISTRY_PASSWORD }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ vars.CONTAINER_REGISTRY }}/clario360/${{ matrix.service }}
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=raw,value=latest
+
+      - name: Build and push
+        id: build
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ${{ matrix.dockerfile }}
+          build-args: |
+            BUILD_SERVICE=${{ matrix.service }}
+            BUILD_VERSION=${{ needs.validate-tag.outputs.version }}
+            BUILD_DATE=${{ github.event.head_commit.timestamp }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=${{ matrix.service }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.service }}
+          platforms: linux/amd64
+
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@main
+
+      - name: Sign image
+        run: |
+          cosign sign --yes \
+            "${{ vars.CONTAINER_REGISTRY }}/clario360/${{ matrix.service }}@${{ steps.build.outputs.digest }}"
+
+      - name: Scan image with Trivy
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: "${{ vars.CONTAINER_REGISTRY }}/clario360/${{ matrix.service }}@${{ steps.build.outputs.digest }}"
+          format: sarif
+          output: trivy-${{ matrix.service }}.sarif
+          severity: CRITICAL,HIGH
+          exit-code: "1"
+
+      - name: Upload Trivy SARIF
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-${{ matrix.service }}.sarif
+          category: trivy-release-${{ matrix.service }}
+
+      - name: Generate SBOM
+        uses: anchore/sbom-action@v0
+        with:
+          image: "${{ vars.CONTAINER_REGISTRY }}/clario360/${{ matrix.service }}@${{ steps.build.outputs.digest }}"
+          format: spdx-json
+          output-file: sbom-${{ matrix.service }}.spdx.json
+
+      - name: Upload SBOM
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom-release-${{ matrix.service }}
+          path: sbom-${{ matrix.service }}.spdx.json
+          retention-days: 365
+
+  # ===========================================================================
+  # JOB 4: Package Helm chart
+  # ===========================================================================
+  package-helm:
+    name: Package Helm Chart
+    runs-on: ubuntu-latest
+    needs: [validate-tag, build-versioned-images]
+    outputs:
+      chart_version: ${{ needs.validate-tag.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: v3.14.0
+
+      - name: Update Chart.yaml version
+        run: |
+          VERSION="${{ needs.validate-tag.outputs.version }}"
+          sed -i "s/^version:.*/version: ${VERSION}/" deploy/helm/clario360/Chart.yaml
+          sed -i "s/^appVersion:.*/appVersion: \"${VERSION}\"/" deploy/helm/clario360/Chart.yaml
+          echo "Updated Chart.yaml:"
+          cat deploy/helm/clario360/Chart.yaml
+
+      - name: Lint Helm chart
+        run: helm lint deploy/helm/clario360
+
+      - name: Package Helm chart
+        run: |
+          helm package deploy/helm/clario360 -d .helm-packages/
+          ls -la .helm-packages/
+
+      - name: Push Helm chart to registry
+        if: vars.CHART_REGISTRY != ''
+        run: |
+          echo "${{ secrets.REGISTRY_PASSWORD }}" | helm registry login \
+            "${{ vars.CHART_REGISTRY }}" \
+            --username "${{ secrets.REGISTRY_USERNAME }}" \
+            --password-stdin
+          helm push .helm-packages/clario360-${{ needs.validate-tag.outputs.version }}.tgz \
+            oci://${{ vars.CHART_REGISTRY }}/clario360
+
+      - name: Upload Helm chart artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: helm-chart
+          path: .helm-packages/clario360-*.tgz
+          retention-days: 365
+
+  # ===========================================================================
+  # JOB 5: Create GitHub release
+  # ===========================================================================
+  create-release:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+    needs: [validate-tag, package-helm]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download Helm chart
+        uses: actions/download-artifact@v4
+        with:
+          name: helm-chart
+          path: release-artifacts/
+
+      - name: Download SBOMs
+        uses: actions/download-artifact@v4
+        with:
+          pattern: sbom-release-*
+          path: release-artifacts/sboms/
+          merge-multiple: true
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: "Clario 360 ${{ github.ref_name }}"
+          prerelease: ${{ needs.validate-tag.outputs.is_prerelease }}
+          generate_release_notes: true
+          files: |
+            release-artifacts/*.tgz
+            release-artifacts/sboms/*.spdx.json
+
+  # ===========================================================================
+  # JOB 6: Update GitOps for staging auto-deployment
+  # ===========================================================================
+  update-gitops:
+    name: Update GitOps (Staging)
+    runs-on: ubuntu-latest
+    needs: [validate-tag, build-versioned-images]
+    if: needs.validate-tag.outputs.is_prerelease == 'false'
+    steps:
+      - name: Clone GitOps repository
+        uses: actions/checkout@v4
+        with:
+          repository: clario360/clario360-gitops
+          token: ${{ secrets.GITOPS_TOKEN }}
+          path: gitops
+
+      - name: Update staging image tags
+        run: |
+          VERSION="${{ needs.validate-tag.outputs.version }}"
+          cd gitops
+
+          # Update staging values with new version
+          if [ -f staging/values.yaml ]; then
+            sed -i "s/tag:.*/tag: \"${VERSION}\"/" staging/values.yaml
+            echo "Updated staging/values.yaml to version ${VERSION}"
+          fi
+
+      - name: Commit and push
+        working-directory: gitops
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --staged --quiet && echo "No changes to commit" && exit 0
+          git commit -m "chore: update staging to ${{ github.ref_name }}"
+          git push

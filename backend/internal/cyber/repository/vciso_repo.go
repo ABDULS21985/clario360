@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -14,6 +15,7 @@ import (
 
 	"github.com/clario360/platform/internal/cyber/dto"
 	"github.com/clario360/platform/internal/cyber/model"
+	"github.com/clario360/platform/internal/database"
 )
 
 // VCISORepository handles vciso_briefings table operations.
@@ -37,12 +39,15 @@ func (r *VCISORepository) SaveBriefing(ctx context.Context, tenantID, generatedB
 		return nil, fmt.Errorf("marshal briefing content: %w", err)
 	}
 
-	_, err = r.db.Exec(ctx, `
-		INSERT INTO vciso_briefings (id, tenant_id, type, period_start, period_end, content, risk_score_at_time, generated_by, created_at)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
-		id, tenantID, briefingType, periodStart.Format("2006-01-02"), periodEnd.Format("2006-01-02"),
-		contentJSON, riskScore, generatedBy, now,
-	)
+	err = database.RunWithTenant(ctx, r.db, tenantID, func(tx pgx.Tx) error {
+		_, err := tx.Exec(ctx, `
+			INSERT INTO vciso_briefings (id, tenant_id, type, period_start, period_end, content, risk_score_at_time, generated_by, created_at)
+			VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+			id, tenantID, briefingType, periodStart.Format("2006-01-02"), periodEnd.Format("2006-01-02"),
+			contentJSON, riskScore, generatedBy, now,
+		)
+		return err
+	})
 	if err != nil {
 		return nil, fmt.Errorf("save briefing: %w", err)
 	}
@@ -100,11 +105,12 @@ func (r *VCISORepository) ListBriefings(ctx context.Context, tenantID uuid.UUID,
 func scanBriefing(row interface{ Scan(...interface{}) error }) (*model.VCISOBriefingRecord, error) {
 	var rec model.VCISOBriefingRecord
 	var contentJSON []byte
-	var periodStart, periodEnd string
+	var periodStart, periodEnd time.Time
+	var riskScore sql.NullFloat64
 
 	err := row.Scan(
 		&rec.ID, &rec.TenantID, &rec.Type, &periodStart, &periodEnd,
-		&contentJSON, &rec.RiskScoreAtTime, &rec.GeneratedBy, &rec.CreatedAt,
+		&contentJSON, &riskScore, &rec.GeneratedBy, &rec.CreatedAt,
 	)
 	if err != nil {
 		if err == pgx.ErrNoRows {
@@ -113,16 +119,17 @@ func scanBriefing(row interface{ Scan(...interface{}) error }) (*model.VCISOBrie
 		return nil, fmt.Errorf("scan briefing: %w", err)
 	}
 
-	if t, err := time.Parse("2006-01-02", periodStart); err == nil {
-		rec.PeriodStart = t
-	}
-	if t, err := time.Parse("2006-01-02", periodEnd); err == nil {
-		rec.PeriodEnd = t
+	rec.PeriodStart = periodStart
+	rec.PeriodEnd = periodEnd
+	if riskScore.Valid {
+		rec.RiskScoreAtTime = &riskScore.Float64
 	}
 
 	if contentJSON != nil {
 		rec.Content = &model.ExecutiveBriefing{}
-		_ = json.Unmarshal(contentJSON, rec.Content)
+		if err := json.Unmarshal(contentJSON, rec.Content); err != nil {
+			return nil, fmt.Errorf("unmarshal briefing content: %w", err)
+		}
 	}
 	return &rec, nil
 }

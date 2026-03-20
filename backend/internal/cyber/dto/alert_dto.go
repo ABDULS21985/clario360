@@ -19,9 +19,11 @@ type AlertListParams struct {
 	Unassigned       *bool      `form:"unassigned"`
 	AssetID          *uuid.UUID `form:"asset_id"`
 	RuleID           *uuid.UUID `form:"rule_id"`
+	RuleType         *string    `form:"rule_type"`
 	MITRETechniqueID *string    `form:"mitre_technique_id"`
 	MITRETacticID    *string    `form:"mitre_tactic_id"`
 	MinConfidence    *float64   `form:"min_confidence"`
+	MaxConfidence    *float64   `form:"max_confidence"`
 	Tags             []string   `form:"tag"`
 	DateFrom         *time.Time `form:"date_from"`
 	DateTo           *time.Time `form:"date_to"`
@@ -62,6 +64,15 @@ func (p *AlertListParams) Validate() error {
 	if p.MinConfidence != nil && (*p.MinConfidence < 0 || *p.MinConfidence > 1) {
 		return fmt.Errorf("min_confidence must be between 0 and 1")
 	}
+	if p.MaxConfidence != nil && (*p.MaxConfidence < 0 || *p.MaxConfidence > 1) {
+		return fmt.Errorf("max_confidence must be between 0 and 1")
+	}
+	if p.MinConfidence != nil && p.MaxConfidence != nil && *p.MinConfidence > *p.MaxConfidence {
+		return fmt.Errorf("min_confidence must be less than or equal to max_confidence")
+	}
+	if p.RuleType != nil && !model.DetectionRuleType(*p.RuleType).IsValid() {
+		return fmt.Errorf("invalid rule_type: %q", *p.RuleType)
+	}
 	switch p.Sort {
 	case "", "severity", "confidence_score", "created_at", "event_count", "status":
 	default:
@@ -77,11 +88,34 @@ func (p *AlertListParams) Validate() error {
 
 // AlertListResponse is the paginated response for GET /cyber/alerts.
 type AlertListResponse struct {
-	Data       []*model.Alert `json:"data"`
-	Total      int            `json:"total"`
-	Page       int            `json:"page"`
-	PerPage    int            `json:"per_page"`
-	TotalPages int            `json:"total_pages"`
+	Data []*model.Alert `json:"data"`
+	Meta PaginationMeta `json:"meta"`
+}
+
+// PaginationMeta is the canonical pagination envelope for cyber list endpoints.
+type PaginationMeta struct {
+	Page       int `json:"page"`
+	PerPage    int `json:"per_page"`
+	Total      int `json:"total"`
+	TotalPages int `json:"total_pages"`
+}
+
+// NewPaginationMeta builds pagination metadata from the current request values.
+func NewPaginationMeta(page, perPage, total int) PaginationMeta {
+	totalPages := total / perPage
+	if total%perPage != 0 {
+		totalPages++
+	}
+	if totalPages < 1 {
+		totalPages = 1
+	}
+
+	return PaginationMeta{
+		Page:       page,
+		PerPage:    perPage,
+		Total:      total,
+		TotalPages: totalPages,
+	}
 }
 
 // AlertStatusUpdateRequest updates the status of an alert.
@@ -100,6 +134,11 @@ type AlertAssignRequest struct {
 type AlertEscalateRequest struct {
 	EscalatedTo uuid.UUID `json:"escalated_to" validate:"required"`
 	Reason      string    `json:"reason" validate:"required,min=3,max=1000"`
+}
+
+// AlertFalsePositiveRequest marks an alert as false positive with a reason.
+type AlertFalsePositiveRequest struct {
+	Reason string `json:"reason" validate:"required,min=3,max=1000"`
 }
 
 // AlertCommentRequest adds an investigation comment.

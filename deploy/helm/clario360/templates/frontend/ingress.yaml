@@ -1,0 +1,45 @@
+{{- if and .Values.frontend.enabled ((.Values.frontend).ingress).enabled }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "clario360.componentName" (dict "root" . "component" "frontend") }}
+  namespace: {{ include "clario360.namespace" . }}
+  labels:
+    {{- include "clario360.componentLabels" (dict "root" . "component" "frontend") | nindent 4 }}
+  annotations:
+    {{- if ((.Values.frontend).ingress).className }}
+    kubernetes.io/ingress.class: {{ ((.Values.frontend).ingress).className }}
+    {{- end }}
+    {{- with ((.Values.frontend).ingress).annotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  {{- if ((.Values.frontend).ingress).className }}
+  ingressClassName: {{ ((.Values.frontend).ingress).className }}
+  {{- end }}
+  {{- if ((.Values.frontend).ingress).tls }}
+  tls:
+    {{- range ((.Values.frontend).ingress).tls }}
+    - hosts:
+        {{- range .hosts }}
+        - {{ . | quote }}
+        {{- end }}
+      secretName: {{ .secretName }}
+    {{- end }}
+  {{- end }}
+  rules:
+    {{- range ((.Values.frontend).ingress).hosts }}
+    - host: {{ .host | quote }}
+      http:
+        paths:
+          {{- range .paths }}
+          - path: {{ .path }}
+            pathType: {{ .pathType | default "Prefix" }}
+            backend:
+              service:
+                name: {{ include "clario360.componentName" (dict "root" $ "component" "frontend") }}
+                port:
+                  number: 3000
+          {{- end }}
+    {{- end }}
+{{- end }}

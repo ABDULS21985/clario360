@@ -1,0 +1,1 @@
+{"model_version":"asset-risk-v1","intercept":-1.75,"weights":{"criticality_score":0.45,"data_sensitivity":0.3,"historical_alerts":0.08,"industry_signal":0.25,"internet_facing":0.75,"open_critical":0.6,"open_high":0.35,"patch_age_days":0.02,"technique_coverage_gap":0.4,"user_access_count":0.01},"baseline":{},"residuals":null}

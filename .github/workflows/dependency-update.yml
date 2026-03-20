@@ -1,0 +1,193 @@
+# =============================================================================
+# Clario 360 — Weekly Dependency Update Check
+# Checks for outdated dependencies and creates issues for updates.
+# Schedule: Wednesday 06:00 UTC + manual trigger.
+# =============================================================================
+
+name: Dependency Update Check
+
+on:
+  schedule:
+    - cron: "0 6 * * 3"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+env:
+  GOWORK: "off"
+
+jobs:
+  check-go-dependencies:
+    name: Check Go Dependencies
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-go
+
+      - name: Check for outdated Go modules
+        working-directory: backend
+        run: |
+          echo "## Go Module Updates Available" > /tmp/go-updates.md
+          echo "" >> /tmp/go-updates.md
+
+          UPDATES=$(go list -m -u all 2>/dev/null | grep '\[' || true)
+
+          if [ -z "$UPDATES" ]; then
+            echo "All Go modules are up to date." >> /tmp/go-updates.md
+            echo "has_updates=false" >> "$GITHUB_OUTPUT"
+          else
+            echo '```' >> /tmp/go-updates.md
+            echo "$UPDATES" >> /tmp/go-updates.md
+            echo '```' >> /tmp/go-updates.md
+            echo "has_updates=true" >> "$GITHUB_OUTPUT"
+            echo "Found $(echo "$UPDATES" | wc -l) outdated Go modules"
+          fi
+        id: go-check
+
+      - name: Check for Go security updates
+        working-directory: backend
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@latest
+          echo "" >> /tmp/go-updates.md
+          echo "### Vulnerability Check" >> /tmp/go-updates.md
+          if govulncheck ./... 2>&1 | grep -q "Vulnerability"; then
+            echo "**Vulnerabilities found — update required.**" >> /tmp/go-updates.md
+            govulncheck ./... 2>&1 >> /tmp/go-updates.md || true
+          else
+            echo "No known vulnerabilities." >> /tmp/go-updates.md
+          fi
+
+      - name: Upload report
+        uses: actions/upload-artifact@v4
+        with:
+          name: go-dependency-report
+          path: /tmp/go-updates.md
+
+  check-npm-dependencies:
+    name: Check npm Dependencies
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-node
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Check for outdated npm packages
+        working-directory: frontend
+        id: npm-check
+        run: |
+          echo "## npm Package Updates Available" > /tmp/npm-updates.md
+          echo "" >> /tmp/npm-updates.md
+
+          OUTDATED=$(npm outdated --json 2>/dev/null || true)
+
+          if [ "$OUTDATED" = "{}" ] || [ -z "$OUTDATED" ]; then
+            echo "All npm packages are up to date." >> /tmp/npm-updates.md
+            echo "has_updates=false" >> "$GITHUB_OUTPUT"
+          else
+            echo '```json' >> /tmp/npm-updates.md
+            echo "$OUTDATED" >> /tmp/npm-updates.md
+            echo '```' >> /tmp/npm-updates.md
+            echo "has_updates=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Check for npm security updates
+        working-directory: frontend
+        run: |
+          echo "" >> /tmp/npm-updates.md
+          echo "### Security Audit" >> /tmp/npm-updates.md
+          AUDIT=$(npm audit --json 2>/dev/null || true)
+          VULNS=$(echo "$AUDIT" | node -e "
+            const data = require('fs').readFileSync('/dev/stdin', 'utf8');
+            try {
+              const j = JSON.parse(data);
+              console.log(j.metadata?.vulnerabilities?.total || 0);
+            } catch { console.log(0); }
+          " 2>/dev/null || echo "0")
+
+          if [ "$VULNS" -gt 0 ]; then
+            echo "**${VULNS} vulnerabilities found.**" >> /tmp/npm-updates.md
+            npm audit 2>/dev/null >> /tmp/npm-updates.md || true
+          else
+            echo "No known vulnerabilities." >> /tmp/npm-updates.md
+          fi
+
+      - name: Upload report
+        uses: actions/upload-artifact@v4
+        with:
+          name: npm-dependency-report
+          path: /tmp/npm-updates.md
+
+  create-issue:
+    name: Create Update Issue
+    runs-on: ubuntu-latest
+    needs: [check-go-dependencies, check-npm-dependencies]
+    if: always()
+    steps:
+      - name: Download reports
+        uses: actions/download-artifact@v4
+        with:
+          path: reports/
+          merge-multiple: true
+
+      - name: Create issue if updates available
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            let body = `# Weekly Dependency Update Report\n\n`;
+            body += `**Date:** ${new Date().toISOString().split('T')[0]}\n\n`;
+
+            const files = ['reports/go-updates.md', 'reports/npm-updates.md'];
+            let hasUpdates = false;
+
+            for (const file of files) {
+              try {
+                const content = fs.readFileSync(file, 'utf8');
+                body += content + '\n\n---\n\n';
+                if (content.includes('has_updates=true') || content.includes('vulnerabilities found')) {
+                  hasUpdates = true;
+                }
+              } catch (e) {
+                body += `*Report not available: ${file}*\n\n`;
+              }
+            }
+
+            if (hasUpdates) {
+              // Check for existing open issue
+              const issues = await github.rest.issues.listForRepo({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                labels: 'dependencies,automated',
+                state: 'open'
+              });
+
+              if (issues.data.length > 0) {
+                // Update existing issue
+                await github.rest.issues.update({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: issues.data[0].number,
+                  body: body
+                });
+                console.log(`Updated existing issue #${issues.data[0].number}`);
+              } else {
+                // Create new issue
+                await github.rest.issues.create({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  title: `[Dependencies] Updates available — ${new Date().toISOString().split('T')[0]}`,
+                  body: body,
+                  labels: ['dependencies', 'automated']
+                });
+                console.log('Created new dependency update issue');
+              }
+            } else {
+              console.log('No updates needed');
+            }

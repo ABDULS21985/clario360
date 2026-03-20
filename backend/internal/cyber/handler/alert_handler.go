@@ -136,6 +136,31 @@ func (h *AlertHandler) Escalate(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, envelope{"data": alert})
 }
 
+func (h *AlertHandler) MarkFalsePositive(w http.ResponseWriter, r *http.Request) {
+	tenantID, _, ok := requireTenantAndUser(w, r)
+	if !ok {
+		return
+	}
+	alertID, ok := parseUUID(w, chi.URLParam(r, "id"))
+	if !ok {
+		return
+	}
+	var req dto.AlertFalsePositiveRequest
+	if !decodeJSON(w, r, &req) {
+		return
+	}
+	if fieldErrs := pkgvalidator.Validate(req); fieldErrs != nil {
+		writeValidationError(w, fieldErrs)
+		return
+	}
+	alert, err := h.svc.MarkFalsePositive(r.Context(), tenantID, alertID, actorFromRequest(r), req.Reason)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "FALSE_POSITIVE_FAILED", err.Error(), nil)
+		return
+	}
+	writeJSON(w, http.StatusOK, envelope{"data": alert})
+}
+
 func (h *AlertHandler) AddComment(w http.ResponseWriter, r *http.Request) {
 	tenantID, _, ok := requireTenantAndUser(w, r)
 	if !ok {

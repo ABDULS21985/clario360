@@ -46,11 +46,14 @@ func (u *UploadRequest) Validate() error {
 type FileResponse struct {
 	ID                  string     `json:"id"`
 	TenantID            string     `json:"tenant_id"`
+	Name                string     `json:"name"`
 	OriginalName        string     `json:"original_name"`
 	SanitizedName       string     `json:"sanitized_name"`
 	ContentType         string     `json:"content_type"`
 	DetectedContentType string     `json:"detected_content_type,omitempty"`
+	Size                int64      `json:"size"`
 	SizeBytes           int64      `json:"size_bytes"`
+	Status              string     `json:"status"`
 	ChecksumSHA256      string     `json:"checksum_sha256"`
 	Encrypted           bool       `json:"encrypted"`
 	VirusScanStatus     string     `json:"virus_scan_status"`
@@ -72,11 +75,14 @@ func FileResponseFromModel(f *model.FileRecord) *FileResponse {
 	return &FileResponse{
 		ID:                  f.ID,
 		TenantID:            f.TenantID,
+		Name:                fileDisplayName(f),
 		OriginalName:        f.OriginalName,
 		SanitizedName:       f.SanitizedName,
 		ContentType:         f.ContentType,
 		DetectedContentType: f.DetectedContentType,
+		Size:                f.SizeBytes,
 		SizeBytes:           f.SizeBytes,
+		Status:              fileStatus(f),
 		ChecksumSHA256:      f.ChecksumSHA256,
 		Encrypted:           f.Encrypted,
 		VirusScanStatus:     f.VirusScanStatus,
@@ -91,6 +97,31 @@ func FileResponseFromModel(f *model.FileRecord) *FileResponse {
 		ExpiresAt:           f.ExpiresAt,
 		CreatedAt:           f.CreatedAt,
 		UpdatedAt:           f.UpdatedAt,
+	}
+}
+
+func fileDisplayName(f *model.FileRecord) string {
+	if f.SanitizedName != "" {
+		return f.SanitizedName
+	}
+	return f.OriginalName
+}
+
+func fileStatus(f *model.FileRecord) string {
+	if f.DeletedAt != nil {
+		return "deleted"
+	}
+	switch f.VirusScanStatus {
+	case model.ScanStatusPending:
+		return "pending"
+	case model.ScanStatusScanning:
+		return "processing"
+	case model.ScanStatusInfected:
+		return "quarantined"
+	case model.ScanStatusClean, model.ScanStatusSkipped:
+		return "available"
+	default:
+		return "processing"
 	}
 }
 
@@ -131,11 +162,34 @@ func ParseListParams(r *http.Request) ListFilesParams {
 
 // ListResponse is a paginated response.
 type ListResponse struct {
-	Data       interface{} `json:"data"`
-	Total      int         `json:"total"`
-	Page       int         `json:"page"`
-	PerPage    int         `json:"per_page"`
-	TotalPages int         `json:"total_pages"`
+	Data interface{}    `json:"data"`
+	Meta PaginationMeta `json:"meta"`
+}
+
+type PaginationMeta struct {
+	Page       int `json:"page"`
+	PerPage    int `json:"per_page"`
+	Total      int `json:"total"`
+	TotalPages int `json:"total_pages"`
+}
+
+func NewListResponse(data interface{}, total, page, perPage int) ListResponse {
+	totalPages := total / perPage
+	if total%perPage > 0 {
+		totalPages++
+	}
+	if totalPages < 1 {
+		totalPages = 1
+	}
+	return ListResponse{
+		Data: data,
+		Meta: PaginationMeta{
+			Page:       page,
+			PerPage:    perPage,
+			Total:      total,
+			TotalPages: totalPages,
+		},
+	}
 }
 
 // PresignedConfirmRequest is the body for confirming a presigned upload.

@@ -16,7 +16,7 @@ type ExecutiveBriefing struct {
 	RemediationStatus RemediationSummary     `json:"remediation_status"`
 	KeyMetrics        BriefingMetrics        `json:"key_metrics"`
 	Recommendations   []RiskRecommendation   `json:"recommendations"`
-	ComplianceStatus  ComplianceSummary      `json:"compliance_status"`
+	ComplianceStatus  VCISOComplianceSummary `json:"compliance_status"`
 	Comparison        *PeriodComparison      `json:"comparison,omitempty"`
 }
 
@@ -95,7 +95,7 @@ type BriefingMetrics struct {
 }
 
 // ComplianceSummary describes compliance and coverage status.
-type ComplianceSummary struct {
+type VCISOComplianceSummary struct {
 	MITRECoveragePercent float64 `json:"mitre_coverage_percent"`
 	DSPMPostureScore     float64 `json:"dspm_posture_score"`
 	SLAComplianceRate    float64 `json:"sla_compliance_rate"`

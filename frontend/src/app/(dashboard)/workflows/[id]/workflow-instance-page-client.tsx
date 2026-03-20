@@ -20,7 +20,7 @@ export function WorkflowInstancePageClient() {
   const params = useParams();
   const router = useRouter();
   const queryClient = useQueryClient();
-  const instanceId = params.id as string;
+  const instanceId = (params?.id as string | undefined) ?? '';
   const [cancelOpen, setCancelOpen] = useState(false);
 
   const { data: instance, isLoading, isError, refetch } = useQuery({
@@ -30,8 +30,12 @@ export function WorkflowInstancePageClient() {
 
   const { data: history, isLoading: historyLoading } = useQuery({
     queryKey: ['workflow-instance-history', instanceId],
-    queryFn: () =>
-      apiGet<{ steps: StepExecution[] }>(`/api/v1/workflows/instances/${instanceId}/history`),
+    queryFn: async () => {
+      const resp = await apiGet<{ instance_id: string; step_executions: StepExecution[] }>(
+        `/api/v1/workflows/instances/${instanceId}/history`,
+      );
+      return { steps: resp.step_executions ?? [] };
+    },
     enabled: !!instanceId,
   });
 
@@ -98,7 +102,7 @@ export function WorkflowInstancePageClient() {
 
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold">{instance.definition_name}</h1>
+          <h1 className="text-2xl font-bold">{instance.definition_name ?? 'Workflow Instance'}</h1>
           <div className="mt-1.5 flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
             <StatusBadge status={instance.status} config={workflowStatusConfig} />
             <span>Started {formatDateTime(instance.started_at)}</span>
@@ -170,7 +174,7 @@ export function WorkflowInstancePageClient() {
 
       <WorkflowCancelDialog
         instanceId={instanceId}
-        definitionName={instance.definition_name}
+        definitionName={instance.definition_name ?? 'Workflow'}
         open={cancelOpen}
         onOpenChange={setCancelOpen}
         onSuccess={() => {

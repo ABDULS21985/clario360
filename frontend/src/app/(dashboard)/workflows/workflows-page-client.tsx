@@ -2,8 +2,10 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { Play } from 'lucide-react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiGet, apiPost } from '@/lib/api';
+import { Button } from '@/components/ui/button';
 import { PageHeader } from '@/components/common/page-header';
 import { DataTable } from '@/components/shared/data-table/data-table';
 import { WorkflowCancelDialog } from '@/components/workflows/workflow-cancel-dialog';
@@ -13,6 +15,7 @@ import { showSuccess, showApiError } from '@/lib/toast';
 import { useDataTable } from '@/hooks/use-data-table';
 import { workflowInstanceFilters } from '@/components/workflows/workflow-instance-filters';
 import { SearchInput } from '@/components/shared/forms/search-input';
+import { StartWorkflowDialog } from '@/app/(dashboard)/admin/workflows/instances/components/start-workflow-dialog';
 import type { WorkflowInstance } from '@/types/models';
 import type { PaginatedResponse } from '@/types/api';
 
@@ -20,6 +23,7 @@ export function WorkflowsPageClient() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const [cancelTarget, setCancelTarget] = useState<WorkflowInstance | null>(null);
+  const [startOpen, setStartOpen] = useState(false);
 
   const workflowsTable = useDataTable<WorkflowInstance>({
     queryKey: 'workflow-instances',
@@ -79,6 +83,12 @@ export function WorkflowsPageClient() {
       <PageHeader
         title="Workflows"
         description="Monitor workflow instances across your organization."
+        actions={
+          <Button size="sm" onClick={() => setStartOpen(true)}>
+            <Play className="mr-1.5 h-3.5 w-3.5" />
+            Start Workflow
+          </Button>
+        }
       />
 
       <DataTable
@@ -98,7 +108,7 @@ export function WorkflowsPageClient() {
       {cancelTarget && (
         <WorkflowCancelDialog
           instanceId={cancelTarget.id}
-          definitionName={cancelTarget.definition_name}
+          definitionName={cancelTarget.definition_name ?? 'Workflow'}
           open={Boolean(cancelTarget)}
           onOpenChange={(open) => {
             if (!open) setCancelTarget(null);
@@ -109,6 +119,8 @@ export function WorkflowsPageClient() {
           }}
         />
       )}
+
+      <StartWorkflowDialog open={startOpen} onOpenChange={setStartOpen} />
     </div>
   );
 }

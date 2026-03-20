@@ -51,7 +51,7 @@ export function MFASetupDialog({ open, onOpenChange }: MFASetupDialogProps) {
     try {
       const data = await apiPost<EnableMFAResponse>(API_ENDPOINTS.USERS_ME_MFA_ENABLE);
       setMfaData(data);
-      const url = await QRCode.toDataURL(data.totp_uri, {
+      const url = await QRCode.toDataURL(data.otp_url, {
         width: 200,
         margin: 2,
         type: 'image/png',
@@ -85,7 +85,7 @@ export function MFASetupDialog({ open, onOpenChange }: MFASetupDialogProps) {
 
   const handleCopyManualKey = async () => {
     if (!mfaData) return;
-    const success = await copyToClipboard(mfaData.manual_key);
+    const success = await copyToClipboard(mfaData.secret);
     if (success) toast({ title: 'Copied!', variant: 'success' });
   };
 
@@ -177,7 +177,7 @@ export function MFASetupDialog({ open, onOpenChange }: MFASetupDialogProps) {
                       </p>
                       <div className="flex items-center gap-2">
                         <code className="flex-1 break-all font-mono text-sm">
-                          {mfaData.manual_key}
+                          {mfaData.secret}
                         </code>
                         <button
                           type="button"

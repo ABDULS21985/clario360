@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/rs/zerolog"
 
@@ -146,7 +147,7 @@ func (s *RoleService) GetUserRoles(ctx context.Context, userID string) ([]dto.Ro
 }
 
 func (s *RoleService) ListUsersByRole(ctx context.Context, tenantID, roleSlug string) ([]dto.UserResponse, error) {
-	userIDs, err := s.roleRepo.ListUserIDsByRole(ctx, tenantID, roleSlug)
+	userIDs, err := s.ListUserIDsByRole(ctx, tenantID, roleSlug)
 	if err != nil {
 		return nil, err
 	}
@@ -159,6 +160,11 @@ func (s *RoleService) ListUsersByRole(ctx context.Context, tenantID, roleSlug st
 		users = append(users, dto.UserToResponse(user))
 	}
 	return users, nil
+}
+
+func (s *RoleService) ListUserIDsByRole(ctx context.Context, tenantID, roleSlug string) ([]string, error) {
+	normalized := strings.TrimSpace(strings.ReplaceAll(roleSlug, "_", "-"))
+	return s.roleRepo.ListUserIDsByRole(ctx, tenantID, normalized)
 }
 
 func (s *RoleService) RemoveRole(ctx context.Context, userID, roleID string) error {
@@ -174,7 +180,15 @@ func (s *RoleService) publishEvent(ctx context.Context, eventType, tenantID, use
 	if s.producer == nil {
 		return
 	}
-	evt, err := events.NewEvent(eventType, "iam-service", tenantID, nil)
+	payload := map[string]any{}
+	if tenantID != "" {
+		payload["tenant_id"] = tenantID
+	}
+	if userID != "" {
+		payload["user_id"] = userID
+	}
+
+	evt, err := events.NewEvent(normalizeIAMEventType(eventType), "iam-service", tenantID, payload)
 	if err != nil {
 		s.logger.Error().Err(err).Str("event_type", eventType).Msg("failed to create event")
 		return

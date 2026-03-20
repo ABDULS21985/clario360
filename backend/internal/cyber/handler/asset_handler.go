@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"reflect"
 	"strconv"
 	"strings"
 	"time"
@@ -223,9 +224,22 @@ func (h *AssetHandler) BulkCreate(w http.ResponseWriter, r *http.Request) {
 		defer file.Close()
 		result, err = h.svc.BulkCreateFromCSV(r.Context(), tenantID, userID, file)
 	} else {
-		var reqs []dto.CreateAssetRequest
-		if !decodeJSON(w, r, &reqs) {
+		// Accept both raw array [...] and wrapped { assets: [...] } for frontend compatibility
+		var raw json.RawMessage
+		if !decodeJSON(w, r, &raw) {
 			return
+		}
+		var reqs []dto.CreateAssetRequest
+		if err := json.Unmarshal(raw, &reqs); err != nil {
+			// Try wrapped format: { "assets": [...] }
+			var wrapped struct {
+				Assets []dto.CreateAssetRequest `json:"assets"`
+			}
+			if err2 := json.Unmarshal(raw, &wrapped); err2 != nil || len(wrapped.Assets) == 0 {
+				writeError(w, http.StatusBadRequest, "VALIDATION_ERROR", "body must be a JSON array or {assets: [...]}", nil)
+				return
+			}
+			reqs = wrapped.Assets
 		}
 		result, err = h.svc.BulkCreate(r.Context(), tenantID, userID, reqs)
 	}
@@ -234,12 +248,10 @@ func (h *AssetHandler) BulkCreate(w http.ResponseWriter, r *http.Request) {
 		var bulkErr *service.BulkValidationError
 		if errors.As(err, &bulkErr) {
 			writeJSON(w, http.StatusBadRequest, map[string]any{
-				"error": map[string]any{
-					"code":       bulkErr.Code,
-					"message":    bulkErr.Message,
-					"details":    map[string]any{"rows": bulkErr.Rows},
-					"request_id": w.Header().Get(middleware.RequestIDHeader),
-				},
+				"code":       bulkErr.Code,
+				"message":    bulkErr.Message,
+				"details":    map[string]any{"rows": bulkErr.Rows},
+				"request_id": w.Header().Get(middleware.RequestIDHeader),
 			})
 			return
 		}
@@ -389,10 +401,13 @@ func (h *AssetHandler) ListVulnerabilities(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
-		"data":     vulns,
-		"total":    total,
-		"page":     params.Page,
-		"per_page": params.PerPage,
+		"data": vulns,
+		"meta": map[string]any{
+			"page":        params.Page,
+			"per_page":    params.PerPage,
+			"total":       total,
+			"total_pages": dto.NewPaginationMeta(params.Page, params.PerPage, total).TotalPages,
+		},
 	})
 }
 
@@ -456,6 +471,26 @@ func (h *AssetHandler) UpdateVulnerability(w http.ResponseWriter, r *http.Reques
 	writeJSON(w, http.StatusOK, envelope{"data": vuln})
 }
 
+// ---- Activity ----
+
+// ListActivity handles GET /api/v1/cyber/assets/:id/activity
+func (h *AssetHandler) ListActivity(w http.ResponseWriter, r *http.Request) {
+	tenantID, _, ok := requireTenantAndUser(w, r)
+	if !ok {
+		return
+	}
+	assetID, ok := parseUUID(w, chi.URLParam(r, "id"))
+	if !ok {
+		return
+	}
+	activity, err := h.svc.ListAssetActivity(r.Context(), tenantID, assetID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "LIST_ACTIVITY_FAILED", err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, envelope{"data": activity})
+}
+
 // ---- Scans ----
 
 // TriggerScan handles POST /api/v1/cyber/assets/scan
@@ -507,10 +542,13 @@ func (h *AssetHandler) ListScans(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
-		"data":     scans,
-		"total":    total,
-		"page":     params.Page,
-		"per_page": params.PerPage,
+		"data": scans,
+		"meta": map[string]any{
+			"page":        params.Page,
+			"per_page":    params.PerPage,
+			"total":       total,
+			"total_pages": dto.NewPaginationMeta(params.Page, params.PerPage, total).TotalPages,
+		},
 	})
 }
 
@@ -642,7 +680,7 @@ func decodeJSON(w http.ResponseWriter, r *http.Request, v any) bool {
 func writeJSON(w http.ResponseWriter, status int, v any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(v)
+	_ = json.NewEncoder(w).Encode(normalizePaginatedResponse(v))
 }
 
 func writeError(w http.ResponseWriter, status int, code, message string, details ...any) {
@@ -656,24 +694,63 @@ func writeError(w http.ResponseWriter, status int, code, message string, details
 		detailValue = nil
 	}
 	writeJSON(w, status, map[string]any{
-		"error": map[string]any{
-			"code":       code,
-			"message":    message,
-			"details":    detailValue,
-			"request_id": w.Header().Get(middleware.RequestIDHeader),
-		},
+		"code":       code,
+		"message":    message,
+		"details":    detailValue,
+		"request_id": w.Header().Get(middleware.RequestIDHeader),
 	})
 }
 
 func writeValidationError(w http.ResponseWriter, fieldErrs map[string]string) {
 	writeJSON(w, http.StatusBadRequest, map[string]any{
-		"error": map[string]any{
-			"code":       "VALIDATION_ERROR",
-			"message":    "request validation failed",
-			"details":    map[string]any{"fields": fieldErrs},
-			"request_id": w.Header().Get(middleware.RequestIDHeader),
-		},
+		"code":       "VALIDATION_ERROR",
+		"message":    "request validation failed",
+		"details":    map[string]any{"fields": fieldErrs},
+		"request_id": w.Header().Get(middleware.RequestIDHeader),
 	})
+}
+
+func normalizePaginatedResponse(v any) any {
+	rv := reflect.ValueOf(v)
+	if !rv.IsValid() {
+		return v
+	}
+	for rv.Kind() == reflect.Pointer {
+		if rv.IsNil() {
+			return v
+		}
+		rv = rv.Elem()
+	}
+	if rv.Kind() != reflect.Struct {
+		return v
+	}
+
+	dataField := rv.FieldByName("Data")
+	pageField := rv.FieldByName("Page")
+	perPageField := rv.FieldByName("PerPage")
+	totalField := rv.FieldByName("Total")
+	totalPagesField := rv.FieldByName("TotalPages")
+	if !dataField.IsValid() || !pageField.IsValid() || !perPageField.IsValid() || !totalField.IsValid() || !totalPagesField.IsValid() {
+		return v
+	}
+	if pageField.Kind() != reflect.Int || perPageField.Kind() != reflect.Int || totalField.Kind() != reflect.Int || totalPagesField.Kind() != reflect.Int {
+		return v
+	}
+
+	totalPages := int(totalPagesField.Int())
+	if totalPages < 1 {
+		totalPages = 1
+	}
+
+	return map[string]any{
+		"data": dataField.Interface(),
+		"meta": map[string]any{
+			"page":        int(pageField.Int()),
+			"per_page":    int(perPageField.Int()),
+			"total":       int(totalField.Int()),
+			"total_pages": totalPages,
+		},
+	}
 }
 
 func parseAssetListParams(r *http.Request) (*dto.AssetListParams, error) {
@@ -731,6 +808,9 @@ func parseAssetListParams(r *http.Request) (*dto.AssetListParams, error) {
 			}
 		}
 		params.LastSeenAfter = &t
+	}
+	if v := q.Get("scan_id"); v != "" {
+		params.ScanID = &v
 	}
 	if v := q.Get("has_vulnerabilities"); v != "" {
 		b, err := strconv.ParseBool(v)

@@ -13,14 +13,18 @@ import (
 
 // SubscribedTopics lists all Kafka topics the audit consumer subscribes to.
 var SubscribedTopics = []string{
+	"platform.audit.events",
 	"platform.iam.events",
 	"platform.workflow.events",
 	"platform.notification.events",
+	"platform.ai.events",
 	"cyber.asset.events",
 	"cyber.threat.events",
 	"cyber.alert.events",
 	"cyber.remediation.events",
+	"cyber.ueba.events",
 	"data.source.events",
+	"data.access_events",
 	"data.pipeline.events",
 	"data.quality.events",
 	"data.contradiction.events",
@@ -32,11 +36,11 @@ var SubscribedTopics = []string{
 
 // AuditConsumer subscribes to all platform event topics and ingests them as audit entries.
 type AuditConsumer struct {
-	consumer  *events.Consumer
-	mapper    *EventMapper
-	auditSvc  *service.AuditService
-	dlq       *DeadLetterProducer
-	logger    zerolog.Logger
+	consumer *events.Consumer
+	mapper   *EventMapper
+	auditSvc *service.AuditService
+	dlq      *DeadLetterProducer
+	logger   zerolog.Logger
 }
 
 // NewAuditConsumer creates a new audit consumer that subscribes to all platform topics.

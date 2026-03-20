@@ -270,6 +270,15 @@ func (m *memUserRepo) GetByEmail(_ context.Context, tenantID, email string) (*mo
 	return u, nil
 }
 
+func (m *memUserRepo) GetByEmailGlobal(_ context.Context, email string) (*model.User, error) {
+	for _, u := range m.users {
+		if u.Email == email {
+			return u, nil
+		}
+	}
+	return nil, model.ErrNotFound
+}
+
 func (m *memUserRepo) List(_ context.Context, _ string, _ repository.UserFilter) ([]model.User, int, error) {
 	return nil, 0, nil
 }
@@ -328,6 +337,7 @@ func (m *memSessionRepo) GetByTokenHash(_ context.Context, hash string) (*model.
 func (m *memSessionRepo) GetByUserID(_ context.Context, _ string) ([]model.Session, error) {
 	return nil, nil
 }
+func (m *memSessionRepo) UpdateLastActive(_ context.Context, _ string) error { return nil }
 func (m *memSessionRepo) Delete(_ context.Context, id string) error {
 	if s, ok := m.sessions[id]; ok {
 		delete(m.byHash, s.RefreshTokenHash)
@@ -369,8 +379,8 @@ func (m *memRoleRepo) GetBySlug(_ context.Context, tenantID, slug string) (*mode
 	}
 	return r, nil
 }
-func (m *memRoleRepo) List(_ context.Context, _ string) ([]model.Role, error) { return nil, nil }
-func (m *memRoleRepo) Update(_ context.Context, _ *model.Role) error          { return nil }
+func (m *memRoleRepo) List(_ context.Context, _ string) ([]model.Role, error)  { return nil, nil }
+func (m *memRoleRepo) Update(_ context.Context, _ *model.Role) error           { return nil }
 func (m *memRoleRepo) Delete(_ context.Context, _ string) error                { return nil }
 func (m *memRoleRepo) AssignToUser(_ context.Context, _, _, _, _ string) error { return nil }
 func (m *memRoleRepo) RemoveFromUser(_ context.Context, _, _ string) error     { return nil }
@@ -414,7 +424,7 @@ func (m *memTenantRepo) GetByID(_ context.Context, id string) (*model.Tenant, er
 func (m *memTenantRepo) GetBySlug(_ context.Context, _ string) (*model.Tenant, error) {
 	return nil, model.ErrNotFound
 }
-func (m *memTenantRepo) List(_ context.Context, _, _ int) ([]model.Tenant, int, error) {
+func (m *memTenantRepo) List(_ context.Context, _, _ int, _ repository.TenantListParams) ([]model.Tenant, int, error) {
 	return nil, 0, nil
 }
 func (m *memTenantRepo) Update(_ context.Context, _ *model.Tenant) error { return nil }

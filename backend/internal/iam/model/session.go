@@ -11,4 +11,5 @@ type Session struct {
 	UserAgent        *string
 	ExpiresAt        time.Time
 	CreatedAt        time.Time
+	LastActiveAt     time.Time
 }

@@ -117,16 +117,9 @@ func (s *CTEMService) ListAssessments(ctx context.Context, tenantID uuid.UUID, p
 	if err != nil {
 		return nil, err
 	}
-	totalPages := (total + params.PerPage - 1) / params.PerPage
-	if totalPages == 0 {
-		totalPages = 1
-	}
 	return &dto.CTEMAssessmentListResponse{
-		Data:       items,
-		Total:      total,
-		Page:       params.Page,
-		PerPage:    params.PerPage,
-		TotalPages: totalPages,
+		Data: items,
+		Meta: dto.NewPaginationMeta(params.Page, params.PerPage, total),
 	}, nil
 }
 
@@ -259,16 +252,9 @@ func (s *CTEMService) ListFindings(ctx context.Context, tenantID, assessmentID u
 	if err != nil {
 		return nil, err
 	}
-	totalPages := (total + params.PerPage - 1) / params.PerPage
-	if totalPages == 0 {
-		totalPages = 1
-	}
 	return &dto.CTEMFindingsListResponse{
-		Data:       items,
-		Total:      total,
-		Page:       params.Page,
-		PerPage:    params.PerPage,
-		TotalPages: totalPages,
+		Data: items,
+		Meta: dto.NewPaginationMeta(params.Page, params.PerPage, total),
 	}, nil
 }
 

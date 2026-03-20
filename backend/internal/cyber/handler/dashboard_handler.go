@@ -4,14 +4,13 @@ import (
 	"net/http"
 
 	"github.com/clario360/platform/internal/cyber/dto"
-	"github.com/clario360/platform/internal/cyber/service"
 )
 
 type DashboardHandler struct {
-	svc *service.DashboardService
+	svc dashboardService
 }
 
-func NewDashboardHandler(svc *service.DashboardService) *DashboardHandler {
+func NewDashboardHandler(svc dashboardService) *DashboardHandler {
 	return &DashboardHandler{svc: svc}
 }
 
@@ -117,6 +116,19 @@ func (h *DashboardHandler) GetMITREHeatmap(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	writeJSON(w, http.StatusOK, envelope{"data": heatmap})
+}
+
+func (h *DashboardHandler) GetMetrics(w http.ResponseWriter, r *http.Request) {
+	tenantID, _, ok := requireTenantAndUser(w, r)
+	if !ok {
+		return
+	}
+	metrics, err := h.svc.GetMetrics(r.Context(), tenantID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "INTERNAL_ERROR", err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, envelope{"data": metrics})
 }
 
 func (h *DashboardHandler) GetTrends(w http.ResponseWriter, r *http.Request) {

@@ -25,6 +25,8 @@ var SystemRoles = []Role{
 	{Name: "Data Steward", Slug: "data-steward", IsSystemRole: true, Permissions: []string{"data:read", "quality:*", "lineage:*", "data:write"}},
 	{Name: "Data Analyst", Slug: "data-analyst", IsSystemRole: true, Permissions: []string{"data:read", "quality:read", "lineage:read", "reports:read"}},
 	{Name: "Compliance Officer", Slug: "compliance-officer", IsSystemRole: true, Permissions: []string{"*:read", "quality:*", "lineage:read"}},
+	{Name: "Legal Manager", Slug: "legal-manager", IsSystemRole: true, Permissions: []string{"lex:*", "reports:read"}},
+	{Name: "Legal Analyst", Slug: "legal-analyst", IsSystemRole: true, Permissions: []string{"lex:read", "lex:write"}},
 	{Name: "Legal Counsel", Slug: "legal-counsel", IsSystemRole: true, Permissions: []string{"lex:*"}},
 	{Name: "Contract Manager", Slug: "contract-manager", IsSystemRole: true, Permissions: []string{"lex:read", "lex:write"}},
 	{Name: "Board Secretary", Slug: "board-secretary", IsSystemRole: true, Permissions: []string{"acta:*"}},

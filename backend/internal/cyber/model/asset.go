@@ -130,6 +130,7 @@ type Asset struct {
 	DiscoveredAt    time.Time       `json:"discovered_at" db:"discovered_at"`
 	LastSeenAt      time.Time       `json:"last_seen_at" db:"last_seen_at"`
 	DiscoverySource string          `json:"discovery_source" db:"discovery_source"`
+	LastScanID      *uuid.UUID      `json:"last_scan_id,omitempty" db:"last_scan_id"`
 	Metadata        json.RawMessage `json:"metadata" db:"metadata"`
 	Tags            []string        `json:"tags" db:"tags"`
 	CreatedBy       *uuid.UUID      `json:"created_by,omitempty" db:"created_by"`
@@ -139,6 +140,10 @@ type Asset struct {
 
 	// Computed fields (populated via LEFT JOINs or sub-queries in list/get endpoints)
 	OpenVulnerabilityCount int     `json:"open_vulnerability_count" db:"open_vulnerability_count"`
+	VulnerabilityCount     int     `json:"vulnerability_count" db:"-"`
+	CriticalVulnCount      int     `json:"critical_vuln_count" db:"critical_vuln_count"`
+	HighVulnCount          int     `json:"high_vuln_count" db:"high_vuln_count"`
+	AlertCount             int     `json:"alert_count" db:"alert_count"`
 	HighestVulnSeverity    *string `json:"highest_vulnerability_severity,omitempty" db:"highest_vulnerability_severity"`
 	RelationshipCount      int     `json:"relationship_count" db:"relationship_count"`
 }

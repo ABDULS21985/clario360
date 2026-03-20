@@ -19,6 +19,7 @@ type DeadLetterEntry struct {
 	TenantID        string          `json:"tenant_id"`
 	Error           string          `json:"error"`
 	RetryCount      int             `json:"retry_count"`
+	OriginalEvent   json.RawMessage `json:"original_event,omitempty"`
 	EventData       json.RawMessage `json:"event_data"`
 	FailedAt        time.Time       `json:"failed_at"`
 	Status          string          `json:"status"` // "pending", "replayed", "acknowledged"
@@ -132,6 +133,7 @@ func (c *DeadLetterConsumer) Handle(ctx context.Context, event *Event) error {
 		ID:              event.ID,
 		OriginalEventID: event.Metadata["dlq.original_event_id"],
 		OriginalType:    event.Metadata["dlq.original_type"],
+		OriginalTopic:   event.Metadata["dlq.original_topic"],
 		TenantID:        event.TenantID,
 		Error:           event.Metadata["dlq.error"],
 		EventData:       event.Data,
@@ -139,8 +141,45 @@ func (c *DeadLetterConsumer) Handle(ctx context.Context, event *Event) error {
 		Status:          "pending",
 	}
 
-	if event.Metadata["dlq.original_topic"] != "" {
-		entry.OriginalTopic = event.Metadata["dlq.original_topic"]
+	var envelope struct {
+		OriginalEvent *Event     `json:"original_event"`
+		Error         string     `json:"error"`
+		RetryCount    int        `json:"retry_count"`
+		Timestamp     *time.Time `json:"timestamp"`
+	}
+	if err := json.Unmarshal(event.Data, &envelope); err == nil && envelope.OriginalEvent != nil {
+		if entry.OriginalEventID == "" {
+			entry.OriginalEventID = envelope.OriginalEvent.ID
+		}
+		if entry.OriginalType == "" {
+			entry.OriginalType = envelope.OriginalEvent.Type
+		}
+		if entry.OriginalTopic == "" {
+			if envelope.OriginalEvent.Metadata != nil {
+				entry.OriginalTopic = envelope.OriginalEvent.Metadata["kafka.topic"]
+			}
+		}
+		if entry.TenantID == "" {
+			entry.TenantID = envelope.OriginalEvent.TenantID
+		}
+		if entry.Error == "" {
+			entry.Error = envelope.Error
+		}
+		if envelope.Timestamp != nil {
+			entry.FailedAt = envelope.Timestamp.UTC()
+		}
+		entry.RetryCount = envelope.RetryCount
+		entry.EventData = envelope.OriginalEvent.Data
+		if raw, marshalErr := json.Marshal(envelope.OriginalEvent); marshalErr == nil {
+			entry.OriginalEvent = raw
+		}
+	}
+
+	if entry.RetryCount == 0 && event.Metadata["dlq.retry_count"] != "" {
+		var retryCount int
+		if _, err := fmt.Sscanf(event.Metadata["dlq.retry_count"], "%d", &retryCount); err == nil {
+			entry.RetryCount = retryCount
+		}
 	}
 
 	c.store.Store(entry)
@@ -168,16 +207,34 @@ func (c *DeadLetterConsumer) Replay(ctx context.Context, entryID string) error {
 	}
 
 	// Reconstruct the original event
-	replayEvent := NewEventRaw(
-		entry.OriginalType,
-		"dead-letter-replay",
-		entry.TenantID,
-		entry.EventData,
-	)
-	replayEvent.CausationID = entry.OriginalEventID
-	replayEvent.Metadata = map[string]string{
-		"dlq.replayed_from": entryID,
-		"dlq.replayed_at":   time.Now().UTC().Format(time.RFC3339),
+	var replayEvent *Event
+	if len(entry.OriginalEvent) > 0 {
+		var original Event
+		if err := json.Unmarshal(entry.OriginalEvent, &original); err != nil {
+			return fmt.Errorf("decode original event: %w", err)
+		}
+		original.ID = GenerateUUID()
+		original.Time = time.Now().UTC()
+		original.Timestamp = original.Time
+		original.CausationID = entry.OriginalEventID
+		if original.Metadata == nil {
+			original.Metadata = map[string]string{}
+		}
+		original.Metadata["dlq.replayed_from"] = entryID
+		original.Metadata["dlq.replayed_at"] = time.Now().UTC().Format(time.RFC3339)
+		replayEvent = &original
+	} else {
+		replayEvent = NewEventRaw(
+			entry.OriginalType,
+			"dead-letter-replay",
+			entry.TenantID,
+			entry.EventData,
+		)
+		replayEvent.CausationID = entry.OriginalEventID
+		replayEvent.Metadata = map[string]string{
+			"dlq.replayed_from": entryID,
+			"dlq.replayed_at":   time.Now().UTC().Format(time.RFC3339),
+		}
 	}
 
 	if err := c.producer.Publish(ctx, entry.OriginalTopic, replayEvent); err != nil {

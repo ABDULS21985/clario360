@@ -13,9 +13,10 @@ export interface Breadcrumb {
 
 export function useBreadcrumbs(): Breadcrumb[] {
   const pathname = usePathname();
+  const currentPath = pathname ?? '/dashboard';
 
   return useMemo(() => {
-    const segments = pathname.split('/').filter(Boolean);
+    const segments = currentPath.split('/').filter(Boolean);
 
     if (segments.length === 0) {
       return [{ label: 'Home', href: '/dashboard', isLast: true, isDynamic: false }];
@@ -41,5 +42,5 @@ export function useBreadcrumbs(): Breadcrumb[] {
     }
 
     return crumbs;
-  }, [pathname]);
+  }, [currentPath]);
 }

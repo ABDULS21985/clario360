@@ -180,6 +180,39 @@ func (m *EventMapper) extractMetadata(event *events.Event) json.RawMessage {
 		meta[k] = v
 	}
 
+	// Preserve the structured payload for data access telemetry so downstream
+	// behavioral analytics can reconstruct the underlying access event from the
+	// immutable audit log without needing cross-service joins.
+	if event.Type == "data.access.event.collected" && len(event.Data) > 0 {
+		var payload map[string]interface{}
+		if err := json.Unmarshal(event.Data, &payload); err == nil {
+			for _, key := range []string{
+				"timestamp",
+				"user",
+				"source_ip",
+				"action",
+				"database",
+				"table",
+				"query_hash",
+				"query_preview",
+				"rows_read",
+				"rows_written",
+				"bytes_read",
+				"bytes_written",
+				"duration_ms",
+				"success",
+				"error_message",
+				"source_type",
+				"source_id",
+				"source_name",
+			} {
+				if value, ok := payload[key]; ok {
+					meta[key] = value
+				}
+			}
+		}
+	}
+
 	if len(meta) == 0 {
 		return json.RawMessage(`{}`)
 	}

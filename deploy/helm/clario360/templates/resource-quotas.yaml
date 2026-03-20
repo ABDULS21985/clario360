@@ -1,0 +1,31 @@
+{{/*
+ResourceQuota — namespace-level resource limits.
+Only created when .Values.resourceQuotas.enabled is true.
+Prevents runaway resource consumption in the namespace.
+*/}}
+{{- if .Values.resourceQuotas.enabled }}
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: {{ include "clario360.fullname" . }}-quota
+  namespace: {{ include "clario360.namespace" . }}
+  labels:
+    {{- include "clario360.labels" . | nindent 4 }}
+    app.kubernetes.io/component: resource-quota
+spec:
+  hard:
+    # Compute
+    requests.cpu: {{ .Values.resourceQuotas.requests.cpu | default "16" | quote }}
+    requests.memory: {{ .Values.resourceQuotas.requests.memory | default "32Gi" | quote }}
+    limits.cpu: {{ .Values.resourceQuotas.limits.cpu | default "32" | quote }}
+    limits.memory: {{ .Values.resourceQuotas.limits.memory | default "64Gi" | quote }}
+    # Object counts
+    pods: {{ .Values.resourceQuotas.pods | default "100" | quote }}
+    services: {{ .Values.resourceQuotas.services | default "30" | quote }}
+    configmaps: {{ .Values.resourceQuotas.configmaps | default "50" | quote }}
+    secrets: {{ .Values.resourceQuotas.secrets | default "50" | quote }}
+    persistentvolumeclaims: {{ .Values.resourceQuotas.persistentvolumeclaims | default "20" | quote }}
+    # Ephemeral storage
+    requests.ephemeral-storage: {{ .Values.resourceQuotas.requests.ephemeralStorage | default "10Gi" | quote }}
+    limits.ephemeral-storage: {{ .Values.resourceQuotas.limits.ephemeralStorage | default "20Gi" | quote }}
+{{- end }}

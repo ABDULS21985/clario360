@@ -25,14 +25,16 @@ type TaskCreator interface {
 // information, SLA deadline, and priority derived from the workflow context.
 type HumanTaskExecutor struct {
 	taskRepo TaskCreator
+	producer *events.Producer
 	resolver *expression.VariableResolver
 	logger   zerolog.Logger
 }
 
 // NewHumanTaskExecutor creates a HumanTaskExecutor.
-func NewHumanTaskExecutor(taskRepo TaskCreator, logger zerolog.Logger) *HumanTaskExecutor {
+func NewHumanTaskExecutor(taskRepo TaskCreator, producer *events.Producer, logger zerolog.Logger) *HumanTaskExecutor {
 	return &HumanTaskExecutor{
 		taskRepo: taskRepo,
+		producer: producer,
 		resolver: expression.NewVariableResolver(),
 		logger:   logger.With().Str("executor", "human_task").Logger(),
 	}
@@ -106,11 +108,11 @@ func (e *HumanTaskExecutor) Execute(ctx context.Context, instance *model.Workflo
 
 	// Build metadata for the task.
 	metadata := map[string]interface{}{
-		"workflow_instance_id":  instance.ID,
-		"workflow_definition":   instance.DefinitionID,
-		"definition_version":    instance.DefinitionVer,
-		"step_id":               step.ID,
-		"step_execution_id":     exec.ID,
+		"workflow_instance_id": instance.ID,
+		"workflow_definition":  instance.DefinitionID,
+		"definition_version":   instance.DefinitionVer,
+		"step_id":              step.ID,
+		"step_execution_id":    exec.ID,
 	}
 
 	task := &model.HumanTask{
@@ -146,6 +148,8 @@ func (e *HumanTaskExecutor) Execute(ctx context.Context, instance *model.Workflo
 		Time("sla_deadline", slaDeadline).
 		Msg("human task created, parking workflow")
 
+	e.publishTaskCreated(ctx, instance, task)
+
 	return &ExecutionResult{
 		Output: map[string]interface{}{
 			"task_id":      task.ID,
@@ -154,6 +158,42 @@ func (e *HumanTaskExecutor) Execute(ctx context.Context, instance *model.Workflo
 		},
 		Parked: true,
 	}, nil
+}
+
+func (e *HumanTaskExecutor) publishTaskCreated(ctx context.Context, instance *model.WorkflowInstance, task *model.HumanTask) {
+	if e.producer == nil {
+		return
+	}
+
+	payload := map[string]interface{}{
+		"task_id":      task.ID,
+		"instance_id":  task.InstanceID,
+		"step_id":      task.StepID,
+		"task_name":    task.Name,
+		"priority":     task.Priority,
+		"sla_deadline": task.SLADeadline,
+	}
+	if task.AssigneeID != nil {
+		payload["assignee_id"] = *task.AssigneeID
+	}
+	if task.AssigneeRole != nil {
+		payload["assignee_role"] = *task.AssigneeRole
+	}
+	if task.EscalationRole != nil {
+		payload["escalation_role"] = *task.EscalationRole
+	}
+	if instance.StartedBy != nil {
+		payload["initiator_id"] = *instance.StartedBy
+	}
+
+	evt, err := events.NewEvent("workflow.task.created", "workflow-engine", task.TenantID, payload)
+	if err != nil {
+		e.logger.Warn().Err(err).Str("task_id", task.ID).Msg("failed to build workflow task created event")
+		return
+	}
+	if err := e.producer.Publish(ctx, events.Topics.WorkflowEvents, evt); err != nil {
+		e.logger.Warn().Err(err).Str("task_id", task.ID).Msg("failed to publish workflow task created event")
+	}
 }
 
 // buildFormSchema converts the "form_fields" config into a []model.FormField slice.

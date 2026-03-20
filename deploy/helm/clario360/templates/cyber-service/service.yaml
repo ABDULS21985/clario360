@@ -1,0 +1,26 @@
+{{- if .Values.cyberService.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "clario360.componentName" (dict "root" . "component" "cyber-service") }}
+  namespace: {{ include "clario360.namespace" . }}
+  labels:
+    {{- include "clario360.componentLabels" (dict "root" . "component" "cyber-service") | nindent 4 }}
+  {{- with ((.Values.cyberService).service).annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  type: {{ dig "service" "type" "ClusterIP" .Values.cyberService }}
+  ports:
+    - name: http
+      port: 8090
+      targetPort: http
+      protocol: TCP
+    - name: metrics
+      port: 9090
+      targetPort: metrics
+      protocol: TCP
+  selector:
+    {{- include "clario360.componentSelectorLabels" (dict "root" . "component" "cyber-service") | nindent 4 }}
+{{- end }}

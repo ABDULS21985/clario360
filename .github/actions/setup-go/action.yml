@@ -1,0 +1,17 @@
+name: Setup Go
+description: Install Go with module and build cache
+
+runs:
+  using: composite
+  steps:
+    - name: Setup Go
+      uses: actions/setup-go@v5
+      with:
+        go-version-file: backend/go.mod
+        cache-dependency-path: backend/go.sum
+
+    - name: Verify Go installation
+      shell: bash
+      run: |
+        echo "Go version: $(go version)"
+        echo "GOPATH: $(go env GOPATH)"

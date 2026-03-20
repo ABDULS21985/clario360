@@ -1,0 +1,22 @@
+{{- if .Values.cyberService.enabled }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "clario360.componentName" (dict "root" . "component" "cyber-service") }}
+  namespace: {{ include "clario360.namespace" . }}
+  labels:
+    {{- include "clario360.componentLabels" (dict "root" . "component" "cyber-service") | nindent 4 }}
+spec:
+  {{- if .Values.cyberService.pdb }}
+  {{- if .Values.cyberService.pdb.minAvailable }}
+  minAvailable: {{ .Values.cyberService.pdb.minAvailable }}
+  {{- else }}
+  maxUnavailable: {{ .Values.cyberService.pdb.maxUnavailable | default 1 }}
+  {{- end }}
+  {{- else }}
+  maxUnavailable: 1
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "clario360.componentSelectorLabels" (dict "root" . "component" "cyber-service") | nindent 6 }}
+{{- end }}

@@ -106,7 +106,7 @@ func (r *TaskRepository) GetByID(ctx context.Context, tenantID, id string) (*mod
 // assigned (assignee_id = userID), or claimable by the user's roles
 // (assignee_role IN roles AND status = 'pending'). An optional status filter
 // can further restrict results. Returns the matching tasks and the total count.
-func (r *TaskRepository) ListForUser(ctx context.Context, tenantID, userID string, roles []string, status string, limit, offset int) ([]*model.HumanTask, int, error) {
+func (r *TaskRepository) ListForUser(ctx context.Context, tenantID, userID string, roles []string, statuses []string, limit, offset int) ([]*model.HumanTask, int, error) {
 	var conditions []string
 	var args []any
 	argIdx := 1
@@ -137,9 +137,9 @@ func (r *TaskRepository) ListForUser(ctx context.Context, tenantID, userID strin
 
 	conditions = append(conditions, "("+strings.Join(visibilityParts, " OR ")+")")
 
-	if status != "" {
-		conditions = append(conditions, fmt.Sprintf("status = $%d", argIdx))
-		args = append(args, status)
+	if len(statuses) > 0 {
+		conditions = append(conditions, fmt.Sprintf("status = ANY($%d)", argIdx))
+		args = append(args, statuses)
 		argIdx++
 	}
 
@@ -419,6 +419,29 @@ func (r *TaskRepository) EscalateTask(ctx context.Context, taskID, escalationRol
 	ct, err := r.pool.Exec(ctx, query, taskID, escalationRole)
 	if err != nil {
 		return fmt.Errorf("escalating task: %w", err)
+	}
+	if ct.RowsAffected() == 0 {
+		return fmt.Errorf("task %s: %w", taskID, model.ErrNotFound)
+	}
+	return nil
+}
+
+// UpdateMetadata replaces the metadata JSONB column for a task. Used to persist
+// comment additions and other metadata changes.
+func (r *TaskRepository) UpdateMetadata(ctx context.Context, tenantID, taskID string, metadata map[string]interface{}) error {
+	metadataJSON, err := json.Marshal(metadata)
+	if err != nil {
+		return fmt.Errorf("marshaling task metadata: %w", err)
+	}
+
+	query := `
+		UPDATE workflow_tasks
+		SET metadata = $3, updated_at = now()
+		WHERE id = $1 AND tenant_id = $2`
+
+	ct, err := r.pool.Exec(ctx, query, taskID, tenantID, metadataJSON)
+	if err != nil {
+		return fmt.Errorf("updating task metadata: %w", err)
 	}
 	if ct.RowsAffected() == 0 {
 		return fmt.Errorf("task %s: %w", taskID, model.ErrNotFound)

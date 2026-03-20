@@ -27,8 +27,9 @@ const MAX_ITEMS = MAX_PAGES * PAGE_SIZE;
 export function NotificationsPageClient() {
   const router = useRouter();
   const pathname = usePathname();
+  const currentPath = pathname ?? '/notifications';
   const searchParams = useSearchParams();
-  const activeTab = searchParams.get('tab') ?? 'all';
+  const activeTab = searchParams?.get('tab') ?? 'all';
   const unreadCount = useNotificationStore((state) => state.unreadCount);
   const { markAsRead, markAllAsRead, deleteNotification } = useNotificationActions();
   const [markAllLoading, setMarkAllLoading] = useState(false);
@@ -89,13 +90,13 @@ export function NotificationsPageClient() {
   };
 
   const handleTabChange = (tab: string) => {
-    const nextParams = new URLSearchParams(searchParams.toString());
+    const nextParams = new URLSearchParams(searchParams?.toString() ?? '');
     if (tab === 'all') {
       nextParams.delete('tab');
     } else {
       nextParams.set('tab', tab);
     }
-    router.push(nextParams.toString() ? `${pathname}?${nextParams.toString()}` : pathname);
+    router.push(nextParams.toString() ? `${currentPath}?${nextParams.toString()}` : currentPath);
   };
 
   const handleMarkAllRead = async () => {

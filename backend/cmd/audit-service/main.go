@@ -145,7 +145,9 @@ func main() {
 		// Admin endpoints
 		r.Post("/verify", adminHandler.VerifyChain)
 		r.Get("/partitions", adminHandler.ListPartitions)
-		r.Post("/partitions/create", adminHandler.CreatePartition)
+		r.Post("/partitions", adminHandler.CreatePartition)
+		r.Post("/partitions/{name}/archive", adminHandler.ArchivePartition)
+		r.Delete("/partitions/{name}", adminHandler.DeletePartition)
 	})
 
 	// 14. Initialize Kafka consumer

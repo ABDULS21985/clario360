@@ -1,0 +1,22 @@
+{{- if .Values.actaService.enabled }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "clario360.componentName" (dict "root" . "component" "acta-service") }}
+  namespace: {{ include "clario360.namespace" . }}
+  labels:
+    {{- include "clario360.componentLabels" (dict "root" . "component" "acta-service") | nindent 4 }}
+spec:
+  {{- if .Values.actaService.pdb }}
+  {{- if .Values.actaService.pdb.minAvailable }}
+  minAvailable: {{ .Values.actaService.pdb.minAvailable }}
+  {{- else }}
+  maxUnavailable: {{ .Values.actaService.pdb.maxUnavailable | default 1 }}
+  {{- end }}
+  {{- else }}
+  maxUnavailable: 1
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "clario360.componentSelectorLabels" (dict "root" . "component" "acta-service") | nindent 6 }}
+{{- end }}

@@ -1,0 +1,15 @@
+jupyterhub:
+  singleuser:
+    image:
+      pullPolicy: Always
+
+networkPolicy:
+  allowInternet: false
+
+resourceQuota:
+  requestsCpu: "64"
+  requestsMemory: 192Gi
+  limitsCpu: "128"
+  limitsMemory: 384Gi
+  persistentVolumeClaims: "100"
+  requestsStorage: 4Ti

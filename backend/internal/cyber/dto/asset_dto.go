@@ -67,6 +67,7 @@ type AssetListParams struct {
 	DiscoveredAfter       *time.Time `form:"discovered_after"`
 	DiscoveredBefore      *time.Time `form:"discovered_before"`
 	LastSeenAfter         *time.Time `form:"last_seen_after"`
+	ScanID                *string    `form:"scan_id"`
 	HasVulnerabilities    *bool      `form:"has_vulnerabilities"`
 	VulnerabilitySeverity *string    `form:"vulnerability_severity"`
 	MinVulnCount          *int       `form:"min_vuln_count"`
@@ -163,11 +164,8 @@ func (p *AssetListParams) Validate() error {
 
 // AssetListResponse is the paginated response for the asset list endpoint.
 type AssetListResponse struct {
-	Data       []*model.Asset `json:"data"`
-	Total      int            `json:"total"`
-	Page       int            `json:"page"`
-	PerPage    int            `json:"per_page"`
-	TotalPages int            `json:"total_pages"`
+	Data []*model.Asset `json:"data"`
+	Meta PaginationMeta `json:"meta"`
 }
 
 // CreateVulnerabilityRequest is the body for POST /api/v1/cyber/assets/:id/vulnerabilities.

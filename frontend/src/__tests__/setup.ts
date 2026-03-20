@@ -120,6 +120,7 @@ vi.mock('next/navigation', () => ({
   usePathname: () => '/',
   useSearchParams: () => ({
     get: (_key: string) => null,
+    forEach: () => {},
   }),
   redirect: vi.fn(),
 }));

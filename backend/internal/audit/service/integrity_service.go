@@ -26,23 +26,25 @@ func NewIntegrityService(repo *repository.AuditRepository, logger zerolog.Logger
 // VerifyChain loads entries for a tenant in [startTime, endTime] ordered by created_at ASC,
 // recomputes each hash, and verifies chain integrity.
 //
-// This streams rows via a cursor to avoid loading millions of rows into memory.
+// The returned ChainVerificationResult is aligned with the frontend AuditVerificationResult
+// interface, providing verified, total_records, verified_records, broken_chain_at,
+// first_record, last_record, verification_hash, and verified_at.
 func (s *IntegrityService) VerifyChain(ctx context.Context, tenantID string, startTime, endTime time.Time) (*model.ChainVerificationResult, error) {
-	result := &model.ChainVerificationResult{}
+	result := &model.ChainVerificationResult{
+		VerifiedAt: time.Now().UTC().Format(time.RFC3339),
+	}
+
 	var previousHash string
 	var isFirst = true
+	var lastVerifiedHash string
 
 	err := s.repo.StreamByTenant(ctx, tenantID, startTime, endTime, func(entry *model.AuditEntry) error {
+		result.TotalRecords++
+
 		if isFirst {
-			// The first entry in the range uses its stored previous_hash
+			result.FirstRecord = entry.ID
 			previousHash = entry.PreviousHash
 			isFirst = false
-
-			// For genesis entries, verify PreviousHash is "GENESIS"
-			if previousHash == hash.GenesisHash {
-				// This is the first ever entry for this tenant — valid genesis
-			}
-			// Otherwise, we trust the stored previous_hash as the chain starting point
 		}
 
 		// Recompute hash
@@ -56,14 +58,15 @@ func (s *IntegrityService) VerifyChain(ctx context.Context, tenantID string, sta
 				Str("stored_hash", entry.EntryHash).
 				Msg("hash chain integrity violation detected")
 
-			result.BrokenAt = &entry.ID
-			result.Checked++
+			result.VerifiedRecords++
+			result.BrokenChainAt = &entry.ID
 			metrics.HashChainVerifications.WithLabelValues("broken").Inc()
-			return nil // Return nil to stop iteration; we found the break
+			// Return nil to continue streaming — we count all records
+			return nil
 		}
 
-		// Also verify that the entry's previous_hash matches what we expect
-		if !isFirst && entry.PreviousHash != previousHash {
+		// Also verify the previous_hash link (skip for first entry in range)
+		if !isFirst && result.BrokenChainAt == nil && entry.PreviousHash != previousHash {
 			s.logger.Warn().
 				Str("tenant_id", tenantID).
 				Str("entry_id", entry.ID).
@@ -71,14 +74,16 @@ func (s *IntegrityService) VerifyChain(ctx context.Context, tenantID string, sta
 				Str("stored_previous", entry.PreviousHash).
 				Msg("previous hash mismatch detected")
 
-			result.BrokenAt = &entry.ID
-			result.Checked++
+			result.VerifiedRecords++
+			result.BrokenChainAt = &entry.ID
 			metrics.HashChainVerifications.WithLabelValues("broken").Inc()
 			return nil
 		}
 
 		previousHash = entry.EntryHash
-		result.Checked++
+		lastVerifiedHash = entry.EntryHash
+		result.LastRecord = entry.ID
+		result.VerifiedRecords++
 		return nil
 	})
 
@@ -86,15 +91,18 @@ func (s *IntegrityService) VerifyChain(ctx context.Context, tenantID string, sta
 		return nil, err
 	}
 
-	result.OK = result.BrokenAt == nil
-	if result.OK {
+	result.Verified = result.BrokenChainAt == nil
+	result.VerificationHash = lastVerifiedHash
+
+	if result.Verified {
 		metrics.HashChainVerifications.WithLabelValues("ok").Inc()
 	}
 
 	s.logger.Info().
 		Str("tenant_id", tenantID).
-		Bool("ok", result.OK).
-		Int64("checked", result.Checked).
+		Bool("verified", result.Verified).
+		Int64("total_records", result.TotalRecords).
+		Int64("verified_records", result.VerifiedRecords).
 		Msg("hash chain verification complete")
 
 	return result, nil

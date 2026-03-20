@@ -1,0 +1,245 @@
+# =============================================================================
+# Clario 360 — Deploy to Staging
+# Manual workflow: validates version, updates GitOps, waits for sync, runs smoke tests.
+# =============================================================================
+
+name: Deploy to Staging
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to deploy (semver tag or commit SHA)"
+        required: true
+        type: string
+      skip_smoke_tests:
+        description: "Skip smoke tests after deployment"
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+env:
+  STAGING_URL: ${{ vars.STAGING_URL || 'https://staging.clario360.com' }}
+
+jobs:
+  # ===========================================================================
+  # JOB 1: Validate version exists in registry
+  # ===========================================================================
+  validate-version:
+    name: Validate Version
+    runs-on: ubuntu-latest
+    steps:
+      - name: Login to container registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ vars.CONTAINER_REGISTRY }}
+          username: ${{ secrets.REGISTRY_USERNAME }}
+          password: ${{ secrets.REGISTRY_PASSWORD }}
+
+      - name: Verify images exist
+        run: |
+          VERSION="${{ inputs.version }}"
+          REGISTRY="${{ vars.CONTAINER_REGISTRY }}"
+          FAILED=0
+
+          SERVICES=(
+            api-gateway iam-service audit-service workflow-engine
+            notification-service file-service cyber-service data-service
+            acta-service lex-service visus-service onboarding-service
+            migrator frontend
+          )
+
+          echo "Verifying images for version: $VERSION"
+          for svc in "${SERVICES[@]}"; do
+            IMAGE="${REGISTRY}/clario360/${svc}:${VERSION}"
+            echo -n "  Checking ${svc}... "
+            if docker manifest inspect "$IMAGE" > /dev/null 2>&1; then
+              echo "OK"
+            else
+              echo "MISSING"
+              FAILED=1
+            fi
+          done
+
+          if [ "$FAILED" -eq 1 ]; then
+            echo "::error::Some images are missing for version $VERSION"
+            exit 1
+          fi
+          echo "All images verified for version $VERSION"
+
+  # ===========================================================================
+  # JOB 2: Update GitOps repository
+  # ===========================================================================
+  update-gitops:
+    name: Update GitOps
+    runs-on: ubuntu-latest
+    needs: validate-version
+    steps:
+      - name: Clone GitOps repository
+        uses: actions/checkout@v4
+        with:
+          repository: clario360/clario360-gitops
+          token: ${{ secrets.GITOPS_TOKEN }}
+          path: gitops
+
+      - name: Update staging values
+        run: |
+          VERSION="${{ inputs.version }}"
+          cd gitops
+
+          if [ -f staging/values.yaml ]; then
+            sed -i "s/tag:.*/tag: \"${VERSION}\"/" staging/values.yaml
+          fi
+
+          echo "Updated staging to version: $VERSION"
+
+      - name: Commit and push
+        working-directory: gitops
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --staged --quiet && echo "No changes" && exit 0
+          git commit -m "deploy(staging): ${{ inputs.version }}"
+          git push
+
+  # ===========================================================================
+  # JOB 3: Wait for ArgoCD sync
+  # ===========================================================================
+  wait-for-sync:
+    name: Wait for Deployment
+    runs-on: ubuntu-latest
+    needs: update-gitops
+    timeout-minutes: 10
+    steps:
+      - name: Wait for rollout
+        run: |
+          echo "Waiting for ArgoCD to sync staging deployment..."
+
+          SERVICES=(
+            api-gateway iam-service audit-service workflow-engine
+            notification-service file-service cyber-service data-service
+            acta-service lex-service visus-service onboarding-service
+            frontend
+          )
+
+          # If kubectl is configured with staging cluster context
+          if command -v kubectl &> /dev/null && kubectl cluster-info &> /dev/null; then
+            for svc in "${SERVICES[@]}"; do
+              echo "Waiting for $svc..."
+              kubectl rollout status deployment/"$svc" \
+                -n clario360-staging \
+                --timeout=300s || echo "::warning::$svc rollout timed out"
+            done
+          else
+            echo "kubectl not configured — waiting 120s for ArgoCD sync"
+            sleep 120
+          fi
+
+          echo "Staging deployment complete"
+
+  # ===========================================================================
+  # JOB 4: Run smoke tests
+  # ===========================================================================
+  smoke-tests:
+    name: Smoke Tests
+    runs-on: ubuntu-latest
+    needs: wait-for-sync
+    if: inputs.skip_smoke_tests != true
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Health checks
+        run: |
+          STAGING_URL="${{ env.STAGING_URL }}"
+          FAILED=0
+
+          ENDPOINTS=(
+            "/healthz"
+            "/api/v1/health"
+          )
+
+          for endpoint in "${ENDPOINTS[@]}"; do
+            echo -n "  GET ${endpoint}... "
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+              --max-time 10 \
+              "${STAGING_URL}${endpoint}" 2>/dev/null) || STATUS="000"
+            if [ "$STATUS" = "200" ]; then
+              echo "OK ($STATUS)"
+            else
+              echo "FAIL ($STATUS)"
+              FAILED=1
+            fi
+          done
+
+          if [ "$FAILED" -eq 1 ]; then
+            echo "::error::Some health checks failed"
+            exit 1
+          fi
+
+      - name: Auth flow test
+        run: |
+          STAGING_URL="${{ env.STAGING_URL }}"
+          echo "Testing auth flow..."
+
+          RESPONSE=$(curl -s -w "\n%{http_code}" \
+            --max-time 10 \
+            -X POST "${STAGING_URL}/api/v1/auth/login" \
+            -H "Content-Type: application/json" \
+            -d '{"email":"smoke-test@clario360.com","password":"'"${{ secrets.SMOKE_TEST_PASSWORD }}"'"}' \
+            2>/dev/null)
+
+          STATUS=$(echo "$RESPONSE" | tail -1)
+          BODY=$(echo "$RESPONSE" | head -n -1)
+
+          if [ "$STATUS" = "200" ] || [ "$STATUS" = "201" ]; then
+            echo "Auth flow: OK ($STATUS)"
+          else
+            echo "::warning::Auth flow returned $STATUS (may need smoke test credentials configured)"
+          fi
+
+      - name: WebSocket connectivity test
+        run: |
+          STAGING_URL="${{ env.STAGING_URL }}"
+          WS_URL=$(echo "$STAGING_URL" | sed 's/https/wss/' | sed 's/http/ws/')
+
+          echo "Testing WebSocket connectivity..."
+          if command -v websocat &> /dev/null; then
+            echo "ping" | timeout 5 websocat "${WS_URL}/ws/notifications" 2>/dev/null && echo "WebSocket: OK" || echo "::warning::WebSocket connection test inconclusive"
+          else
+            echo "websocat not available — skipping WebSocket test"
+          fi
+
+  # ===========================================================================
+  # JOB 5: Deployment report
+  # ===========================================================================
+  report:
+    name: Deployment Report
+    runs-on: ubuntu-latest
+    needs: [validate-version, update-gitops, wait-for-sync, smoke-tests]
+    if: always()
+    steps:
+      - name: Generate report
+        run: |
+          echo "## Staging Deployment Report"
+          echo ""
+          echo "| Field | Value |"
+          echo "|-------|-------|"
+          echo "| Version | ${{ inputs.version }} |"
+          echo "| Triggered by | ${{ github.actor }} |"
+          echo "| Timestamp | $(date -u '+%Y-%m-%d %H:%M:%S UTC') |"
+          echo "| Smoke tests | ${{ inputs.skip_smoke_tests && 'Skipped' || needs.smoke-tests.result }} |"
+          echo "| Overall | ${{ needs.wait-for-sync.result }} |"
+
+      - name: Post to deployment channel
+        if: vars.SLACK_WEBHOOK_URL != ''
+        run: |
+          curl -s -X POST "${{ vars.SLACK_WEBHOOK_URL }}" \
+            -H "Content-Type: application/json" \
+            -d "{
+              \"text\": \"Staging deployment: ${{ inputs.version }} by ${{ github.actor }} — ${{ needs.wait-for-sync.result }}\"
+            }" || echo "Slack notification skipped"

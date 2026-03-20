@@ -3,6 +3,7 @@ package handler
 import (
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/rs/zerolog"
@@ -44,6 +45,16 @@ func (h *ExportHandler) Export(w http.ResponseWriter, r *http.Request) {
 		ResourceType: r.URL.Query().Get("resource_type"),
 		Severity:     r.URL.Query().Get("severity"),
 		Search:       r.URL.Query().Get("search"),
+	}
+
+	// Parse optional columns filter (comma-separated).
+	if cols := r.URL.Query().Get("columns"); cols != "" {
+		for _, c := range strings.Split(cols, ",") {
+			c = strings.TrimSpace(c)
+			if c != "" && dto.ValidExportColumns[c] {
+				cfg.Columns = append(cfg.Columns, c)
+			}
+		}
 	}
 
 	// Parse dates

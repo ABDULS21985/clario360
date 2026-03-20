@@ -1,0 +1,13 @@
+c = get_config()
+c.ServerApp.disable_check_xsrf = False
+c.ServerApp.allow_remote_access = True
+c.ServerApp.allow_origin = "*"
+c.ServerApp.token = ""
+c.ServerApp.password = ""
+c.ServerApp.default_url = "/lab"
+c.ServerApp.terminado_settings = {"shell_command": ["/bin/bash"]}
+c.ServerApp.max_body_size = 100 * 1024 * 1024
+c.ContentsManager.max_file_size = 50 * 1024 * 1024
+c.MappingKernelManager.cull_idle_timeout = 1800
+c.MappingKernelManager.cull_interval = 300
+c.MappingKernelManager.cull_connected = False

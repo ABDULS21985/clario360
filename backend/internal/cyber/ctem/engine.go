@@ -11,6 +11,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog"
 
+	aigovmiddleware "github.com/clario360/platform/internal/aigovernance/middleware"
 	"github.com/clario360/platform/internal/cyber/model"
 	"github.com/clario360/platform/internal/cyber/repository"
 	"github.com/clario360/platform/internal/events"
@@ -21,18 +22,19 @@ type WorkflowLauncher interface {
 }
 
 type CTEMEngine struct {
-	db             *pgxpool.Pool
-	assessmentRepo *repository.CTEMAssessmentRepository
-	findingRepo    *repository.CTEMFindingRepository
-	snapshotRepo   *repository.CTEMSnapshotRepository
-	remGroupRepo   *repository.CTEMRemediationGroupRepository
-	assetRepo      *repository.AssetRepository
-	vulnRepo       *repository.VulnerabilityRepository
-	relationRepo   *repository.RelationshipRepository
-	scoring        *ScoringEngine
-	producer       *events.Producer
-	workflow       WorkflowLauncher
-	logger         zerolog.Logger
+	db               *pgxpool.Pool
+	assessmentRepo   *repository.CTEMAssessmentRepository
+	findingRepo      *repository.CTEMFindingRepository
+	snapshotRepo     *repository.CTEMSnapshotRepository
+	remGroupRepo     *repository.CTEMRemediationGroupRepository
+	assetRepo        *repository.AssetRepository
+	vulnRepo         *repository.VulnerabilityRepository
+	relationRepo     *repository.RelationshipRepository
+	scoring          *ScoringEngine
+	producer         *events.Producer
+	workflow         WorkflowLauncher
+	logger           zerolog.Logger
+	predictionLogger *aigovmiddleware.PredictionLogger
 }
 
 func NewEngine(
@@ -63,6 +65,10 @@ func NewEngine(
 		workflow:       workflow,
 		logger:         logger.With().Str("component", "ctem-engine").Logger(),
 	}
+}
+
+func (e *CTEMEngine) SetPredictionLogger(predictionLogger *aigovmiddleware.PredictionLogger) {
+	e.predictionLogger = predictionLogger
 }
 
 func (e *CTEMEngine) RunAssessment(ctx context.Context, assessmentID uuid.UUID) error {

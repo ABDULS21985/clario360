@@ -1,0 +1,444 @@
+# =============================================================================
+# Clario 360 — Staging Environment Overrides
+# =============================================================================
+
+global:
+  domain: staging.clario360.com
+  apiDomain: api-staging.clario360.com
+  tlsEnabled: true
+  tlsSecretName: clario360-staging-tls
+  environment: staging
+  logLevel: info
+  logFormat: json
+
+# ---------------------------------------------------------------------------
+# Database
+# ---------------------------------------------------------------------------
+database:
+  sslMode: require
+
+# ---------------------------------------------------------------------------
+# Kafka
+# ---------------------------------------------------------------------------
+kafka:
+  brokers:
+    - kafka-0.kafka-headless.clario360-staging:9092
+    - kafka-1.kafka-headless.clario360-staging:9092
+    - kafka-2.kafka-headless.clario360-staging:9092
+  topics:
+    # Platform
+    - name: platform.iam.events
+      partitions: 6
+      replicationFactor: 3
+      retentionMs: 604800000
+    - name: platform.onboarding.events
+      partitions: 6
+      replicationFactor: 3
+      retentionMs: 604800000
+    - name: platform.audit.events
+      partitions: 6
+      replicationFactor: 3
+      retentionMs: 7776000000
+    - name: platform.notification.events
+      partitions: 6
+      replicationFactor: 3
+      retentionMs: 604800000
+    - name: platform.workflow.events
+      partitions: 6
+      replicationFactor: 3
+      retentionMs: 604800000
+    - name: platform.file.events
+      partitions: 6
+      replicationFactor: 3
+      retentionMs: 604800000
+    # Cybersecurity
+    - name: cyber.asset.events
+      partitions: 6
+      replicationFactor: 3
+      retentionMs: 604800000
+    - name: cyber.vulnerability.events
+      partitions: 6
+      replicationFactor: 3
+      retentionMs: 604800000
+    - name: cyber.threat.events
+      partitions: 6
+      replicationFactor: 3
+      retentionMs: 604800000
+    - name: cyber.alert.events
+      partitions: 6
+      replicationFactor: 3
+      retentionMs: 604800000
+    - name: cyber.rule.events
+      partitions: 6
+      replicationFactor: 3
+      retentionMs: 604800000
+    - name: cyber.ctem.events
+      partitions: 6
+      replicationFactor: 3
+      retentionMs: 604800000
+    - name: cyber.risk.events
+      partitions: 6
+      replicationFactor: 3
+      retentionMs: 604800000
+    - name: cyber.remediation.events
+      partitions: 6
+      replicationFactor: 3
+      retentionMs: 604800000
+    - name: cyber.dspm.events
+      partitions: 6
+      replicationFactor: 3
+      retentionMs: 604800000
+    - name: cyber.vciso.events
+      partitions: 6
+      replicationFactor: 3
+      retentionMs: 604800000
+    # Data
+    - name: data.source.events
+      partitions: 6
+      replicationFactor: 3
+      retentionMs: 604800000
+    - name: data.pipeline.events
+      partitions: 6
+      replicationFactor: 3
+      retentionMs: 604800000
+    - name: data.quality.events
+      partitions: 6
+      replicationFactor: 3
+      retentionMs: 604800000
+    - name: data.contradiction.events
+      partitions: 6
+      replicationFactor: 3
+      retentionMs: 604800000
+    - name: data.lineage.events
+      partitions: 6
+      replicationFactor: 3
+      retentionMs: 604800000
+    # Enterprise
+    - name: enterprise.acta.events
+      partitions: 6
+      replicationFactor: 3
+      retentionMs: 604800000
+    - name: enterprise.lex.events
+      partitions: 6
+      replicationFactor: 3
+      retentionMs: 604800000
+    - name: enterprise.visus.events
+      partitions: 6
+      replicationFactor: 3
+      retentionMs: 604800000
+    # Dead Letter
+    - name: platform.dead-letter
+      partitions: 3
+      replicationFactor: 3
+      retentionMs: 2592000000
+
+# ---------------------------------------------------------------------------
+# Observability
+# ---------------------------------------------------------------------------
+observability:
+  prometheus:
+    serviceMonitor:
+      enabled: true
+      interval: 30s
+      scrapeTimeout: 10s
+  grafana:
+    dashboards:
+      enabled: true
+      labels:
+        grafana_dashboard: "1"
+
+# ---------------------------------------------------------------------------
+# Ingress
+# ---------------------------------------------------------------------------
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-staging
+    nginx.ingress.kubernetes.io/proxy-body-size: 100m
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "120"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "120"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+  tls:
+    - secretName: clario360-staging-tls
+      hosts:
+        - staging.clario360.com
+        - api-staging.clario360.com
+
+# ---------------------------------------------------------------------------
+# Network Policies & Quotas
+# ---------------------------------------------------------------------------
+networkPolicies:
+  enabled: true
+
+resourceQuotas:
+  enabled: false
+
+# ---------------------------------------------------------------------------
+# Seed Data
+# ---------------------------------------------------------------------------
+seedData:
+  enabled: false
+
+# =============================================================================
+# Service Overrides — Staging
+# =============================================================================
+
+apiGateway:
+  replicas: 2
+  logLevel: info
+  resources:
+    requests:
+      cpu: 200m
+      memory: 256Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+  hpa:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 6
+    targetCPU: 70
+    targetMemory: 80
+  pdb:
+    enabled: true
+    minAvailable: 1
+  config:
+    rateLimit:
+      enabled: true
+      requestsPerSecond: 200
+      burstSize: 400
+    cors:
+      allowedOrigins:
+        - "https://staging.clario360.com"
+      allowedMethods:
+        - GET
+        - POST
+        - PUT
+        - PATCH
+        - DELETE
+        - OPTIONS
+      allowedHeaders:
+        - Authorization
+        - Content-Type
+        - X-Request-ID
+        - X-Tenant-ID
+      maxAge: 3600
+
+iamService:
+  replicas: 2
+  logLevel: info
+  resources:
+    requests:
+      cpu: 200m
+      memory: 256Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+  hpa:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 5
+    targetCPU: 70
+    targetMemory: 80
+  pdb:
+    enabled: true
+    minAvailable: 1
+
+auditService:
+  replicas: 2
+  logLevel: info
+  resources:
+    requests:
+      cpu: 200m
+      memory: 256Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+  hpa:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 5
+    targetCPU: 70
+    targetMemory: 80
+  pdb:
+    enabled: true
+    minAvailable: 1
+
+workflowEngine:
+  replicas: 2
+  logLevel: info
+  resources:
+    requests:
+      cpu: 200m
+      memory: 256Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+  hpa:
+    enabled: false
+  pdb:
+    enabled: true
+    minAvailable: 1
+
+notificationService:
+  replicas: 2
+  logLevel: info
+  resources:
+    requests:
+      cpu: 200m
+      memory: 256Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+  hpa:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 5
+    targetCPU: 70
+    targetMemory: 80
+  pdb:
+    enabled: true
+    minAvailable: 1
+
+fileService:
+  replicas: 2
+  logLevel: info
+  resources:
+    requests:
+      cpu: 200m
+      memory: 256Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+  hpa:
+    enabled: false
+  pdb:
+    enabled: true
+    minAvailable: 1
+
+cyberService:
+  replicas: 2
+  logLevel: info
+  resources:
+    requests:
+      cpu: 500m
+      memory: 512Mi
+    limits:
+      cpu: "2"
+      memory: 2Gi
+  hpa:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 5
+    targetCPU: 70
+    targetMemory: 80
+  pdb:
+    enabled: true
+    minAvailable: 1
+
+dataService:
+  replicas: 2
+  logLevel: info
+  resources:
+    requests:
+      cpu: 500m
+      memory: 512Mi
+    limits:
+      cpu: "2"
+      memory: 2Gi
+  hpa:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 5
+    targetCPU: 70
+    targetMemory: 80
+  pdb:
+    enabled: true
+    minAvailable: 1
+
+actaService:
+  replicas: 2
+  logLevel: info
+  resources:
+    requests:
+      cpu: 200m
+      memory: 256Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+  hpa:
+    enabled: false
+  pdb:
+    enabled: true
+    minAvailable: 1
+
+lexService:
+  replicas: 2
+  logLevel: info
+  resources:
+    requests:
+      cpu: 200m
+      memory: 256Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+  hpa:
+    enabled: false
+  pdb:
+    enabled: true
+    minAvailable: 1
+
+visusService:
+  replicas: 2
+  logLevel: info
+  resources:
+    requests:
+      cpu: 200m
+      memory: 256Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+  hpa:
+    enabled: false
+  pdb:
+    enabled: true
+    minAvailable: 1
+
+onboardingService:
+  replicas: 2
+  logLevel: info
+  resources:
+    requests:
+      cpu: 200m
+      memory: 256Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+  hpa:
+    enabled: false
+  pdb:
+    enabled: true
+    minAvailable: 1
+
+frontend:
+  replicas: 2
+  logLevel: info
+  resources:
+    requests:
+      cpu: 200m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  hpa:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 5
+    targetCPU: 70
+    targetMemory: 80
+  pdb:
+    enabled: true
+    minAvailable: 1
+  config:
+    apiBaseUrl: https://api-staging.clario360.com

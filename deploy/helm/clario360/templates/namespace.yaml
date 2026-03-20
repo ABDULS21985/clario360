@@ -1,0 +1,20 @@
+{{/*
+Namespace — only created when global.createNamespace is explicitly set to true.
+In most production deployments the namespace is pre-provisioned by platform teams,
+so this defaults to false.
+*/}}
+{{- if .Values.global.createNamespace }}
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ include "clario360.namespace" . }}
+  labels:
+    {{- include "clario360.labels" . | nindent 4 }}
+    app.kubernetes.io/component: namespace
+  annotations:
+    meta.helm.sh/release-name: {{ .Release.Name }}
+    meta.helm.sh/release-namespace: {{ .Release.Namespace }}
+    {{- with .Values.global.namespaceAnnotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+{{- end }}

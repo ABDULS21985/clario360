@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: clario360-jupyter-hub-config
+data:
+  role-mapping.py: |
+    async def custom_pre_spawn_start(self, user, spawner):
+        auth_state = await user.get_auth_state()
+        if auth_state:
+            spawner.environment["CLARIO360_USER_ID"] = auth_state.get("user_id", "")
+            spawner.environment["CLARIO360_TENANT_ID"] = auth_state.get("tenant_id", "")
+            spawner.environment["CLARIO360_USER_EMAIL"] = auth_state.get("email", "")
+            spawner.environment["CLARIO360_USER_ROLE"] = auth_state.get("role", "")
+            spawner.environment["CLARIO360_ACCESS_TOKEN"] = auth_state.get("access_token", "")
+            spawner.environment["CLARIO360_REFRESH_TOKEN"] = auth_state.get("refresh_token", "")
+  audit-logging.py: |
+    import logging
+    audit_logger = logging.getLogger("jupyterhub.audit")
+    audit_logger.setLevel(logging.INFO)

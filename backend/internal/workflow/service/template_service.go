@@ -55,8 +55,9 @@ func (s *TemplateService) GetTemplate(ctx context.Context, id string) (*model.Wo
 }
 
 // InstantiateTemplate creates a new workflow definition from a template,
-// scoped to the given tenant.
-func (s *TemplateService) InstantiateTemplate(ctx context.Context, tenantID, userID, templateID string) (*model.WorkflowDefinition, error) {
+// scoped to the given tenant. Optional name and description overrides are
+// applied before persisting; empty strings fall back to the template defaults.
+func (s *TemplateService) InstantiateTemplate(ctx context.Context, tenantID, userID, templateID, nameOverride, descOverride string) (*model.WorkflowDefinition, error) {
 	tmpl, err := s.GetTemplate(ctx, templateID)
 	if err != nil {
 		return nil, fmt.Errorf("template %s not found: %w", templateID, err)
@@ -68,12 +69,21 @@ func (s *TemplateService) InstantiateTemplate(ctx context.Context, tenantID, use
 		return nil, fmt.Errorf("parsing template definition: %w", err)
 	}
 
+	defName := templateDef.Name
+	if nameOverride != "" {
+		defName = nameOverride
+	}
+	defDesc := templateDef.Description
+	if descOverride != "" {
+		defDesc = descOverride
+	}
+
 	now := time.Now().UTC()
 	def := &model.WorkflowDefinition{
 		ID:            generateUUID(),
 		TenantID:      tenantID,
-		Name:          templateDef.Name,
-		Description:   templateDef.Description,
+		Name:          defName,
+		Description:   defDesc,
 		Version:       1,
 		Status:        model.DefinitionStatusDraft,
 		TriggerConfig: templateDef.TriggerConfig,

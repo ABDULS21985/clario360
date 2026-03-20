@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, memo, useCallback } from 'react';
 import { Bell, Shield, Database, Workflow, Settings, Gavel, AlertTriangle } from 'lucide-react';
 import Link from 'next/link';
 import { useNotificationStore } from '@/stores/notification-store';
@@ -34,7 +34,7 @@ function getPriorityColor(priority: string): string {
   return colors[priority] ?? 'text-muted-foreground';
 }
 
-function NotificationItem({
+const NotificationItem = memo(function NotificationItem({
   notification,
   onRead,
 }: {
@@ -71,20 +71,20 @@ function NotificationItem({
       </div>
     </button>
   );
-}
+});
 
 export function NotificationDropdown() {
   const [open, setOpen] = useState(false);
   const [markingAll, setMarkingAll] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
-  const {
-    unreadCount,
-    recentNotifications,
-    isInitialized,
-    connectionStatus,
-    reconnectAttempt,
-    requestReconnect,
-  } = useNotificationStore();
+  // Granular selectors: each property subscribes independently,
+  // so a change in e.g. connectionStatus doesn't re-render the whole list.
+  const unreadCount = useNotificationStore((s) => s.unreadCount);
+  const recentNotifications = useNotificationStore((s) => s.recentNotifications);
+  const isInitialized = useNotificationStore((s) => s.isInitialized);
+  const connectionStatus = useNotificationStore((s) => s.connectionStatus);
+  const reconnectAttempt = useNotificationStore((s) => s.reconnectAttempt);
+  const requestReconnect = useNotificationStore((s) => s.requestReconnect);
   const { markAsRead, markAllAsRead } = useNotificationActions();
 
   useEffect(() => {
@@ -105,13 +105,13 @@ export function NotificationDropdown() {
     };
   }, [open]);
 
-  const handleRead = async (id: string, url?: string | null) => {
+  const handleRead = useCallback(async (id: string, url?: string | null) => {
     await markAsRead(id);
     setOpen(false);
     if (url) {
       window.location.href = url;
     }
-  };
+  }, [markAsRead]);
 
   const handleMarkAllRead = async () => {
     setMarkingAll(true);
@@ -128,7 +128,7 @@ export function NotificationDropdown() {
         onClick={() => setOpen((value) => !value)}
         aria-label={`Notifications${unreadCount > 0 ? ` (${unreadCount} unread)` : ''}`}
         aria-expanded={open}
-        className="relative rounded-md p-2 text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+        className="relative inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-border/70 bg-white/80 text-muted-foreground shadow-sm transition-all hover:border-primary/20 hover:bg-white hover:text-foreground"
         type="button"
       >
         <Bell className="h-4 w-4" />
@@ -147,14 +147,14 @@ export function NotificationDropdown() {
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full z-50 mt-1 flex max-h-[70vh] w-80 flex-col overflow-hidden rounded-lg border bg-popover shadow-lg">
-          <div className="flex items-center justify-between border-b px-4 py-3">
+        <div className="absolute right-0 top-full z-50 mt-2 flex max-h-[72vh] w-[22rem] flex-col overflow-hidden rounded-[24px] border border-[color:var(--card-border)] bg-[var(--card-bg)] shadow-[var(--card-shadow)] backdrop-blur-xl">
+          <div className="flex items-center justify-between border-b border-border/70 px-4 py-3">
             <h3 className="text-sm font-semibold">Notifications</h3>
             {unreadCount > 0 && (
               <button
                 onClick={handleMarkAllRead}
                 disabled={markingAll}
-                className="text-xs text-primary hover:underline disabled:opacity-50"
+                className="text-xs font-medium text-primary hover:underline disabled:opacity-50"
                 type="button"
               >
                 Mark all read
@@ -175,7 +175,7 @@ export function NotificationDropdown() {
                 </p>
               </div>
             ) : (
-              <div className="divide-y">
+              <div className="divide-y divide-border/60">
                 {recentNotifications.map((notification) => (
                   <NotificationItem
                     key={notification.id}
@@ -187,11 +187,11 @@ export function NotificationDropdown() {
             )}
           </div>
 
-          <div className="border-t px-4 py-2">
+          <div className="border-t border-border/70 px-4 py-3">
             <Link
               href="/notifications"
               onClick={() => setOpen(false)}
-              className="block text-center text-xs text-primary hover:underline"
+              className="block text-center text-xs font-medium text-primary hover:underline"
             >
               View all notifications
             </Link>

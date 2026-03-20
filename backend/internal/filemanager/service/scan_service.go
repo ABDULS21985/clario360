@@ -56,9 +56,9 @@ func NewScanService(
 }
 
 // ScanFile performs virus scanning on a file.
-func (s *ScanService) ScanFile(ctx context.Context, fileID string) error {
+func (s *ScanService) ScanFile(ctx context.Context, tenantID, fileID string) error {
 	// 1. Load file record
-	record, err := s.repo.GetByIDNoTenant(ctx, fileID)
+	record, err := s.repo.GetByID(ctx, tenantID, fileID)
 	if err != nil {
 		return fmt.Errorf("loading file for scan: %w", err)
 	}
@@ -73,7 +73,7 @@ func (s *ScanService) ScanFile(ctx context.Context, fileID string) error {
 	}
 
 	// 2. Atomic CAS: pending → scanning
-	updated, err := s.repo.UpdateScanStatus(ctx, fileID, model.ScanStatusPending, model.ScanStatusScanning, nil, nil)
+	updated, err := s.repo.UpdateScanStatus(ctx, tenantID, fileID, model.ScanStatusPending, model.ScanStatusScanning, nil, nil)
 	if err != nil {
 		return fmt.Errorf("updating scan status: %w", err)
 	}
@@ -119,7 +119,7 @@ func (s *ScanService) ScanFile(ctx context.Context, fileID string) error {
 		s.logger.Warn().Str("file_id", fileID).Msg("virus scanner not available, keeping status as pending")
 		// Reset status back to pending for retry
 		now := time.Now()
-		s.repo.UpdateScanStatus(ctx, fileID, model.ScanStatusScanning, model.ScanStatusPending, nil, &now)
+		s.repo.UpdateScanStatus(ctx, tenantID, fileID, model.ScanStatusScanning, model.ScanStatusPending, nil, &now)
 		return nil
 	}
 
@@ -143,7 +143,7 @@ func (s *ScanService) ScanFile(ctx context.Context, fileID string) error {
 
 	case storage.ScanSkipped:
 		statusStr := string(storage.ScanSkipped)
-		s.repo.UpdateScanStatus(ctx, fileID, model.ScanStatusScanning, model.ScanStatusSkipped, &statusStr, &now)
+		s.repo.UpdateScanStatus(ctx, tenantID, fileID, model.ScanStatusScanning, model.ScanStatusSkipped, &statusStr, &now)
 		s.logger.Warn().Str("file_id", fileID).Str("reason", result.Reason).Msg("virus scan skipped")
 		s.metrics.VirusScansTotal.WithLabelValues("skipped").Inc()
 
@@ -156,7 +156,7 @@ func (s *ScanService) ScanFile(ctx context.Context, fileID string) error {
 
 func (s *ScanService) handleClean(ctx context.Context, record *model.FileRecord, scannedAt *time.Time) {
 	cleanStr := string(storage.ScanClean)
-	s.repo.UpdateScanStatus(ctx, record.ID, model.ScanStatusScanning, model.ScanStatusClean, &cleanStr, scannedAt)
+	s.repo.UpdateScanStatus(ctx, record.TenantID, record.ID, model.ScanStatusScanning, model.ScanStatusClean, &cleanStr, scannedAt)
 	s.metrics.VirusScansTotal.WithLabelValues("clean").Inc()
 
 	s.publishScanEvent(ctx, "com.clario360.file.scan.completed", record.TenantID, map[string]interface{}{
@@ -167,7 +167,7 @@ func (s *ScanService) handleClean(ctx context.Context, record *model.FileRecord,
 
 func (s *ScanService) handleInfected(ctx context.Context, record *model.FileRecord, result *storage.ScanResult, scannedAt *time.Time) {
 	infectedStr := result.VirusName
-	s.repo.UpdateScanStatus(ctx, record.ID, model.ScanStatusScanning, model.ScanStatusInfected, &infectedStr, scannedAt)
+	s.repo.UpdateScanStatus(ctx, record.TenantID, record.ID, model.ScanStatusScanning, model.ScanStatusInfected, &infectedStr, scannedAt)
 	s.metrics.VirusScansTotal.WithLabelValues("infected").Inc()
 	s.metrics.QuarantinedTotal.Inc()
 
@@ -202,12 +202,16 @@ func (s *ScanService) handleInfected(ctx context.Context, record *model.FileReco
 
 	// Publish events
 	s.publishScanEvent(ctx, "com.clario360.file.scan.infected", record.TenantID, map[string]interface{}{
-		"file_id":    record.ID,
-		"virus_name": result.VirusName,
+		"file_id":      record.ID,
+		"virus_name":   result.VirusName,
+		"uploaded_by":  record.UploadedBy,
+		"suite":        record.Suite,
+		"content_type": record.ContentType,
 	})
 	s.publishScanEvent(ctx, "com.clario360.file.quarantined", record.TenantID, map[string]interface{}{
 		"file_id":           record.ID,
 		"virus_name":        result.VirusName,
+		"uploaded_by":       record.UploadedBy,
 		"original_bucket":   record.Bucket,
 		"quarantine_bucket": s.quarantineBucket,
 	})
@@ -225,7 +229,7 @@ func (s *ScanService) handleScanError(ctx context.Context, record *model.FileRec
 
 	errStr := scanErr.Error()
 	now := time.Now()
-	s.repo.UpdateScanStatus(ctx, record.ID, model.ScanStatusScanning, model.ScanStatusError, &errStr, &now)
+	s.repo.UpdateScanStatus(ctx, record.TenantID, record.ID, model.ScanStatusScanning, model.ScanStatusError, &errStr, &now)
 
 	s.publishScanEvent(ctx, "com.clario360.file.scan.error", record.TenantID, map[string]interface{}{
 		"file_id": record.ID,

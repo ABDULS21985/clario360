@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -160,6 +161,22 @@ func (db *InstrumentedDB) RunInTx(ctx context.Context, opts pgx.TxOptions, fn fu
 // (e.g., LISTEN/NOTIFY, migrations).
 func (db *InstrumentedDB) Pool() *pgxpool.Pool {
 	return db.pool
+}
+
+// RunInTxWithTenant executes fn within a transaction where app.current_tenant_id
+// is set via SET LOCAL. This is the InstrumentedDB equivalent of RunWithTenant.
+// Combines tracing/metrics from RunInTx with RLS tenant context setting.
+//
+// The tenant context is scoped to this transaction and cannot leak to other connections
+// in the pool. RLS policies on all tenant-scoped tables will automatically filter rows
+// to those belonging to tenantID.
+func (db *InstrumentedDB) RunInTxWithTenant(ctx context.Context, tenantID uuid.UUID, opts pgx.TxOptions, fn func(pgx.Tx) error) error {
+	return db.RunInTx(ctx, opts, func(tx pgx.Tx) error {
+		if _, err := tx.Exec(ctx, "SELECT set_config('app.current_tenant_id', $1, true)", tenantID.String()); err != nil {
+			return fmt.Errorf("set tenant context: %w", err)
+		}
+		return fn(tx)
+	})
 }
 
 func (db *InstrumentedDB) startSpan(ctx context.Context, op, sql string) (context.Context, trace.Span) {

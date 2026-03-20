@@ -1,7 +1,9 @@
 package handler
 
 import (
+	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	gorillaWS "github.com/gorilla/websocket"
@@ -15,12 +17,12 @@ import (
 
 // WebSocketHandler handles WebSocket upgrade and auth.
 type WebSocketHandler struct {
-	hub        *websocket.Hub
-	jwtMgr     *auth.JWTManager
-	notifRepo  *repository.NotificationRepository
-	cfg        *notifcfg.Config
-	upgrader   gorillaWS.Upgrader
-	logger     zerolog.Logger
+	hub       *websocket.Hub
+	jwtMgr    *auth.JWTManager
+	notifRepo *repository.NotificationRepository
+	cfg       *notifcfg.Config
+	upgrader  gorillaWS.Upgrader
+	logger    zerolog.Logger
 }
 
 // NewWebSocketHandler creates a new WebSocketHandler.
@@ -55,17 +57,9 @@ func NewWebSocketHandler(
 
 // HandleWebSocket handles GET /ws/v1/notifications?token=<JWT>.
 func (h *WebSocketHandler) HandleWebSocket(w http.ResponseWriter, r *http.Request) {
-	// Extract token from query parameter.
-	token := r.URL.Query().Get("token")
-	if token == "" {
-		http.Error(w, "missing token", http.StatusUnauthorized)
-		return
-	}
-
-	// Validate JWT BEFORE upgrade.
-	claims, err := h.jwtMgr.ValidateAccessToken(token)
+	identity, err := h.authenticate(r)
 	if err != nil {
-		http.Error(w, "invalid token", http.StatusUnauthorized)
+		http.Error(w, err.Error(), http.StatusUnauthorized)
 		return
 	}
 
@@ -76,7 +70,7 @@ func (h *WebSocketHandler) HandleWebSocket(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	sessionID := claims.ID
+	sessionID := identity.SessionID
 	if sessionID == "" {
 		sessionID = time.Now().Format("20060102150405")
 	}
@@ -88,19 +82,19 @@ func (h *WebSocketHandler) HandleWebSocket(w http.ResponseWriter, r *http.Reques
 		MaxMessageSize: h.cfg.WSMaxMessageSizeBytes,
 	}
 
-	client := websocket.NewClient(h.hub, conn, claims.UserID, claims.TenantID, sessionID, clientCfg, h.logger)
+	client := websocket.NewClient(h.hub, conn, identity.UserID, identity.TenantID, sessionID, clientCfg, h.logger)
 
 	h.hub.Register(client)
 
 	// Send connection ack.
 	ackMsg, _ := websocket.NewWSMessage(websocket.MsgTypeConnectionAck, websocket.ConnectionAckData{
-		UserID:    claims.UserID,
+		UserID:    identity.UserID,
 		SessionID: sessionID,
 	})
 	client.Send(ackMsg)
 
 	// Send current unread count.
-	if count, err := h.notifRepo.UnreadCount(r.Context(), claims.TenantID, claims.UserID); err == nil {
+	if count, err := h.notifRepo.UnreadCount(r.Context(), identity.TenantID, identity.UserID); err == nil {
 		countMsg, _ := websocket.NewWSMessage(websocket.MsgTypeUnreadCount, websocket.UnreadCountData{Count: count})
 		client.Send(countMsg)
 	}
@@ -108,6 +102,41 @@ func (h *WebSocketHandler) HandleWebSocket(w http.ResponseWriter, r *http.Reques
 	// Start read/write pumps.
 	go client.WritePump()
 	go client.ReadPump()
+}
+
+type wsIdentity struct {
+	UserID    string
+	TenantID  string
+	Email     string
+	SessionID string
+}
+
+func (h *WebSocketHandler) authenticate(r *http.Request) (*wsIdentity, error) {
+	if token := strings.TrimSpace(r.URL.Query().Get("token")); token != "" {
+		claims, err := h.jwtMgr.ValidateAccessToken(token)
+		if err != nil {
+			return nil, fmt.Errorf("invalid token")
+		}
+		return &wsIdentity{
+			UserID:    claims.UserID,
+			TenantID:  claims.TenantID,
+			Email:     claims.Email,
+			SessionID: claims.ID,
+		}, nil
+	}
+
+	userID := strings.TrimSpace(r.Header.Get("X-User-ID"))
+	tenantID := strings.TrimSpace(r.Header.Get("X-Tenant-ID"))
+	if userID == "" || tenantID == "" {
+		return nil, fmt.Errorf("missing token")
+	}
+
+	return &wsIdentity{
+		UserID:    userID,
+		TenantID:  tenantID,
+		Email:     strings.TrimSpace(r.Header.Get("X-User-Email")),
+		SessionID: strings.TrimSpace(r.Header.Get("X-Request-ID")),
+	}, nil
 }
 
 func (h *WebSocketHandler) isAllowedOrigin(r *http.Request) bool {

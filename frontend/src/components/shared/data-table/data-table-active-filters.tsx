@@ -38,20 +38,20 @@ export function DataTableActiveFilters({
   };
 
   return (
-    <div className="flex flex-wrap items-center gap-2 py-2">
-      <span className="text-xs text-muted-foreground font-medium">
+    <div className="flex flex-wrap items-center gap-2 px-1 py-1">
+      <span className="text-xs font-medium text-muted-foreground">
         Active filters:
       </span>
       {entries.map(([key, value]) => (
         <Badge
           key={key}
-          variant="secondary"
-          className="gap-1 pr-1 text-xs"
+          variant="outline"
+          className="gap-1 pr-1 normal-case tracking-normal"
         >
           {getLabel(key, value)}
           <button
             onClick={() => onRemoveFilter(key)}
-            className="ml-1 rounded-full hover:bg-muted p-0.5 focus:outline-none focus:ring-1 focus:ring-ring"
+            className="ml-1 rounded-full p-0.5 hover:bg-muted focus:outline-none focus:ring-1 focus:ring-ring"
             aria-label={`Remove ${key} filter`}
           >
             <X className="h-3 w-3" />
@@ -61,7 +61,7 @@ export function DataTableActiveFilters({
       <Button
         variant="ghost"
         size="sm"
-        className="h-6 px-2 text-xs"
+        className="h-7 px-2 text-xs"
         onClick={onClearAll}
       >
         Clear all

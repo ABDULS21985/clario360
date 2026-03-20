@@ -1,0 +1,118 @@
+{{/*
+=======================================================================
+Clario360 Platform — Prometheus Alerting Rules (PrometheusRule CRD)
+=======================================================================
+*/}}
+{{- if .Values.observability.alerting.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: {{ include "clario360.fullname" . }}-alerting-rules
+  namespace: {{ include "clario360.namespace" . }}
+  labels:
+    {{- include "clario360.labels" . | nindent 4 }}
+    prometheus: kube-prometheus
+    role: alert-rules
+spec:
+  groups:
+    # =================================================================
+    # Service Health
+    # =================================================================
+    - name: clario360.service-health
+      rules:
+        - alert: ServiceDown
+          expr: up{namespace="{{ .Release.Namespace }}", app_kubernetes_io_part_of="clario360"} == 0
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Service {{ "{{" }} $labels.job {{ "}}" }} is down"
+            description: "{{ "{{" }} $labels.job {{ "}}" }} has been down for more than 5 minutes."
+
+        - alert: HighErrorRate
+          expr: |
+            sum(rate(http_requests_total{namespace="{{ .Release.Namespace }}", code=~"5.."}[5m])) by (job)
+            / sum(rate(http_requests_total{namespace="{{ .Release.Namespace }}"}[5m])) by (job) > 0.01
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "High error rate on {{ "{{" }} $labels.job {{ "}}" }}"
+            description: "{{ "{{" }} $labels.job {{ "}}" }} has > 1% error rate for 5 minutes."
+
+        - alert: HighLatency
+          expr: |
+            histogram_quantile(0.99, sum(rate(http_request_duration_seconds_bucket{namespace="{{ .Release.Namespace }}"}[5m])) by (job, le)) > 5
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "High p99 latency on {{ "{{" }} $labels.job {{ "}}" }}"
+            description: "{{ "{{" }} $labels.job {{ "}}" }} p99 latency has exceeded 5 seconds for 10 minutes."
+
+    # =================================================================
+    # Kafka
+    # =================================================================
+    - name: clario360.kafka
+      rules:
+        - alert: KafkaConsumerLag
+          expr: |
+            kafka_consumer_group_lag{namespace="{{ .Release.Namespace }}"} > 10000
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Kafka consumer lag high for {{ "{{" }} $labels.consumergroup {{ "}}" }}"
+            description: "Consumer group {{ "{{" }} $labels.consumergroup {{ "}}" }} has a lag > 10 000 for more than 10 minutes on topic {{ "{{" }} $labels.topic {{ "}}" }}."
+
+    # =================================================================
+    # Database
+    # =================================================================
+    - name: clario360.database
+      rules:
+        - alert: DatabaseConnectionPoolExhausted
+          expr: |
+            db_pool_available_connections{namespace="{{ .Release.Namespace }}"} < 2
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Database connection pool nearly exhausted for {{ "{{" }} $labels.job {{ "}}" }}"
+            description: "{{ "{{" }} $labels.job {{ "}}" }} has fewer than 2 available database connections for 5 minutes."
+
+    # =================================================================
+    # Infrastructure
+    # =================================================================
+    - name: clario360.infrastructure
+      rules:
+        - alert: DiskSpaceLow
+          expr: |
+            kubelet_volume_stats_used_bytes{namespace="{{ .Release.Namespace }}"}
+            / kubelet_volume_stats_capacity_bytes{namespace="{{ .Release.Namespace }}"} > 0.85
+          for: 30m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Disk space > 85% on {{ "{{" }} $labels.persistentvolumeclaim {{ "}}" }}"
+            description: "PVC {{ "{{" }} $labels.persistentvolumeclaim {{ "}}" }} is using more than 85% of its capacity for 30 minutes."
+
+        - alert: CertificateExpiring
+          expr: |
+            (certmanager_certificate_expiration_timestamp_seconds{namespace="{{ .Release.Namespace }}"} - time()) < 1209600
+          for: 1h
+          labels:
+            severity: warning
+          annotations:
+            summary: "TLS certificate {{ "{{" }} $labels.name {{ "}}" }} expires in < 14 days"
+            description: "Certificate {{ "{{" }} $labels.name {{ "}}" }} in namespace {{ .Release.Namespace }} will expire within 14 days."
+
+        - alert: PodCrashLooping
+          expr: |
+            increase(kube_pod_container_status_restarts_total{namespace="{{ .Release.Namespace }}"}[10m]) > 3
+          for: 0m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Pod {{ "{{" }} $labels.pod {{ "}}" }} is crash-looping"
+            description: "Pod {{ "{{" }} $labels.pod {{ "}}" }} has restarted more than 3 times in the last 10 minutes."
+{{- end }}

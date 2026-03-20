@@ -28,7 +28,6 @@ const currentUser: User = {
   status: 'active',
   mfa_enabled: false,
   last_login_at: null,
-  password_changed_at: '2026-03-07T10:00:00Z',
   roles: [
     {
       id: 'role-1',

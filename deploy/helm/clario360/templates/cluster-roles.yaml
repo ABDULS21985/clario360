@@ -1,0 +1,77 @@
+{{/*
+RBAC — namespace-scoped Role + RoleBindings.
+Grants pods the ability to read ConfigMaps and Secrets within their own
+namespace (required for envFrom, volume mounts, etc.).
+Uses Role (not ClusterRole) to enforce least-privilege at namespace scope.
+*/}}
+
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "clario360.fullname" . }}-config-reader
+  namespace: {{ include "clario360.namespace" . }}
+  labels:
+    {{- include "clario360.labels" . | nindent 4 }}
+    app.kubernetes.io/component: rbac
+rules:
+  - apiGroups: [""]
+    resources: ["configmaps", "secrets"]
+    verbs: ["get", "list", "watch"]
+---
+{{/*
+Bind the Role to every enabled service account.
+*/}}
+
+{{- $components := list
+  "api-gateway"
+  "iam-service"
+  "audit-service"
+  "workflow-engine"
+  "notification-service"
+  "file-service"
+  "cyber-service"
+  "data-service"
+  "acta-service"
+  "lex-service"
+  "visus-service"
+  "onboarding-service"
+  "frontend"
+}}
+
+{{- $enabledMap := dict
+  "api-gateway"          .Values.apiGateway.enabled
+  "iam-service"          .Values.iamService.enabled
+  "audit-service"        .Values.auditService.enabled
+  "workflow-engine"      .Values.workflowEngine.enabled
+  "notification-service" .Values.notificationService.enabled
+  "file-service"         .Values.fileService.enabled
+  "cyber-service"        .Values.cyberService.enabled
+  "data-service"         .Values.dataService.enabled
+  "acta-service"         .Values.actaService.enabled
+  "lex-service"          .Values.lexService.enabled
+  "visus-service"        .Values.visusService.enabled
+  "onboarding-service"   .Values.onboardingService.enabled
+  "frontend"             .Values.frontend.enabled
+}}
+
+{{- range $component := $components }}
+{{- $enabled := index $enabledMap $component }}
+{{- if $enabled }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ include "clario360.componentName" (dict "root" $ "component" $component) }}-config-reader
+  namespace: {{ include "clario360.namespace" $ }}
+  labels:
+    {{- include "clario360.componentLabels" (dict "root" $ "component" $component) | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ include "clario360.fullname" $ }}-config-reader
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "clario360.componentName" (dict "root" $ "component" $component) }}
+    namespace: {{ include "clario360.namespace" $ }}
+{{- end }}
+{{- end }}

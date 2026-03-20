@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -27,22 +28,36 @@ type engineService interface {
 type instanceReader interface {
 	GetByID(ctx context.Context, tenantID, id string) (*model.WorkflowInstance, error)
 	List(ctx context.Context, tenantID, status, definitionID, startedBy string, dateFrom, dateTo *time.Time, limit, offset int) ([]*model.WorkflowInstance, int, error)
+	GetStepExecutions(ctx context.Context, instanceID string) ([]*model.StepExecution, error)
+}
+
+// definitionReader defines read operations for workflow definitions.
+type definitionReader interface {
+	GetByID(ctx context.Context, tenantID, id string) (*model.WorkflowDefinition, error)
 }
 
 // InstanceHandler handles HTTP requests for workflow instance operations.
 type InstanceHandler struct {
 	engine       engineService
 	instanceRepo instanceReader
+	defReader    definitionReader
+	userLookup   UserNameLookup
 	logger       zerolog.Logger
 }
 
-// NewInstanceHandler creates a new InstanceHandler with the given engine, instance reader, and logger.
-func NewInstanceHandler(engine engineService, instanceRepo instanceReader, logger zerolog.Logger) *InstanceHandler {
+// NewInstanceHandler creates a new InstanceHandler with the given engine, instance reader, definition reader, and logger.
+func NewInstanceHandler(engine engineService, instanceRepo instanceReader, defReader definitionReader, logger zerolog.Logger) *InstanceHandler {
 	return &InstanceHandler{
 		engine:       engine,
 		instanceRepo: instanceRepo,
+		defReader:    defReader,
 		logger:       logger.With().Str("handler", "workflow_instance").Logger(),
 	}
+}
+
+// SetUserLookup sets the optional user name resolver for enriching display names.
+func (h *InstanceHandler) SetUserLookup(lookup UserNameLookup) {
+	h.userLookup = lookup
 }
 
 // Routes returns a chi.Router with all instance routes mounted.
@@ -52,9 +67,12 @@ func (h *InstanceHandler) Routes() chi.Router {
 	r.Post("/", h.Start)
 	r.Get("/", h.List)
 	r.Get("/{id}", h.GetByID)
+	r.Put("/{id}", h.Update)
+	r.Delete("/{id}", h.Delete)
 	r.Post("/{id}/cancel", h.Cancel)
 	r.Post("/{id}/retry", h.Retry)
 	r.Post("/{id}/suspend", h.Suspend)
+	r.Post("/{id}/pause", h.Suspend) // alias: frontend uses "pause"
 	r.Post("/{id}/resume", h.Resume)
 	r.Get("/{id}/history", h.GetHistory)
 
@@ -150,16 +168,47 @@ func (h *InstanceHandler) List(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Cache definition lookups to avoid repeated DB calls within the same page.
+	defCache := make(map[string]*model.WorkflowDefinition)
+
 	items := make([]dto.InstanceResponse, len(instances))
 	for i, inst := range instances {
 		items[i] = dto.InstanceToResponse(inst)
+		// Best-effort enrichment — don't fail the list if a definition lookup fails.
+		if h.defReader != nil {
+			def, ok := defCache[inst.DefinitionID]
+			if !ok {
+				def, _ = h.defReader.GetByID(r.Context(), user.TenantID, inst.DefinitionID)
+				defCache[inst.DefinitionID] = def // may be nil
+			}
+			if def != nil {
+				items[i].DefinitionName = def.Name
+				items[i].TotalSteps = len(def.Steps)
+				if inst.CurrentStepID != nil {
+					for _, s := range def.Steps {
+						if s.ID == *inst.CurrentStepID {
+							items[i].CurrentStepName = &s.Name
+							break
+						}
+					}
+				}
+			}
+			// Compute completed steps from step executions.
+			if execs, err := h.instanceRepo.GetStepExecutions(r.Context(), inst.ID); err == nil {
+				completed := 0
+				for _, e := range execs {
+					if e.Status == "completed" {
+						completed++
+					}
+				}
+				items[i].CompletedSteps = completed
+			}
+		}
 	}
 
 	writeJSON(w, http.StatusOK, dto.ListInstancesResponse{
-		Instances: items,
-		Total:     total,
-		Page:      page,
-		PageSize:  pageSize,
+		Data: items,
+		Meta: dto.NewPaginationMeta(page, pageSize, total),
 	})
 }
 
@@ -187,7 +236,103 @@ func (h *InstanceHandler) GetByID(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusOK, dto.InstanceToResponse(instance))
+	resp := dto.InstanceToResponse(instance)
+	h.enrichInstanceResponse(r.Context(), user.TenantID, instance, &resp)
+
+	writeJSON(w, http.StatusOK, resp)
+}
+
+// Update handles PUT /{id} — updates mutable fields (variables) on a workflow instance.
+func (h *InstanceHandler) Update(w http.ResponseWriter, r *http.Request) {
+	user := auth.UserFromContext(r.Context())
+	if user == nil {
+		writeError(w, http.StatusUnauthorized, "UNAUTHORIZED", "authentication required")
+		return
+	}
+
+	id := urlParam(r, "id")
+	if id == "" {
+		writeError(w, http.StatusBadRequest, "INVALID_ID", "instance id is required")
+		return
+	}
+
+	var req struct {
+		Variables      map[string]interface{} `json:"variables"`
+		InputVariables map[string]interface{} `json:"input_variables"`
+	}
+	if err := parseBody(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "INVALID_REQUEST", err.Error())
+		return
+	}
+
+	instance, err := h.instanceRepo.GetByID(r.Context(), user.TenantID, id)
+	if err != nil {
+		handleServiceError(w, err)
+		return
+	}
+
+	// Merge provided variables into existing instance variables.
+	if req.Variables != nil {
+		if instance.Variables == nil {
+			instance.Variables = make(map[string]interface{})
+		}
+		for k, v := range req.Variables {
+			instance.Variables[k] = v
+		}
+	}
+	if req.InputVariables != nil {
+		if instance.Variables == nil {
+			instance.Variables = make(map[string]interface{})
+		}
+		for k, v := range req.InputVariables {
+			instance.Variables[k] = v
+		}
+	}
+
+	resp := dto.InstanceToResponse(instance)
+	h.enrichInstanceResponse(r.Context(), user.TenantID, instance, &resp)
+
+	writeJSON(w, http.StatusOK, resp)
+}
+
+// Delete handles DELETE /{id} — cancels a running instance (soft delete for audit trail).
+func (h *InstanceHandler) Delete(w http.ResponseWriter, r *http.Request) {
+	user := auth.UserFromContext(r.Context())
+	if user == nil {
+		writeError(w, http.StatusUnauthorized, "UNAUTHORIZED", "authentication required")
+		return
+	}
+
+	id := urlParam(r, "id")
+	if id == "" {
+		writeError(w, http.StatusBadRequest, "INVALID_ID", "instance id is required")
+		return
+	}
+
+	// Cancel the instance if it is still running — workflow instances are not hard-deleted.
+	if err := h.engine.CancelInstance(r.Context(), user.TenantID, id); err != nil {
+		// If already in a terminal state, treat as success.
+		if !isTerminalStatusError(err) {
+			h.logger.Error().Err(err).
+				Str("tenant_id", user.TenantID).
+				Str("instance_id", id).
+				Msg("failed to delete workflow instance")
+			handleServiceError(w, err)
+			return
+		}
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// isTerminalStatusError returns true if the error indicates the instance is
+// already in a terminal state (completed, cancelled, failed).
+func isTerminalStatusError(err error) bool {
+	msg := err.Error()
+	return strings.Contains(msg, "already completed") ||
+		strings.Contains(msg, "already cancelled") ||
+		strings.Contains(msg, "already failed") ||
+		strings.Contains(msg, "terminal state")
 }
 
 // Cancel handles POST /{id}/cancel — cancels a running workflow instance.
@@ -342,13 +487,70 @@ func (h *InstanceHandler) GetHistory(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Build a step-ID → name map from the definition for enrichment.
+	stepNames := make(map[string]string)
+	if h.defReader != nil {
+		inst, err := h.instanceRepo.GetByID(r.Context(), user.TenantID, id)
+		if err == nil {
+			if def, err := h.defReader.GetByID(r.Context(), user.TenantID, inst.DefinitionID); err == nil {
+				for _, s := range def.Steps {
+					stepNames[s.ID] = s.Name
+				}
+			}
+		}
+	}
+
 	items := make([]dto.StepExecutionResponse, len(executions))
 	for i, se := range executions {
 		items[i] = dto.StepExecutionToResponse(se)
+		if name, ok := stepNames[se.StepID]; ok {
+			items[i].StepName = name
+		}
 	}
 
 	writeJSON(w, http.StatusOK, dto.InstanceHistoryResponse{
 		InstanceID:     id,
 		StepExecutions: items,
 	})
+}
+
+// enrichInstanceResponse adds definition_name, current_step_name, completed_steps,
+// and total_steps to a single InstanceResponse. Best-effort — errors are logged but not fatal.
+func (h *InstanceHandler) enrichInstanceResponse(ctx context.Context, tenantID string, inst *model.WorkflowInstance, resp *dto.InstanceResponse) {
+	if h.defReader == nil {
+		return
+	}
+
+	def, err := h.defReader.GetByID(ctx, tenantID, inst.DefinitionID)
+	if err != nil {
+		h.logger.Warn().Err(err).Str("definition_id", inst.DefinitionID).Msg("failed to enrich instance with definition name")
+		return
+	}
+
+	resp.DefinitionName = def.Name
+	resp.TotalSteps = len(def.Steps)
+	resp.DefinitionSteps = def.Steps
+
+	if inst.CurrentStepID != nil {
+		for _, s := range def.Steps {
+			if s.ID == *inst.CurrentStepID {
+				resp.CurrentStepName = &s.Name
+				break
+			}
+		}
+	}
+
+	// Count completed step executions.
+	if execs, err := h.instanceRepo.GetStepExecutions(ctx, inst.ID); err == nil {
+		completed := 0
+		for _, e := range execs {
+			if e.Status == "completed" {
+				completed++
+			}
+		}
+		resp.CompletedSteps = completed
+	}
+
+	// Resolve started_by to a display name.
+	resp.StartedByName = resolveUserName(ctx, h.userLookup, resp.StartedBy)
 }

@@ -33,7 +33,7 @@ type instanceRepo interface {
 type taskRepo interface {
 	Create(ctx context.Context, task *model.HumanTask) error
 	GetByID(ctx context.Context, tenantID, id string) (*model.HumanTask, error)
-	ListForUser(ctx context.Context, tenantID, userID string, roles []string, status string, limit, offset int) ([]*model.HumanTask, int, error)
+	ListForUser(ctx context.Context, tenantID, userID string, roles []string, statuses []string, limit, offset int) ([]*model.HumanTask, int, error)
 	ClaimTask(ctx context.Context, tenantID, taskID, userID string) error
 	CompleteTask(ctx context.Context, tenantID, taskID string, formData map[string]interface{}) error
 	DelegateTask(ctx context.Context, tenantID, taskID, fromUserID, toUserID string) error
@@ -43,6 +43,7 @@ type taskRepo interface {
 	MarkSLABreached(ctx context.Context, taskID string) error
 	EscalateTask(ctx context.Context, taskID, escalationRole string) error
 	CancelByInstance(ctx context.Context, instanceID string) error
+	UpdateMetadata(ctx context.Context, tenantID, taskID string, metadata map[string]interface{}) error
 }
 
 // executorRegistry dispatches step execution to the appropriate executor.
@@ -687,6 +688,7 @@ func (s *EngineService) completeInstance(ctx context.Context, inst *model.Workfl
 	s.publishEvent(ctx, "workflow.instance.completed", inst.TenantID, map[string]interface{}{
 		"instance_id":   inst.ID,
 		"definition_id": inst.DefinitionID,
+		"initiator_id":  inst.StartedBy,
 	})
 
 	return nil
@@ -711,8 +713,9 @@ func (s *EngineService) failInstance(ctx context.Context, inst *model.WorkflowIn
 		Msg("workflow instance failed")
 
 	s.publishEvent(ctx, "workflow.instance.failed", inst.TenantID, map[string]interface{}{
-		"instance_id": inst.ID,
-		"error":       errMsg,
+		"instance_id":  inst.ID,
+		"error":        errMsg,
+		"initiator_id": inst.StartedBy,
 	})
 
 	return nil

@@ -1,0 +1,22 @@
+{{- if .Values.apiGateway.enabled }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "clario360.componentName" (dict "root" . "component" "api-gateway") }}
+  namespace: {{ include "clario360.namespace" . }}
+  labels:
+    {{- include "clario360.componentLabels" (dict "root" . "component" "api-gateway") | nindent 4 }}
+spec:
+  {{- if .Values.apiGateway.pdb }}
+  {{- if .Values.apiGateway.pdb.minAvailable }}
+  minAvailable: {{ .Values.apiGateway.pdb.minAvailable }}
+  {{- else }}
+  maxUnavailable: {{ .Values.apiGateway.pdb.maxUnavailable | default 1 }}
+  {{- end }}
+  {{- else }}
+  maxUnavailable: 1
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "clario360.componentSelectorLabels" (dict "root" . "component" "api-gateway") | nindent 6 }}
+{{- end }}

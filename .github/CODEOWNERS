@@ -1,0 +1,33 @@
+# =============================================================================
+# Clario 360 — CODEOWNERS
+# Defines required reviewers per directory/file pattern.
+# =============================================================================
+
+# Global reviewers (required for all PRs)
+* @clario360/platform-team
+
+# Security-sensitive code (requires security team review)
+/backend/internal/auth/         @clario360/security-team @clario360/platform-team
+/backend/internal/iam/          @clario360/security-team
+/backend/internal/cyber/        @clario360/security-team
+/backend/internal/onboarding/   @clario360/security-team
+**/encryption*.go               @clario360/security-team
+**/sanitizer*.go                @clario360/security-team
+
+# Infrastructure (requires platform team review)
+/deploy/                        @clario360/platform-team
+/deploy/helm/                   @clario360/platform-team @clario360/security-team
+/.github/workflows/             @clario360/platform-team
+
+# Database changes (requires data team + platform)
+*.sql                           @clario360/data-team @clario360/platform-team
+/backend/migrations/            @clario360/data-team @clario360/platform-team
+
+# Frontend (requires frontend team)
+/frontend/                      @clario360/frontend-team
+
+# Suite-specific code
+/backend/internal/data/         @clario360/data-team
+/backend/internal/acta/         @clario360/governance-team
+/backend/internal/lex/          @clario360/legal-team
+/backend/internal/visus/        @clario360/platform-team

@@ -182,7 +182,7 @@ func (r *AuditRepository) StreamByTenant(ctx context.Context, tenantID string, s
 		user_agent, metadata, event_id, correlation_id, previous_hash,
 		entry_hash, created_at
 		FROM audit_logs
-		WHERE tenant_id = $1 AND created_at >= $2 AND created_at <= $3
+		WHERE tenant_id = $1::uuid AND created_at >= $2::timestamptz AND created_at <= $3::timestamptz
 		ORDER BY created_at ASC`
 
 	rows, err := r.db.Query(ctx, query, tenantID, startTime, endTime)
@@ -210,106 +210,284 @@ func (r *AuditRepository) StreamByTenant(ctx context.Context, tenantID string, s
 }
 
 // GetStats returns aggregated statistics for a tenant within a date range.
+// The returned AuditStats struct is aligned with the frontend AuditLogStats interface.
 func (r *AuditRepository) GetStats(ctx context.Context, tenantID string, dateFrom, dateTo time.Time) (*model.AuditStats, error) {
 	stats := &model.AuditStats{
-		ActionCounts:   make(map[string]int64),
-		SeverityCounts: make(map[string]int64),
+		ByService:    []model.AuditGroupStat{},
+		ByAction:     []model.AuditGroupStat{},
+		BySeverity:   []model.AuditGroupStat{},
+		ByHour:       []model.AuditTimeseriesStat{},
+		ByDay:        []model.AuditTimeseriesStat{},
+		TopUsers:     []model.AuditUserStat{},
+		TopResources: []model.AuditResourceStat{},
 	}
 
-	// Total records
+	// Total events in range
 	err := r.db.QueryRow(ctx,
-		`SELECT COUNT(*) FROM audit_logs WHERE tenant_id = $1 AND created_at >= $2 AND created_at <= $3`,
+		`SELECT COUNT(*) FROM audit_logs WHERE tenant_id = $1::uuid AND created_at >= $2::timestamptz AND created_at <= $3::timestamptz`,
 		tenantID, dateFrom, dateTo,
-	).Scan(&stats.TotalRecords)
+	).Scan(&stats.TotalEvents)
 	if err != nil {
-		return nil, fmt.Errorf("count total records: %w", err)
+		return nil, fmt.Errorf("count total events: %w", err)
 	}
 
-	// Action counts (top 20)
-	rows, err := r.db.Query(ctx,
+	// Events today (UTC calendar day)
+	now := time.Now().UTC()
+	todayStart := now.Truncate(24 * time.Hour)
+	if err = r.db.QueryRow(ctx,
+		`SELECT COUNT(*) FROM audit_logs WHERE tenant_id = $1::uuid AND created_at >= $2::timestamptz`,
+		tenantID, todayStart,
+	).Scan(&stats.EventsToday); err != nil {
+		return nil, fmt.Errorf("count events today: %w", err)
+	}
+
+	// Events this week (ISO week, Monday start)
+	weekday := int(now.Weekday())
+	if weekday == 0 {
+		weekday = 7
+	}
+	weekStart := todayStart.AddDate(0, 0, -(weekday - 1))
+	if err = r.db.QueryRow(ctx,
+		`SELECT COUNT(*) FROM audit_logs WHERE tenant_id = $1::uuid AND created_at >= $2::timestamptz`,
+		tenantID, weekStart,
+	).Scan(&stats.EventsThisWeek); err != nil {
+		return nil, fmt.Errorf("count events this week: %w", err)
+	}
+
+	// Events this month (first day of current month)
+	monthStart := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.UTC)
+	if err = r.db.QueryRow(ctx,
+		`SELECT COUNT(*) FROM audit_logs WHERE tenant_id = $1::uuid AND created_at >= $2::timestamptz`,
+		tenantID, monthStart,
+	).Scan(&stats.EventsThisMonth); err != nil {
+		return nil, fmt.Errorf("count events this month: %w", err)
+	}
+
+	// Unique users in range
+	if err = r.db.QueryRow(ctx,
+		`SELECT COUNT(DISTINCT user_id) FROM audit_logs WHERE tenant_id = $1::uuid AND created_at >= $2::timestamptz AND created_at <= $3::timestamptz AND user_id IS NOT NULL`,
+		tenantID, dateFrom, dateTo,
+	).Scan(&stats.UniqueUsers); err != nil {
+		return nil, fmt.Errorf("count unique users: %w", err)
+	}
+
+	// Unique services in range
+	if err = r.db.QueryRow(ctx,
+		`SELECT COUNT(DISTINCT service) FROM audit_logs WHERE tenant_id = $1::uuid AND created_at >= $2::timestamptz AND created_at <= $3::timestamptz`,
+		tenantID, dateFrom, dateTo,
+	).Scan(&stats.UniqueServices); err != nil {
+		return nil, fmt.Errorf("count unique services: %w", err)
+	}
+
+	// By service (top 20)
+	svcRows, err := r.db.Query(ctx,
+		`SELECT service, COUNT(*) as cnt FROM audit_logs
+		WHERE tenant_id = $1::uuid AND created_at >= $2::timestamptz AND created_at <= $3::timestamptz
+		GROUP BY service ORDER BY cnt DESC LIMIT 20`,
+		tenantID, dateFrom, dateTo,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("query by_service: %w", err)
+	}
+	defer svcRows.Close()
+	for svcRows.Next() {
+		var s model.AuditGroupStat
+		if err := svcRows.Scan(&s.Key, &s.Count); err != nil {
+			return nil, fmt.Errorf("scan by_service: %w", err)
+		}
+		stats.ByService = append(stats.ByService, s)
+	}
+	svcRows.Close()
+	auditComputePercentages(stats.ByService, stats.TotalEvents)
+
+	// By action (top 20)
+	actRows, err := r.db.Query(ctx,
 		`SELECT action, COUNT(*) as cnt FROM audit_logs
-		WHERE tenant_id = $1 AND created_at >= $2 AND created_at <= $3
+		WHERE tenant_id = $1::uuid AND created_at >= $2::timestamptz AND created_at <= $3::timestamptz
 		GROUP BY action ORDER BY cnt DESC LIMIT 20`,
 		tenantID, dateFrom, dateTo,
 	)
 	if err != nil {
-		return nil, fmt.Errorf("query action counts: %w", err)
+		return nil, fmt.Errorf("query by_action: %w", err)
 	}
-	defer rows.Close()
-	for rows.Next() {
-		var action string
-		var count int64
-		if err := rows.Scan(&action, &count); err != nil {
-			return nil, fmt.Errorf("scan action count: %w", err)
+	defer actRows.Close()
+	for actRows.Next() {
+		var s model.AuditGroupStat
+		if err := actRows.Scan(&s.Key, &s.Count); err != nil {
+			return nil, fmt.Errorf("scan by_action: %w", err)
 		}
-		stats.ActionCounts[action] = count
+		stats.ByAction = append(stats.ByAction, s)
 	}
-	rows.Close()
+	actRows.Close()
+	auditComputePercentages(stats.ByAction, stats.TotalEvents)
 
-	// Severity counts
-	rows2, err := r.db.Query(ctx,
+	// By severity
+	sevRows, err := r.db.Query(ctx,
 		`SELECT severity, COUNT(*) as cnt FROM audit_logs
-		WHERE tenant_id = $1 AND created_at >= $2 AND created_at <= $3
-		GROUP BY severity`,
+		WHERE tenant_id = $1::uuid AND created_at >= $2::timestamptz AND created_at <= $3::timestamptz
+		GROUP BY severity ORDER BY cnt DESC`,
 		tenantID, dateFrom, dateTo,
 	)
 	if err != nil {
-		return nil, fmt.Errorf("query severity counts: %w", err)
+		return nil, fmt.Errorf("query by_severity: %w", err)
 	}
-	defer rows2.Close()
-	for rows2.Next() {
-		var severity string
-		var count int64
-		if err := rows2.Scan(&severity, &count); err != nil {
-			return nil, fmt.Errorf("scan severity count: %w", err)
+	defer sevRows.Close()
+	for sevRows.Next() {
+		var s model.AuditGroupStat
+		if err := sevRows.Scan(&s.Key, &s.Count); err != nil {
+			return nil, fmt.Errorf("scan by_severity: %w", err)
 		}
-		stats.SeverityCounts[severity] = count
+		stats.BySeverity = append(stats.BySeverity, s)
 	}
-	rows2.Close()
+	sevRows.Close()
+	auditComputePercentages(stats.BySeverity, stats.TotalEvents)
 
-	// Top users (top 10)
-	rows3, err := r.db.Query(ctx,
-		`SELECT COALESCE(user_id::text, ''), user_email, COUNT(*) as cnt FROM audit_logs
-		WHERE tenant_id = $1 AND created_at >= $2 AND created_at <= $3 AND user_id IS NOT NULL
-		GROUP BY user_id, user_email ORDER BY cnt DESC LIMIT 10`,
-		tenantID, dateFrom, dateTo,
+	// By hour (last 24h from dateTo)
+	hourFrom := dateTo.Add(-24 * time.Hour)
+	hourRows, err := r.db.Query(ctx,
+		`SELECT date_trunc('hour', created_at) as hr, COUNT(*) as cnt FROM audit_logs
+		WHERE tenant_id = $1::uuid AND created_at >= $2::timestamptz AND created_at <= $3::timestamptz
+		GROUP BY hr ORDER BY hr`,
+		tenantID, hourFrom, dateTo,
 	)
 	if err != nil {
-		return nil, fmt.Errorf("query top users: %w", err)
+		return nil, fmt.Errorf("query by_hour: %w", err)
 	}
-	defer rows3.Close()
-	for rows3.Next() {
-		var ua model.UserActivity
-		if err := rows3.Scan(&ua.UserID, &ua.UserEmail, &ua.Count); err != nil {
-			return nil, fmt.Errorf("scan user activity: %w", err)
+	defer hourRows.Close()
+	for hourRows.Next() {
+		var ts time.Time
+		var cnt int64
+		if err := hourRows.Scan(&ts, &cnt); err != nil {
+			return nil, fmt.Errorf("scan by_hour: %w", err)
 		}
-		stats.TopUsers = append(stats.TopUsers, ua)
+		stats.ByHour = append(stats.ByHour, model.AuditTimeseriesStat{
+			Timestamp: ts.UTC().Format(time.RFC3339),
+			Count:     cnt,
+		})
 	}
-	rows3.Close()
+	hourRows.Close()
 
-	// Daily volume
-	rows4, err := r.db.Query(ctx,
+	// By day (full range)
+	dayRows, err := r.db.Query(ctx,
 		`SELECT DATE(created_at) as day, COUNT(*) as cnt FROM audit_logs
-		WHERE tenant_id = $1 AND created_at >= $2 AND created_at <= $3
+		WHERE tenant_id = $1::uuid AND created_at >= $2::timestamptz AND created_at <= $3::timestamptz
 		GROUP BY day ORDER BY day`,
 		tenantID, dateFrom, dateTo,
 	)
 	if err != nil {
-		return nil, fmt.Errorf("query daily volume: %w", err)
+		return nil, fmt.Errorf("query by_day: %w", err)
 	}
-	defer rows4.Close()
-	for rows4.Next() {
-		var dc model.DailyCount
+	defer dayRows.Close()
+	for dayRows.Next() {
 		var day time.Time
-		if err := rows4.Scan(&day, &dc.Count); err != nil {
-			return nil, fmt.Errorf("scan daily count: %w", err)
+		var cnt int64
+		if err := dayRows.Scan(&day, &cnt); err != nil {
+			return nil, fmt.Errorf("scan by_day: %w", err)
 		}
-		dc.Date = day.Format("2006-01-02")
-		stats.DailyVolume = append(stats.DailyVolume, dc)
+		stats.ByDay = append(stats.ByDay, model.AuditTimeseriesStat{
+			Timestamp: day.Format("2006-01-02"),
+			Count:     cnt,
+		})
 	}
-	rows4.Close()
+	dayRows.Close()
+
+	// Top users (top 10 by event count)
+	userRows, err := r.db.Query(ctx,
+		`SELECT COALESCE(user_id::text, ''), user_email, COUNT(*) as cnt, MAX(created_at) as last_at
+		FROM audit_logs
+		WHERE tenant_id = $1::uuid AND created_at >= $2::timestamptz AND created_at <= $3::timestamptz AND user_id IS NOT NULL
+		GROUP BY user_id, user_email ORDER BY cnt DESC LIMIT 10`,
+		tenantID, dateFrom, dateTo,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("query top_users: %w", err)
+	}
+	defer userRows.Close()
+	for userRows.Next() {
+		var uid, email string
+		var cnt int64
+		var lastAt time.Time
+		if err := userRows.Scan(&uid, &email, &cnt, &lastAt); err != nil {
+			return nil, fmt.Errorf("scan top_users: %w", err)
+		}
+		stats.TopUsers = append(stats.TopUsers, model.AuditUserStat{
+			UserID:      uid,
+			UserName:    auditDeriveUserName(email),
+			UserEmail:   email,
+			EventCount:  cnt,
+			LastEventAt: lastAt.UTC().Format(time.RFC3339),
+		})
+	}
+	userRows.Close()
+
+	// Top resources (top 10)
+	resRows, err := r.db.Query(ctx,
+		`SELECT resource_type, resource_id, COUNT(*) as cnt FROM audit_logs
+		WHERE tenant_id = $1::uuid AND created_at >= $2::timestamptz AND created_at <= $3::timestamptz
+		GROUP BY resource_type, resource_id ORDER BY cnt DESC LIMIT 10`,
+		tenantID, dateFrom, dateTo,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("query top_resources: %w", err)
+	}
+	defer resRows.Close()
+	for resRows.Next() {
+		var rt, rid string
+		var cnt int64
+		if err := resRows.Scan(&rt, &rid, &cnt); err != nil {
+			return nil, fmt.Errorf("scan top_resources: %w", err)
+		}
+		stats.TopResources = append(stats.TopResources, model.AuditResourceStat{
+			ResourceType: rt,
+			ResourceID:   rid,
+			ResourceName: rid, // no separate name stored; resource_id serves as display value
+			EventCount:   cnt,
+		})
+	}
+	resRows.Close()
 
 	return stats, nil
+}
+
+// auditComputePercentages fills the Percentage field on each stat relative to total.
+func auditComputePercentages(stats []model.AuditGroupStat, total int64) {
+	if total == 0 {
+		return
+	}
+	for i := range stats {
+		stats[i].Percentage = float64(stats[i].Count) / float64(total) * 100
+	}
+}
+
+// auditDeriveUserName extracts a display name from an email address.
+// e.g. "john.doe@acme.com" → "John Doe"
+func auditDeriveUserName(email string) string {
+	if email == "" {
+		return ""
+	}
+	for i, c := range email {
+		if c == '@' {
+			local := email[:i]
+			result := make([]byte, 0, len(local))
+			capitalize := true
+			for _, b := range []byte(local) {
+				if b == '.' || b == '_' || b == '-' {
+					result = append(result, ' ')
+					capitalize = true
+				} else if capitalize {
+					if b >= 'a' && b <= 'z' {
+						b -= 32
+					}
+					result = append(result, b)
+					capitalize = false
+				} else {
+					result = append(result, b)
+				}
+			}
+			return string(result)
+		}
+	}
+	return email
 }
 
 // GetTimeline returns audit entries for a specific resource ordered by time.

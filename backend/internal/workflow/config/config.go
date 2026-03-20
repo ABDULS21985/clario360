@@ -46,7 +46,7 @@ type Config struct {
 // DefaultConfig returns a Config with sensible production defaults.
 func DefaultConfig() *Config {
 	return &Config{
-		HTTPPort:              8085,
+		HTTPPort:              8083,
 		ServiceTaskTimeoutSec: 60,
 		ServiceTaskMaxRetries: 3,
 		TimerPollIntervalSec:  5,

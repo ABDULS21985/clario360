@@ -1,0 +1,175 @@
+---
+# =============================================================================
+# Clario 360 — Daily Health Check CronJob
+# Runs the automated daily-check.sh script at 6:00 AM UTC
+# Posts results to Slack webhook
+# =============================================================================
+
+# ServiceAccount with read-only access to clario360 namespace
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: health-checker
+  namespace: clario360
+  labels:
+    app.kubernetes.io/name: health-checker
+    app.kubernetes.io/component: operations
+    app.kubernetes.io/part-of: clario360
+
+---
+# ClusterRole for read-only access to pods, nodes, jobs, certificates
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: health-checker
+  labels:
+    app.kubernetes.io/name: health-checker
+rules:
+  - apiGroups: [""]
+    resources: ["nodes", "pods", "services", "endpoints"]
+    verbs: ["get", "list"]
+  - apiGroups: [""]
+    resources: ["pods/exec"]
+    verbs: ["create"]
+  - apiGroups: ["apps"]
+    resources: ["deployments", "statefulsets"]
+    verbs: ["get", "list"]
+  - apiGroups: ["batch"]
+    resources: ["jobs", "cronjobs"]
+    verbs: ["get", "list"]
+  - apiGroups: ["cert-manager.io"]
+    resources: ["certificates"]
+    verbs: ["get", "list"]
+
+---
+# Bind ClusterRole to ServiceAccount
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: health-checker
+  labels:
+    app.kubernetes.io/name: health-checker
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: health-checker
+subjects:
+  - kind: ServiceAccount
+    name: health-checker
+    namespace: clario360
+
+---
+# ConfigMap with the health check script
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: health-check-scripts
+  namespace: clario360
+  labels:
+    app.kubernetes.io/name: health-checker
+    app.kubernetes.io/component: operations
+data:
+  daily-check.sh: |
+    #!/usr/bin/env bash
+    # This script is mounted from the ConfigMap.
+    # For the full version, see docs/runbooks/scripts/daily-check.sh
+    # The actual script content is managed in the repository and synced
+    # to this ConfigMap via CI/CD pipeline.
+    #
+    # To update: edit docs/runbooks/scripts/daily-check.sh and run:
+    #   kubectl create configmap health-check-scripts \
+    #     --from-file=daily-check.sh=docs/runbooks/scripts/daily-check.sh \
+    #     -n clario360 --dry-run=client -o yaml | kubectl apply -f -
+
+    exec /scripts-src/daily-check.sh "$@"
+
+---
+# CronJob — runs daily at 06:00 UTC
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: daily-health-check
+  namespace: clario360
+  labels:
+    app.kubernetes.io/name: daily-health-check
+    app.kubernetes.io/component: operations
+    app.kubernetes.io/part-of: clario360
+spec:
+  schedule: "0 6 * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 7
+  failedJobsHistoryLimit: 3
+  startingDeadlineSeconds: 300
+  jobTemplate:
+    metadata:
+      labels:
+        app.kubernetes.io/name: daily-health-check
+        app.kubernetes.io/component: operations
+    spec:
+      backoffLimit: 1
+      activeDeadlineSeconds: 600
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: daily-health-check
+            app.kubernetes.io/component: operations
+        spec:
+          serviceAccountName: health-checker
+          restartPolicy: OnFailure
+          containers:
+            - name: checker
+              image: bitnami/kubectl:1.28
+              command: ["/bin/bash", "/scripts/daily-check.sh"]
+              args:
+                - "--slack-webhook"
+                - "$(SLACK_WEBHOOK)"
+                - "--namespace"
+                - "clario360"
+                - "--verbose"
+              env:
+                - name: SLACK_WEBHOOK
+                  valueFrom:
+                    secretKeyRef:
+                      name: slack-webhook
+                      key: url
+                      optional: true
+                - name: NAMESPACE
+                  value: "clario360"
+                - name: KAFKA_NAMESPACE
+                  value: "kafka"
+                - name: MONITORING_NAMESPACE
+                  value: "monitoring"
+              resources:
+                requests:
+                  cpu: 100m
+                  memory: 128Mi
+                limits:
+                  cpu: 200m
+                  memory: 256Mi
+              volumeMounts:
+                - name: scripts
+                  mountPath: /scripts
+                  readOnly: true
+          volumes:
+            - name: scripts
+              configMap:
+                name: health-check-scripts
+                defaultMode: 0755
+
+---
+# Secret placeholder for Slack webhook URL
+# Replace the value with your actual Slack webhook URL
+# kubectl create secret generic slack-webhook \
+#   --from-literal=url=https://hooks.slack.com/services/YOUR/WEBHOOK/URL \
+#   -n clario360
+apiVersion: v1
+kind: Secret
+metadata:
+  name: slack-webhook
+  namespace: clario360
+  labels:
+    app.kubernetes.io/name: daily-health-check
+    app.kubernetes.io/component: operations
+type: Opaque
+stringData:
+  url: "https://hooks.slack.com/services/REPLACE_WITH_ACTUAL_WEBHOOK"

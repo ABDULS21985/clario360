@@ -10,6 +10,7 @@ function cookieOptions(maxAge: number, path: string) {
     httpOnly: true,
     secure: cookieSecure,
     sameSite: SESSION.COOKIE_SAMESITE,
+    domain: SESSION.COOKIE_DOMAIN,
     path,
     maxAge,
   } as const;
@@ -137,8 +138,8 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
 
     if (!refreshResp.ok) {
       const response = NextResponse.json({ error: 'session expired' }, { status: 401 });
-      response.cookies.set(COOKIES.ACCESS, '', { maxAge: 0, path: '/' });
-      response.cookies.set(COOKIES.REFRESH, '', { maxAge: 0, path: '/api/auth' });
+      response.cookies.set(COOKIES.ACCESS, '', { maxAge: 0, domain: SESSION.COOKIE_DOMAIN, path: '/' });
+      response.cookies.set(COOKIES.REFRESH, '', { maxAge: 0, domain: SESSION.COOKIE_DOMAIN, path: '/api/auth' });
       return response;
     }
 
@@ -192,7 +193,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
 // DELETE /api/auth/session — clear cookies (logout)
 export async function DELETE(): Promise<NextResponse> {
   const response = NextResponse.json({ success: true });
-  response.cookies.set(COOKIES.ACCESS, '', { maxAge: 0, path: '/' });
-  response.cookies.set(COOKIES.REFRESH, '', { maxAge: 0, path: '/api/auth' });
+  response.cookies.set(COOKIES.ACCESS, '', { maxAge: 0, domain: SESSION.COOKIE_DOMAIN, path: '/' });
+  response.cookies.set(COOKIES.REFRESH, '', { maxAge: 0, domain: SESSION.COOKIE_DOMAIN, path: '/api/auth' });
   return response;
 }

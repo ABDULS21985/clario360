@@ -60,7 +60,7 @@ func (h *CTEMHandler) ListAssessments(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "INTERNAL_ERROR", err.Error())
 		return
 	}
-	writeJSON(w, http.StatusOK, envelope{"data": result})
+	writeJSON(w, http.StatusOK, result)
 }
 
 func (h *CTEMHandler) GetAssessment(w http.ResponseWriter, r *http.Request) {
@@ -240,7 +240,7 @@ func (h *CTEMHandler) ListFindings(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "INTERNAL_ERROR", err.Error())
 		return
 	}
-	writeJSON(w, http.StatusOK, envelope{"data": result})
+	writeJSON(w, http.StatusOK, result)
 }
 
 func (h *CTEMHandler) GetFinding(w http.ResponseWriter, r *http.Request) {

@@ -1,0 +1,6 @@
+xgboost-cpu==3.0.2
+lightgbm==4.1.0
+clickhouse-connect==0.7.19
+psycopg2-binary==2.9.11
+requests==2.31.0
+pandas==2.1.1

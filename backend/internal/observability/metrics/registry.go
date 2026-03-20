@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"regexp"
+	"strings"
 	"sync"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -135,7 +136,8 @@ func (m *Metrics) Histogram(name, help string, labels []string, buckets []float6
 }
 
 func (m *Metrics) prefixedName(name string) string {
-	return m.serviceName + "_" + name
+	prefix := strings.ReplaceAll(m.serviceName, "-", "_")
+	return prefix + "_" + name
 }
 
 func validateName(name string) {

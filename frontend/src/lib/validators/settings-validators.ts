@@ -42,7 +42,7 @@ export const createApiKeySchema = z.object({
     .string()
     .min(1, 'Required')
     .max(100, 'Maximum 100 characters'),
-  permissions: z.array(z.string()).min(1, 'At least one permission required'),
+  scopes: z.array(z.string()).min(1, 'At least one scope required'),
   expires_at: z.string().nullable().optional(),
   no_expiry: z.boolean().default(false),
 });

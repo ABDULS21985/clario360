@@ -110,11 +110,19 @@ func TestQB_WhereFTS(t *testing.T) {
 func TestQB_OrderByAndPaginate(t *testing.T) {
 	qb := NewQueryBuilder("SELECT a.* FROM assets a")
 	sql, _ := qb.OrderBy("criticality", "desc", []string{"criticality", "created_at"}).Paginate(3, 25).Build()
-	if !strings.Contains(sql, "ORDER BY severity_order(a.criticality) DESC") {
+	if !strings.Contains(sql, "ORDER BY severity_order(a.criticality::text) DESC") {
 		t.Fatalf("unexpected order sql: %s", sql)
 	}
 	if !strings.Contains(sql, "LIMIT 25 OFFSET 50") {
 		t.Fatalf("unexpected pagination sql: %s", sql)
+	}
+}
+
+func TestQB_OrderBy_SeverityCastsEnumLikeColumns(t *testing.T) {
+	qb := NewQueryBuilder("SELECT a.* FROM vulnerabilities a")
+	sql, _ := qb.OrderBy("severity", "desc", []string{"severity", "created_at"}).Build()
+	if !strings.Contains(sql, "ORDER BY severity_order(a.severity::text) DESC") {
+		t.Fatalf("unexpected severity order sql: %s", sql)
 	}
 }
 
@@ -142,6 +150,26 @@ func TestQB_BuildCount_WithHavingWrapsQuery(t *testing.T) {
 	sql, _ := qb.Where("a.tenant_id = ?", "tenant-1").Having("COUNT(*) > ?", 1).BuildCount()
 	if !strings.HasPrefix(sql, "SELECT COUNT(*) FROM (") {
 		t.Fatalf("expected wrapped count query, got %s", sql)
+	}
+}
+
+func TestQB_BuildCount_WithNestedFromInSelectUsesTopLevelFrom(t *testing.T) {
+	qb := NewQueryBuilder(`
+		SELECT
+			a.id,
+			(SELECT v.severity FROM vulnerabilities v WHERE v.asset_id = a.id ORDER BY v.created_at DESC LIMIT 1) AS latest_severity
+		FROM assets a
+		LEFT JOIN asset_relationships r ON r.source_asset_id = a.id`)
+	sql, args := qb.Where("a.tenant_id = ?", "tenant-1").BuildCount()
+
+	if !strings.HasPrefix(sql, "SELECT COUNT(DISTINCT a.id) FROM assets a") {
+		t.Fatalf("expected top-level FROM in count sql, got %s", sql)
+	}
+	if strings.Contains(sql, "FROM vulnerabilities v WHERE v.asset_id = a.id") {
+		t.Fatalf("expected nested FROM to be excluded from count prefix, got %s", sql)
+	}
+	if len(args) != 1 || args[0] != "tenant-1" {
+		t.Fatalf("unexpected args: %#v", args)
 	}
 }
 

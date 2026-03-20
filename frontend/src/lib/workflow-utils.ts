@@ -106,7 +106,7 @@ export function canClaimTask(task: HumanTask, user: User | null | undefined): bo
     return true;
   }
 
-  return user.roles.some(
+  return (user.roles ?? []).some(
     (role) => role.slug === task.assignee_role || role.name === task.assignee_role,
   );
 }
@@ -120,7 +120,7 @@ export function canDelegateTask(task: HumanTask, user: User | null | undefined):
     return true;
   }
 
-  return user.roles.some((role) => {
+  return (user.roles ?? []).some((role) => {
     const normalized = role.slug.toLowerCase();
     return normalized.includes('admin') || normalized.includes('manager');
   });

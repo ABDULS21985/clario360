@@ -11,13 +11,13 @@ import (
 // GatewayConfig holds all API gateway configuration loaded from GW_* environment variables.
 type GatewayConfig struct {
 	// HTTP server
-	HTTPPort        int
-	AdminPort       int
-	ReadTimeout     time.Duration
-	WriteTimeout    time.Duration
-	IdleTimeout     time.Duration
+	HTTPPort         int
+	AdminPort        int
+	ReadTimeout      time.Duration
+	WriteTimeout     time.Duration
+	IdleTimeout      time.Duration
 	MaxRequestBodyMB int
-	ProxyTimeout    time.Duration
+	ProxyTimeout     time.Duration
 
 	// Security
 	CORSAllowedOrigins []string
@@ -46,7 +46,7 @@ type GatewayConfig struct {
 func Load() (*GatewayConfig, error) {
 	cfg := &GatewayConfig{
 		HTTPPort:              intEnv("GW_HTTP_PORT", 8080),
-		AdminPort:             intEnv("GW_ADMIN_PORT", 9090),
+		AdminPort:             intEnv("GW_ADMIN_PORT", 9080),
 		ReadTimeout:           durationSecEnv("GW_READ_TIMEOUT_SEC", 30),
 		WriteTimeout:          durationSecEnv("GW_WRITE_TIMEOUT_SEC", 60),
 		IdleTimeout:           durationSecEnv("GW_IDLE_TIMEOUT_SEC", 120),

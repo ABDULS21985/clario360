@@ -17,7 +17,7 @@ type definitionRepo interface {
 	Create(ctx context.Context, def *model.WorkflowDefinition) error
 	GetByID(ctx context.Context, tenantID, id string) (*model.WorkflowDefinition, error)
 	GetActiveByID(ctx context.Context, tenantID, id string) (*model.WorkflowDefinition, error)
-	List(ctx context.Context, tenantID, status, nameFilter string, limit, offset int) ([]*model.WorkflowDefinition, int, error)
+	List(ctx context.Context, tenantID, status, nameFilter, category, sortBy, sortOrder string, limit, offset int) ([]*model.WorkflowDefinition, int, error)
 	ListVersions(ctx context.Context, tenantID, id string) ([]*model.WorkflowDefinition, error)
 	Update(ctx context.Context, def *model.WorkflowDefinition) error
 	SoftDelete(ctx context.Context, tenantID, id string) error
@@ -56,6 +56,7 @@ func (s *DefinitionService) Create(ctx context.Context, tenantID, userID string,
 		TenantID:      tenantID,
 		Name:          req.Name,
 		Description:   req.Description,
+		Category:      req.Category,
 		Version:       1,
 		Status:        model.DefinitionStatusDraft,
 		TriggerConfig: req.TriggerConfig,
@@ -101,8 +102,9 @@ func (s *DefinitionService) GetByID(ctx context.Context, tenantID, id string) (*
 }
 
 // List returns a paginated list of workflow definitions for a tenant,
-// optionally filtered by status and name substring.
-func (s *DefinitionService) List(ctx context.Context, tenantID, status, nameFilter string, page, pageSize int) ([]*model.WorkflowDefinition, int, error) {
+// optionally filtered by status (comma-separated for multiple), category,
+// and name substring. Supports sortBy column and sortOrder (asc/desc).
+func (s *DefinitionService) List(ctx context.Context, tenantID, status, nameFilter, category, sortBy, sortOrder string, page, pageSize int) ([]*model.WorkflowDefinition, int, error) {
 	if page < 1 {
 		page = 1
 	}
@@ -116,7 +118,7 @@ func (s *DefinitionService) List(ctx context.Context, tenantID, status, nameFilt
 	limit := pageSize
 	offset := (page - 1) * pageSize
 
-	defs, total, err := s.repo.List(ctx, tenantID, status, nameFilter, limit, offset)
+	defs, total, err := s.repo.List(ctx, tenantID, status, nameFilter, category, sortBy, sortOrder, limit, offset)
 	if err != nil {
 		return nil, 0, fmt.Errorf("listing workflow definitions: %w", err)
 	}
@@ -155,6 +157,7 @@ func (s *DefinitionService) Update(ctx context.Context, tenantID, id, userID str
 		TenantID:      tenantID,
 		Name:          current.Name,
 		Description:   current.Description,
+		Category:      current.Category,
 		Version:       maxVersion + 1,
 		Status:        model.DefinitionStatusDraft,
 		TriggerConfig: current.TriggerConfig,
@@ -172,6 +175,9 @@ func (s *DefinitionService) Update(ctx context.Context, tenantID, id, userID str
 	}
 	if req.Description != nil {
 		newDef.Description = *req.Description
+	}
+	if req.Category != nil {
+		newDef.Category = *req.Category
 	}
 	if req.TriggerConfig != nil {
 		newDef.TriggerConfig = *req.TriggerConfig
@@ -228,8 +234,10 @@ func (s *DefinitionService) Activate(ctx context.Context, tenantID, id string) e
 			len(validationErrors), formatValidationErrors(validationErrors))
 	}
 
+	now := time.Now().UTC()
 	def.Status = model.DefinitionStatusActive
-	def.UpdatedAt = time.Now().UTC()
+	def.UpdatedAt = now
+	def.PublishedAt = &now
 
 	if err := s.repo.Update(ctx, def); err != nil {
 		return fmt.Errorf("activating definition: %w", err)
@@ -242,6 +250,76 @@ func (s *DefinitionService) Activate(ctx context.Context, tenantID, id string) e
 		Msg("workflow definition activated")
 
 	return nil
+}
+
+// Archive validates that the definition is active and sets its status to archived.
+func (s *DefinitionService) Archive(ctx context.Context, tenantID, id string) error {
+	def, err := s.repo.GetByID(ctx, tenantID, id)
+	if err != nil {
+		return fmt.Errorf("getting definition for archiving: %w", err)
+	}
+
+	if def.Status != model.DefinitionStatusActive {
+		return fmt.Errorf("only active definitions can be archived, current status: %s", def.Status)
+	}
+
+	def.Status = model.DefinitionStatusArchived
+	def.UpdatedAt = time.Now().UTC()
+
+	if err := s.repo.Update(ctx, def); err != nil {
+		return fmt.Errorf("archiving definition: %w", err)
+	}
+
+	s.logger.Info().
+		Str("id", def.ID).
+		Str("tenant_id", tenantID).
+		Str("name", def.Name).
+		Msg("workflow definition archived")
+
+	return nil
+}
+
+// Clone creates a copy of an existing workflow definition in draft status with version 1.
+func (s *DefinitionService) Clone(ctx context.Context, tenantID, id, userID string) (*model.WorkflowDefinition, error) {
+	src, err := s.repo.GetByID(ctx, tenantID, id)
+	if err != nil {
+		return nil, fmt.Errorf("getting definition for cloning: %w", err)
+	}
+
+	now := time.Now().UTC()
+	clone := &model.WorkflowDefinition{
+		ID:            generateUUID(),
+		TenantID:      tenantID,
+		Name:          src.Name + " (Copy)",
+		Description:   src.Description,
+		Version:       1,
+		Status:        model.DefinitionStatusDraft,
+		TriggerConfig: src.TriggerConfig,
+		Variables:     src.Variables,
+		Steps:         src.Steps,
+		CreatedBy:     userID,
+		CreatedAt:     now,
+		UpdatedAt:     now,
+	}
+
+	if clone.Variables == nil {
+		clone.Variables = make(map[string]model.VariableDef)
+	}
+	if clone.Steps == nil {
+		clone.Steps = []model.StepDefinition{}
+	}
+
+	if err := s.repo.Create(ctx, clone); err != nil {
+		return nil, fmt.Errorf("creating cloned definition: %w", err)
+	}
+
+	s.logger.Info().
+		Str("id", clone.ID).
+		Str("source_id", src.ID).
+		Str("tenant_id", tenantID).
+		Msg("workflow definition cloned")
+
+	return clone, nil
 }
 
 // Delete performs a soft-delete on a workflow definition.

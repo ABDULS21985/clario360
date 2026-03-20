@@ -78,3 +78,46 @@ export function getNotificationCategoryLabel(category: string): string {
   };
   return map[category] ?? category;
 }
+
+const NOTIFICATION_TYPE_LABELS: Record<string, string> = {
+  'alert.created': 'Alert Created',
+  'alert.escalated': 'Alert Escalated',
+  'remediation.approval_required': 'Remediation Approval',
+  'remediation.completed': 'Remediation Completed',
+  'remediation.failed': 'Remediation Failed',
+  'task.assigned': 'Task Assigned',
+  'task.overdue': 'Task Overdue',
+  'task.escalated': 'Task Escalated',
+  'pipeline.failed': 'Pipeline Failed',
+  'pipeline.completed': 'Pipeline Completed',
+  'data_quality.issue_detected': 'Data Quality Issue',
+  'contradiction.detected': 'Contradiction Detected',
+  'contract.expiring': 'Contract Expiring',
+  'contract.created': 'Contract Created',
+  'meeting.scheduled': 'Meeting Scheduled',
+  'meeting.reminder': 'Meeting Reminder',
+  'action_item.assigned': 'Action Item Assigned',
+  'action_item.overdue': 'Action Item Overdue',
+  'minutes.approved': 'Minutes Approved',
+  'kpi.threshold_breached': 'KPI Threshold Breached',
+  'system.maintenance': 'System Maintenance',
+  'security.incident': 'Security Incident',
+  'password.expiring': 'Password Expiring',
+  'login.anomaly': 'Login Anomaly',
+  'analysis.ready': 'Analysis Ready',
+  'clause.risk_flagged': 'Clause Risk Flagged',
+  'workflow.failed': 'Workflow Failed',
+  'workflow.completed': 'Workflow Completed',
+  'welcome': 'Welcome',
+  'malware.detected': 'Malware Detected',
+};
+
+export function getNotificationTypeLabel(type: string | undefined): string {
+  if (!type) return 'Notification';
+  return (
+    NOTIFICATION_TYPE_LABELS[type] ??
+    type
+      .replace(/[._]/g, ' ')
+      .replace(/\b\w/g, (c) => c.toUpperCase())
+  );
+}

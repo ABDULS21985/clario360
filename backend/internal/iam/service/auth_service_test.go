@@ -66,6 +66,15 @@ func (m *mockUserRepo) GetByEmail(ctx context.Context, tenantID, email string) (
 	return u, nil
 }
 
+func (m *mockUserRepo) GetByEmailGlobal(ctx context.Context, email string) (*model.User, error) {
+	for _, u := range m.users {
+		if u.Email == email {
+			return u, nil
+		}
+	}
+	return nil, model.ErrNotFound
+}
+
 func (m *mockUserRepo) List(ctx context.Context, tenantID string, filter repository.UserFilter) ([]model.User, int, error) {
 	return nil, 0, nil
 }
@@ -137,6 +146,8 @@ func (m *mockSessionRepo) GetByTokenHash(ctx context.Context, hash string) (*mod
 func (m *mockSessionRepo) GetByUserID(ctx context.Context, userID string) ([]model.Session, error) {
 	return nil, nil
 }
+
+func (m *mockSessionRepo) UpdateLastActive(ctx context.Context, id string) error { return nil }
 
 func (m *mockSessionRepo) Delete(ctx context.Context, id string) error {
 	if s, ok := m.sessions[id]; ok {
@@ -254,7 +265,7 @@ func (m *mockTenantRepo) GetBySlug(ctx context.Context, slug string) (*model.Ten
 	return nil, model.ErrNotFound
 }
 
-func (m *mockTenantRepo) List(ctx context.Context, page, perPage int) ([]model.Tenant, int, error) {
+func (m *mockTenantRepo) List(ctx context.Context, page, perPage int, _ repository.TenantListParams) ([]model.Tenant, int, error) {
 	return nil, 0, nil
 }
 

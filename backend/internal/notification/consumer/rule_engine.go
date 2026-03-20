@@ -14,23 +14,29 @@ type RecipientMode string
 const (
 	RecipientRoleBased       RecipientMode = "role_based"
 	RecipientDirect          RecipientMode = "direct"
+	RecipientMixed           RecipientMode = "mixed"
+	RecipientComputed        RecipientMode = "computed"
 	RecipientTenantBroadcast RecipientMode = "tenant_broadcast"
 )
 
 // NotificationRule defines the mapping from a domain event to a notification.
 type NotificationRule struct {
-	EventType     string
-	Condition     func(data map[string]interface{}) bool
-	NotifType     model.NotificationType
-	Category      string
-	Priority      string
-	PriorityFunc  func(data map[string]interface{}) string
-	RecipientMode RecipientMode
-	Roles         []string
-	DirectField   string
-	TitleTemplate string
-	BodyTemplate  string
-	ActionURLTmpl string
+	Topic             string
+	EventType         string
+	Condition         func(data map[string]interface{}) bool
+	NotifType         model.NotificationType
+	Category          string
+	Priority          string
+	PriorityFunc      func(data map[string]interface{}) string
+	Channels          []string
+	RecipientMode     RecipientMode
+	Roles             []string
+	RoleField         string
+	DirectFields      []string
+	ComputedRecipient string
+	TitleTemplate     string
+	BodyTemplate      string
+	ActionURLTmpl     string
 }
 
 // MatchedRule is a rule that matched an event.
@@ -41,7 +47,7 @@ type MatchedRule struct {
 
 // RuleEngine matches domain events to notification rules.
 type RuleEngine struct {
-	rules map[string][]*NotificationRule // eventType → rules
+	rules map[string][]*NotificationRule // eventType -> rules
 }
 
 // NewRuleEngine creates a new RuleEngine with all pre-configured rules.
@@ -49,188 +55,358 @@ func NewRuleEngine() *RuleEngine {
 	re := &RuleEngine{rules: make(map[string][]*NotificationRule)}
 
 	re.addRule(&NotificationRule{
-		EventType: "com.clario360.cyber.alert.created",
+		Topic:         events.Topics.AlertEvents,
+		EventType:     "com.clario360.cyber.alert.created",
+		NotifType:     model.NotifAlertCreated,
+		Category:      model.CategorySecurity,
+		Priority:      model.PriorityCritical,
+		Channels:      []string{"email", "in_app", "push"},
+		RecipientMode: RecipientRoleBased,
+		Roles:         []string{"security-manager"},
 		Condition: func(data map[string]interface{}) bool {
-			sev, _ := data["severity"].(string)
+			return stringValue(data["severity"]) == "critical"
+		},
+		TitleTemplate: "{{.title}}",
+		BodyTemplate:  "A critical security alert was raised: {{.title}}.",
+		ActionURLTmpl: "/cyber/alerts/{{.id}}",
+	})
+	re.addRule(&NotificationRule{
+		Topic:         events.Topics.AlertEvents,
+		EventType:     "com.clario360.cyber.alert.created",
+		NotifType:     model.NotifAlertCreated,
+		Category:      model.CategorySecurity,
+		Priority:      model.PriorityHigh,
+		Channels:      []string{"in_app"},
+		RecipientMode: RecipientRoleBased,
+		Roles:         []string{"security-analyst"},
+		Condition: func(data map[string]interface{}) bool {
+			return stringValue(data["severity"]) == "high"
+		},
+		TitleTemplate: "{{.title}}",
+		BodyTemplate:  "A high-severity security alert was raised: {{.title}}.",
+		ActionURLTmpl: "/cyber/alerts/{{.id}}",
+	})
+	re.addRule(&NotificationRule{
+		Topic:         events.Topics.RemediationEvents,
+		EventType:     "com.clario360.cyber.remediation.execution_failed",
+		NotifType:     model.NotifRemediationFailed,
+		Category:      model.CategorySecurity,
+		Priority:      model.PriorityCritical,
+		Channels:      []string{"email", "in_app", "push"},
+		RecipientMode: RecipientMixed,
+		Roles:         []string{"security-manager"},
+		DirectFields:  []string{"created_by"},
+		TitleTemplate: "Remediation Failed",
+		BodyTemplate:  "Automated remediation {{.id}} failed. Error: {{.error}}",
+		ActionURLTmpl: "/cyber/remediation/{{.id}}",
+	})
+	re.addRule(&NotificationRule{
+		Topic:             events.Topics.RemediationEvents,
+		EventType:         "com.clario360.cyber.remediation.executed",
+		NotifType:         model.NotifRemediationCompleted,
+		Category:          model.CategorySecurity,
+		Priority:          model.PriorityMedium,
+		Channels:          []string{"in_app"},
+		RecipientMode:     RecipientComputed,
+		ComputedRecipient: "asset_owners_from_event",
+		TitleTemplate:     "Remediation Completed",
+		BodyTemplate:      "Remediation {{.id}} completed successfully.",
+		ActionURLTmpl:     "/cyber/remediation/{{.id}}",
+	})
+
+	re.addRule(&NotificationRule{
+		Topic:             events.Topics.PipelineEvents,
+		EventType:         "com.clario360.data.pipeline.run.failed",
+		NotifType:         model.NotifPipelineFailed,
+		Category:          model.CategoryData,
+		Priority:          model.PriorityHigh,
+		Channels:          []string{"email", "in_app"},
+		RecipientMode:     RecipientComputed,
+		ComputedRecipient: "pipeline_owner_from_event",
+		TitleTemplate:     "Pipeline Failed: {{.pipeline_name}}",
+		BodyTemplate:      "Pipeline {{.pipeline_name}} failed. {{.error_message}}",
+		ActionURLTmpl:     "/data/pipelines/{{.pipeline_id}}",
+	})
+	re.addRule(&NotificationRule{
+		Topic:         events.Topics.QualityEvents,
+		EventType:     "com.clario360.data.quality.check_failed",
+		NotifType:     model.NotifQualityIssue,
+		Category:      model.CategoryData,
+		Priority:      model.PriorityHigh,
+		Channels:      []string{"email", "in_app"},
+		RecipientMode: RecipientRoleBased,
+		Roles:         []string{"data-steward"},
+		Condition: func(data map[string]interface{}) bool {
+			sev := stringValue(data["severity"])
 			return sev == "critical" || sev == "high"
 		},
-		NotifType: model.NotifAlertCreated,
-		Category:  model.CategorySecurity,
+		TitleTemplate: "Data Quality Check Failed",
+		BodyTemplate:  "Rule {{.rule_id}} failed with severity {{.severity}}.",
+		ActionURLTmpl: "/data/quality/results",
+	})
+	re.addRule(&NotificationRule{
+		Topic:         events.Topics.ContradictionEvents,
+		EventType:     "com.clario360.data.contradiction.detected",
+		NotifType:     model.NotifContradictionFound,
+		Category:      model.CategoryData,
+		Priority:      model.PriorityMedium,
+		Channels:      []string{"in_app"},
+		RecipientMode: RecipientRoleBased,
+		Roles:         []string{"data-steward", "data-analyst"},
+		Condition: func(data map[string]interface{}) bool {
+			sev := stringValue(data["severity"])
+			return sev == "high" || sev == "critical"
+		},
+		TitleTemplate: "Data Contradiction Detected",
+		BodyTemplate:  "{{.title}}",
+		ActionURLTmpl: "/data/contradictions/{{.id}}",
+	})
+
+	re.addRule(&NotificationRule{
+		Topic:             events.Topics.ActaEvents,
+		EventType:         "com.clario360.acta.meeting.scheduled",
+		NotifType:         model.NotifMeetingScheduled,
+		Category:          model.CategoryGovernance,
+		Priority:          model.PriorityMedium,
+		Channels:          []string{"email", "in_app"},
+		RecipientMode:     RecipientComputed,
+		ComputedRecipient: "committee_members_from_event",
+		TitleTemplate:     "Meeting Scheduled: {{.title}}",
+		BodyTemplate:      "Meeting {{.title}} is scheduled for {{formatDate .scheduled_at}}.",
+		ActionURLTmpl:     "/acta/meetings/{{.id}}",
+	})
+	re.addRule(&NotificationRule{
+		Topic:             events.Topics.ActaEvents,
+		EventType:         "com.clario360.acta.meeting.reminder",
+		NotifType:         model.NotifMeetingReminder,
+		Category:          model.CategoryGovernance,
+		Channels:          []string{"email", "in_app"},
+		RecipientMode:     RecipientComputed,
+		ComputedRecipient: "meeting_attendees_from_event",
 		PriorityFunc: func(data map[string]interface{}) string {
-			if sev, _ := data["severity"].(string); sev == "critical" {
+			if floatValue(data["hours_until"]) <= 1 {
+				return model.PriorityHigh
+			}
+			return model.PriorityMedium
+		},
+		TitleTemplate: "Meeting Reminder: {{.title}}",
+		BodyTemplate:  "Meeting {{.title}} starts in {{.hours_until}} hour(s).",
+		ActionURLTmpl: "/acta/meetings/{{.meeting_id}}",
+	})
+	re.addRule(&NotificationRule{
+		Topic:         events.Topics.ActaEvents,
+		EventType:     "com.clario360.acta.action_item.created",
+		NotifType:     model.NotifActionItemAssigned,
+		Category:      model.CategoryGovernance,
+		Priority:      model.PriorityMedium,
+		Channels:      []string{"email", "in_app"},
+		RecipientMode: RecipientDirect,
+		DirectFields:  []string{"assigned_to"},
+		TitleTemplate: "Action Item Assigned",
+		BodyTemplate:  "A new action item has been assigned to you.",
+		ActionURLTmpl: "/acta/action-items/{{.id}}",
+	})
+	re.addRule(&NotificationRule{
+		Topic:         events.Topics.ActaEvents,
+		EventType:     "com.clario360.acta.action_item.overdue",
+		NotifType:     model.NotifActionItemOverdue,
+		Category:      model.CategoryGovernance,
+		Priority:      model.PriorityHigh,
+		Channels:      []string{"email", "in_app"},
+		RecipientMode: RecipientDirect,
+		DirectFields:  []string{"assigned_to", "chair_user_id"},
+		TitleTemplate: "Action Item Overdue: {{.title}}",
+		BodyTemplate:  "Action item {{.title}} is overdue as of {{.due_date}}.",
+		ActionURLTmpl: "/acta/action-items/{{.id}}",
+	})
+	re.addRule(&NotificationRule{
+		Topic:             events.Topics.ActaEvents,
+		EventType:         "com.clario360.acta.minutes.approved",
+		NotifType:         model.NotifMinutesApproved,
+		Category:          model.CategoryGovernance,
+		Priority:          model.PriorityMedium,
+		Channels:          []string{"email", "in_app"},
+		RecipientMode:     RecipientComputed,
+		ComputedRecipient: "committee_members_from_event",
+		TitleTemplate:     "Minutes Approved",
+		BodyTemplate:      "Meeting minutes have been approved.",
+		ActionURLTmpl:     "/acta/meetings/{{.meeting_id}}",
+	})
+
+	re.addRule(&NotificationRule{
+		Topic:         events.Topics.LexEvents,
+		EventType:     "com.clario360.lex.contract.created",
+		NotifType:     model.NotifContractCreated,
+		Category:      model.CategoryLegal,
+		Priority:      model.PriorityMedium,
+		Channels:      []string{"in_app"},
+		RecipientMode: RecipientRoleBased,
+		Roles:         []string{"legal-analyst", "legal-manager"},
+		TitleTemplate: "Contract Created: {{.title}}",
+		BodyTemplate:  "A new contract was created: {{.title}}.",
+		ActionURLTmpl: "/lex/contracts/{{.id}}",
+	})
+	re.addRule(&NotificationRule{
+		Topic:         events.Topics.LexEvents,
+		EventType:     "com.clario360.lex.contract.expiring",
+		NotifType:     model.NotifContractExpiring,
+		Category:      model.CategoryLegal,
+		Channels:      []string{"email", "in_app"},
+		RecipientMode: RecipientMixed,
+		Roles:         []string{"legal-manager"},
+		DirectFields:  []string{"owner_user_id"},
+		PriorityFunc: func(data map[string]interface{}) string {
+			if floatValue(data["days_until_expiry"]) <= 7 {
 				return model.PriorityCritical
 			}
 			return model.PriorityHigh
 		},
-		RecipientMode: RecipientRoleBased,
-		Roles:         []string{"security-analyst", "security-manager"},
-		TitleTemplate: "{{.severity}} Security Alert: {{.title}}",
-		BodyTemplate:  "A {{.severity}} severity alert has been detected in {{.source}}. {{.description}}",
-		ActionURLTmpl: "/cyber/alerts/{{.id}}",
+		TitleTemplate: "Contract Expiring: {{.title}}",
+		BodyTemplate:  "{{.title}} expires in {{.days_until_expiry}} days.",
+		ActionURLTmpl: "/lex/contracts/{{.id}}",
 	})
-
 	re.addRule(&NotificationRule{
-		EventType:     "com.clario360.cyber.alert.escalated",
-		NotifType:     model.NotifAlertEscalated,
-		Category:      model.CategorySecurity,
-		Priority:      model.PriorityCritical,
-		RecipientMode: RecipientRoleBased,
-		Roles:         []string{"security-manager", "ciso"},
-		TitleTemplate: "Alert Escalated: {{.title}}",
-		BodyTemplate:  "Alert {{.id}} has been escalated. Previous assignee: {{.previous_assignee}}. Reason: {{.reason}}",
-		ActionURLTmpl: "/cyber/alerts/{{.id}}",
-	})
-
-	re.addRule(&NotificationRule{
-		EventType: "com.clario360.workflow.task.created",
-		Condition: func(data map[string]interface{}) bool {
-			stepID, _ := data["step_id"].(string)
-			return stepID == "approve_remediation"
+		Topic:         events.Topics.LexEvents,
+		EventType:     "com.clario360.enterprise.lex.contract.expiring",
+		NotifType:     model.NotifContractExpiring,
+		Category:      model.CategoryLegal,
+		Channels:      []string{"email", "in_app"},
+		RecipientMode: RecipientMixed,
+		Roles:         []string{"legal-manager"},
+		DirectFields:  []string{"owner_user_id"},
+		PriorityFunc: func(data map[string]interface{}) string {
+			if floatValue(data["days_until_expiry"]) <= 7 {
+				return model.PriorityCritical
+			}
+			return model.PriorityHigh
 		},
-		NotifType:     model.NotifRemediationApproval,
-		Category:      model.CategorySecurity,
-		Priority:      model.PriorityHigh,
-		RecipientMode: RecipientDirect,
-		DirectField:   "assignee_id",
-		TitleTemplate: "Remediation Approval Required",
-		BodyTemplate:  "A remediation plan requires your approval. Alert: {{.alert_id}}. Plan: {{.remediation_plan}}",
-		ActionURLTmpl: "/workflows/tasks/{{.task_id}}",
+		TitleTemplate: "Contract Expiring: {{.title}}",
+		BodyTemplate:  "{{.title}} expires in {{.days_until_expiry}} days.",
+		ActionURLTmpl: "/lex/contracts/{{.id}}",
 	})
-
 	re.addRule(&NotificationRule{
-		EventType:     "com.clario360.cyber.remediation.completed",
-		NotifType:     model.NotifRemediationCompleted,
-		Category:      model.CategorySecurity,
+		Topic:         events.Topics.LexEvents,
+		EventType:     "com.clario360.lex.contract.analyzed",
+		NotifType:     model.NotifAnalysisReady,
+		Category:      model.CategoryLegal,
 		Priority:      model.PriorityMedium,
+		Channels:      []string{"in_app"},
+		RecipientMode: RecipientDirect,
+		DirectFields:  []string{"created_by"},
+		TitleTemplate: "Contract Analysis Ready",
+		BodyTemplate:  "Analysis for {{.title}} is ready.",
+		ActionURLTmpl: "/lex/contracts/{{.id}}",
+	})
+	re.addRule(&NotificationRule{
+		Topic:         events.Topics.LexEvents,
+		EventType:     "com.clario360.lex.clause.risk_flagged",
+		NotifType:     model.NotifClauseRiskFlagged,
+		Category:      model.CategoryLegal,
+		Priority:      model.PriorityHigh,
+		Channels:      []string{"in_app"},
 		RecipientMode: RecipientRoleBased,
-		Roles:         []string{"security-analyst", "security-manager"},
-		TitleTemplate: "Remediation Completed: {{.alert_title}}",
-		BodyTemplate:  "Remediation for alert {{.alert_id}} has been successfully completed.",
-		ActionURLTmpl: "/cyber/alerts/{{.alert_id}}",
+		Roles:         []string{"legal-analyst"},
+		Condition: func(data map[string]interface{}) bool {
+			sev := stringValue(data["severity"])
+			return sev == "high" || sev == "critical"
+		},
+		TitleTemplate: "Clause Risk Flagged",
+		BodyTemplate:  "A high-risk clause was flagged in {{.contract_title}}.",
+		ActionURLTmpl: "/lex/contracts/{{.contract_id}}",
 	})
 
 	re.addRule(&NotificationRule{
-		EventType: "com.clario360.workflow.task.created",
-		Condition: func(data map[string]interface{}) bool {
-			stepID, _ := data["step_id"].(string)
-			return stepID != "approve_remediation"
-		},
+		Topic:         events.Topics.WorkflowEvents,
+		EventType:     "com.clario360.workflow.task.created",
 		NotifType:     model.NotifTaskAssigned,
 		Category:      model.CategoryWorkflow,
 		Priority:      model.PriorityMedium,
-		RecipientMode: RecipientDirect,
-		DirectField:   "assignee_id",
-		TitleTemplate: "New Task: {{.name}}",
-		BodyTemplate:  "You have been assigned: {{.name}}.",
-		ActionURLTmpl: "/workflows/tasks/{{.task_id}}",
+		Channels:      []string{"email", "in_app"},
+		RecipientMode: RecipientMixed,
+		DirectFields:  []string{"assignee_id"},
+		RoleField:     "assignee_role",
+		TitleTemplate: "New Task: {{.task_name}}",
+		BodyTemplate:  "You have been assigned a workflow task: {{.task_name}}.",
+		ActionURLTmpl: "/workflow/tasks/{{.task_id}}",
 	})
-
 	re.addRule(&NotificationRule{
+		Topic:         events.Topics.WorkflowEvents,
 		EventType:     "com.clario360.workflow.task.sla_breached",
 		NotifType:     model.NotifTaskOverdue,
 		Category:      model.CategoryWorkflow,
 		Priority:      model.PriorityHigh,
-		RecipientMode: RecipientDirect,
-		DirectField:   "claimed_by",
-		TitleTemplate: "Task Overdue: {{.name}}",
-		BodyTemplate:  "Task {{.name}} has exceeded its SLA deadline by {{.hours_overdue}} hours.",
-		ActionURLTmpl: "/workflows/tasks/{{.task_id}}",
+		Channels:      []string{"email", "in_app"},
+		RecipientMode: RecipientMixed,
+		DirectFields:  []string{"claimed_by", "assignee_id"},
+		TitleTemplate: "Task Overdue: {{.task_name}}",
+		BodyTemplate:  "Workflow task {{.task_name}} breached its SLA.",
+		ActionURLTmpl: "/workflow/tasks/{{.task_id}}",
 	})
-
 	re.addRule(&NotificationRule{
-		EventType:     "com.clario360.workflow.task.escalated",
-		NotifType:     model.NotifTaskEscalated,
+		Topic:         events.Topics.WorkflowEvents,
+		EventType:     "com.clario360.workflow.instance.failed",
+		NotifType:     model.NotifWorkflowFailed,
 		Category:      model.CategoryWorkflow,
 		Priority:      model.PriorityHigh,
-		RecipientMode: RecipientRoleBased,
-		Roles:         []string{}, // resolved from data["escalation_role"]
-		DirectField:   "escalation_role",
-		TitleTemplate: "Task Escalated: {{.name}}",
-		BodyTemplate:  "Task {{.name}} has been escalated to your attention. Original assignee did not complete within SLA.",
-		ActionURLTmpl: "/workflows/tasks/{{.task_id}}",
-	})
-
-	re.addRule(&NotificationRule{
-		EventType:     "com.clario360.data.pipeline.failed",
-		NotifType:     model.NotifPipelineFailed,
-		Category:      model.CategoryData,
-		Priority:      model.PriorityHigh,
-		RecipientMode: RecipientRoleBased,
-		Roles:         []string{"data-engineer", "data-steward"},
-		TitleTemplate: "Pipeline Failed: {{.pipeline_name}}",
-		BodyTemplate:  "Data pipeline {{.pipeline_name}} failed at stage {{.failed_stage}}. Error: {{.error_message}}",
-		ActionURLTmpl: "/data/pipelines/{{.pipeline_id}}",
-	})
-
-	re.addRule(&NotificationRule{
-		EventType:     "com.clario360.data.quality.issue",
-		NotifType:     model.NotifQualityIssue,
-		Category:      model.CategoryData,
-		Priority:      model.PriorityMedium,
-		RecipientMode: RecipientRoleBased,
-		Roles:         []string{"data-steward", "data-analyst"},
-		TitleTemplate: "Data Quality Issue: {{.dataset_name}}",
-		BodyTemplate:  "{{.issue_count}} quality issues detected in dataset {{.dataset_name}}. Severity: {{.severity}}",
-		ActionURLTmpl: "/data/quality/{{.dataset_id}}",
-	})
-
-	re.addRule(&NotificationRule{
-		EventType:     "com.clario360.data.contradiction.detected",
-		NotifType:     model.NotifContradictionFound,
-		Category:      model.CategoryData,
-		Priority:      model.PriorityHigh,
-		RecipientMode: RecipientRoleBased,
-		Roles:         []string{"data-steward", "compliance-officer"},
-		TitleTemplate: "Data Contradiction Detected",
-		BodyTemplate:  "Conflicting data found between {{.source_a}} and {{.source_b}}. Field: {{.field_name}}",
-		ActionURLTmpl: "/data/contradictions/{{.contradiction_id}}",
-	})
-
-	re.addRule(&NotificationRule{
-		EventType:     "com.clario360.enterprise.lex.contract.expiring",
-		NotifType:     model.NotifContractExpiring,
-		Category:      model.CategoryLegal,
-		Priority:      model.PriorityMedium,
-		RecipientMode: RecipientRoleBased,
-		Roles:         []string{"legal-counsel", "contract-manager"},
-		TitleTemplate: "Contract Expiring: {{.contract_name}}",
-		BodyTemplate:  "Contract {{.contract_name}} with {{.counterparty}} expires on {{.expiry_date}}.",
-		ActionURLTmpl: "/legal/contracts/{{.contract_id}}",
-	})
-
-	re.addRule(&NotificationRule{
-		EventType:     "com.clario360.enterprise.acta.meeting.scheduled",
-		NotifType:     model.NotifMeetingScheduled,
-		Category:      model.CategoryGovernance,
-		Priority:      model.PriorityLow,
+		Channels:      []string{"email", "in_app"},
 		RecipientMode: RecipientDirect,
-		DirectField:   "attendees",
-		TitleTemplate: "Meeting Scheduled: {{.title}}",
-		BodyTemplate:  "{{.title}} scheduled for {{.scheduled_at}}. Location: {{.location}}",
-		ActionURLTmpl: "/governance/meetings/{{.meeting_id}}",
+		DirectFields:  []string{"initiator_id"},
+		TitleTemplate: "Workflow Failed",
+		BodyTemplate:  "Workflow instance {{.instance_id}} failed. {{.error}}",
+		ActionURLTmpl: "/workflow/instances/{{.instance_id}}",
+	})
+	re.addRule(&NotificationRule{
+		Topic:         events.Topics.WorkflowEvents,
+		EventType:     "com.clario360.workflow.instance.completed",
+		NotifType:     model.NotifWorkflowCompleted,
+		Category:      model.CategoryWorkflow,
+		Priority:      model.PriorityMedium,
+		Channels:      []string{"in_app"},
+		RecipientMode: RecipientDirect,
+		DirectFields:  []string{"initiator_id"},
+		TitleTemplate: "Workflow Completed",
+		BodyTemplate:  "Workflow instance {{.instance_id}} completed successfully.",
+		ActionURLTmpl: "/workflow/instances/{{.instance_id}}",
 	})
 
 	re.addRule(&NotificationRule{
-		EventType:     "com.clario360.cyber.security.incident",
-		NotifType:     model.NotifSecurityIncident,
+		Topic:         events.Topics.IAMEvents,
+		EventType:     "com.clario360.iam.user.registered",
+		NotifType:     model.NotifWelcome,
+		Category:      model.CategorySystem,
+		Priority:      model.PriorityMedium,
+		Channels:      []string{"email", "in_app"},
+		RecipientMode: RecipientDirect,
+		DirectFields:  []string{"user_id"},
+		TitleTemplate: "Welcome to Clario 360",
+		BodyTemplate:  "Your account has been created successfully.",
+		ActionURLTmpl: "/",
+	})
+	re.addRule(&NotificationRule{
+		Topic:         events.Topics.FileEvents,
+		EventType:     "com.clario360.file.scan.infected",
+		NotifType:     model.NotifMalwareDetected,
 		Category:      model.CategorySecurity,
 		Priority:      model.PriorityCritical,
-		RecipientMode: RecipientRoleBased,
-		Roles:         []string{"security-manager", "ciso", "tenant-admin"},
-		TitleTemplate: "SECURITY INCIDENT: {{.title}}",
-		BodyTemplate:  "A security incident has been declared. Severity: {{.severity}}. Immediate action required.",
-		ActionURLTmpl: "/cyber/incidents/{{.incident_id}}",
+		Channels:      []string{"email", "in_app", "push"},
+		RecipientMode: RecipientMixed,
+		Roles:         []string{"tenant-admin"},
+		DirectFields:  []string{"uploaded_by"},
+		TitleTemplate: "Malware Detected in Uploaded File",
+		BodyTemplate:  "Uploaded file {{.file_id}} was flagged as infected with {{.virus_name}}.",
+		ActionURLTmpl: "/files/quarantine",
 	})
 
 	re.addRule(&NotificationRule{
+		Topic:         events.Topics.NotificationEvents,
 		EventType:     "com.clario360.platform.system.maintenance",
 		NotifType:     model.NotifSystemMaintenance,
 		Category:      model.CategorySystem,
 		Priority:      model.PriorityLow,
+		Channels:      []string{"in_app"},
 		RecipientMode: RecipientTenantBroadcast,
 		TitleTemplate: "Scheduled Maintenance: {{.title}}",
-		BodyTemplate:  "{{.description}}. Scheduled: {{.start_time}} to {{.end_time}}.",
-		ActionURLTmpl: "",
+		BodyTemplate:  "{{.description}}",
 	})
 
 	return re
@@ -242,32 +418,38 @@ func (re *RuleEngine) addRule(rule *NotificationRule) {
 
 // Match returns all rules that match the given event.
 func (re *RuleEngine) Match(event *events.Event) []MatchedRule {
+	var data map[string]interface{}
+	if len(event.Data) > 0 {
+		if err := json.Unmarshal(event.Data, &data); err != nil {
+			return nil
+		}
+	}
+	return re.MatchData(event, data)
+}
+
+// MatchData returns all rules that match the given event using a pre-decoded payload.
+func (re *RuleEngine) MatchData(event *events.Event, data map[string]interface{}) []MatchedRule {
 	rules, ok := re.rules[event.Type]
 	if !ok {
 		return nil
-	}
-
-	var data map[string]interface{}
-	if len(event.Data) > 0 {
-		_ = json.Unmarshal(event.Data, &data)
 	}
 	if data == nil {
 		data = make(map[string]interface{})
 	}
 
-	// Inject event metadata.
-	data["_event_id"] = event.ID
-	data["_tenant_id"] = event.TenantID
-	data["_user_id"] = event.UserID
-	data["_source"] = event.Source
-	data["_correlation_id"] = event.CorrelationID
+	enriched := cloneMap(data)
+	enriched["_event_id"] = event.ID
+	enriched["_tenant_id"] = event.TenantID
+	enriched["_user_id"] = event.UserID
+	enriched["_source"] = event.Source
+	enriched["_correlation_id"] = event.CorrelationID
 
 	var matched []MatchedRule
 	for _, rule := range rules {
-		if rule.Condition != nil && !rule.Condition(data) {
+		if rule.Condition != nil && !rule.Condition(enriched) {
 			continue
 		}
-		matched = append(matched, MatchedRule{Rule: rule, Data: data})
+		matched = append(matched, MatchedRule{Rule: rule, Data: cloneMap(enriched)})
 	}
 	return matched
 }
@@ -281,65 +463,119 @@ func ResolvePriority(rule *NotificationRule, data map[string]interface{}) string
 }
 
 // ResolveRoles returns the IAM roles for recipient resolution.
-// If the rule specifies static roles, those are returned.
-// If the rule references a data field for dynamic roles, that field is checked.
 func ResolveRoles(rule *NotificationRule, data map[string]interface{}) []string {
-	if len(rule.Roles) > 0 {
-		return rule.Roles
-	}
-	if rule.DirectField != "" {
-		if roleStr, ok := data[rule.DirectField].(string); ok {
-			return []string{roleStr}
+	roles := append([]string(nil), rule.Roles...)
+	if rule.RoleField != "" {
+		if roleStr, ok := data[rule.RoleField].(string); ok && strings.TrimSpace(roleStr) != "" {
+			roles = append(roles, roleStr)
 		}
 	}
-	return nil
+	return uniqueStrings(roles)
 }
 
 // ResolveDirectUserIDs extracts user IDs from event data for direct recipient mode.
 func ResolveDirectUserIDs(rule *NotificationRule, data map[string]interface{}) []string {
-	if rule.DirectField == "" {
-		return nil
-	}
-	val, ok := data[rule.DirectField]
-	if !ok {
+	if len(rule.DirectFields) == 0 {
 		return nil
 	}
 
-	switch v := val.(type) {
-	case string:
-		return []string{v}
-	case []interface{}:
-		ids := make([]string, 0, len(v))
-		for _, item := range v {
-			if s, ok := item.(string); ok {
-				ids = append(ids, s)
+	var userIDs []string
+	for _, field := range rule.DirectFields {
+		val, ok := data[field]
+		if !ok {
+			continue
+		}
+
+		switch typed := val.(type) {
+		case string:
+			if strings.TrimSpace(typed) != "" {
+				userIDs = append(userIDs, typed)
+			}
+		case []string:
+			userIDs = append(userIDs, typed...)
+		case []interface{}:
+			for _, item := range typed {
+				if s, ok := item.(string); ok && strings.TrimSpace(s) != "" {
+					userIDs = append(userIDs, s)
+				}
 			}
 		}
-		return ids
 	}
-	return nil
+	return uniqueStrings(userIDs)
 }
 
 // ExtractEventTopics returns all Kafka topics the notification consumer should subscribe to.
 func ExtractEventTopics() []string {
-	return []string{
-		"platform.iam.events",
-		"platform.workflow.events",
-		"platform.audit.events",
-		"cyber.alert.events",
-		"cyber.remediation.events",
-		"data.pipeline.events",
-		"data.quality.events",
-		"data.contradiction.events",
-		"enterprise.acta.events",
-		"enterprise.lex.events",
+	re := NewRuleEngine()
+	seen := make(map[string]struct{})
+	topics := make([]string, 0, len(re.rules))
+
+	for _, rules := range re.rules {
+		for _, rule := range rules {
+			if rule.Topic == "" {
+				continue
+			}
+			if _, ok := seen[rule.Topic]; ok {
+				continue
+			}
+			seen[rule.Topic] = struct{}{}
+			topics = append(topics, rule.Topic)
+		}
+	}
+
+	return topics
+}
+
+func cloneMap(source map[string]interface{}) map[string]interface{} {
+	if source == nil {
+		return map[string]interface{}{}
+	}
+	cloned := make(map[string]interface{}, len(source))
+	for key, value := range source {
+		cloned[key] = value
+	}
+	return cloned
+}
+
+func uniqueStrings(values []string) []string {
+	seen := make(map[string]struct{}, len(values))
+	out := make([]string, 0, len(values))
+	for _, value := range values {
+		trimmed := strings.TrimSpace(value)
+		if trimmed == "" {
+			continue
+		}
+		if _, ok := seen[trimmed]; ok {
+			continue
+		}
+		seen[trimmed] = struct{}{}
+		out = append(out, trimmed)
+	}
+	return out
+}
+
+func stringValue(value interface{}) string {
+	switch typed := value.(type) {
+	case string:
+		return strings.ToLower(strings.TrimSpace(typed))
+	default:
+		return ""
 	}
 }
 
-// extractService extracts the service name from a CloudEvents source.
-func extractService(source string) string {
-	if idx := strings.LastIndex(source, "/"); idx >= 0 && idx < len(source)-1 {
-		return source[idx+1:]
+func floatValue(value interface{}) float64 {
+	switch typed := value.(type) {
+	case float64:
+		return typed
+	case float32:
+		return float64(typed)
+	case int:
+		return float64(typed)
+	case int64:
+		return float64(typed)
+	case int32:
+		return float64(typed)
+	default:
+		return 0
 	}
-	return source
 }

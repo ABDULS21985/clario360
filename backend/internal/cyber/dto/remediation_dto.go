@@ -62,6 +62,19 @@ type UpdateRemediationRequest struct {
 	Metadata           map[string]interface{} `json:"metadata"`
 }
 
+func (r *UpdateRemediationRequest) Validate() error {
+	if r.Plan != nil && len(r.Plan.Steps) == 0 {
+		return fmt.Errorf("plan must have at least one step")
+	}
+	if r.Severity != nil {
+		validSeverities := map[string]bool{"critical": true, "high": true, "medium": true, "low": true}
+		if !validSeverities[*r.Severity] {
+			return fmt.Errorf("invalid severity: %s", *r.Severity)
+		}
+	}
+	return nil
+}
+
 // ApproveRemediationRequest carries approval notes.
 type ApproveRemediationRequest struct {
 	Notes string `json:"notes"`
@@ -103,6 +116,16 @@ func (r *RollbackRequest) Validate() error {
 	return nil
 }
 
+// ExecuteRemediationRequest optionally confirms manual/custom execution.
+type ExecuteRemediationRequest struct {
+	ManualConfirmation *string `json:"manual_confirmation,omitempty"`
+}
+
+// VerifyRemediationRequest optionally confirms manual/custom verification.
+type VerifyRemediationRequest struct {
+	ManualConfirmation *string `json:"manual_confirmation,omitempty"`
+}
+
 // RemediationListParams are query parameters for listing remediations.
 type RemediationListParams struct {
 	Statuses   []string   `json:"statuses"`
@@ -132,6 +155,39 @@ func (p *RemediationListParams) SetDefaults() {
 	if p.Order == "" {
 		p.Order = "desc"
 	}
+}
+
+func (p *RemediationListParams) Validate() error {
+	validSorts := map[string]bool{
+		"created_at": true,
+		"updated_at": true,
+		"status":     true,
+		"severity":   true,
+		"type":       true,
+		"title":      true,
+	}
+	if p.Sort != "" && !validSorts[p.Sort] {
+		return fmt.Errorf("invalid sort field: %s", p.Sort)
+	}
+	if p.Order != "" && p.Order != "asc" && p.Order != "desc" {
+		return fmt.Errorf("invalid order: %s", p.Order)
+	}
+	if p.Page < 1 {
+		return fmt.Errorf("page must be at least 1")
+	}
+	if p.PerPage < 1 || p.PerPage > 200 {
+		return fmt.Errorf("per_page must be between 1 and 200")
+	}
+	return nil
+}
+
+type RemediationListResponse struct {
+	Data       []*model.RemediationAction `json:"data"`
+	Meta       PaginationMeta             `json:"meta"`
+	Total      int                        `json:"-"`
+	Page       int                        `json:"-"`
+	PerPage    int                        `json:"-"`
+	TotalPages int                        `json:"-"`
 }
 
 // ConfirmManualExecutionRequest is for custom strategy manual confirmation.

@@ -24,7 +24,6 @@ const currentUser: User = {
   status: 'active',
   mfa_enabled: false,
   last_login_at: null,
-  password_changed_at: '2026-03-07T10:00:00Z',
   roles: [
     {
       id: 'role-1',
@@ -135,7 +134,7 @@ const server = setupServer(
     }),
   ),
   http.get(`${API_URL}/api/v1/workflows/instances/instance-1/history`, () =>
-    HttpResponse.json({ steps: history }),
+    HttpResponse.json({ instance_id: 'instance-1', step_executions: history }),
   ),
   http.post(`${API_URL}/api/v1/workflows/tasks/task-1/complete`, async ({ request }) => {
     completePayload = (await request.json()) as Record<string, unknown>;

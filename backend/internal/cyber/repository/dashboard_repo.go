@@ -61,6 +61,63 @@ func (r *DashboardRepository) RecentAlerts(ctx context.Context, tenantID uuid.UU
 	return items, rows.Err()
 }
 
+// ActiveUsersToday counts distinct users who acted on alerts today
+// (assigned_to or escalated_to).
+func (r *DashboardRepository) ActiveUsersToday(ctx context.Context, tenantID uuid.UUID) (int, error) {
+	var count int
+	err := r.db.QueryRow(ctx, `
+		SELECT COUNT(DISTINCT u)::int
+		FROM alerts a, LATERAL (
+			VALUES (a.assigned_to), (a.escalated_to)
+		) AS t(u)
+		WHERE a.tenant_id = $1
+		  AND a.deleted_at IS NULL
+		  AND a.updated_at >= CURRENT_DATE
+		  AND u IS NOT NULL`,
+		tenantID,
+	).Scan(&count)
+	if err != nil {
+		return 0, fmt.Errorf("active users today: %w", err)
+	}
+	return count, nil
+}
+
+// PendingReviews counts open alerts that await acknowledgement or investigation.
+func (r *DashboardRepository) PendingReviews(ctx context.Context, tenantID uuid.UUID) (int, error) {
+	var count int
+	err := r.db.QueryRow(ctx, `
+		SELECT COUNT(*)::int
+		FROM alerts
+		WHERE tenant_id = $1
+		  AND deleted_at IS NULL
+		  AND status = 'new'
+		  AND severity IN ('critical', 'high')`,
+		tenantID,
+	).Scan(&count)
+	if err != nil {
+		return 0, fmt.Errorf("pending reviews: %w", err)
+	}
+	return count, nil
+}
+
+// ActiveIncidents counts open alerts with critical or high severity.
+func (r *DashboardRepository) ActiveIncidents(ctx context.Context, tenantID uuid.UUID) (int, error) {
+	var count int
+	err := r.db.QueryRow(ctx, `
+		SELECT COUNT(*)::int
+		FROM alerts
+		WHERE tenant_id = $1
+		  AND deleted_at IS NULL
+		  AND status IN ('new', 'acknowledged', 'investigating', 'in_progress', 'escalated')
+		  AND severity IN ('critical', 'high')`,
+		tenantID,
+	).Scan(&count)
+	if err != nil {
+		return 0, fmt.Errorf("active incidents: %w", err)
+	}
+	return count, nil
+}
+
 func (r *DashboardRepository) TopAttackedAssets(ctx context.Context, tenantID uuid.UUID, limit int) ([]model.AssetAlertSummary, error) {
 	if limit <= 0 {
 		limit = 10

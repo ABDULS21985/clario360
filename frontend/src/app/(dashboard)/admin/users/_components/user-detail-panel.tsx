@@ -1,5 +1,6 @@
 "use client";
 
+import { useMemo } from "react";
 import { ShieldCheck, Edit, Ban, CheckCircle, Clock } from "lucide-react";
 import { DetailPanel } from "@/components/shared/detail-panel";
 import { UserAvatar } from "@/components/shared/user-avatar";
@@ -10,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { getDefaultAuditDateRange } from "@/lib/audit";
 import { userStatusConfig } from "@/lib/status-configs";
 import { useApiQuery } from "@/hooks/use-api";
 import { useApiMutation } from "@/hooks/use-api-mutation";
@@ -32,10 +34,24 @@ export function UserDetailPanel({
   onEdit,
   onAssignRoles,
 }: UserDetailPanelProps) {
+  const defaultAuditDateRange = useMemo(() => getDefaultAuditDateRange(), []);
+
   const { data: auditData, isLoading: auditLoading } = useApiQuery<PaginatedResponse<AuditLog>>(
     ["audit-logs", "user", user.id],
     "/api/v1/audit/logs",
-    { enabled: open }
+    {
+      enabled: open,
+      requestConfig: {
+        params: {
+          ...defaultAuditDateRange,
+          user_id: user.id,
+          page: 1,
+          per_page: 10,
+          sort: "created_at",
+          order: "desc",
+        },
+      },
+    }
   );
 
   const statusMutation = useApiMutation<unknown, { status: string }>(
@@ -122,11 +138,11 @@ export function UserDetailPanel({
         {/* Roles */}
         <div className="space-y-2">
           <h4 className="text-sm font-semibold">Assigned Roles</h4>
-          {user.roles.length === 0 ? (
+          {(user.roles ?? []).length === 0 ? (
             <p className="text-sm text-muted-foreground">No roles assigned.</p>
           ) : (
             <div className="flex flex-wrap gap-2">
-              {user.roles.map((role) => (
+              {(user.roles ?? []).map((role) => (
                 <Badge key={role.id} variant="secondary" className="gap-1">
                   {role.is_system && <ShieldCheck className="h-3 w-3" />}
                   {role.name}
@@ -139,7 +155,7 @@ export function UserDetailPanel({
         <Separator />
 
         {/* Info grid */}
-        <div className="grid grid-cols-2 gap-3 text-sm">
+        <div className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
           <div>
             <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">
               Last Login

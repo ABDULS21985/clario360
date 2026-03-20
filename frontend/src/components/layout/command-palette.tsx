@@ -2,12 +2,14 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import { useQuery } from '@tanstack/react-query';
 import { Search, X } from 'lucide-react';
 import { useCommandPaletteStore } from '@/stores/command-palette-store';
 import { useCommandPalette } from '@/hooks/use-command-palette';
 import { useAuth } from '@/hooks/use-auth';
 import { navigation } from '@/config/navigation';
 import { cn } from '@/lib/utils';
+import { enterpriseApi } from '@/lib/enterprise';
 
 interface NavEntry {
   id: string;
@@ -45,9 +47,77 @@ export function CommandPalette() {
   const [activeIdx, setActiveIdx] = useState(0);
 
   const navEntries = buildNavEntries(hasPermission);
+  const normalizedQuery = query.trim().toLowerCase();
+  const recordSearchEnabled = normalizedQuery.length >= 2;
+  const meetingsQuery = useQuery({
+    queryKey: ['command-palette', 'meetings', normalizedQuery],
+    queryFn: async () => {
+      if (!hasPermission('acta:read')) return [];
+      const response = await enterpriseApi.acta.listMeetings({ page: 1, per_page: 5, search: normalizedQuery, order: 'desc' });
+      return response.data.map((meeting) => ({
+        id: `meeting-${meeting.id}`,
+        label: meeting.title,
+        href: `/acta/meetings/${meeting.id}`,
+        section: 'Meetings',
+        icon: Search,
+      }));
+    },
+    enabled: recordSearchEnabled,
+  });
+  const committeesQuery = useQuery({
+    queryKey: ['command-palette', 'committees', normalizedQuery],
+    queryFn: async () => {
+      if (!hasPermission('acta:read')) return [];
+      const response = await enterpriseApi.acta.listCommittees({ page: 1, per_page: 5, search: normalizedQuery, order: 'desc' });
+      return response.data.map((committee) => ({
+        id: `committee-${committee.id}`,
+        label: committee.name,
+        href: `/acta/committees/${committee.id}`,
+        section: 'Committees',
+        icon: Search,
+      }));
+    },
+    enabled: recordSearchEnabled,
+  });
+  const contractsQuery = useQuery({
+    queryKey: ['command-palette', 'contracts', normalizedQuery],
+    queryFn: async () => {
+      if (!hasPermission('lex:read')) return [];
+      const response = await enterpriseApi.lex.searchContracts(normalizedQuery, { page: 1, per_page: 5, order: 'desc' });
+      return response.data.map((contract) => ({
+        id: `contract-${contract.id}`,
+        label: contract.title,
+        href: `/lex/contracts/${contract.id}`,
+        section: 'Contracts',
+        icon: Search,
+      }));
+    },
+    enabled: recordSearchEnabled,
+  });
+  const reportsQuery = useQuery({
+    queryKey: ['command-palette', 'reports', normalizedQuery],
+    queryFn: async () => {
+      if (!hasPermission('visus:read')) return [];
+      const response = await enterpriseApi.visus.listReports({ page: 1, per_page: 5, search: normalizedQuery, order: 'desc' });
+      return response.data.map((report) => ({
+        id: `report-${report.id}`,
+        label: report.name,
+        href: `/visus/reports`,
+        section: 'Reports',
+        icon: Search,
+      }));
+    },
+    enabled: recordSearchEnabled,
+  });
 
-  const filtered = query.trim()
-    ? navEntries.filter((e) => e.label.toLowerCase().includes(query.toLowerCase()))
+  const filtered = normalizedQuery
+    ? [
+        ...navEntries.filter((e) => e.label.toLowerCase().includes(normalizedQuery)),
+        ...(meetingsQuery.data ?? []),
+        ...(committeesQuery.data ?? []),
+        ...(contractsQuery.data ?? []),
+        ...(reportsQuery.data ?? []),
+      ].slice(0, 15)
     : navEntries.slice(0, 10);
 
   const navigate = useCallback(

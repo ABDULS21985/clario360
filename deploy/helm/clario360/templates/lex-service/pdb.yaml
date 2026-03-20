@@ -1,0 +1,22 @@
+{{- if .Values.lexService.enabled }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "clario360.componentName" (dict "root" . "component" "lex-service") }}
+  namespace: {{ include "clario360.namespace" . }}
+  labels:
+    {{- include "clario360.componentLabels" (dict "root" . "component" "lex-service") | nindent 4 }}
+spec:
+  {{- if .Values.lexService.pdb }}
+  {{- if .Values.lexService.pdb.minAvailable }}
+  minAvailable: {{ .Values.lexService.pdb.minAvailable }}
+  {{- else }}
+  maxUnavailable: {{ .Values.lexService.pdb.maxUnavailable | default 1 }}
+  {{- end }}
+  {{- else }}
+  maxUnavailable: 1
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "clario360.componentSelectorLabels" (dict "root" . "component" "lex-service") | nindent 6 }}
+{{- end }}

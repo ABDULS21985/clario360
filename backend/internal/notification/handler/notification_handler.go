@@ -51,8 +51,8 @@ func (h *NotificationHandler) ListNotifications(w http.ResponseWriter, r *http.R
 	}
 
 	writeJSON(w, http.StatusOK, map[string]interface{}{
-		"data":       notifications,
-		"pagination": dto.NewPagination(params.Page, params.PerPage, total),
+		"data": notifications,
+		"meta": dto.NewPagination(params.Page, params.PerPage, total),
 	})
 }
 
@@ -120,6 +120,37 @@ func (h *NotificationHandler) MarkAllRead(w http.ResponseWriter, r *http.Request
 	writeJSON(w, http.StatusOK, map[string]interface{}{"marked": count})
 }
 
+// BulkDeleteNotifications handles POST /api/v1/notifications/bulk.
+func (h *NotificationHandler) BulkDeleteNotifications(w http.ResponseWriter, r *http.Request) {
+	user := auth.UserFromContext(r.Context())
+	tenantID := auth.TenantFromContext(r.Context())
+
+	var req struct {
+		IDs []string `json:"ids"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeErrorResponse(w, http.StatusBadRequest, "INVALID_BODY", "invalid request body", r)
+		return
+	}
+	if len(req.IDs) == 0 {
+		writeErrorResponse(w, http.StatusBadRequest, "INVALID_PARAMS", "ids must not be empty", r)
+		return
+	}
+	if len(req.IDs) > 100 {
+		writeErrorResponse(w, http.StatusBadRequest, "INVALID_PARAMS", "maximum 100 ids per request", r)
+		return
+	}
+
+	deleted, err := h.notifSvc.BulkDelete(r.Context(), tenantID, user.ID, req.IDs)
+	if err != nil {
+		h.logger.Error().Err(err).Msg("failed to bulk delete notifications")
+		writeErrorResponse(w, http.StatusInternalServerError, "INTERNAL_ERROR", "failed to bulk delete notifications", r)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]interface{}{"deleted": deleted})
+}
+
 // DeleteNotification handles DELETE /api/v1/notifications/{id}.
 func (h *NotificationHandler) DeleteNotification(w http.ResponseWriter, r *http.Request) {
 	user := auth.UserFromContext(r.Context())
@@ -148,7 +179,7 @@ func writeErrorResponse(w http.ResponseWriter, status int, code, message string,
 		},
 	}
 	if reqID := r.Context().Value("request_id"); reqID != nil {
-		resp["request_id"] = reqID
+		resp["error"].(map[string]interface{})["request_id"] = reqID
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)

@@ -49,7 +49,6 @@ const mockUsers: User[] = [
     status: 'active',
     mfa_enabled: true,
     last_login_at: '2024-03-01T10:00:00Z',
-    password_changed_at: '2024-01-01T00:00:00Z',
     roles: [mockRoles[0]],
     created_at: '2024-01-01T00:00:00Z',
     updated_at: '2024-01-01T00:00:00Z',
@@ -63,7 +62,6 @@ const mockUsers: User[] = [
     status: 'suspended',
     mfa_enabled: false,
     last_login_at: null,
-    password_changed_at: '2024-01-01T00:00:00Z',
     roles: [],
     created_at: '2024-01-01T00:00:00Z',
     updated_at: '2024-01-01T00:00:00Z',
@@ -78,10 +76,7 @@ const server = setupServer(
     })
   ),
   http.get(`${API_URL}/api/v1/roles`, () =>
-    HttpResponse.json({
-      data: mockRoles,
-      meta: { page: 1, per_page: 100, total: 1, total_pages: 1 },
-    })
+    HttpResponse.json(mockRoles)
   )
 );
 

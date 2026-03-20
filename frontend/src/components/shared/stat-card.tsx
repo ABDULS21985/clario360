@@ -9,10 +9,14 @@ interface StatCardProps {
 
 export function StatCard({ label, value, className }: StatCardProps) {
   return (
-    <Card className={cn("", className)}>
+    <Card className={cn("overflow-hidden", className)}>
       <CardContent className="p-4">
-        <p className="text-sm text-muted-foreground">{label}</p>
-        <p className="text-2xl font-bold mt-1">{value}</p>
+        <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+          {label}
+        </p>
+        <p className="mt-2 text-3xl font-semibold tracking-[-0.04em] text-slate-950">
+          {value}
+        </p>
       </CardContent>
     </Card>
   );

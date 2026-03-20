@@ -284,6 +284,84 @@ func (s *DashboardService) GetTrends(ctx context.Context, tenantID uuid.UUID, da
 	}, nil
 }
 
+// GetMetrics returns the aggregated secondary metrics strip data.
+// Each section runs in parallel; partial failures yield nil for that field
+// rather than failing the entire request.
+func (s *DashboardService) GetMetrics(ctx context.Context, tenantID uuid.UUID) (*dto.DashboardMetricsResponse, error) {
+	start := time.Now()
+	resp := &dto.DashboardMetricsResponse{}
+	var mu sync.Mutex
+
+	var group errgroup.Group
+
+	// MTTR, MTTA, SLA from the existing calculator
+	group.Go(func() error {
+		report, err := s.mttr.Calculate(ctx, tenantID)
+		if err != nil {
+			s.logger.Warn().Err(err).Str("tenant_id", tenantID.String()).Msg("metrics: mttr calculation failed")
+			return nil
+		}
+		mu.Lock()
+		defer mu.Unlock()
+
+		mttaMin := report.Overall.AvgResponseHours * 60
+		resp.MTTAMinutes = &mttaMin
+
+		var mttrMin float64
+		if report.Overall.AvgResolveHours != nil {
+			mttrMin = *report.Overall.AvgResolveHours * 60
+		}
+		resp.MTTRMinutes = &mttrMin
+
+		sla := report.Overall.SLACompliance
+		resp.SLACompliancePct = &sla
+		return nil
+	})
+
+	// Active incidents (open critical/high alerts)
+	group.Go(func() error {
+		count, err := s.repo.ActiveIncidents(ctx, tenantID)
+		if err != nil {
+			s.logger.Warn().Err(err).Str("tenant_id", tenantID.String()).Msg("metrics: active incidents query failed")
+			return nil
+		}
+		mu.Lock()
+		resp.ActiveIncidents = &count
+		mu.Unlock()
+		return nil
+	})
+
+	// Active users today
+	group.Go(func() error {
+		count, err := s.repo.ActiveUsersToday(ctx, tenantID)
+		if err != nil {
+			s.logger.Warn().Err(err).Str("tenant_id", tenantID.String()).Msg("metrics: active users query failed")
+			return nil
+		}
+		mu.Lock()
+		resp.ActiveUsersToday = &count
+		mu.Unlock()
+		return nil
+	})
+
+	// Pending reviews (unacknowledged critical/high alerts)
+	group.Go(func() error {
+		count, err := s.repo.PendingReviews(ctx, tenantID)
+		if err != nil {
+			s.logger.Warn().Err(err).Str("tenant_id", tenantID.String()).Msg("metrics: pending reviews query failed")
+			return nil
+		}
+		mu.Lock()
+		resp.PendingReviews = &count
+		mu.Unlock()
+		return nil
+	})
+
+	_ = group.Wait()
+	s.observeRequest("dashboard_metrics", start)
+	return resp, nil
+}
+
 func (s *DashboardService) InvalidateCache(ctx context.Context, tenantID uuid.UUID) error {
 	return s.cache.Invalidate(ctx, tenantID)
 }

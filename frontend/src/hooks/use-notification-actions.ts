@@ -1,9 +1,10 @@
 'use client';
 
 import { useQueryClient } from '@tanstack/react-query';
-import { apiPut, apiDelete } from '@/lib/api';
+import { apiPut, apiPost, apiDelete } from '@/lib/api';
 import { useNotificationStore } from '@/stores/notification-store';
-import { showApiError } from '@/lib/toast';
+import { showApiError, showSuccess } from '@/lib/toast';
+import { API_ENDPOINTS } from '@/lib/constants';
 import type { Notification } from '@/types/models';
 import type { PaginatedResponse } from '@/types/api';
 import { isNotificationRead } from '@/lib/notification-utils';
@@ -51,7 +52,7 @@ export function useNotificationActions() {
 
   const markAllAsRead = async (): Promise<void> => {
     try {
-      await apiPut('/api/v1/notifications/read-all');
+      await apiPut(API_ENDPOINTS.NOTIFICATIONS_READ_ALL);
       // Update cache
       queryClient.setQueriesData<PaginatedResponse<Notification>>(
         { queryKey: [NOTIFICATIONS_KEY], exact: false },
@@ -87,5 +88,28 @@ export function useNotificationActions() {
     }
   };
 
-  return { markAsRead, markAllAsRead, deleteNotification };
+  const bulkDeleteNotifications = async (ids: string[]): Promise<void> => {
+    // Optimistic remove
+    queryClient.setQueriesData<PaginatedResponse<Notification>>(
+      { queryKey: [NOTIFICATIONS_KEY], exact: false },
+      (old) => {
+        if (!old) return old;
+        const idSet = new Set(ids);
+        return { ...old, data: old.data.filter((n) => !idSet.has(n.id)) };
+      },
+    );
+    for (const id of ids) {
+      storeDeleteNotification(id);
+    }
+
+    try {
+      await apiPost(API_ENDPOINTS.NOTIFICATIONS_BULK_DELETE, { ids });
+      showSuccess(`Deleted ${ids.length} notification${ids.length === 1 ? '' : 's'}`);
+    } catch {
+      queryClient.invalidateQueries({ queryKey: [NOTIFICATIONS_KEY] });
+      showApiError(new Error('Failed to delete notifications'));
+    }
+  };
+
+  return { markAsRead, markAllAsRead, deleteNotification, bulkDeleteNotifications };
 }

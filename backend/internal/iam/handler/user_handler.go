@@ -2,6 +2,7 @@ package handler
 
 import (
 	"net/http"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/rs/zerolog"
@@ -25,19 +26,51 @@ func (h *UserHandler) Routes() chi.Router {
 
 	// /users/me routes (must be before /{id} to avoid conflict)
 	r.Get("/me", h.GetProfile)
+	r.Put("/me", h.UpdateProfile)
 	r.Put("/me/password", h.ChangePassword)
+	r.Get("/me/sessions", h.ListSessions)
+	r.Delete("/me/sessions", h.DeleteSessions)
+	r.Delete("/me/sessions/{id}", h.DeleteSession)
 	r.Post("/me/mfa/enable", h.EnableMFA)
 	r.Post("/me/mfa/verify-setup", h.VerifyMFASetup)
 	r.Post("/me/mfa/disable", h.DisableMFA)
 
 	// /users CRUD
 	r.Get("/", h.List)
+	r.Post("/", h.Create)
 	r.Get("/{id}", h.GetByID)
 	r.Put("/{id}", h.Update)
 	r.Delete("/{id}", h.Delete)
 	r.Put("/{id}/status", h.UpdateStatus)
 
 	return r
+}
+
+func (h *UserHandler) Create(w http.ResponseWriter, r *http.Request) {
+	currentUser := iamauth.UserFromContext(r.Context())
+	if currentUser == nil {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
+	if !iamauth.HasPermission(currentUser.Roles, "users:create") && !iamauth.HasPermission(currentUser.Roles, "users:*") {
+		writeError(w, http.StatusForbidden, "forbidden")
+		return
+	}
+
+	var req dto.AdminCreateUserRequest
+	if err := parseBody(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	resp, err := h.userSvc.AdminCreateUser(r.Context(), currentUser.TenantID, &req, currentUser.ID)
+	if err != nil {
+		handleServiceError(w, err)
+		return
+	}
+
+	writeJSON(w, http.StatusCreated, resp)
 }
 
 func (h *UserHandler) List(w http.ResponseWriter, r *http.Request) {
@@ -50,8 +83,10 @@ func (h *UserHandler) List(w http.ResponseWriter, r *http.Request) {
 	page, perPage := parsePagination(r)
 	search := r.URL.Query().Get("search")
 	status := r.URL.Query().Get("status")
+	sort := r.URL.Query().Get("sort")
+	order := r.URL.Query().Get("order")
 
-	users, total, err := h.userSvc.List(r.Context(), user.TenantID, page, perPage, search, status)
+	users, total, err := h.userSvc.List(r.Context(), user.TenantID, page, perPage, search, status, sort, order)
 	if err != nil {
 		handleServiceError(w, err)
 		return
@@ -64,6 +99,44 @@ func (h *UserHandler) GetByID(w http.ResponseWriter, r *http.Request) {
 	userID := urlParam(r, "id")
 
 	resp, err := h.userSvc.GetByID(r.Context(), userID)
+	if err != nil {
+		handleServiceError(w, err)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, resp)
+}
+
+func (h *UserHandler) InternalGetEmail(w http.ResponseWriter, r *http.Request) {
+	if r.Header.Get("X-Internal-Service") == "" {
+		writeError(w, http.StatusUnauthorized, "internal access required")
+		return
+	}
+
+	userID := urlParam(r, "id")
+	resp, err := h.userSvc.GetByID(r.Context(), userID)
+	if err != nil {
+		handleServiceError(w, err)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]string{"email": resp.Email})
+}
+
+func (h *UserHandler) InternalGetByEmail(w http.ResponseWriter, r *http.Request) {
+	if r.Header.Get("X-Internal-Service") == "" {
+		writeError(w, http.StatusUnauthorized, "internal access required")
+		return
+	}
+
+	email := strings.TrimSpace(r.URL.Query().Get("email"))
+	tenantID := strings.TrimSpace(r.URL.Query().Get("tenant_id"))
+	if email == "" {
+		writeError(w, http.StatusBadRequest, "email is required")
+		return
+	}
+
+	resp, err := h.userSvc.GetByEmail(r.Context(), tenantID, email)
 	if err != nil {
 		handleServiceError(w, err)
 		return
@@ -140,6 +213,28 @@ func (h *UserHandler) UpdateStatus(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, dto.MessageResponse{Message: "user status updated"})
+}
+
+func (h *UserHandler) UpdateProfile(w http.ResponseWriter, r *http.Request) {
+	currentUser := iamauth.UserFromContext(r.Context())
+	if currentUser == nil {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
+	var req dto.UpdateUserRequest
+	if err := parseBody(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	resp, err := h.userSvc.Update(r.Context(), currentUser.ID, &req, currentUser.ID)
+	if err != nil {
+		handleServiceError(w, err)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, resp)
 }
 
 func (h *UserHandler) GetProfile(w http.ResponseWriter, r *http.Request) {
@@ -235,4 +330,51 @@ func (h *UserHandler) DisableMFA(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, dto.MessageResponse{Message: "MFA disabled"})
+}
+
+func (h *UserHandler) ListSessions(w http.ResponseWriter, r *http.Request) {
+	currentUser := iamauth.UserFromContext(r.Context())
+	if currentUser == nil {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
+	sessions, err := h.userSvc.ListSessions(r.Context(), currentUser.ID)
+	if err != nil {
+		handleServiceError(w, err)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, sessions)
+}
+
+func (h *UserHandler) DeleteSession(w http.ResponseWriter, r *http.Request) {
+	currentUser := iamauth.UserFromContext(r.Context())
+	if currentUser == nil {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
+	if err := h.userSvc.DeleteSession(r.Context(), currentUser.ID, urlParam(r, "id")); err != nil {
+		handleServiceError(w, err)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, dto.MessageResponse{Message: "session revoked"})
+}
+
+func (h *UserHandler) DeleteSessions(w http.ResponseWriter, r *http.Request) {
+	currentUser := iamauth.UserFromContext(r.Context())
+	if currentUser == nil {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
+	excludeCurrent := r.URL.Query().Get("exclude_current") == "true"
+	if err := h.userSvc.DeleteSessions(r.Context(), currentUser.ID, excludeCurrent); err != nil {
+		handleServiceError(w, err)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, dto.MessageResponse{Message: "sessions revoked"})
 }
