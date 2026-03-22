@@ -47,13 +47,13 @@ type ValidateModelRequest struct {
 }
 
 type ListModelsParams struct {
-	Page               int
-	PerPage            int
-	Search             string
-	Status             string
-	SourceID           string
-	DataClassification string
-	ContainsPII        *bool
-	Sort               string
-	Order              string
+	Page                int
+	PerPage             int
+	Search              string
+	Statuses            []string
+	SourceID            string
+	DataClassifications []string
+	ContainsPII         *bool
+	Sort                string
+	Order               string
 }

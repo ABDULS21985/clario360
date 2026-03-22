@@ -16,14 +16,14 @@ type ResolveContradictionRequest struct {
 }
 
 type ListContradictionsParams struct {
-	Page      int
-	PerPage   int
-	Type      string
-	Severity  string
-	Status    string
-	Search    string
-	Sort      string
-	Order     string
+	Page       int
+	PerPage    int
+	Types      []string
+	Severities []string
+	Statuses   []string
+	Search     string
+	Sort       string
+	Order      string
 }
 
 type ListContradictionScansParams struct {

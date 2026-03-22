@@ -238,9 +238,9 @@ func (r *DarkDataRepository) ListAssets(ctx context.Context, tenantID uuid.UUID,
 		FROM dark_data_assets a`)
 	qb.Where("a.tenant_id = ?", tenantID)
 	qb.WhereIf(strings.TrimSpace(params.Search) != "", "(a.name ILIKE ? OR COALESCE(a.table_name, '') ILIKE ? OR COALESCE(a.file_path, '') ILIKE ?)", "%"+strings.TrimSpace(params.Search)+"%", "%"+strings.TrimSpace(params.Search)+"%", "%"+strings.TrimSpace(params.Search)+"%")
-	qb.WhereIf(params.Reason != "", "a.reason = ?", params.Reason)
-	qb.WhereIf(params.AssetType != "", "a.asset_type = ?", params.AssetType)
-	qb.WhereIf(params.GovernanceStatus != "", "a.governance_status = ?", params.GovernanceStatus)
+	qb.WhereIn("a.reason", params.Reasons)
+	qb.WhereIn("a.asset_type", params.AssetTypes)
+	qb.WhereIn("a.governance_status", params.GovernanceStatuses)
 	if params.ContainsPII != nil {
 		qb.Where("a.contains_pii = ?", *params.ContainsPII)
 	}

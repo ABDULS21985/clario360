@@ -53,9 +53,9 @@ func (h *ModelHandler) List(w http.ResponseWriter, r *http.Request) {
 		Page:               page,
 		PerPage:            perPage,
 		Search:             r.URL.Query().Get("search"),
-		Status:             r.URL.Query().Get("status"),
-		SourceID:           r.URL.Query().Get("source_id"),
-		DataClassification: r.URL.Query().Get("data_classification"),
+		Statuses:            splitCSV(r.URL.Query().Get("status")),
+		SourceID:            r.URL.Query().Get("source_id"),
+		DataClassifications: splitCSV(r.URL.Query().Get("data_classification")),
 		Sort:               r.URL.Query().Get("sort"),
 		Order:              r.URL.Query().Get("order"),
 	}

@@ -74,9 +74,9 @@ func (r *ModelRepository) List(ctx context.Context, tenantID uuid.UUID, params d
 	qb.Where("a.tenant_id = ?", tenantID)
 	qb.Where("a.deleted_at IS NULL")
 	qb.WhereIf(strings.TrimSpace(params.Search) != "", "a.name ILIKE ?", "%"+strings.TrimSpace(params.Search)+"%")
-	qb.WhereIf(params.Status != "", "a.status = ?", params.Status)
+	qb.WhereIn("a.status", params.Statuses)
 	qb.WhereIf(params.SourceID != "", "a.source_id = ?", params.SourceID)
-	qb.WhereIf(params.DataClassification != "", "a.data_classification = ?", params.DataClassification)
+	qb.WhereIn("a.data_classification", params.DataClassifications)
 	if params.ContainsPII != nil {
 		qb.Where("a.contains_pii = ?", *params.ContainsPII)
 	}
@@ -106,9 +106,9 @@ func (r *ModelRepository) List(ctx context.Context, tenantID uuid.UUID, params d
 	countQB.Where("a.tenant_id = ?", tenantID)
 	countQB.Where("a.deleted_at IS NULL")
 	countQB.WhereIf(strings.TrimSpace(params.Search) != "", "a.name ILIKE ?", "%"+strings.TrimSpace(params.Search)+"%")
-	countQB.WhereIf(params.Status != "", "a.status = ?", params.Status)
+	countQB.WhereIn("a.status", params.Statuses)
 	countQB.WhereIf(params.SourceID != "", "a.source_id = ?", params.SourceID)
-	countQB.WhereIf(params.DataClassification != "", "a.data_classification = ?", params.DataClassification)
+	countQB.WhereIn("a.data_classification", params.DataClassifications)
 	if params.ContainsPII != nil {
 		countQB.Where("a.contains_pii = ?", *params.ContainsPII)
 	}

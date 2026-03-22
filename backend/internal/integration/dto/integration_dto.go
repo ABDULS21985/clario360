@@ -103,8 +103,9 @@ func ParseListQuery(r *http.Request) (*ListQuery, error) {
 	if v := strings.TrimSpace(values.Get("type")); v != "" {
 		query.Type = v
 	}
-	if v := strings.TrimSpace(values.Get("status")); v != "" {
-		query.Status = v
+	// Support multi-value status: ?status=active&status=inactive
+	if statuses := values["status"]; len(statuses) > 0 {
+		query.Status = strings.Join(statuses, ",")
 	}
 	if v := strings.TrimSpace(values.Get("sort")); v != "" {
 		switch v {

@@ -86,9 +86,9 @@ func (h *DarkDataHandler) ListAssets(w http.ResponseWriter, r *http.Request) {
 		Page:             page,
 		PerPage:          perPage,
 		Search:           r.URL.Query().Get("search"),
-		Reason:           r.URL.Query().Get("reason"),
-		AssetType:        r.URL.Query().Get("asset_type"),
-		GovernanceStatus: r.URL.Query().Get("governance_status"),
+		Reasons:            splitCSV(r.URL.Query().Get("reason")),
+		AssetTypes:         splitCSV(r.URL.Query().Get("asset_type")),
+		GovernanceStatuses: splitCSV(r.URL.Query().Get("governance_status")),
 		Sort:             r.URL.Query().Get("sort"),
 		Order:            r.URL.Query().Get("order"),
 	}

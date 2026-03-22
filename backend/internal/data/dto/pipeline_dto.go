@@ -37,8 +37,8 @@ type ListPipelinesParams struct {
 	Page     int
 	PerPage  int
 	Search   string
-	Type     string
-	Status   string
+	Types    []string
+	Statuses []string
 	SourceID string
 	Sort     string
 	Order    string

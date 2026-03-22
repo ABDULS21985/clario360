@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import Link from 'next/link';
 import { ArrowRight, Building2, Palette, Settings2 } from 'lucide-react';
 import { PageHeader } from '@/components/common/page-header';
@@ -11,9 +12,16 @@ import { RelativeTime } from '@/components/shared/relative-time';
 import { StatusBadge } from '@/components/shared/status-badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAuth } from '@/hooks/use-auth';
-import { useTenant, useTenantUsage } from '@/hooks/use-tenants';
+import { useTenant, useTenants, useTenantUsage } from '@/hooks/use-tenants';
 import { tenantPlanConfig, tenantStatusConfig } from '@/lib/status-configs';
 import { TenantBrandingForm } from '../../tenants/[tenantId]/_components/tenant-branding-form';
 import { TenantSettingsForm } from '../../tenants/[tenantId]/_components/tenant-settings-form';
@@ -29,8 +37,17 @@ function formatStorage(bytes: number): string {
 }
 
 export function CurrentTenantSettings() {
-  const { user } = useAuth();
-  const tenantId = user?.tenant_id ?? null;
+  const { user, hasPermission } = useAuth();
+  const isSuperAdmin = hasPermission('*');
+  const ownTenantId = user?.tenant_id ?? null;
+  const [selectedTenantId, setSelectedTenantId] = useState<string | null>(null);
+  const tenantId = selectedTenantId ?? ownTenantId;
+
+  // Fetch tenant list for super-admin picker
+  const { data: tenantsPage } = useTenants(
+    isSuperAdmin ? { page: 1, per_page: 100 } : undefined,
+  );
+  const tenantOptions = tenantsPage?.data ?? [];
 
   const {
     data: tenant,
@@ -90,12 +107,31 @@ export function CurrentTenantSettings() {
           title="Platform Settings"
           description="Manage the active tenant configuration, branding, and platform limits using the live tenant contract."
           actions={
-            <Button asChild variant="outline" size="sm">
-              <Link href={`/admin/tenants/${tenant.id}`}>
-                Open tenant record
-                <ArrowRight className="ml-1.5 h-4 w-4" />
-              </Link>
-            </Button>
+            <div className="flex items-center gap-3">
+              {isSuperAdmin && tenantOptions.length > 1 && (
+                <Select
+                  value={tenantId ?? ''}
+                  onValueChange={(v) => setSelectedTenantId(v === ownTenantId ? null : v)}
+                >
+                  <SelectTrigger className="w-[220px] h-9 text-sm">
+                    <SelectValue placeholder="Select tenant" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {tenantOptions.map((t) => (
+                      <SelectItem key={t.id} value={t.id}>
+                        {t.name}{t.id === ownTenantId ? ' (current)' : ''}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+              <Button asChild variant="outline" size="sm">
+                <Link href={`/admin/tenants/${tenant.id}`}>
+                  Open tenant record
+                  <ArrowRight className="ml-1.5 h-4 w-4" />
+                </Link>
+              </Button>
+            </div>
           }
         />
 

@@ -70,9 +70,21 @@ func (r *IntegrationRepository) List(ctx context.Context, tenantID string, query
 		argIdx++
 	}
 	if query.Status != "" {
-		where = append(where, fmt.Sprintf("status = $%d", argIdx))
-		args = append(args, query.Status)
-		argIdx++
+		// Support comma-separated multi-status: "active,inactive"
+		statusValues := strings.Split(query.Status, ",")
+		if len(statusValues) == 1 {
+			where = append(where, fmt.Sprintf("status = $%d", argIdx))
+			args = append(args, strings.TrimSpace(statusValues[0]))
+			argIdx++
+		} else {
+			placeholders := make([]string, len(statusValues))
+			for i, sv := range statusValues {
+				placeholders[i] = fmt.Sprintf("$%d", argIdx)
+				args = append(args, strings.TrimSpace(sv))
+				argIdx++
+			}
+			where = append(where, fmt.Sprintf("status IN (%s)", strings.Join(placeholders, ", ")))
+		}
 	}
 
 	whereSQL := " WHERE " + strings.Join(where, " AND ")

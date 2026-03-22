@@ -2190,17 +2190,17 @@ export interface VCISOControlDependency {
 
 // ─── vCISO Governance — Integrations ─────────────────────────────────────────
 
-export type IntegrationType = 'ticketing' | 'cloud_security' | 'asset_management' | 'data_protection' | 'siem' | 'iam';
-export type IntegrationStatus = 'connected' | 'disconnected' | 'error' | 'pending';
+export type CyberIntegrationType = 'ticketing' | 'cloud_security' | 'asset_management' | 'data_protection' | 'siem' | 'iam';
+export type CyberIntegrationStatus = 'connected' | 'disconnected' | 'error' | 'pending';
 export type IntegrationHealth = 'healthy' | 'degraded' | 'unavailable';
 
 export interface VCISOIntegration {
   id: string;
   tenant_id: string;
   name: string;
-  type: IntegrationType;
+  type: CyberIntegrationType;
   provider: string;
-  status: IntegrationStatus;
+  status: CyberIntegrationStatus;
   last_sync_at?: string;
   sync_frequency: string;
   items_synced: number;

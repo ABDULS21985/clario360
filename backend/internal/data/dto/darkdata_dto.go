@@ -1,16 +1,16 @@
 package dto
 
 type ListDarkDataParams struct {
-	Page             int
-	PerPage          int
-	Search           string
-	Reason           string
-	AssetType        string
-	GovernanceStatus string
-	ContainsPII      *bool
-	MinRiskScore     *float64
-	Sort             string
-	Order            string
+	Page               int
+	PerPage            int
+	Search             string
+	Reasons            []string
+	AssetTypes         []string
+	GovernanceStatuses []string
+	ContainsPII        *bool
+	MinRiskScore       *float64
+	Sort               string
+	Order              string
 }
 
 type UpdateDarkDataStatusRequest struct {

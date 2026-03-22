@@ -71,9 +71,9 @@ func (r *ContradictionRepository) List(ctx context.Context, tenantID uuid.UUID, 
 		       a.metadata, a.created_at, a.updated_at
 		FROM contradictions a`)
 	qb.Where("a.tenant_id = ?", tenantID)
-	qb.WhereIf(params.Type != "", "a.type = ?", params.Type)
-	qb.WhereIf(params.Severity != "", "a.severity = ?", params.Severity)
-	qb.WhereIf(params.Status != "", "a.status = ?", params.Status)
+	qb.WhereIn("a.type", params.Types)
+	qb.WhereIn("a.severity", params.Severities)
+	qb.WhereIn("a.status", params.Statuses)
 	qb.WhereIf(strings.TrimSpace(params.Search) != "", "(a.title ILIKE ? OR a.description ILIKE ?)", "%"+strings.TrimSpace(params.Search)+"%", "%"+strings.TrimSpace(params.Search)+"%")
 	qb.OrderBy(coalesce(params.Sort, "created_at"), coalesce(params.Order, "desc"), []string{"created_at", "updated_at", "severity", "type"})
 	qb.Paginate(params.Page, params.PerPage)

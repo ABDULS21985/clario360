@@ -29,11 +29,11 @@ import {
 import { integrationStatusConfig, integrationHealthConfig } from '@/lib/status-configs';
 import { formatRelativeTime, formatCompactNumber, titleCase } from '@/lib/format';
 import { cn } from '@/lib/utils';
-import type { VCISOIntegration, IntegrationType } from '@/types/cyber';
+import type { VCISOIntegration, CyberIntegrationType } from '@/types/cyber';
 
 // ─── Type-to-Icon Map ───────────────────────────────────────────────────────
 
-const TYPE_ICON_MAP: Record<IntegrationType, LucideIcon> = {
+const TYPE_ICON_MAP: Record<CyberIntegrationType, LucideIcon> = {
   ticketing: TicketCheck,
   cloud_security: Cloud,
   asset_management: Database,
@@ -42,7 +42,7 @@ const TYPE_ICON_MAP: Record<IntegrationType, LucideIcon> = {
   iam: Key,
 };
 
-const TYPE_COLOR_MAP: Record<IntegrationType, string> = {
+const TYPE_COLOR_MAP: Record<CyberIntegrationType, string> = {
   ticketing: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400',
   cloud_security: 'bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-400',
   asset_management: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400',

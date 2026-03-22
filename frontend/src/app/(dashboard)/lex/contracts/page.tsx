@@ -39,6 +39,39 @@ const CONTRACT_FILTERS = [
       { label: 'Cancelled', value: 'cancelled' },
     ],
   },
+  {
+    key: 'type',
+    label: 'Type',
+    type: 'select' as const,
+    options: [
+      { label: 'Service Agreement', value: 'service_agreement' },
+      { label: 'NDA', value: 'nda' },
+      { label: 'Employment', value: 'employment' },
+      { label: 'Vendor', value: 'vendor' },
+      { label: 'License', value: 'license' },
+      { label: 'Lease', value: 'lease' },
+      { label: 'Partnership', value: 'partnership' },
+      { label: 'Consulting', value: 'consulting' },
+      { label: 'Procurement', value: 'procurement' },
+      { label: 'SLA', value: 'sla' },
+      { label: 'MoU', value: 'mou' },
+      { label: 'Amendment', value: 'amendment' },
+      { label: 'Renewal', value: 'renewal' },
+      { label: 'Other', value: 'other' },
+    ],
+  },
+  {
+    key: 'risk_level',
+    label: 'Risk',
+    type: 'select' as const,
+    options: [
+      { label: 'Critical', value: 'critical' },
+      { label: 'High', value: 'high' },
+      { label: 'Medium', value: 'medium' },
+      { label: 'Low', value: 'low' },
+      { label: 'None', value: 'none' },
+    ],
+  },
 ];
 
 export default function LexContractsPage() {

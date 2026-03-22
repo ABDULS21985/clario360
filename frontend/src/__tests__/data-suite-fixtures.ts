@@ -809,7 +809,7 @@ export const savedQueries: SavedQuery[] = [
     description: 'Basic customer email query',
     model_id: dataModels[0].id,
     query_definition: {
-      select: ['email'],
+      columns: ['email'],
       filters: [],
       aggregations: [],
       group_by: [],

@@ -22,11 +22,11 @@ import {
 } from '@/components/ui/select';
 import { useApiMutation } from '@/hooks/use-api-mutation';
 import { API_ENDPOINTS } from '@/lib/constants';
-import type { VCISOIntegration, IntegrationType } from '@/types/cyber';
+import type { VCISOIntegration, CyberIntegrationType } from '@/types/cyber';
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
-const INTEGRATION_TYPES: { label: string; value: IntegrationType }[] = [
+const INTEGRATION_TYPES: { label: string; value: CyberIntegrationType }[] = [
   { label: 'Asset Management', value: 'asset_management' },
   { label: 'Ticketing', value: 'ticketing' },
   { label: 'Cloud Security', value: 'cloud_security' },
@@ -55,7 +55,7 @@ interface IntegrationFormDialogProps {
 
 interface IntegrationFormData {
   name: string;
-  type: IntegrationType;
+  type: CyberIntegrationType;
   provider: string;
   sync_frequency: string;
   config_json: string;
@@ -199,7 +199,7 @@ export function IntegrationFormDialog({
               <Label>Type *</Label>
               <Select
                 value={form.type}
-                onValueChange={(v) => updateField('type', v as IntegrationType)}
+                onValueChange={(v) => updateField('type', v as CyberIntegrationType)}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Select type" />

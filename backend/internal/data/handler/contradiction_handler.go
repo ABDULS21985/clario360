@@ -87,9 +87,9 @@ func (h *ContradictionHandler) List(w http.ResponseWriter, r *http.Request) {
 	params := dto.ListContradictionsParams{
 		Page:     page,
 		PerPage:  perPage,
-		Type:     r.URL.Query().Get("type"),
-		Severity: r.URL.Query().Get("severity"),
-		Status:   r.URL.Query().Get("status"),
+		Types:      splitCSV(r.URL.Query().Get("type")),
+		Severities: splitCSV(r.URL.Query().Get("severity")),
+		Statuses:   splitCSV(r.URL.Query().Get("status")),
 		Search:   r.URL.Query().Get("search"),
 		Sort:     r.URL.Query().Get("sort"),
 		Order:    r.URL.Query().Get("order"),

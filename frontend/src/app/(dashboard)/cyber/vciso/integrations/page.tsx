@@ -41,8 +41,8 @@ import { cn } from '@/lib/utils';
 import type { PaginatedResponse } from '@/types/api';
 import type {
   VCISOIntegration,
-  IntegrationType,
-  IntegrationStatus,
+  CyberIntegrationType,
+  CyberIntegrationStatus,
   IntegrationHealth,
 } from '@/types/cyber';
 
@@ -60,7 +60,7 @@ interface CategoryMeta {
   description: string;
 }
 
-const CATEGORY_META: Record<IntegrationType, CategoryMeta> = {
+const CATEGORY_META: Record<CyberIntegrationType, CategoryMeta> = {
   asset_management: {
     label: 'Asset Management',
     icon: Database,
@@ -99,7 +99,7 @@ const CATEGORY_META: Record<IntegrationType, CategoryMeta> = {
   },
 };
 
-const ALL_TYPES: IntegrationType[] = [
+const ALL_TYPES: CyberIntegrationType[] = [
   'asset_management',
   'ticketing',
   'cloud_security',
@@ -108,7 +108,7 @@ const ALL_TYPES: IntegrationType[] = [
   'iam',
 ];
 
-const STATUS_OPTIONS: { label: string; value: IntegrationStatus }[] = [
+const STATUS_OPTIONS: { label: string; value: CyberIntegrationStatus }[] = [
   { label: 'Connected', value: 'connected' },
   { label: 'Disconnected', value: 'disconnected' },
   { label: 'Error', value: 'error' },
@@ -200,8 +200,8 @@ export default function IntegrationsPage() {
 
   // ── Category summary stats ─────────────────────────────────────────────
   const categorySummary = useMemo(() => {
-    const summary: Record<IntegrationType, { total: number; connected: number; healthy: number }> =
-      {} as Record<IntegrationType, { total: number; connected: number; healthy: number }>;
+    const summary: Record<CyberIntegrationType, { total: number; connected: number; healthy: number }> =
+      {} as Record<CyberIntegrationType, { total: number; connected: number; healthy: number }>;
 
     for (const type of ALL_TYPES) {
       summary[type] = { total: 0, connected: 0, healthy: 0 };
