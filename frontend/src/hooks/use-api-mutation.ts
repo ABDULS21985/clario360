@@ -14,6 +14,27 @@ interface MutationOptions<TData, TVariables> {
   errorMessage?: string;
 }
 
+function unwrapMutationEnvelope<TData>(payload: TData): TData {
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+    return payload;
+  }
+
+  const envelope = payload as Record<string, unknown>;
+  const keys = Object.keys(envelope);
+  if (!keys.includes('data')) {
+    return payload;
+  }
+
+  // Successful mutation responses in this app use a narrow `{ data: ... }`
+  // envelope. Only unwrap that canonical shape so domain objects that happen
+  // to expose a `data` field remain untouched.
+  if (keys.some((key) => key !== 'data' && key !== 'meta')) {
+    return payload;
+  }
+
+  return envelope.data as TData;
+}
+
 export function useApiMutation<TData = unknown, TVariables = unknown>(
   method: "post" | "put" | "patch" | "delete",
   url: string | ((variables: TVariables) => string),
@@ -28,7 +49,7 @@ export function useApiMutation<TData = unknown, TVariables = unknown>(
       const { data } = method === "delete"
         ? await api.delete<TData>(resolvedUrl)
         : await api[method]<TData>(resolvedUrl, variables);
-      return data;
+      return unwrapMutationEnvelope(data);
     },
     onSuccess: (data) => {
       if (successMessage) toast.success(successMessage);

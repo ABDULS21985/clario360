@@ -541,6 +541,7 @@ export const contradictions: Contradiction[] = [
     source_a: {
       source_id: dataSources[0].id,
       source_name: 'CRM Database',
+      model_name: '',
       table_name: 'customers',
       column_name: 'email',
       value: 'john@company-a.com',
@@ -549,6 +550,7 @@ export const contradictions: Contradiction[] = [
     source_b: {
       source_id: dataSources[1].id,
       source_name: 'Billing System',
+      model_name: '',
       table_name: 'contact',
       column_name: 'email',
       value: 'john@company-b.com',

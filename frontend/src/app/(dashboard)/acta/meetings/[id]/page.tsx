@@ -5,7 +5,8 @@ import { useParams } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
-import { BookOpen, ClipboardList, FileText, Link2, MapPin, Paperclip, Users } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { BookOpen, ClipboardList, FileText, Link2, MapPin, Paperclip, Pencil, Users } from 'lucide-react';
 import { ErrorState } from '@/components/common/error-state';
 import { LoadingSkeleton } from '@/components/common/loading-skeleton';
 import { PageHeader } from '@/components/common/page-header';
@@ -22,6 +23,7 @@ import { AttendanceTab } from './_components/attendance-tab';
 import { MinutesTab } from './_components/minutes-tab';
 import { ActionItemsTab } from './_components/action-items-tab';
 import { AttachmentsTab } from './_components/attachments-tab';
+import { EditMeetingDialog } from './_components/edit-meeting-dialog';
 import { MeetingStatusControls } from './_components/meeting-status-controls';
 import type {
   ActaAgendaItem,
@@ -38,6 +40,7 @@ export default function ActaMeetingDetailPage() {
   const id = params?.id ?? '';
   const { user } = useAuth();
   const [voteItem, setVoteItem] = useState<ActaAgendaItem | null>(null);
+  const [editOpen, setEditOpen] = useState(false);
 
   const meetingQuery = useQuery({
     queryKey: ['acta-meeting', id],
@@ -221,6 +224,14 @@ export default function ActaMeetingDetailPage() {
     },
     onError: showApiError,
   });
+  const minutesCreateMutation = useMutation({
+    mutationFn: (content: string) => enterpriseApi.acta.createMinutes(id, content),
+    onSuccess: async () => {
+      showSuccess('Minutes created.');
+      await refreshMeeting();
+    },
+    onError: showApiError,
+  });
   const minutesSaveMutation = useMutation({
     mutationFn: (content: string) => enterpriseApi.acta.updateMinutes(id, content),
     onSuccess: async () => refreshMeeting(),
@@ -228,17 +239,34 @@ export default function ActaMeetingDetailPage() {
   });
   const minutesSubmitMutation = useMutation({
     mutationFn: () => enterpriseApi.acta.submitMinutes(id),
-    onSuccess: async () => refreshMeeting(),
+    onSuccess: async () => {
+      showSuccess('Minutes submitted for review.');
+      await refreshMeeting();
+    },
+    onError: showApiError,
+  });
+  const minutesRevisionMutation = useMutation({
+    mutationFn: (notes: string) => enterpriseApi.acta.requestMinutesRevision(id, notes),
+    onSuccess: async () => {
+      showSuccess('Revision requested.');
+      await refreshMeeting();
+    },
     onError: showApiError,
   });
   const minutesApproveMutation = useMutation({
     mutationFn: () => enterpriseApi.acta.approveMinutes(id),
-    onSuccess: async () => refreshMeeting(),
+    onSuccess: async () => {
+      showSuccess('Minutes approved.');
+      await refreshMeeting();
+    },
     onError: showApiError,
   });
   const minutesPublishMutation = useMutation({
     mutationFn: () => enterpriseApi.acta.publishMinutes(id),
-    onSuccess: async () => refreshMeeting(),
+    onSuccess: async () => {
+      showSuccess('Minutes published.');
+      await refreshMeeting();
+    },
     onError: showApiError,
   });
 
@@ -271,6 +299,7 @@ export default function ActaMeetingDetailPage() {
   const attachments = attachmentsQuery.data ?? meeting.attachments ?? [];
   const canManage =
     Boolean(committee && user?.id && (committee.chair_user_id === user.id || committee.secretary_user_id === user.id));
+  const canEdit = canManage && (meeting.status === 'draft' || meeting.status === 'scheduled');
   const canApprove = canApproveMinutes(minutes, committee, user?.id);
 
   return (
@@ -280,6 +309,13 @@ export default function ActaMeetingDetailPage() {
           title={meeting.title}
           description={`Committee: ${meeting.committee_name}`}
           actions={
+            <div className="flex items-center gap-2">
+              {canEdit ? (
+                <Button variant="outline" size="sm" onClick={() => setEditOpen(true)}>
+                  <Pencil className="mr-1.5 h-4 w-4" />
+                  Edit
+                </Button>
+              ) : null}
             <MeetingStatusControls
               meeting={meeting}
               canManage={canManage}
@@ -294,6 +330,7 @@ export default function ActaMeetingDetailPage() {
                 postponeMutation.isPending
               }
             />
+            </div>
           }
         />
 
@@ -418,14 +455,18 @@ export default function ActaMeetingDetailPage() {
                 canApprove={canApprove}
                 pending={
                   minutesGenerateMutation.isPending ||
+                  minutesCreateMutation.isPending ||
                   minutesSaveMutation.isPending ||
                   minutesSubmitMutation.isPending ||
+                  minutesRevisionMutation.isPending ||
                   minutesApproveMutation.isPending ||
                   minutesPublishMutation.isPending
                 }
                 onGenerate={() => minutesGenerateMutation.mutate()}
+                onCreate={(content) => minutesCreateMutation.mutate(content)}
                 onSave={(content) => minutesSaveMutation.mutate(content)}
                 onSubmitReview={() => minutesSubmitMutation.mutate()}
+                onRequestRevision={(notes) => minutesRevisionMutation.mutate(notes)}
                 onApprove={() => minutesApproveMutation.mutate()}
                 onPublish={() => minutesPublishMutation.mutate()}
               />
@@ -455,6 +496,13 @@ export default function ActaMeetingDetailPage() {
           presentCount={meeting.present_count}
           onSubmit={(values) => voteItem && voteMutation.mutate({ item: voteItem, values })}
           pending={voteMutation.isPending}
+        />
+
+        <EditMeetingDialog
+          open={editOpen}
+          onOpenChange={setEditOpen}
+          meeting={meeting}
+          onSuccess={refreshMeeting}
         />
       </div>
     </PermissionRedirect>

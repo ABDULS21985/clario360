@@ -86,7 +86,7 @@ const auditColumns: ColumnDef<AuditLog>[] = [
     id: "user_email",
     header: "User",
     accessorKey: "user_email",
-    enableSorting: true,
+    enableSorting: false,
     cell: ({ row }) => (
       <span className="text-sm">
         {row.original.user_email || (

@@ -59,7 +59,11 @@ export function AiActionsSidebar({
     },
     onSuccess: async () => {
       showSuccess('Action items created.', 'AI-extracted action items have been pushed to the tracker.');
-      await queryClient.invalidateQueries({ queryKey: ['acta-meeting-actions', meeting.id] });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['acta-meeting-actions', meeting.id] }),
+        queryClient.invalidateQueries({ queryKey: ['acta-action-items'] }),
+        queryClient.invalidateQueries({ queryKey: ['acta-dashboard'] }),
+      ]);
     },
     onError: showApiError,
   });

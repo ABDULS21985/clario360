@@ -28,6 +28,7 @@ import (
 	"github.com/clario360/platform/internal/auth"
 	"github.com/clario360/platform/internal/config"
 	"github.com/clario360/platform/internal/events"
+	"github.com/clario360/platform/internal/database"
 	filemetrics "github.com/clario360/platform/internal/filemanager/metrics"
 	filerepo "github.com/clario360/platform/internal/filemanager/repository"
 	fileservice "github.com/clario360/platform/internal/filemanager/service"
@@ -105,6 +106,13 @@ func main() {
 	if err != nil {
 		log.Fatal().Err(err).Msg("failed to bootstrap iam-service")
 	}
+
+	// Run platform_core migrations before any repository is initialized.
+	platformMigrationsPath := filepath.Join(resolveMigrationsBasePath(), "platform_core")
+	if err := database.RunMigrations(cfg.DB.URL, platformMigrationsPath); err != nil {
+		svc.Logger.Fatal().Err(err).Msg("failed to run platform_core migrations")
+	}
+	svc.Logger.Info().Msg("platform_core migrations applied")
 
 	// Register IAM-specific metrics.
 	svc.Metrics.Counter("iam_logins_total", "Total login attempts", []string{"status", "method"})

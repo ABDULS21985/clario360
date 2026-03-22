@@ -101,7 +101,7 @@ func (s *QueryService) GetStats(ctx context.Context, tenantID string, dateFrom, 
 
 // GetTimeline returns the activity timeline for a specific resource, formatted as
 // an AuditTimeline with AuditTimelineEvent entries aligned to the frontend contract.
-func (s *QueryService) GetTimeline(ctx context.Context, tenantID, resourceID string, page, perPage int, callerRoles []string) (*model.AuditTimeline, error) {
+func (s *QueryService) GetTimeline(ctx context.Context, tenantID, resourceID string, page, perPage int, callerRoles []string, filter *repository.TimelineFilter) (*model.AuditTimeline, error) {
 	start := time.Now()
 	defer func() {
 		metrics.QueryDuration.WithLabelValues("timeline").Observe(time.Since(start).Seconds())
@@ -118,7 +118,7 @@ func (s *QueryService) GetTimeline(ctx context.Context, tenantID, resourceID str
 	}
 	offset := (page - 1) * perPage
 
-	entries, _, err := s.repo.GetTimeline(ctx, tenantID, resourceID, perPage, offset)
+	entries, _, err := s.repo.GetTimeline(ctx, tenantID, resourceID, perPage, offset, filter)
 	if err != nil {
 		return nil, err
 	}

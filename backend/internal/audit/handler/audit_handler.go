@@ -3,12 +3,14 @@ package handler
 import (
 	"encoding/json"
 	"net/http"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/rs/zerolog"
 
 	"github.com/clario360/platform/internal/audit/dto"
 	"github.com/clario360/platform/internal/audit/model"
+	"github.com/clario360/platform/internal/audit/repository"
 	"github.com/clario360/platform/internal/audit/service"
 	"github.com/clario360/platform/internal/auth"
 )
@@ -137,9 +139,29 @@ func (h *AuditHandler) GetTimeline(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Parse optional timeline filters
+	var filter *repository.TimelineFilter
+	q := r.URL.Query()
+	action := q.Get("action")
+	dateFromStr := q.Get("date_from")
+	dateToStr := q.Get("date_to")
+	if action != "" || dateFromStr != "" || dateToStr != "" {
+		filter = &repository.TimelineFilter{Action: action}
+		if dateFromStr != "" {
+			if t, err := time.Parse(time.RFC3339, dateFromStr); err == nil {
+				filter.DateFrom = t
+			}
+		}
+		if dateToStr != "" {
+			if t, err := time.Parse(time.RFC3339, dateToStr); err == nil {
+				filter.DateTo = t
+			}
+		}
+	}
+
 	roles := getRoles(r)
 
-	timeline, err := h.querySvc.GetTimeline(r.Context(), tenantID, resourceID, page, perPage, roles)
+	timeline, err := h.querySvc.GetTimeline(r.Context(), tenantID, resourceID, page, perPage, roles, filter)
 	if err != nil {
 		h.logger.Error().Err(err).Msg("failed to get timeline")
 		writeErrorResponse(w, http.StatusInternalServerError, "INTERNAL_ERROR", "failed to get timeline", r)

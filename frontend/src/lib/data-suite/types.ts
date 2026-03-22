@@ -191,6 +191,7 @@ export interface DataSource {
   created_by: string;
   created_at: string;
   updated_at: string;
+  deleted_at?: string | null;
 }
 
 export type DataModelStatus = 'draft' | 'active' | 'deprecated' | 'archived';
@@ -241,6 +242,7 @@ export interface DataModel {
   created_by: string;
   created_at: string;
   updated_at: string;
+  deleted_at?: string | null;
 }
 
 export interface ModelValidationError {
@@ -342,6 +344,7 @@ export interface Pipeline {
   created_by: string;
   created_at: string;
   updated_at: string;
+  deleted_at?: string | null;
 }
 
 export interface QualityGateResult {
@@ -455,6 +458,7 @@ export interface QualityRule {
   created_by: string;
   created_at: string;
   updated_at: string;
+  deleted_at?: string | null;
 }
 
 export interface QualityResult {
@@ -544,7 +548,7 @@ export interface ContradictionSource {
   source_id?: string | null;
   source_name: string;
   model_id?: string | null;
-  model_name?: string;
+  model_name: string;
   table_name?: string;
   column_name?: string;
   value?: JsonValue;
@@ -850,6 +854,7 @@ export interface SavedQuery {
   created_by: string;
   created_at: string;
   updated_at: string;
+  deleted_at?: string | null;
 }
 
 export interface AnalyticsAuditLog {

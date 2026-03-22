@@ -80,8 +80,20 @@ export function useAuditTimeline(
 export function useAuditExport() {
   return useMutation<void, AxiosError<ApiError>, AuditExportParams>({
     mutationFn: async (params) => {
+      // Backend expects columns as a single comma-separated string, not an array
+      const queryParams: Record<string, string | undefined> = {
+        format: params.format,
+        date_from: params.date_from,
+        date_to: params.date_to,
+        service: params.service,
+        action: params.action,
+        user_id: params.user_id,
+        resource_type: params.resource_type,
+        severity: params.severity,
+        columns: params.columns?.length ? params.columns.join(",") : undefined,
+      };
       const response = await api.get("/api/v1/audit/logs/export", {
-        params,
+        params: queryParams,
         responseType: "blob",
       });
       const ext = params.format === "csv" ? "csv" : "ndjson";

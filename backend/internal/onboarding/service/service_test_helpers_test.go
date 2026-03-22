@@ -372,6 +372,10 @@ func (f *fakeSessionRepo) GetByUserID(ctx context.Context, userID string) ([]iam
 	return out, nil
 }
 
+func (f *fakeSessionRepo) UpdateLastActive(ctx context.Context, id string) error {
+	return nil
+}
+
 func (f *fakeSessionRepo) Delete(ctx context.Context, id string) error {
 	return nil
 }

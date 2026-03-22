@@ -491,9 +491,35 @@ func auditDeriveUserName(email string) string {
 }
 
 // GetTimeline returns audit entries for a specific resource ordered by time.
-func (r *AuditRepository) GetTimeline(ctx context.Context, tenantID, resourceID string, limit, offset int) ([]model.AuditEntry, int, error) {
+// TimelineFilter holds optional filters for the resource timeline query.
+type TimelineFilter struct {
+	Action   string
+	DateFrom time.Time
+	DateTo   time.Time
+}
+
+func (r *AuditRepository) GetTimeline(ctx context.Context, tenantID, resourceID string, limit, offset int, filter *TimelineFilter) ([]model.AuditEntry, int, error) {
 	where := "WHERE tenant_id = $1 AND resource_id = $2"
 	args := []interface{}{tenantID, resourceID}
+	argIdx := 3
+
+	if filter != nil {
+		if filter.Action != "" {
+			where += fmt.Sprintf(" AND action ILIKE $%d", argIdx)
+			args = append(args, "%"+filter.Action+"%")
+			argIdx++
+		}
+		if !filter.DateFrom.IsZero() {
+			where += fmt.Sprintf(" AND created_at >= $%d", argIdx)
+			args = append(args, filter.DateFrom)
+			argIdx++
+		}
+		if !filter.DateTo.IsZero() {
+			where += fmt.Sprintf(" AND created_at <= $%d", argIdx)
+			args = append(args, filter.DateTo)
+			argIdx++
+		}
+	}
 
 	var total int
 	if err := r.db.QueryRow(ctx, "SELECT COUNT(*) FROM audit_logs "+where, args...).Scan(&total); err != nil {
