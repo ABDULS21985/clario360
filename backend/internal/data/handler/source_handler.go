@@ -10,17 +10,16 @@ import (
 	"github.com/clario360/platform/internal/data/connector"
 	"github.com/clario360/platform/internal/data/dto"
 	"github.com/clario360/platform/internal/data/model"
-	"github.com/clario360/platform/internal/data/service"
 	"github.com/clario360/platform/internal/suiteapi"
 )
 
 type SourceHandler struct {
 	baseHandler
-	service  *service.SourceService
-	registry *connector.ConnectorRegistry
+	service  sourceService
+	registry connectorRegistry
 }
 
-func NewSourceHandler(service *service.SourceService, registry *connector.ConnectorRegistry, logger zerolog.Logger) *SourceHandler {
+func NewSourceHandler(service sourceService, registry connectorRegistry, logger zerolog.Logger) *SourceHandler {
 	return &SourceHandler{
 		baseHandler: baseHandler{logger: logger},
 		service:     service,

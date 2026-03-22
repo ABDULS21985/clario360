@@ -442,6 +442,7 @@ export const enterpriseApi = {
     createDocument: (payload: unknown) => apiPost<{ data: LexDocument }>('/api/v1/lex/documents', payload).then((res) => res.data),
     getDocument: (id: string): Promise<LexDocument> => fetchSuiteData(`/api/v1/lex/documents/${id}`),
     updateDocument: (id: string, payload: unknown) => apiPut<{ data: LexDocument }>(`/api/v1/lex/documents/${id}`, payload).then((res) => res.data),
+    deleteDocument: (id: string) => apiDelete<void>(`/api/v1/lex/documents/${id}`),
     listDocumentVersions: (id: string): Promise<LexDocumentVersion[]> => fetchSuiteData(`/api/v1/lex/documents/${id}/versions`),
     uploadDocumentVersion: (id: string, payload: unknown) =>
       apiPost<{ data: LexDocumentVersion[] }>(`/api/v1/lex/documents/${id}/upload`, payload).then((res) => res.data),

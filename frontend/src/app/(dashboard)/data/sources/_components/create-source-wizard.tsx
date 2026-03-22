@@ -26,6 +26,12 @@ interface CreateSourceWizardProps {
 const STEPS = ['Type', 'Connection', 'Test', 'Schema', 'Configure'] as const;
 const CONFIGURE_FORM_ID = 'create-source-configure-form';
 
+/** Strip frontend-only fields that should not be persisted in connection_config. */
+function stripUIOnlyConfigFields(config: Record<string, unknown>): Record<string, unknown> {
+  const { upload_file_id, upload_file_name, ...rest } = config;
+  return rest;
+}
+
 export function CreateSourceWizard({
   open,
   onOpenChange,
@@ -76,7 +82,7 @@ export function CreateSourceWizard({
         name: deriveSourceName(state.sourceType, state.connectionConfig),
         description: '',
         type: state.sourceType,
-        connection_config: state.connectionConfig,
+        connection_config: stripUIOnlyConfigFields(state.connectionConfig),
         sync_frequency: null,
         tags: [],
         metadata: {},
@@ -95,7 +101,7 @@ export function CreateSourceWizard({
 
     if (state.persistedConfigSignature !== signature) {
       const updated = await dataSuiteApi.updateSource(state.createdSource.id, {
-        connection_config: state.connectionConfig,
+        connection_config: stripUIOnlyConfigFields(state.connectionConfig),
       });
       setState((current) => ({
         ...current,
@@ -116,7 +122,7 @@ export function CreateSourceWizard({
     try {
       const result = await dataSuiteApi.testSourceConfig({
         type: state.sourceType,
-        connection_config: state.connectionConfig,
+        connection_config: stripUIOnlyConfigFields(state.connectionConfig),
       });
       setState((current) => ({
         ...current,

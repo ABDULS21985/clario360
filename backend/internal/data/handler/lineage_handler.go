@@ -10,16 +10,15 @@ import (
 
 	"github.com/clario360/platform/internal/data/dto"
 	"github.com/clario360/platform/internal/data/model"
-	"github.com/clario360/platform/internal/data/service"
 	"github.com/clario360/platform/internal/suiteapi"
 )
 
 type LineageHandler struct {
 	baseHandler
-	service *service.LineageService
+	service lineageService
 }
 
-func NewLineageHandler(service *service.LineageService, logger zerolog.Logger) *LineageHandler {
+func NewLineageHandler(service lineageService, logger zerolog.Logger) *LineageHandler {
 	return &LineageHandler{
 		baseHandler: baseHandler{logger: logger},
 		service:     service,

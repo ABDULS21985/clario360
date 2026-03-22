@@ -112,34 +112,22 @@ func (s *ShadowService) Divergences(ctx context.Context, tenantID, modelID uuid.
 
 // predictionLogToDivergence converts a shadow PredictionLog (which has a
 // non-null shadow_divergence JSONB) into the ShadowDivergence struct the
-// frontend expects.
+// frontend expects. The JSONB column is a marshaled ShadowDivergence stored
+// by shadow.Executor, so we unmarshal the full struct and then override
+// authoritative fields from the PredictionLog itself.
 func predictionLogToDivergence(log *aigovmodel.PredictionLog) aigovmodel.ShadowDivergence {
-	d := aigovmodel.ShadowDivergence{
-		PredictionID: log.ID,
-		InputHash:    log.InputHash,
-		UseCase:      log.UseCase,
-		EntityID:     log.EntityID,
-		ShadowOutput: log.Prediction,
-		ShadowConfidence: log.Confidence,
-		CreatedAt:    log.CreatedAt,
-	}
-	// The shadow_divergence JSONB column may carry production-side data
-	// and a human-readable reason produced by the comparison service.
+	var d aigovmodel.ShadowDivergence
 	if len(log.ShadowDivergence) > 0 {
-		var embedded struct {
-			ProductionOutput     json.RawMessage `json:"production_output"`
-			ProductionConfidence *float64        `json:"production_confidence"`
-			Reason               string          `json:"reason"`
-		}
-		if err := json.Unmarshal(log.ShadowDivergence, &embedded); err == nil {
-			d.ProductionOutput = embedded.ProductionOutput
-			d.ProductionConfidence = embedded.ProductionConfidence
-			if embedded.Reason != "" {
-				d.Reason = embedded.Reason
-			}
-		}
+		_ = json.Unmarshal(log.ShadowDivergence, &d)
 	}
-	// Fall back to a generic reason when comparison service didn't populate one.
+	// Override with authoritative PredictionLog fields.
+	d.PredictionID = log.ID
+	d.InputHash = log.InputHash
+	d.UseCase = log.UseCase
+	d.EntityID = log.EntityID
+	d.ShadowOutput = log.Prediction
+	d.ShadowConfidence = log.Confidence
+	d.CreatedAt = log.CreatedAt
 	if d.Reason == "" {
 		d.Reason = "Shadow prediction diverged from production"
 	}

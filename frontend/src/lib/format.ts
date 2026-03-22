@@ -113,6 +113,9 @@ export function parseApiError(error: unknown): string {
     if (resp && typeof resp === "object") {
       // Backend wraps errors as { error: { code, message } }
       const nested = (resp as Record<string, unknown>).error;
+      if (typeof nested === "string") {
+        return nested;
+      }
       if (nested && typeof nested === "object" && "message" in nested) {
         return (nested as { message: string }).message;
       }

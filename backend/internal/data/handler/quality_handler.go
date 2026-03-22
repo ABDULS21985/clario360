@@ -7,16 +7,15 @@ import (
 	"github.com/rs/zerolog"
 
 	"github.com/clario360/platform/internal/data/dto"
-	"github.com/clario360/platform/internal/data/service"
 	"github.com/clario360/platform/internal/suiteapi"
 )
 
 type QualityHandler struct {
 	baseHandler
-	service *service.QualityService
+	service qualityService
 }
 
-func NewQualityHandler(service *service.QualityService, logger zerolog.Logger) *QualityHandler {
+func NewQualityHandler(service qualityService, logger zerolog.Logger) *QualityHandler {
 	return &QualityHandler{
 		baseHandler: baseHandler{logger: logger},
 		service:     service,

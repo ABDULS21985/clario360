@@ -16,6 +16,7 @@ interface SourceGridViewProps {
   onSync: (source: DataSource) => void;
   onEdit: (source: DataSource) => void;
   onDelete: (source: DataSource) => void;
+  onToggleStatus?: (source: DataSource) => void;
 }
 
 export function SourceGridView({
@@ -25,6 +26,7 @@ export function SourceGridView({
   onSync,
   onEdit,
   onDelete,
+  onToggleStatus,
 }: SourceGridViewProps) {
   return (
     <div className="grid grid-cols-1 gap-4 lg:grid-cols-3 md:grid-cols-2">
@@ -39,6 +41,7 @@ export function SourceGridView({
           onSync={onSync}
           onEdit={onEdit}
           onDelete={onDelete}
+          onToggleStatus={onToggleStatus}
         />
       ))}
     </div>

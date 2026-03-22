@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { MoreHorizontal, PlayCircle, RefreshCcw, TestTubeDiagonal, Trash2 } from 'lucide-react';
+import { MoreHorizontal, PlayCircle, Power, RefreshCcw, TestTubeDiagonal, Trash2 } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -31,6 +31,7 @@ interface SourceCardProps {
   onSync: (source: DataSource) => void;
   onEdit: (source: DataSource) => void;
   onDelete: (source: DataSource) => void;
+  onToggleStatus?: (source: DataSource) => void;
 }
 
 export function SourceCard({
@@ -42,6 +43,7 @@ export function SourceCard({
   onSync,
   onEdit,
   onDelete,
+  onToggleStatus,
 }: SourceCardProps) {
   const typeVisual = getSourceTypeVisual(source.type);
   const Icon = typeVisual.icon;
@@ -84,6 +86,12 @@ export function SourceCard({
             <DropdownMenuItem asChild>
               <Link href={`/data/sources/${source.id}?tab=pipelines`}>View pipelines</Link>
             </DropdownMenuItem>
+            {onToggleStatus && (source.status === 'active' || source.status === 'inactive') && (
+              <DropdownMenuItem onClick={() => onToggleStatus(source)}>
+                <Power className="mr-2 h-4 w-4" />
+                {source.status === 'active' ? 'Deactivate' : 'Activate'}
+              </DropdownMenuItem>
+            )}
             <DropdownMenuSeparator />
             <DropdownMenuItem className="text-rose-700 focus:text-rose-700" onClick={() => onDelete(source)}>
               <Trash2 className="mr-2 h-4 w-4" />
