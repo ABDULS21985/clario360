@@ -185,7 +185,7 @@ export function AuditPartitions() {
                           variant="ghost"
                           size="sm"
                           onClick={() =>
-                            archiveMutation.mutate(partition.id)
+                            archiveMutation.mutate(partition.name)
                           }
                           disabled={archiveMutation.isPending}
                           aria-label={`Archive ${partition.name}`}
@@ -251,7 +251,7 @@ export function AuditPartitions() {
             <AlertDialogAction
               onClick={() => {
                 if (deleteTarget) {
-                  deleteMutation.mutate(deleteTarget.id, {
+                  deleteMutation.mutate(deleteTarget.name, {
                     onSuccess: () => setDeleteTarget(null),
                   });
                 }

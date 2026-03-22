@@ -163,8 +163,8 @@ export function useCreateAuditPartition() {
 export function useArchiveAuditPartition() {
   const queryClient = useQueryClient();
   return useMutation<void, AxiosError<ApiError>, string>({
-    mutationFn: async (partitionId) => {
-      await api.post(`/api/v1/audit/partitions/${partitionId}/archive`);
+    mutationFn: async (partitionName) => {
+      await api.post(`/api/v1/audit/partitions/${partitionName}/archive`);
     },
     onSuccess: () => {
       toast.success("Partition archived successfully");
@@ -179,8 +179,8 @@ export function useArchiveAuditPartition() {
 export function useDeleteAuditPartition() {
   const queryClient = useQueryClient();
   return useMutation<void, AxiosError<ApiError>, string>({
-    mutationFn: async (partitionId) => {
-      await api.delete(`/api/v1/audit/partitions/${partitionId}`);
+    mutationFn: async (partitionName) => {
+      await api.delete(`/api/v1/audit/partitions/${partitionName}`);
     },
     onSuccess: () => {
       toast.success("Partition deleted successfully");

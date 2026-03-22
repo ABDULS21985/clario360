@@ -1,26 +1,34 @@
 'use client';
 
+import { useState } from 'react';
 import Link from 'next/link';
-import { useParams } from 'next/navigation';
-import { useQuery } from '@tanstack/react-query';
-import { Calendar, ClipboardList, FileText } from 'lucide-react';
+import { useParams, useRouter } from 'next/navigation';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Calendar, FileText, Pencil, Trash2 } from 'lucide-react';
 import { ErrorState } from '@/components/common/error-state';
 import { LoadingSkeleton } from '@/components/common/loading-skeleton';
 import { PageHeader } from '@/components/common/page-header';
 import { PermissionRedirect } from '@/components/common/permission-redirect';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { ConfirmDialog } from '@/components/shared/confirm-dialog';
 import { SectionCard } from '@/components/suites/section-card';
 import { StatusBadge } from '@/components/shared/status-badge';
 import { committeeStatusConfig, meetingStatusConfig, actionItemStatusConfig } from '@/lib/status-configs';
 import { enterpriseApi } from '@/lib/enterprise';
+import { showApiError, showSuccess } from '@/lib/toast';
 import { formatDate } from '@/lib/utils';
 import { CommitteeStats } from '../_components/committee-stats';
 import { MemberManagement } from '../_components/member-management';
+import { EditCommitteeDialog } from './_components/edit-committee-dialog';
 
 export default function CommitteeDetailPage() {
   const params = useParams<{ id: string }>();
+  const router = useRouter();
+  const queryClient = useQueryClient();
   const committeeId = params?.id ?? '';
+  const [editOpen, setEditOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
 
   const committeeQuery = useQuery({
     queryKey: ['acta-committee', committeeId],
@@ -48,6 +56,19 @@ export default function CommitteeDetailPage() {
         filters: { committee_id: committeeId },
       }),
     enabled: Boolean(committeeId),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: () => enterpriseApi.acta.deleteCommittee(committeeId),
+    onSuccess: async () => {
+      showSuccess('Committee deleted.', 'The committee has been permanently removed.');
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['acta-committees'] }),
+        queryClient.invalidateQueries({ queryKey: ['acta-dashboard'] }),
+      ]);
+      router.push('/acta/committees');
+    },
+    onError: showApiError,
   });
 
   if (committeeQuery.isLoading) {
@@ -81,7 +102,17 @@ export default function CommitteeDetailPage() {
           title={committee.name}
           description={committee.description}
           actions={
-            <StatusBadge status={committee.status} config={committeeStatusConfig} />
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" onClick={() => setEditOpen(true)}>
+                <Pencil className="mr-1.5 h-4 w-4" />
+                Edit
+              </Button>
+              <Button variant="destructive" size="sm" onClick={() => setDeleteOpen(true)}>
+                <Trash2 className="mr-1.5 h-4 w-4" />
+                Delete
+              </Button>
+              <StatusBadge status={committee.status} config={committeeStatusConfig} />
+            </div>
           }
         />
 
@@ -222,6 +253,24 @@ export default function CommitteeDetailPage() {
             </div>
           </SectionCard>
         </div>
+
+        <EditCommitteeDialog
+          open={editOpen}
+          onOpenChange={setEditOpen}
+          committee={committee}
+        />
+
+        <ConfirmDialog
+          open={deleteOpen}
+          onOpenChange={setDeleteOpen}
+          title="Delete Committee"
+          description={`Are you sure you want to delete "${committee.name}"? This action cannot be undone and will remove all associated records.`}
+          confirmLabel="Delete committee"
+          variant="destructive"
+          typeToConfirm={committee.name}
+          onConfirm={() => deleteMutation.mutateAsync()}
+          loading={deleteMutation.isPending}
+        />
       </div>
     </PermissionRedirect>
   );

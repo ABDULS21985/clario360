@@ -62,6 +62,9 @@ type ActionItemFilters struct {
 	AssigneeID  *uuid.UUID
 	Statuses    []ActionItemStatus
 	OverdueOnly bool
+	Search      string
+	Sort        string
+	Order       string
 	Page        int
 	PerPage     int
 }

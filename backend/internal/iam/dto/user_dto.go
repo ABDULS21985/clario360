@@ -55,7 +55,7 @@ type UserResponse struct {
 	LastLoginAt *time.Time     `json:"last_login_at,omitempty"`
 	CreatedAt   time.Time      `json:"created_at"`
 	UpdatedAt   time.Time      `json:"updated_at"`
-	Roles       []RoleResponse `json:"roles,omitempty"`
+	Roles       []RoleResponse `json:"roles"`
 }
 
 type MFASetupResponse struct {
@@ -100,11 +100,9 @@ func UserToResponse(u *model.User) UserResponse {
 		CreatedAt:   u.CreatedAt,
 		UpdatedAt:   u.UpdatedAt,
 	}
-	if len(u.Roles) > 0 {
-		resp.Roles = make([]RoleResponse, len(u.Roles))
-		for i, r := range u.Roles {
-			resp.Roles[i] = RoleToResponse(&r)
-		}
+	resp.Roles = make([]RoleResponse, len(u.Roles))
+	for i, r := range u.Roles {
+		resp.Roles[i] = RoleToResponse(&r)
 	}
 	return resp
 }

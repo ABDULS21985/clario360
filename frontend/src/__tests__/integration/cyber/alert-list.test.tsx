@@ -83,6 +83,9 @@ const server = setupServer(
   http.get(`${API_URL}/api/v1/cyber/alerts/stats`, () =>
     HttpResponse.json({ data: mockStats }),
   ),
+  http.get(`${API_URL}/api/v1/cyber/mitre/tactics`, () =>
+    HttpResponse.json({ data: [] }),
+  ),
 );
 
 beforeAll(() => server.listen({ onUnhandledRequest: 'bypass' }));
@@ -106,7 +109,7 @@ describe('Alert List Page', () => {
   it('renders page header', async () => {
     await renderPage();
     await waitFor(() => {
-      expect(screen.getByText('Security Alerts')).toBeInTheDocument();
+      expect(screen.getByText('Alert Management')).toBeInTheDocument();
     });
   });
 

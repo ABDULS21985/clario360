@@ -98,8 +98,52 @@ func (s *ShadowService) ComparisonHistory(ctx context.Context, tenantID, modelID
 	return s.comparisonRepo.History(ctx, tenantID, modelID, limit)
 }
 
-func (s *ShadowService) Divergences(ctx context.Context, tenantID, modelID uuid.UUID, page, perPage int) ([]aigovmodel.PredictionLog, int, error) {
-	return s.predictionRepo.ListDivergences(ctx, tenantID, modelID, page, perPage)
+func (s *ShadowService) Divergences(ctx context.Context, tenantID, modelID uuid.UUID, page, perPage int) ([]aigovmodel.ShadowDivergence, int, error) {
+	logs, total, err := s.predictionRepo.ListDivergences(ctx, tenantID, modelID, page, perPage)
+	if err != nil {
+		return nil, 0, err
+	}
+	out := make([]aigovmodel.ShadowDivergence, 0, len(logs))
+	for i := range logs {
+		out = append(out, predictionLogToDivergence(&logs[i]))
+	}
+	return out, total, nil
+}
+
+// predictionLogToDivergence converts a shadow PredictionLog (which has a
+// non-null shadow_divergence JSONB) into the ShadowDivergence struct the
+// frontend expects.
+func predictionLogToDivergence(log *aigovmodel.PredictionLog) aigovmodel.ShadowDivergence {
+	d := aigovmodel.ShadowDivergence{
+		PredictionID: log.ID,
+		InputHash:    log.InputHash,
+		UseCase:      log.UseCase,
+		EntityID:     log.EntityID,
+		ShadowOutput: log.Prediction,
+		ShadowConfidence: log.Confidence,
+		CreatedAt:    log.CreatedAt,
+	}
+	// The shadow_divergence JSONB column may carry production-side data
+	// and a human-readable reason produced by the comparison service.
+	if len(log.ShadowDivergence) > 0 {
+		var embedded struct {
+			ProductionOutput     json.RawMessage `json:"production_output"`
+			ProductionConfidence *float64        `json:"production_confidence"`
+			Reason               string          `json:"reason"`
+		}
+		if err := json.Unmarshal(log.ShadowDivergence, &embedded); err == nil {
+			d.ProductionOutput = embedded.ProductionOutput
+			d.ProductionConfidence = embedded.ProductionConfidence
+			if embedded.Reason != "" {
+				d.Reason = embedded.Reason
+			}
+		}
+	}
+	// Fall back to a generic reason when comparison service didn't populate one.
+	if d.Reason == "" {
+		d.Reason = "Shadow prediction diverged from production"
+	}
+	return d
 }
 
 func (s *ShadowService) publish(ctx context.Context, eventType string, tenantID uuid.UUID, payload map[string]any) {

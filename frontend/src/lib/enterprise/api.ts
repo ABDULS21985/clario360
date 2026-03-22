@@ -564,7 +564,8 @@ export const enterpriseApi = {
     getServer: (id: string): Promise<AIInferenceServer> => fetchSuiteData(`/api/v1/ai/inference-servers/${id}`),
     updateServerStatus: (id: string, payload: { status: string }) =>
       apiPut<{ data: AIInferenceServer }>(`/api/v1/ai/inference-servers/${id}/status`, payload).then((res) => res.data),
-    deleteServer: (id: string) => apiDelete<{ data: AIInferenceServer }>(`/api/v1/ai/inference-servers/${id}`),
+    deleteServer: (id: string): Promise<AIInferenceServer> =>
+      apiDelete<{ data: AIInferenceServer }>(`/api/v1/ai/inference-servers/${id}`).then((res) => res.data),
 
     // ── Benchmark Suites ───────────────────────────
     createBenchmarkSuite: (payload: Omit<AIBenchmarkSuite, 'id' | 'tenant_id' | 'created_by' | 'created_at' | 'updated_at'>): Promise<AIBenchmarkSuite> =>

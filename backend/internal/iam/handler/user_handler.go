@@ -82,7 +82,9 @@ func (h *UserHandler) List(w http.ResponseWriter, r *http.Request) {
 
 	page, perPage := parsePagination(r)
 	search := r.URL.Query().Get("search")
-	status := r.URL.Query().Get("status")
+	// Support multi-value status: ?status=active&status=suspended
+	statuses := r.URL.Query()["status"]
+	status := strings.Join(statuses, ",")
 	sort := r.URL.Query().Get("sort")
 	order := r.URL.Query().Get("order")
 

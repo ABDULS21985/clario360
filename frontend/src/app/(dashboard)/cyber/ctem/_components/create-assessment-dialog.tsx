@@ -14,8 +14,6 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { Checkbox } from '@/components/ui/checkbox';
-import { Label } from '@/components/ui/label';
 import { FormField } from '@/components/shared/forms/form-field';
 import { useApiMutation } from '@/hooks/use-api-mutation';
 import { API_ENDPOINTS } from '@/lib/constants';
@@ -24,9 +22,7 @@ import type { CTEMAssessment } from '@/types/cyber';
 const schema = z.object({
   name: z.string().min(2, 'Name is required').max(255),
   description: z.string().optional(),
-  all_assets: z.boolean(),
-  include_external_exposure: z.boolean(),
-  tags: z.string().optional(),
+  asset_tags: z.string().optional(),
 });
 
 type FormValues = z.infer<typeof schema>;
@@ -43,9 +39,7 @@ export function CreateAssessmentDialog({ open, onOpenChange, onSuccess }: Create
     defaultValues: {
       name: '',
       description: '',
-      all_assets: true,
-      include_external_exposure: true,
-      tags: '',
+      asset_tags: '',
     },
   });
 
@@ -64,14 +58,16 @@ export function CreateAssessmentDialog({ open, onOpenChange, onSuccess }: Create
   );
 
   const onSubmit = methods.handleSubmit((data) => {
+    const parsedTags = data.asset_tags
+      ? data.asset_tags.split(',').map((t) => t.trim()).filter(Boolean)
+      : [];
     mutate({
       name: data.name,
       description: data.description,
       scope: {
-        all_assets: data.all_assets,
-        include_external_exposure: data.include_external_exposure,
-        tags: data.tags ? data.tags.split(',').map((t) => t.trim()).filter(Boolean) : [],
+        asset_tags: parsedTags.length > 0 ? parsedTags : undefined,
       },
+      start: true,
     });
   });
 
@@ -93,28 +89,9 @@ export function CreateAssessmentDialog({ open, onOpenChange, onSuccess }: Create
             <FormField name="description" label="Description">
               <Textarea rows={2} placeholder="Scope, goals, or notes…" {...methods.register('description')} />
             </FormField>
-            <FormField name="tags" label="Tag Filter (comma separated)">
-              <Input placeholder="production, internet-facing" {...methods.register('tags')} />
+            <FormField name="asset_tags" label="Asset Tag Filter (comma separated)">
+              <Input placeholder="production, internet-facing" {...methods.register('asset_tags')} />
             </FormField>
-
-            <div className="space-y-2 rounded-lg border p-3">
-              <div className="flex items-center gap-2">
-                <Checkbox
-                  id="all_assets"
-                  checked={methods.watch('all_assets')}
-                  onCheckedChange={(v) => methods.setValue('all_assets', !!v)}
-                />
-                <Label htmlFor="all_assets" className="cursor-pointer text-sm">Include all assets</Label>
-              </div>
-              <div className="flex items-center gap-2">
-                <Checkbox
-                  id="include_external"
-                  checked={methods.watch('include_external_exposure')}
-                  onCheckedChange={(v) => methods.setValue('include_external_exposure', !!v)}
-                />
-                <Label htmlFor="include_external" className="cursor-pointer text-sm">Include external exposure analysis</Label>
-              </div>
-            </div>
 
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>

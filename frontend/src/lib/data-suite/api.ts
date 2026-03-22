@@ -21,6 +21,7 @@ import type {
   ImpactAnalysis,
   JsonValue,
   LineageGraph,
+  LineageSearchResult,
   LineageStatsSummary,
   ModelLineage,
   ModelValidationResult,
@@ -52,6 +53,7 @@ export const DATA_SUITE_ENDPOINTS = {
   sourceSchema: (id: string) => `/api/v1/data/sources/${id}/schema`,
   sourceSync: (id: string) => `/api/v1/data/sources/${id}/sync`,
   sourceSyncHistory: (id: string) => `/api/v1/data/sources/${id}/sync-history`,
+  sourceStatus: (id: string) => `/api/v1/data/sources/${id}/status`,
   sourceDetailsStats: (id: string) => `/api/v1/data/sources/${id}/stats`,
   models: '/api/v1/data/models',
   modelById: (id: string) => `/api/v1/data/models/${id}`,
@@ -178,6 +180,8 @@ export const dataSuiteApi = {
   createSource: (payload: unknown) => apiPost<DataEnvelope<DataSource>>(DATA_SUITE_ENDPOINTS.sources, payload).then((res) => res.data),
   updateSource: (id: string, payload: unknown) => apiPut<DataEnvelope<DataSource>>(DATA_SUITE_ENDPOINTS.sourceById(id), payload).then((res) => res.data),
   deleteSource: (id: string) => apiDelete<void>(DATA_SUITE_ENDPOINTS.sourceById(id)),
+  changeSourceStatus: (id: string, status: 'active' | 'inactive') =>
+    apiPatch<DataEnvelope<DataSource>>(DATA_SUITE_ENDPOINTS.sourceStatus(id), { status }).then((res) => res.data),
   testSourceConfig: (payload: unknown) => apiPost<DataEnvelope<ConnectionTestResult>>(DATA_SUITE_ENDPOINTS.sourceTestConfig, payload).then((res) => res.data),
   testSource: (id: string) => apiPost<DataEnvelope<ConnectionTestResult>>(DATA_SUITE_ENDPOINTS.sourceTest(id)).then((res) => res.data),
   discoverSource: (id: string) => apiPost<DataEnvelope<DiscoveredSchema>>(DATA_SUITE_ENDPOINTS.sourceDiscover(id), {}).then((res) => res.data),
@@ -233,7 +237,7 @@ export const dataSuiteApi = {
   getLineageImpact: (type: string, id: string) => fetchDataSuite<ImpactAnalysis>(DATA_SUITE_ENDPOINTS.lineageImpact(type, id)),
   getLineageStats: () => fetchDataSuite<LineageStatsSummary>(DATA_SUITE_ENDPOINTS.lineageStats),
   searchLineage: (query: string, type?: string, limit = 20) =>
-    fetchDataSuite<LineageGraph>(DATA_SUITE_ENDPOINTS.lineageSearch, { query, type, limit }),
+    fetchDataSuite<LineageSearchResult[]>(DATA_SUITE_ENDPOINTS.lineageSearch, { q: query, type, limit }),
   listDarkDataAssets: (params: FetchParams) => fetchDataSuitePaginated<DarkDataAsset>(DATA_SUITE_ENDPOINTS.darkData, params),
   getDarkDataAsset: (id: string) => fetchDataSuite<DarkDataAsset>(DATA_SUITE_ENDPOINTS.darkDataById(id)),
   updateDarkDataStatus: (id: string, payload: unknown) => apiPut<DataEnvelope<DarkDataAsset>>(DATA_SUITE_ENDPOINTS.darkDataStatus(id), payload).then((res) => res.data),

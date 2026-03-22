@@ -154,7 +154,7 @@ export function RuleWizard({
     );
   }, [selectedTactics, techniques]);
 
-  const mutation = useApiMutation<{ data: DetectionRule }, Record<string, unknown>>(
+  const mutation = useApiMutation<DetectionRule, Record<string, unknown>>(
     editingRule ? 'put' : 'post',
     editingRule ? API_ENDPOINTS.CYBER_RULE_DETAIL(editingRule.id) : API_ENDPOINTS.CYBER_RULES,
     {

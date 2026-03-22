@@ -41,7 +41,6 @@ async function fetchUsers(params: {
       order: params.order,
       search: params.search || undefined,
       status: params.filters?.status,
-      role: params.filters?.role,
     },
   });
   return data;

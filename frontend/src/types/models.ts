@@ -201,20 +201,21 @@ export interface TaskCounts {
 export interface AuditLog {
   id: string;
   tenant_id: string;
-  user_id: string | null;
+  user_id?: string | null;
   user_email: string;
   action: string;
-  service?: string;
+  service: string;
   resource_type: string;
-  resource_id: string | null;
+  resource_id: string;
   old_value?: Record<string, unknown> | null;
   new_value?: Record<string, unknown> | null;
-  severity?: 'info' | 'warning' | 'high' | 'critical';
+  severity: 'info' | 'warning' | 'high' | 'critical';
   ip_address: string;
   user_agent: string;
-  correlation_id?: string;
-  entry_hash?: string;
-  previous_hash?: string;
+  event_id: string;
+  correlation_id: string;
+  entry_hash: string;
+  previous_hash: string;
   metadata: Record<string, unknown>;
   created_at: string;
 }

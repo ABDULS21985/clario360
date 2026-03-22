@@ -685,6 +685,12 @@ export interface LineageStatsSummary {
   last_updated_at_unix_sec: number;
 }
 
+export interface LineageSearchResult {
+  node: LineageNode;
+  score: number;
+  match_fields: string[];
+}
+
 export type DarkDataAssetType =
   | 'database_table'
   | 'database_view'

@@ -184,7 +184,7 @@ export function CreateThreatDialog({
     }
   }, [methods, techniqueOptions]);
 
-  const createMutation = useApiMutation<{ data: Threat }, CreateThreatInput>(
+  const createMutation = useApiMutation<Threat, CreateThreatInput>(
     'post',
     API_ENDPOINTS.CYBER_THREATS,
     {
@@ -193,12 +193,12 @@ export function CreateThreatDialog({
       onSuccess: (response) => {
         methods.reset();
         onOpenChange(false);
-        onSuccess?.(response.data);
+        onSuccess?.(response);
       },
     },
   );
 
-  const updateMutation = useApiMutation<{ data: Threat }, CreateThreatInput>(
+  const updateMutation = useApiMutation<Threat, CreateThreatInput>(
     'put',
     () => API_ENDPOINTS.CYBER_THREAT_DETAIL(threat!.id),
     {
@@ -206,7 +206,7 @@ export function CreateThreatDialog({
       successMessage: 'Threat updated',
       onSuccess: (response) => {
         onOpenChange(false);
-        onSuccess?.(response.data);
+        onSuccess?.(response);
       },
     },
   );

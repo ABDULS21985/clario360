@@ -121,7 +121,7 @@ export default function DetectionRulesPage() {
     );
   }, [tacticsEnvelope?.data]);
 
-  const toggleMutation = useApiMutation<{ data: DetectionRule }, Record<string, unknown>>(
+  const toggleMutation = useApiMutation<DetectionRule, Record<string, unknown>>(
     'put',
     (variables) => API_ENDPOINTS.CYBER_RULE_TOGGLE(String(variables.id)),
     {

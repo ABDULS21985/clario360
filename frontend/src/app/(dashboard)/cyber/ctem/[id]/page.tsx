@@ -14,6 +14,7 @@ import { ArrowLeft, Target } from 'lucide-react';
 import { timeAgo } from '@/lib/utils';
 import { PhaseStepper } from './_components/phase-stepper';
 import { FindingTable } from './_components/finding-table';
+import { normalizeCTEMPhases } from '@/types/cyber';
 import type { CTEMAssessment } from '@/types/cyber';
 
 interface Props {
@@ -99,7 +100,7 @@ export default function CTEMAssessmentDetailPage({ params }: Props) {
             {/* Phase stepper */}
             <div className="rounded-xl border bg-card p-4">
               <h3 className="mb-4 text-sm font-semibold">Assessment Progress</h3>
-              <PhaseStepper phases={assessment.phases ?? []} currentPhase={assessment.current_phase} />
+              <PhaseStepper phases={normalizeCTEMPhases(assessment.phases)} currentPhase={assessment.current_phase} />
             </div>
 
             {/* Findings */}

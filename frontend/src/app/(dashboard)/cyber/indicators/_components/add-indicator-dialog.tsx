@@ -130,7 +130,7 @@ export function AddIndicatorDialog({
     });
   }, [indicator, methods, open]);
 
-  const createMutation = useApiMutation<{ data: ThreatIndicator }, StandaloneIndicatorInput>(
+  const createMutation = useApiMutation<ThreatIndicator, StandaloneIndicatorInput>(
     'post',
     API_ENDPOINTS.CYBER_INDICATORS,
     {
@@ -138,12 +138,12 @@ export function AddIndicatorDialog({
       successMessage: 'Indicator created',
       onSuccess: (response) => {
         onOpenChange(false);
-        onSuccess?.(response.data);
+        onSuccess?.(response);
       },
     },
   );
 
-  const updateMutation = useApiMutation<{ data: ThreatIndicator }, StandaloneIndicatorInput>(
+  const updateMutation = useApiMutation<ThreatIndicator, StandaloneIndicatorInput>(
     'put',
     () => API_ENDPOINTS.CYBER_INDICATOR_DETAIL(indicator!.id),
     {
@@ -151,7 +151,7 @@ export function AddIndicatorDialog({
       successMessage: 'Indicator updated',
       onSuccess: (response) => {
         onOpenChange(false);
-        onSuccess?.(response.data);
+        onSuccess?.(response);
       },
     },
   );

@@ -2,6 +2,7 @@ package handler
 
 import (
 	"net/http"
+	"strings"
 
 	"github.com/rs/zerolog"
 
@@ -77,6 +78,9 @@ func (h *ActionItemHandler) List(w http.ResponseWriter, r *http.Request) {
 	if overdueOnly != nil {
 		filters.OverdueOnly = *overdueOnly
 	}
+	filters.Search = strings.TrimSpace(r.URL.Query().Get("search"))
+	filters.Sort = strings.TrimSpace(r.URL.Query().Get("sort"))
+	filters.Order = strings.TrimSpace(r.URL.Query().Get("order"))
 	rawStatuses := suiteapi.ParseCSVParam(r, "status")
 	if len(rawStatuses) > 0 {
 		filters.Statuses = make([]model.ActionItemStatus, 0, len(rawStatuses))

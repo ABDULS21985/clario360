@@ -46,7 +46,7 @@ export default function DetectionRuleDetailPage() {
 
   const rule = ruleEnvelope?.data ? normalizeRule(ruleEnvelope.data) : null;
 
-  const toggleMutation = useApiMutation<{ data: DetectionRule }, Record<string, unknown>>(
+  const toggleMutation = useApiMutation<DetectionRule, Record<string, unknown>>(
     'put',
     () => API_ENDPOINTS.CYBER_RULE_TOGGLE(ruleId),
     {

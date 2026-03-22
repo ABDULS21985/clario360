@@ -276,7 +276,7 @@ func toAuditLogDetail(entry *model.AuditEntry) auditLogDetailResponse {
 		CorrelationID: entry.CorrelationID,
 		PreviousHash:  entry.PreviousHash,
 		EntryHash:     entry.EntryHash,
-		CreatedAt:     entry.CreatedAt.Format("2006-01-02T15:04:05Z"),
+		CreatedAt:     entry.CreatedAt.UTC().Format(time.RFC3339),
 		Changes:       computeChanges(entry.OldValue, entry.NewValue),
 	}
 

@@ -210,11 +210,17 @@ export interface CyberAsset {
   discovery_source?: string;
   discovered_at?: string;
   last_seen_at?: string;
+  last_scan_id?: string;
+  // Computed fields from backend JOINs
+  open_vulnerability_count?: number;
   vulnerability_count?: number;
   critical_vuln_count?: number;
   high_vuln_count?: number;
   alert_count?: number;
+  highest_vulnerability_severity?: string;
+  relationship_count?: number;
   metadata?: Record<string, unknown>;
+  created_by?: string;
   created_at: string;
   updated_at: string;
 }
@@ -247,13 +253,20 @@ export interface AssetScan {
   id: string;
   tenant_id: string;
   scan_type: string;
-  status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
-  target?: string;
-  assets_found: number;
+  config?: Record<string, unknown>;
+  status: 'running' | 'completed' | 'failed' | 'cancelled';
+  assets_discovered: number;
+  assets_found: number;  // alias for assets_discovered
+  assets_new: number;
   assets_updated: number;
-  started_at?: string;
+  error_count: number;
+  errors?: string[];
+  target?: string;       // derived from config.targets
+  error?: string;        // first error string
+  started_at: string;
   completed_at?: string;
-  error?: string;
+  duration_ms?: number;
+  created_by: string;
   created_at: string;
 }
 
@@ -749,8 +762,20 @@ export interface DetectionRuleTestResult {
 // ─── CTEM ─────────────────────────────────────────────────────────────────────
 
 export type CTEMPhase = 'scoping' | 'discovery' | 'prioritization' | 'validation' | 'mobilization';
-export type CTEMPhaseStatus = 'pending' | 'running' | 'completed' | 'failed';
+export type CTEMPhaseStatus = 'pending' | 'running' | 'completed' | 'failed' | 'skipped' | 'cancelled';
 
+/** Backend PhaseProgress — the raw shape returned from the API as a map value. */
+export interface PhaseProgress {
+  status: CTEMPhaseStatus;
+  started_at?: string;
+  completed_at?: string;
+  items_processed: number;
+  items_total: number;
+  errors?: string[];
+  result?: Record<string, unknown>;
+}
+
+/** Frontend-friendly phase info used by PhaseStepper (includes the phase key). */
 export interface CTEMPhaseInfo {
   phase: CTEMPhase;
   status: CTEMPhaseStatus;
@@ -760,22 +785,106 @@ export interface CTEMPhaseInfo {
   error?: string;
 }
 
+/**
+ * Normalizes phases from the backend map[string]PhaseProgress (JSON object)
+ * into the CTEMPhaseInfo[] array expected by frontend components.
+ */
+export function normalizeCTEMPhases(
+  phases: Record<string, PhaseProgress> | CTEMPhaseInfo[] | null | undefined,
+): CTEMPhaseInfo[] {
+  if (!phases) return [];
+  // Already an array — return as-is
+  if (Array.isArray(phases)) return phases;
+  // Object map — convert to array
+  return Object.entries(phases).map(([key, progress]) => ({
+    phase: key as CTEMPhase,
+    status: progress.status,
+    started_at: progress.started_at,
+    completed_at: progress.completed_at,
+    progress_percent:
+      progress.items_total > 0
+        ? Math.round((progress.items_processed / progress.items_total) * 100)
+        : undefined,
+    error: progress.errors?.[0],
+  }));
+}
+
+export type CTEMFindingType =
+  | 'vulnerability'
+  | 'misconfiguration'
+  | 'attack_path'
+  | 'exposure'
+  | 'weak_credential'
+  | 'missing_patch'
+  | 'expired_certificate'
+  | 'insecure_protocol';
+
+export type CTEMFindingCategory = 'technical' | 'configuration' | 'architectural' | 'operational';
+
+export type CTEMValidationStatus =
+  | 'pending'
+  | 'validated'
+  | 'compensated'
+  | 'not_exploitable'
+  | 'requires_manual';
+
+export type CTEMRemediationType =
+  | 'patch'
+  | 'configuration'
+  | 'architecture'
+  | 'upgrade'
+  | 'decommission'
+  | 'accept_risk';
+
+export type CTEMRemediationEffort = 'low' | 'medium' | 'high';
+
 export interface CTEMFinding {
   id: string;
+  tenant_id: string;
   assessment_id: string;
+  type: CTEMFindingType;
+  category: CTEMFindingCategory;
+  severity: CyberSeverity;
   title: string;
   description: string;
-  severity: CyberSeverity;
+  evidence?: Record<string, unknown>;
+  affected_asset_ids?: string[];
+  affected_asset_count: number;
+  primary_asset_id?: string;
+  vulnerability_ids?: string[];
+  cve_ids?: string[];
+  business_impact_score: number;
+  business_impact_factors?: Record<string, unknown>;
+  exploitability_score: number;
+  exploitability_factors?: Record<string, unknown>;
   priority_score: number;
+  priority_group: number;
+  priority_rank?: number;
+  validation_status: CTEMValidationStatus;
+  compensating_controls?: string[];
+  validation_notes?: string;
+  validated_at?: string;
+  remediation_type?: CTEMRemediationType;
+  remediation_description?: string;
+  remediation_effort?: CTEMRemediationEffort;
+  remediation_group_id?: string;
+  estimated_days?: number;
   status: 'open' | 'in_remediation' | 'remediated' | 'accepted_risk' | 'false_positive' | 'deferred';
+  status_changed_by?: string;
+  status_changed_at?: string;
+  status_notes?: string;
+  attack_path?: Record<string, unknown>;
+  attack_path_length?: number;
+  metadata?: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+
+  // Legacy frontend aliases (for backward compatibility with existing components)
   asset_id?: string;
   asset_name?: string;
   cvss_score?: number;
-  exploit_available: boolean;
-  attack_path?: string[];
+  exploit_available?: boolean;
   remediation_steps?: string[];
-  created_at: string;
-  updated_at: string;
 }
 
 export interface CTEMAssessment {
@@ -785,16 +894,18 @@ export interface CTEMAssessment {
   description?: string;
   status: 'created' | 'scoping' | 'discovery' | 'prioritizing' | 'validating' | 'mobilizing' | 'completed' | 'failed' | 'cancelled';
   current_phase?: CTEMPhase;
-  phases: CTEMPhaseInfo[];
+  /** Backend returns map[string]PhaseProgress; use normalizeCTEMPhases() before rendering. */
+  phases: Record<string, PhaseProgress> | CTEMPhaseInfo[];
   scope: {
-    all_assets: boolean;
     asset_types?: string[];
-    tags?: string[];
-    departments?: string[];
+    asset_tags?: string[];
     asset_ids?: string[];
-    excluded_asset_ids?: string[];
-    include_external_exposure: boolean;
+    departments?: string[];
+    cidr_ranges?: string[];
+    exclude_asset_ids?: string[];
   };
+  resolved_asset_ids?: string[];
+  resolved_asset_count?: number;
   findings_summary?: {
     critical: number;
     high: number;
@@ -803,8 +914,16 @@ export interface CTEMAssessment {
     total: number;
   };
   exposure_score?: number;
+  score_breakdown?: Record<string, unknown>;
   findings?: CTEMFinding[];
-  error?: string;
+  error_message?: string;
+  error_phase?: string;
+  scheduled?: boolean;
+  schedule_cron?: string;
+  parent_assessment_id?: string;
+  tags?: string[];
+  duration_ms?: number;
+  created_by?: string;
   started_at?: string;
   completed_at?: string;
   created_at: string;
@@ -937,12 +1056,21 @@ export interface VerificationResult {
   duration_ms: number;
 }
 
+export interface RollbackResult {
+  success: boolean;
+  steps_reverted: number;
+  duration_ms: number;
+  error?: string;
+}
+
 export interface RemediationAction {
   id: string;
   tenant_id: string;
   alert_id?: string;
   vulnerability_id?: string;
   assessment_id?: string;
+  ctem_finding_id?: string;
+  remediation_group_id?: string;
   type: string;
   severity: CyberSeverity;
   title: string;
@@ -950,20 +1078,42 @@ export interface RemediationAction {
   status: RemediationStatus;
   plan: RemediationPlan;
   affected_asset_ids: string[];
+  affected_asset_count?: number;
   execution_mode: string;
+  // Approval chain
+  submitted_by?: string;
+  submitted_at?: string;
   requires_approval_from?: string;
   approved_by?: string;
   approved_at?: string;
+  approval_notes?: string;
   rejected_by?: string;
   rejected_at?: string;
+  rejection_reason?: string;
+  revision_requested?: boolean;
+  // Dry run
   dry_run_at?: string;
+  dry_run_duration_ms?: number;
   dry_run_result?: DryRunResult;
-  executed_at?: string;
-  execution_result?: ExecutionResult;
-  verification_result?: VerificationResult;
-  rollback_deadline?: string;
-  rollback_reason?: string;
+  // Execution
   pre_execution_state?: unknown;
+  executed_by?: string;
+  execution_started_at?: string;
+  execution_completed_at?: string;
+  execution_duration_ms?: number;
+  execution_result?: ExecutionResult;
+  // Verification
+  verified_by?: string;
+  verified_at?: string;
+  verification_result?: VerificationResult;
+  // Rollback
+  rollback_result?: RollbackResult;
+  rollback_reason?: string;
+  rollback_approved_by?: string;
+  rolled_back_at?: string;
+  rollback_deadline?: string;
+  // Workflow
+  workflow_instance_id?: string;
   tags: string[];
   metadata?: Record<string, unknown>;
   created_at: string;

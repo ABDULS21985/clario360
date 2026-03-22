@@ -152,7 +152,7 @@ export function AddFeedDialog({
     });
   }, [feed, methods, open]);
 
-  const createMutation = useApiMutation<{ data: ThreatFeedConfig }, ThreatFeedConfigInput>(
+  const createMutation = useApiMutation<ThreatFeedConfig, ThreatFeedConfigInput>(
     'post',
     API_ENDPOINTS.CYBER_THREAT_FEEDS,
     {
@@ -160,12 +160,12 @@ export function AddFeedDialog({
       successMessage: 'Threat feed created',
       onSuccess: (response) => {
         onOpenChange(false);
-        onSuccess?.(response.data);
+        onSuccess?.(response);
       },
     },
   );
 
-  const updateMutation = useApiMutation<{ data: ThreatFeedConfig }, ThreatFeedConfigInput>(
+  const updateMutation = useApiMutation<ThreatFeedConfig, ThreatFeedConfigInput>(
     'put',
     () => `${API_ENDPOINTS.CYBER_THREAT_FEEDS}/${feed!.id}`,
     {
@@ -173,7 +173,7 @@ export function AddFeedDialog({
       successMessage: 'Threat feed updated',
       onSuccess: (response) => {
         onOpenChange(false);
-        onSuccess?.(response.data);
+        onSuccess?.(response);
       },
     },
   );

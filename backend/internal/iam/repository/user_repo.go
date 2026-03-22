@@ -174,9 +174,21 @@ func (r *userRepo) List(ctx context.Context, tenantID string, filter UserFilter)
 	conditions = append(conditions, "u.deleted_at IS NULL")
 
 	if filter.Status != nil && *filter.Status != "" {
-		conditions = append(conditions, fmt.Sprintf("u.status = $%d", argIdx))
-		args = append(args, *filter.Status)
-		argIdx++
+		// Support comma-separated multi-status: "active,suspended"
+		statusValues := strings.Split(*filter.Status, ",")
+		if len(statusValues) == 1 {
+			conditions = append(conditions, fmt.Sprintf("u.status = $%d", argIdx))
+			args = append(args, statusValues[0])
+			argIdx++
+		} else {
+			placeholders := make([]string, len(statusValues))
+			for i, sv := range statusValues {
+				placeholders[i] = fmt.Sprintf("$%d", argIdx)
+				args = append(args, strings.TrimSpace(sv))
+				argIdx++
+			}
+			conditions = append(conditions, fmt.Sprintf("u.status IN (%s)", strings.Join(placeholders, ", ")))
+		}
 	}
 	if filter.Search != nil && *filter.Search != "" {
 		search := "%" + *filter.Search + "%"

@@ -186,11 +186,17 @@ func (s *Store) ListActionItems(ctx context.Context, tenantID uuid.UUID, filters
 	if filters.OverdueOnly {
 		where = append(where, "due_date < CURRENT_DATE", "status IN ('pending', 'in_progress', 'overdue')")
 	}
+	if filters.Search != "" {
+		where = append(where, fmt.Sprintf("(title ILIKE $%d OR description ILIKE $%d OR assignee_name ILIKE $%d)", argPos, argPos, argPos))
+		args = append(args, "%"+filters.Search+"%")
+		argPos++
+	}
 	whereClause := strings.Join(where, " AND ")
 	var total int
 	if err := s.db.QueryRow(ctx, "SELECT COUNT(*) FROM action_items WHERE "+whereClause, args...).Scan(&total); err != nil {
 		return nil, 0, fmt.Errorf("count action items: %w", err)
 	}
+	orderClause := actionItemOrderClause(filters.Sort, filters.Order)
 	query := fmt.Sprintf(`
 		SELECT id, tenant_id, meeting_id, agenda_item_id, committee_id, title, description,
 		       priority, assigned_to, assignee_name, assigned_by, due_date, original_due_date,
@@ -199,9 +205,9 @@ func (s *Store) ListActionItems(ctx context.Context, tenantID uuid.UUID, filters
 		       created_by, created_at, updated_at
 		FROM action_items
 		WHERE %s
-		ORDER BY due_date ASC, created_at DESC
+		ORDER BY %s
 		LIMIT $%d OFFSET $%d`,
-		whereClause, argPos, argPos+1,
+		whereClause, orderClause, argPos, argPos+1,
 	)
 	args = append(args, filters.PerPage, offset)
 	rows, err := s.db.Query(ctx, query, args...)
@@ -373,4 +379,25 @@ func scanActionItem(scanner rowScanner) (*model.ActionItem, error) {
 		return nil, fmt.Errorf("decode action item metadata: %w", err)
 	}
 	return &item, nil
+}
+
+// actionItemOrderClause returns a safe ORDER BY clause from user-supplied sort/order params.
+func actionItemOrderClause(sort, order string) string {
+	allowed := map[string]string{
+		"due_date":   "due_date",
+		"created_at": "created_at",
+		"updated_at": "updated_at",
+		"title":      "title",
+		"priority":   "priority",
+		"status":     "status",
+	}
+	col, ok := allowed[sort]
+	if !ok {
+		return "due_date ASC, created_at DESC"
+	}
+	dir := "ASC"
+	if strings.EqualFold(order, "desc") {
+		dir = "DESC"
+	}
+	return col + " " + dir + ", created_at DESC"
 }

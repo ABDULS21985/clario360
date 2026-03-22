@@ -57,7 +57,7 @@ export default function ThreatDetailPage({ params }: Props) {
     [threat],
   );
 
-  const statusMutation = useApiMutation<{ data: Threat }, { status: ThreatStatus }>(
+  const statusMutation = useApiMutation<Threat, { status: ThreatStatus }>(
     'put',
     API_ENDPOINTS.CYBER_THREAT_STATUS(threatId),
     {
@@ -70,7 +70,7 @@ export default function ThreatDetailPage({ params }: Props) {
     },
   );
 
-  const deleteMutation = useApiMutation<{ data: { deleted: boolean } }, { id: string }>(
+  const deleteMutation = useApiMutation<{ deleted: boolean }, { id: string }>(
     'delete',
     ({ id }) => API_ENDPOINTS.CYBER_THREAT_DETAIL(id),
     {
