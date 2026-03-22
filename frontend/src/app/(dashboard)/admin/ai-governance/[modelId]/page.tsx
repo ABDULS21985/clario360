@@ -173,7 +173,7 @@ export default function AIModelDetailPage() {
 
   if (!hasModelId) {
     return (
-      <PermissionRedirect permission="users:read">
+      <PermissionRedirect permission="admin:read">
         <div className="space-y-6">
           <PageHeader
             title="AI Model"
@@ -187,7 +187,7 @@ export default function AIModelDetailPage() {
 
   if (modelQuery.isLoading) {
     return (
-      <PermissionRedirect permission="users:read">
+      <PermissionRedirect permission="admin:read">
         <div className="space-y-6">
           <PageHeader
             title="AI Model"
@@ -201,7 +201,7 @@ export default function AIModelDetailPage() {
 
   if (modelQuery.error) {
     return (
-      <PermissionRedirect permission="users:read">
+      <PermissionRedirect permission="admin:read">
         <div className="space-y-6">
           <PageHeader
             title="AI Model"
@@ -227,7 +227,7 @@ export default function AIModelDetailPage() {
 
   if (!model) {
     return (
-      <PermissionRedirect permission="users:read">
+      <PermissionRedirect permission="admin:read">
         <div className="space-y-6">
           <PageHeader
             title="AI Model"
@@ -245,7 +245,7 @@ export default function AIModelDetailPage() {
   }
 
   return (
-    <PermissionRedirect permission="users:read">
+    <PermissionRedirect permission="admin:read">
       <div className="space-y-6">
         <PageHeader
           title={model?.name ?? 'AI Model'}

@@ -25,16 +25,20 @@ import {
 } from '@/components/ui/select';
 import { useWorkflowDefinitions } from '@/hooks/use-workflow-definitions';
 import { useCreateWorkflowInstance } from '@/hooks/use-workflow-instances-ext';
-import type { WorkflowDefinition, WorkflowVariable } from '@/types/models';
+import type { WorkflowDefinition, WorkflowInstance, WorkflowVariable } from '@/types/models';
 
 interface StartWorkflowDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** Called with the new instance after it is created. When omitted the dialog
+   *  navigates to the admin instance detail page as the default. */
+  onSuccess?: (instance: WorkflowInstance) => void;
 }
 
 export function StartWorkflowDialog({
   open,
   onOpenChange,
+  onSuccess,
 }: StartWorkflowDialogProps) {
   const router = useRouter();
   const [step, setStep] = useState<1 | 2 | 3>(1);
@@ -90,7 +94,11 @@ export function StartWorkflowDialog({
       {
         onSuccess: (instance) => {
           handleOpenChange(false);
-          router.push(`/admin/workflows/instances/${instance.id}`);
+          if (onSuccess) {
+            onSuccess(instance);
+          } else {
+            router.push(`/admin/workflows/instances/${instance.id}`);
+          }
         },
       },
     );

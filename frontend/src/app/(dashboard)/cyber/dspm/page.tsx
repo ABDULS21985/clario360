@@ -167,7 +167,7 @@ export default function CyberDspmPage() {
                 <h3 className="mb-4 text-sm font-semibold">Scan Activity</h3>
                 <div className="flex items-center gap-4">
                   <div className="flex flex-col items-center">
-                    <span className="text-3xl font-bold text-blue-600">{dashboard.recent_scans.length}</span>
+                    <span className="text-3xl font-bold text-blue-600">{(dashboard.recent_scans ?? []).length}</span>
                     <span className="text-xs text-muted-foreground">Scans (30d)</span>
                   </div>
                 </div>

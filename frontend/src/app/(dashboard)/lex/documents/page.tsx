@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { type ColumnDef } from '@tanstack/react-table';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { File, MoreHorizontal, Pencil, Plus, Trash2 } from 'lucide-react';
+import { File, MoreHorizontal, Pencil, Plus, Trash2, Upload } from 'lucide-react';
 import { PageHeader } from '@/components/common/page-header';
 import { PermissionRedirect } from '@/components/common/permission-redirect';
 import { ConfirmDialog } from '@/components/shared/confirm-dialog';
@@ -16,6 +16,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { useDataTable } from '@/hooks/use-data-table';
@@ -27,6 +28,7 @@ import { documentStatusConfig } from '@/lib/status-configs';
 import { showApiError, showSuccess } from '@/lib/toast';
 import type { LexDocument } from '@/types/suites';
 import { DocumentFormDialog } from './_components/document-form-dialog';
+import { UploadVersionDialog } from './_components/upload-version-dialog';
 
 const DOCUMENT_FILTERS = [
   {
@@ -67,6 +69,7 @@ export default function LexDocumentsPage() {
   const [createOpen, setCreateOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<LexDocument | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<LexDocument | null>(null);
+  const [uploadTarget, setUploadTarget] = useState<LexDocument | null>(null);
 
   const { tableProps, searchValue, setSearch } = useDataTable<LexDocument>({
     queryKey: 'lex-documents',
@@ -153,6 +156,11 @@ export default function LexDocumentsPage() {
                     <Pencil className="mr-2 h-4 w-4" />
                     Edit
                   </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setUploadTarget(row.original)}>
+                    <Upload className="mr-2 h-4 w-4" />
+                    Upload version
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
                   <DropdownMenuItem
                     className="text-destructive"
                     onClick={() => setDeleteTarget(row.original)}
@@ -223,6 +231,11 @@ export default function LexDocumentsPage() {
           onConfirm={() => {
             if (deleteTarget) deleteMutation.mutate(deleteTarget.id);
           }}
+        />
+        <UploadVersionDialog
+          document={uploadTarget}
+          open={uploadTarget !== null}
+          onOpenChange={(open) => { if (!open) setUploadTarget(null); }}
         />
       </div>
     </PermissionRedirect>

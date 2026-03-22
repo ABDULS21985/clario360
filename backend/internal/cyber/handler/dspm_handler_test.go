@@ -26,7 +26,7 @@ import (
 type mockDSPMService struct {
 	listDataAssetsFn        func(ctx context.Context, tenantID uuid.UUID, params *dto.DSPMAssetListParams) (*dto.DSPMAssetListResponse, error)
 	getDataAssetFn          func(ctx context.Context, tenantID, assetID uuid.UUID) (*model.DSPMDataAsset, error)
-	triggerScanFn           func(ctx context.Context, tenantID, userID uuid.UUID, actor *service.Actor) (*model.DSPMScan, error)
+	triggerScanFn           func(ctx context.Context, tenantID, userID uuid.UUID, actor *service.Actor, req *dto.DSPMScanTriggerRequest) (*model.DSPMScan, error)
 	listScansFn             func(ctx context.Context, tenantID uuid.UUID, params *dto.DSPMScanListParams) (*dto.DSPMScanListResponse, error)
 	getScanFn               func(ctx context.Context, tenantID, scanID uuid.UUID) (*model.DSPMScanResult, error)
 	classificationSummaryFn func(ctx context.Context, tenantID uuid.UUID) (*model.DSPMClassificationSummary, error)
@@ -50,9 +50,9 @@ func (m *mockDSPMService) GetDataAsset(ctx context.Context, tenantID, assetID uu
 	return nil, nil
 }
 
-func (m *mockDSPMService) TriggerScan(ctx context.Context, tenantID, userID uuid.UUID, actor *service.Actor) (*model.DSPMScan, error) {
+func (m *mockDSPMService) TriggerScan(ctx context.Context, tenantID, userID uuid.UUID, actor *service.Actor, req *dto.DSPMScanTriggerRequest) (*model.DSPMScan, error) {
 	if m.triggerScanFn != nil {
-		return m.triggerScanFn(ctx, tenantID, userID, actor)
+		return m.triggerScanFn(ctx, tenantID, userID, actor, req)
 	}
 	return nil, nil
 }
@@ -506,7 +506,7 @@ func TestTriggerScan_Success(t *testing.T) {
 	now := time.Now()
 
 	mock := &mockDSPMService{
-		triggerScanFn: func(ctx context.Context, tid, uid uuid.UUID, actor *service.Actor) (*model.DSPMScan, error) {
+		triggerScanFn: func(ctx context.Context, tid, uid uuid.UUID, actor *service.Actor, req *dto.DSPMScanTriggerRequest) (*model.DSPMScan, error) {
 			if tid != tenantID {
 				t.Errorf("expected tenantID %s, got %s", tenantID, tid)
 			}
@@ -548,7 +548,7 @@ func TestTriggerScan_ServiceError(t *testing.T) {
 	userID := uuid.New()
 
 	mock := &mockDSPMService{
-		triggerScanFn: func(ctx context.Context, tid, uid uuid.UUID, actor *service.Actor) (*model.DSPMScan, error) {
+		triggerScanFn: func(ctx context.Context, tid, uid uuid.UUID, actor *service.Actor, req *dto.DSPMScanTriggerRequest) (*model.DSPMScan, error) {
 			return nil, fmt.Errorf("scan engine unavailable")
 		},
 	}

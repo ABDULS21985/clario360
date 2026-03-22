@@ -257,6 +257,13 @@ function FileDetailDialog({
               <Button
                 onClick={() => void onDownload(file)}
                 disabled={busyKey === `download:${file.id}` || file.status === 'quarantined'}
+                title={
+                  file.virus_scan_status === 'pending' || file.virus_scan_status === 'scanning'
+                    ? 'Virus scan in progress'
+                    : file.virus_scan_status === 'error'
+                      ? 'Virus scan failed'
+                      : undefined
+                }
               >
                 <Download className="mr-2 h-4 w-4" />
                 Download
@@ -569,6 +576,11 @@ export default function FilesPage() {
 
   const handleDownload = async (file: FileRecord) => {
     setBusyKey(`download:${file.id}`);
+    if (file.virus_scan_status === 'pending' || file.virus_scan_status === 'scanning') {
+      toast.warning('Virus scan in progress — file has not been cleared yet');
+    } else if (file.virus_scan_status === 'error') {
+      toast.warning('Virus scan failed — download at your own risk');
+    }
     try {
       const blob = await enterpriseApi.files.download(file.id);
       downloadBlob(blob, file.original_name || file.name);
@@ -900,6 +912,13 @@ export default function FilesPage() {
                               size="sm"
                               disabled={busyKey === `download:${file.id}` || file.status === 'quarantined'}
                               onClick={() => void handleDownload(file)}
+                              title={
+                                file.virus_scan_status === 'pending' || file.virus_scan_status === 'scanning'
+                                  ? 'Virus scan in progress'
+                                  : file.virus_scan_status === 'error'
+                                    ? 'Virus scan failed'
+                                    : undefined
+                              }
                             >
                               <Download className="mr-2 h-4 w-4" />
                               Download

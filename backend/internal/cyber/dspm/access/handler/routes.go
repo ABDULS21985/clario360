@@ -20,6 +20,7 @@ func RegisterRoutes(r chi.Router, h *AccessIntelligenceHandler) {
 		r.Get("/identities/{identityId}/mappings", h.GetIdentityMappings)
 		r.Get("/identities/{identityId}/blast-radius", h.GetBlastRadius)
 		r.Get("/identities/{identityId}/recommendations", h.GetRecommendations)
+		r.Get("/identities/{identityId}/audit", h.GetIdentityAudit)
 
 		// Data asset access
 		r.Get("/assets/{assetId}/identities", h.GetAssetIdentities)

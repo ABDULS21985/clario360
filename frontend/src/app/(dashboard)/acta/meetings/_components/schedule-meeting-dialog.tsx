@@ -96,7 +96,7 @@ export function ScheduleMeetingDialog({
           >
             <FormField name="committee_id" label="Committee" required>
               <Select
-                value={form.watch('committee_id')}
+                value={form.watch('committee_id') ?? undefined}
                 onValueChange={(value) => form.setValue('committee_id', value, { shouldValidate: true })}
               >
                 <SelectTrigger>

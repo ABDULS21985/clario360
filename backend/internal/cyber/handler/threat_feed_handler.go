@@ -8,15 +8,16 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"github.com/clario360/platform/internal/cyber/dto"
+	"github.com/clario360/platform/internal/cyber/repository"
 	"github.com/clario360/platform/internal/cyber/service"
 	pkgvalidator "github.com/clario360/platform/pkg/validator"
 )
 
 type ThreatFeedHandler struct {
-	svc *service.ThreatFeedService
+	svc threatFeedService
 }
 
-func NewThreatFeedHandler(svc *service.ThreatFeedService) *ThreatFeedHandler {
+func NewThreatFeedHandler(svc threatFeedService) *ThreatFeedHandler {
 	return &ThreatFeedHandler{svc: svc}
 }
 
@@ -43,6 +44,27 @@ func (h *ThreatFeedHandler) List(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, result)
+}
+
+func (h *ThreatFeedHandler) Get(w http.ResponseWriter, r *http.Request) {
+	tenantID, _, ok := requireTenantAndUser(w, r)
+	if !ok {
+		return
+	}
+	feedID, ok := parseUUID(w, chi.URLParam(r, "feedId"))
+	if !ok {
+		return
+	}
+	item, err := h.svc.GetFeed(r.Context(), tenantID, feedID, actorFromRequest(r))
+	if err != nil {
+		if errors.Is(err, repository.ErrNotFound) {
+			writeError(w, http.StatusNotFound, "NOT_FOUND", "threat feed not found", nil)
+			return
+		}
+		writeError(w, http.StatusInternalServerError, "GET_FAILED", err.Error(), nil)
+		return
+	}
+	writeJSON(w, http.StatusOK, envelope{"data": item})
 }
 
 func (h *ThreatFeedHandler) Create(w http.ResponseWriter, r *http.Request) {
@@ -139,4 +161,25 @@ func (h *ThreatFeedHandler) History(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, envelope{"data": items})
+}
+
+func (h *ThreatFeedHandler) Delete(w http.ResponseWriter, r *http.Request) {
+	tenantID, _, ok := requireTenantAndUser(w, r)
+	if !ok {
+		return
+	}
+	feedID, ok := parseUUID(w, chi.URLParam(r, "feedId"))
+	if !ok {
+		return
+	}
+	err := h.svc.DeleteFeed(r.Context(), tenantID, feedID, actorFromRequest(r))
+	if err != nil {
+		if errors.Is(err, repository.ErrNotFound) {
+			writeError(w, http.StatusNotFound, "NOT_FOUND", "threat feed not found", nil)
+			return
+		}
+		writeError(w, http.StatusInternalServerError, "DELETE_FAILED", err.Error(), nil)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }

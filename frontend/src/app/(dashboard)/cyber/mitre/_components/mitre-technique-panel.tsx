@@ -66,7 +66,7 @@ export function MitreTechniquePanel({ technique, onClose }: MitreTechniquePanelP
             <p className="text-sm font-medium">Description</p>
             <p className="mt-2 text-sm leading-7 text-slate-700">{detail.description}</p>
             <a
-              href={`https://attack.mitre.org/techniques/${detail.id}/`}
+              href={`https://attack.mitre.org/techniques/${detail.id.replace('.', '/')}/`}
               target="_blank"
               rel="noreferrer"
               className="mt-3 inline-flex items-center gap-2 text-sm text-emerald-700 hover:underline"

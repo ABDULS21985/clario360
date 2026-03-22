@@ -158,6 +158,14 @@ export function RiskDetailPanel({
         .map((s) => s.trim())
         .filter(Boolean),
       review_date: editForm.review_date || undefined,
+      // Preserve fields not exposed in the edit form
+      inherent_score: risk.inherent_score,
+      residual_score: risk.residual_score,
+      owner_id: risk.owner_id || undefined,
+      owner_name: risk.owner_name,
+      tags: risk.tags,
+      acceptance_rationale: risk.acceptance_rationale || undefined,
+      acceptance_expiry: risk.acceptance_expiry || undefined,
     });
   };
 

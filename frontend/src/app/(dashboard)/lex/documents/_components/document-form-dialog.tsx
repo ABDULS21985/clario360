@@ -30,7 +30,8 @@ import {
   type LexDocumentFormValues,
 } from '@/lib/enterprise';
 import { showApiError, showSuccess } from '@/lib/toast';
-import type { FileUploadRecord, LexDocument } from '@/types/suites';
+import type { FileRecord } from '@/types/models';
+import type { LexDocument } from '@/types/suites';
 
 interface DocumentFormDialogProps {
   document?: LexDocument | null;
@@ -57,6 +58,13 @@ const CONFIDENTIALITY_LEVELS = [
   'internal',
   'confidential',
   'privileged',
+] as const;
+
+const DOCUMENT_STATUSES = [
+  { value: 'draft', label: 'Draft' },
+  { value: 'active', label: 'Active' },
+  { value: 'archived', label: 'Archived' },
+  { value: 'superseded', label: 'Superseded' },
 ] as const;
 
 export function DocumentFormDialog({
@@ -150,6 +158,28 @@ export function DocumentFormDialog({
             <FormField name="title" label="Title" required>
               <Input id="title" {...form.register('title')} placeholder="Data Protection Policy" />
             </FormField>
+
+            {isEdit ? (
+              <FormField name="status" label="Status" required>
+                <Select
+                  value={form.watch('status') ?? 'active'}
+                  onValueChange={(value) =>
+                    form.setValue('status', value as NonNullable<LexDocumentFormValues['status']>, { shouldValidate: true })
+                  }
+                >
+                  <SelectTrigger id="status">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {DOCUMENT_STATUSES.map((s) => (
+                      <SelectItem key={s.value} value={s.value}>
+                        {s.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </FormField>
+            ) : null}
 
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <FormField name="type" label="Document type" required>
@@ -297,6 +327,7 @@ function buildFormDefaults(doc?: LexDocument | null): LexDocumentFormValues {
     description: doc?.description ?? '',
     category: doc?.category ?? null,
     confidentiality: doc?.confidentiality ?? 'internal',
+    status: doc?.status ?? 'active',
     contract_id: doc?.contract_id ?? null,
     tags: doc?.tags ?? [],
     metadata: doc?.metadata ?? {},
@@ -316,6 +347,7 @@ function buildPayload(
       description: values.description.trim(),
       category: values.category?.trim() ?? '',
       confidentiality: values.confidentiality,
+      status: values.status ?? 'active',
       contract_id: values.contract_id ?? null,
       tags: values.tags,
       metadata: values.metadata ?? {},
@@ -338,7 +370,7 @@ async function uploadDocumentFile(
   file: File,
   values: LexDocumentFormValues,
   onProgress: (progress: number) => void,
-): Promise<FileUploadRecord> {
+): Promise<FileRecord> {
   return enterpriseApi.files.upload(
     file,
     {

@@ -468,6 +468,7 @@ export interface TaskComment {
   id: string;
   user_id: string;
   user_name: string;
+  user_email?: string;
   content: string;
   created_at: string;
 }
@@ -544,7 +545,9 @@ export interface WebhookDelivery {
   id: string;
   webhook_id: string;
   event_type: string;
-  status: 'delivered' | 'failed' | 'pending' | 'retrying';
+  // Backend delivery_log status values: pending | delivered | failed | skipped
+  // 'retrying' is a UI-derived state (has next_retry_at set)
+  status: 'delivered' | 'failed' | 'pending' | 'skipped' | 'retrying';
   request_url: string;
   request_body: Record<string, unknown>;
   response_status: number | null;
@@ -553,6 +556,19 @@ export interface WebhookDelivery {
   attempt_count: number;
   next_retry_at: string | null;
   created_at: string;
+}
+
+// ── Notification Counts ──
+
+export interface NotificationCounts {
+  unread: number;
+  all: number;
+  security: number;
+  data: number;
+  workflow: number;
+  governance: number;
+  legal: number;
+  system: number;
 }
 
 // ── Delivery Stats ──

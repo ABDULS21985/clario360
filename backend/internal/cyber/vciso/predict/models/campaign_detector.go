@@ -73,12 +73,12 @@ func (m *CampaignDetector) Detect(samples []CampaignAlertSample) []predictmodel.
 			"technique_overlap":   0,
 			"target_overlap":      0,
 		}
-		alertIDs := make([]uuid.UUID, 0, len(cluster))
+		alertIDs := make([]string, 0, len(cluster))
 		titles := make([]string, 0, len(cluster))
 		techniques := map[string]struct{}{}
 		iocs := map[string]struct{}{}
 		for i := 0; i < len(cluster); i++ {
-			alertIDs = append(alertIDs, cluster[i].AlertID)
+			alertIDs = append(alertIDs, cluster[i].AlertID.String())
 			titles = append(titles, cluster[i].Title)
 			for _, technique := range cluster[i].Techniques {
 				techniques[technique] = struct{}{}
@@ -108,7 +108,7 @@ func (m *CampaignDetector) Detect(samples []CampaignAlertSample) []predictmodel.
 			Stage:           campaignStage(cluster),
 			MITRETechniques: sortedKeys(techniques),
 			SharedIOCs:      sortedKeys(iocs),
-			Confidence: predictmodel.ConfidenceInterval{
+			ConfidenceInterval: predictmodel.ConfidenceInterval{
 				P10: clamp(confidence-0.10, 0, 1),
 				P50: clamp(confidence, 0, 1),
 				P90: clamp(confidence+0.10, 0, 1),
@@ -116,7 +116,7 @@ func (m *CampaignDetector) Detect(samples []CampaignAlertSample) []predictmodel.
 		})
 	}
 	sort.SliceStable(out, func(i, j int) bool {
-		return out[i].Confidence.P50 > out[j].Confidence.P50
+		return out[i].ConfidenceInterval.P50 > out[j].ConfidenceInterval.P50
 	})
 	return out
 }

@@ -86,11 +86,16 @@ export function AlertAssignDialog({
       return;
     }
 
-    await Promise.all(targetIds.map((id) => (
-      apiPut(API_ENDPOINTS.CYBER_ALERT_ASSIGN(id), {
+    if (targetIds.length > 1) {
+      await apiPut(API_ENDPOINTS.CYBER_ALERT_BULK_ASSIGN, {
+        alert_ids: targetIds,
         assigned_to: values.assigned_to,
-      })
-    )));
+      });
+    } else {
+      await apiPut(API_ENDPOINTS.CYBER_ALERT_ASSIGN(targetIds[0]), {
+        assigned_to: values.assigned_to,
+      });
+    }
 
     toast.success(targetIds.length === 1 ? 'Alert assigned successfully' : `${targetIds.length} alerts assigned`);
     methods.reset({ assigned_to: '' });

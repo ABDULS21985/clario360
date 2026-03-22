@@ -6,6 +6,7 @@ import { getNotificationIcon, getNotificationIconColor } from '@/lib/notificatio
 import { NotificationActions } from './notification-actions';
 import { RelativeTime } from '@/components/shared/relative-time';
 import { isNotificationRead } from '@/lib/notification-utils';
+import { Checkbox } from '@/components/ui/checkbox';
 import type { Notification } from '@/types/models';
 
 interface NotificationCardProps {
@@ -14,6 +15,9 @@ interface NotificationCardProps {
   onDelete: (id: string) => void;
   onNavigate?: (url: string) => void;
   isNew?: boolean;
+  isSelecting?: boolean;
+  isSelected?: boolean;
+  onSelect?: (id: string) => void;
 }
 
 export function NotificationCard({
@@ -22,6 +26,9 @@ export function NotificationCard({
   onDelete,
   onNavigate,
   isNew = false,
+  isSelecting = false,
+  isSelected = false,
+  onSelect,
 }: NotificationCardProps) {
   const router = useRouter();
   const Icon = getNotificationIcon(notification);
@@ -29,6 +36,10 @@ export function NotificationCard({
   const isUnread = !isNotificationRead(notification);
 
   const handleCardClick = () => {
+    if (isSelecting) {
+      onSelect?.(notification.id);
+      return;
+    }
     if (isUnread) {
       onMarkRead(notification.id);
     }
@@ -48,14 +59,23 @@ export function NotificationCard({
       onClick={handleCardClick}
       className={cn(
         'group relative flex items-start gap-3 px-4 py-3 transition-colors',
-        (notification.action_url || isUnread) && 'cursor-pointer hover:bg-muted/50',
-        isUnread && 'bg-primary/5',
+        (notification.action_url || isUnread || isSelecting) && 'cursor-pointer hover:bg-muted/50',
+        isUnread && !isSelecting && 'bg-primary/5',
+        isSelected && 'bg-primary/10',
         isNew && 'animate-in slide-in-from-top-2 duration-300',
       )}
     >
-      {/* Unread indicator */}
+      {/* Unread indicator / selection checkbox */}
       <div className="mt-1.5 shrink-0">
-        {isUnread ? (
+        {isSelecting ? (
+          <Checkbox
+            checked={isSelected}
+            onCheckedChange={() => onSelect?.(notification.id)}
+            onClick={(e) => e.stopPropagation()}
+            aria-label={`Select notification: ${notification.title}`}
+            className="h-4 w-4"
+          />
+        ) : isUnread ? (
           <span className="block h-2 w-2 rounded-full bg-primary" aria-hidden />
         ) : (
           <span className="block h-2 w-2" aria-hidden />
@@ -80,11 +100,13 @@ export function NotificationCard({
         </div>
       </div>
 
-      <NotificationActions
-        isUnread={isUnread}
-        onMarkRead={() => onMarkRead(notification.id)}
-        onDelete={() => onDelete(notification.id)}
-      />
+      {!isSelecting && (
+        <NotificationActions
+          isUnread={isUnread}
+          onMarkRead={() => onMarkRead(notification.id)}
+          onDelete={() => onDelete(notification.id)}
+        />
+      )}
     </article>
   );
 }

@@ -11,9 +11,10 @@ import { KpiCard } from '@/components/shared/kpi-card';
 import { PieChart } from '@/components/shared/charts/pie-chart';
 import { BarChart } from '@/components/shared/charts/bar-chart';
 import { useDataTable } from '@/hooks/use-data-table';
-import { apiGet } from '@/lib/api';
+import api, { apiGet } from '@/lib/api';
 import { API_ENDPOINTS } from '@/lib/constants';
-import { showSuccess } from '@/lib/toast';
+import { downloadBlob } from '@/lib/format';
+import { showSuccess, showError } from '@/lib/toast';
 import type { PaginatedResponse } from '@/types/api';
 import type { FetchParams, FilterConfig, RowAction } from '@/types/table';
 import type { SecurityEvent, EventStats } from '@/types/cyber';
@@ -193,33 +194,48 @@ export default function CyberEventsPage() {
   );
 
   const handleExport = useCallback(
-    (format: 'csv' | 'json') => {
-      const data = tableProps.data;
-      const filename = `cyber-events-${new Date().toISOString().slice(0, 10)}`;
+    async (format: 'csv' | 'json') => {
+      const serverFormat = format === 'json' ? 'ndjson' : 'csv';
+      const ext = format === 'json' ? 'ndjson' : 'csv';
 
-      if (format === 'json') {
-        const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-        downloadBlob(blob, `${filename}.json`);
-      } else {
-        const headers: (keyof SecurityEvent)[] = [
-          'timestamp', 'source', 'type', 'severity',
-          'source_ip', 'dest_ip', 'dest_port', 'protocol',
-          'username', 'process', 'file_hash', 'asset_id', 'processed_at',
-        ];
-        const rows = data.map((evt) =>
-          headers
-            .map((h) => {
-              const val = evt[h];
-              if (val === null || val === undefined) return '';
-              return `"${String(val).replace(/"/g, '""')}"`;
-            })
-            .join(','),
-        );
-        const csv = [headers.join(','), ...rows].join('\n');
-        downloadBlob(new Blob([csv], { type: 'text/csv' }), `${filename}.csv`);
+      // Build query params from active filters
+      const exportParams: Record<string, unknown> = {};
+      const filters = tableProps.activeFilters ?? {};
+      for (const [key, value] of Object.entries(filters)) {
+        if (key === 'time_range' && typeof value === 'string') {
+          const [from, to] = value.split(',');
+          if (from) exportParams.from = from;
+          if (to) exportParams.to = to;
+        } else {
+          exportParams[key] = value;
+        }
+      }
+
+      // Server-side export requires 'from'; default to 30 days ago if not set
+      if (!exportParams.from) {
+        const thirtyDaysAgo = new Date();
+        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+        exportParams.from = thirtyDaysAgo.toISOString();
+      }
+
+      if (tableProps.searchValue) exportParams.search = tableProps.searchValue;
+      if (tableProps.sortColumn) exportParams.sort = tableProps.sortColumn;
+      if (tableProps.sortDirection) exportParams.order = tableProps.sortDirection;
+      exportParams.format = serverFormat;
+
+      try {
+        const response = await api.get(API_ENDPOINTS.CYBER_EVENTS_EXPORT, {
+          params: exportParams,
+          responseType: 'blob',
+        });
+        const filename = `cyber-events-${new Date().toISOString().slice(0, 10)}.${ext}`;
+        downloadBlob(response.data as Blob, filename);
+        showSuccess('Export downloaded');
+      } catch {
+        showError('Export failed', 'Unable to download the export file.');
       }
     },
-    [tableProps.data],
+    [tableProps.activeFilters, tableProps.searchValue, tableProps.sortColumn, tableProps.sortDirection],
   );
 
   const bySeverityChart = (stats?.by_severity ?? []).map((entry) => ({
@@ -337,13 +353,4 @@ export default function CyberEventsPage() {
       />
     </PermissionRedirect>
   );
-}
-
-function downloadBlob(blob: Blob, filename: string): void {
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  a.click();
-  URL.revokeObjectURL(url);
 }

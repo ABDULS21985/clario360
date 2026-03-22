@@ -2,6 +2,7 @@ package dspm
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -43,14 +44,94 @@ func NewDSPMScanner(
 	}
 }
 
-// Scan evaluates all relevant tenant assets and persists DSPM records.
-func (s *DSPMScanner) Scan(ctx context.Context, tenantID uuid.UUID, scan *model.DSPMScan) (*model.DSPMScanResult, error) {
+// ScanOptions holds optional parameters sent from the scan trigger request.
+type ScanOptions struct {
+	Scope      []string // e.g. ["databases", "cloud_storage", "file_servers", "api_endpoints"]
+	AssetTypes string   // comma-separated asset type filter, e.g. "postgresql,mysql"
+	FullScan   bool     // override cached results
+}
+
+// ScanWithOptions is like Scan but applies optional scope filters from the trigger request.
+func (s *DSPMScanner) ScanWithOptions(ctx context.Context, tenantID uuid.UUID, scan *model.DSPMScan, opts *ScanOptions) (*model.DSPMScanResult, error) {
 	start := time.Now()
 	assets, err := s.discoverAssets(ctx, tenantID)
 	if err != nil {
 		return nil, err
 	}
 
+	// Apply scope and asset_type filters from the trigger request.
+	if opts != nil {
+		assets = filterAssetsByOptions(assets, opts)
+	}
+
+	return s.scanAssets(ctx, tenantID, scan, assets, start)
+}
+
+// Scan evaluates all relevant tenant assets and persists DSPM records.
+func (s *DSPMScanner) Scan(ctx context.Context, tenantID uuid.UUID, scan *model.DSPMScan) (*model.DSPMScanResult, error) {
+	return s.ScanWithOptions(ctx, tenantID, scan, nil)
+}
+
+// filterAssetsByOptions filters discovered assets using the scope and asset type options.
+func filterAssetsByOptions(assets []*model.Asset, opts *ScanOptions) []*model.Asset {
+	if opts == nil {
+		return assets
+	}
+	// Build scope-to-asset-type mapping.
+	scopeTypeMap := map[string]string{
+		"databases":     "database",
+		"cloud_storage": "cloud_resource",
+		"file_servers":  "application",
+		"api_endpoints": "application",
+	}
+	var allowedTypes map[string]bool
+	if len(opts.Scope) > 0 {
+		allowedTypes = make(map[string]bool)
+		for _, scope := range opts.Scope {
+			if t, ok := scopeTypeMap[scope]; ok {
+				allowedTypes[t] = true
+			}
+		}
+	}
+
+	// Parse comma-separated asset_types filter if provided.
+	var nameFilter map[string]bool
+	if opts.AssetTypes != "" {
+		nameFilter = make(map[string]bool)
+		for _, t := range strings.Split(opts.AssetTypes, ",") {
+			t = strings.TrimSpace(t)
+			if t != "" {
+				nameFilter[strings.ToLower(t)] = true
+			}
+		}
+	}
+
+	filtered := make([]*model.Asset, 0, len(assets))
+	for _, asset := range assets {
+		if allowedTypes != nil && !allowedTypes[string(asset.Type)] {
+			continue
+		}
+		if nameFilter != nil {
+			dbType := strings.ToLower(string(asset.Type))
+			// Try to extract database_type from raw JSON metadata.
+			if len(asset.Metadata) > 0 {
+				var meta map[string]interface{}
+				if err := json.Unmarshal(asset.Metadata, &meta); err == nil {
+					if dt, ok := meta["database_type"].(string); ok && dt != "" {
+						dbType = strings.ToLower(dt)
+					}
+				}
+			}
+			if !nameFilter[dbType] {
+				continue
+			}
+		}
+		filtered = append(filtered, asset)
+	}
+	return filtered
+}
+
+func (s *DSPMScanner) scanAssets(ctx context.Context, tenantID uuid.UUID, scan *model.DSPMScan, assets []*model.Asset, start time.Time) (*model.DSPMScanResult, error) {
 	var piiAssetsFound, highRiskFound, findingsCount int
 	now := time.Now().UTC()
 	for _, asset := range assets {

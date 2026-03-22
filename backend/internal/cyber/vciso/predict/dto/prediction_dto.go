@@ -34,12 +34,28 @@ type GenericPredictionResponse struct {
 	ConfidenceInterval model.ConfidenceInterval    `json:"confidence_interval"`
 	TopFeatures        []model.FeatureContribution `json:"top_features"`
 	ExplanationText    string                      `json:"explanation_text"`
-	VerificationSteps  []string                    `json:"verification_steps,omitempty"`
+	VerificationSteps  []string                    `json:"verification_steps"`
+}
+
+// Normalize ensures all slice fields are non-nil so they serialize as [] not null.
+func (r *GenericPredictionResponse) Normalize() {
+	if r.TopFeatures == nil {
+		r.TopFeatures = []model.FeatureContribution{}
+	}
+	if r.VerificationSteps == nil {
+		r.VerificationSteps = []string{}
+	}
 }
 
 type ForecastResponse struct {
 	GenericPredictionResponse
 	Forecast model.AlertVolumeForecast `json:"forecast"`
+}
+
+// Normalize ensures all slice fields are non-nil so they serialize as [] not null.
+func (r *ForecastResponse) Normalize() {
+	r.GenericPredictionResponse.Normalize()
+	r.Forecast.Normalize()
 }
 
 type AssetRiskResponse struct {
@@ -57,6 +73,17 @@ type TechniqueTrendResponse struct {
 	Items []model.TechniqueTrendItem `json:"items"`
 }
 
+// Normalize ensures all slice fields are non-nil so they serialize as [] not null.
+func (r *TechniqueTrendResponse) Normalize() {
+	r.GenericPredictionResponse.Normalize()
+	if r.Items == nil {
+		r.Items = []model.TechniqueTrendItem{}
+	}
+	for i := range r.Items {
+		r.Items[i].Normalize()
+	}
+}
+
 type InsiderThreatResponse struct {
 	GenericPredictionResponse
 	Items []model.InsiderThreatTrajectoryItem `json:"items"`
@@ -65,6 +92,17 @@ type InsiderThreatResponse struct {
 type CampaignResponse struct {
 	GenericPredictionResponse
 	Items []model.CampaignCluster `json:"items"`
+}
+
+// Normalize ensures all slice fields are non-nil so they serialize as [] not null.
+func (r *CampaignResponse) Normalize() {
+	r.GenericPredictionResponse.Normalize()
+	if r.Items == nil {
+		r.Items = []model.CampaignCluster{}
+	}
+	for i := range r.Items {
+		r.Items[i].Normalize()
+	}
 }
 
 type AccuracyResponse struct {

@@ -115,9 +115,16 @@ func UsersToResponse(users []model.User) []UserResponse {
 	return resp
 }
 
-func SessionsToResponse(sessions []model.Session) []SessionResponse {
-	currentID := ""
-	if len(sessions) > 0 {
+// SessionsToResponse converts session models to API responses.
+// currentSessionID comes from the caller's JWT "sid" claim and is used to mark
+// the active session accurately. When empty (old tokens without the claim),
+// the function falls back to treating the most-recently-active session as current.
+func SessionsToResponse(sessions []model.Session, currentSessionID string) []SessionResponse {
+	// Determine which session is "current".
+	currentID := currentSessionID
+	if currentID == "" && len(sessions) > 0 {
+		// Fallback for tokens issued before the "sid" claim was introduced:
+		// sessions are ordered by last_active_at DESC so the first entry is current.
 		currentID = sessions[0].ID
 	}
 

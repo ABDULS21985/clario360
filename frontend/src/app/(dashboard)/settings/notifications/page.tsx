@@ -288,9 +288,13 @@ export default function NotificationPreferencesPage() {
     onError: (error) => showApiError(error),
   });
 
+  // Reset to defaults AND immediately persist so the dialog confirms
+  // the user's intent — clicking "Reset" should take effect right away,
+  // not leave the form dirty waiting for a separate Save click.
   const handleReset = async () => {
-    form.reset(DEFAULT_FORM);
     setResetOpen(false);
+    saveMutation.mutate(DEFAULT_FORM);
+    form.reset(DEFAULT_FORM);
   };
 
   const onSubmit = (payload: PreferencesFormData) => {

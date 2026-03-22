@@ -20,6 +20,13 @@ type IndicatorEnrichment struct {
 	Metadata        map[string]interface{} `json:"metadata,omitempty"`
 }
 
+// Normalize ensures all slice fields are non-nil so they serialize as [] not null.
+func (s *IndicatorStats) Normalize() {
+	if s.BySource == nil {
+		s.BySource = []NamedCount{}
+	}
+}
+
 // IndicatorDetectionMatch represents a recent alert or security event match for an indicator.
 type IndicatorDetectionMatch struct {
 	ID          string    `json:"id"`

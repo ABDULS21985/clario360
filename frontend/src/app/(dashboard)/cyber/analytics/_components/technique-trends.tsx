@@ -1,24 +1,27 @@
 'use client';
 
 import { useQuery } from '@tanstack/react-query';
-import { ArrowUp, ArrowDown, Minus } from 'lucide-react';
+import { AlertCircle, ArrowUp, ArrowDown, Minus } from 'lucide-react';
 import { apiGet } from '@/lib/api';
 import { API_ENDPOINTS } from '@/lib/constants';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { LoadingSkeleton } from '@/components/common/loading-skeleton';
 import type { ThreatForecastItem } from '@/types/cyber';
+
+const HORIZON_DAYS = 30;
 
 interface TrendsResponse {
   items?: ThreatForecastItem[];
 }
 
 export function TechniqueTrends() {
-  const { data, isLoading } = useQuery({
-    queryKey: ['cyber-analytics-technique-trends'],
+  const { data, isLoading, isError, refetch } = useQuery({
+    queryKey: ['cyber-analytics-technique-trends', HORIZON_DAYS],
     queryFn: () =>
       apiGet<{ data: TrendsResponse }>(API_ENDPOINTS.CYBER_ANALYTICS_TECHNIQUE_TRENDS, {
-        horizon_days: 30,
+        horizon_days: HORIZON_DAYS,
       }),
     refetchInterval: 300000,
   });
@@ -27,6 +30,23 @@ export function TechniqueTrends() {
 
   if (isLoading) {
     return <LoadingSkeleton variant="card" />;
+  }
+
+  if (isError) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Attack Technique Trends (30 Days)</CardTitle>
+        </CardHeader>
+        <CardContent className="flex items-center gap-3">
+          <AlertCircle className="h-4 w-4 text-destructive" />
+          <span className="text-sm text-muted-foreground">Failed to load technique trend data.</span>
+          <Button variant="outline" size="sm" onClick={() => void refetch()}>
+            Retry
+          </Button>
+        </CardContent>
+      </Card>
+    );
   }
 
   return (

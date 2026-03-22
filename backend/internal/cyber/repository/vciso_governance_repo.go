@@ -2329,6 +2329,24 @@ func (r *VCISOGovernanceRepository) SyncIntegration(ctx context.Context, tenantI
 	})
 }
 
+func (r *VCISOGovernanceRepository) DisconnectIntegration(ctx context.Context, tenantID, id uuid.UUID) error {
+	now := time.Now().UTC()
+	return runWithTenantWrite(ctx, r.db, tenantID, func(db dbtx) error {
+		tag, err := db.Exec(ctx, `UPDATE vciso_integrations SET
+			status='disconnected', health_status='unavailable', error_message=NULL, updated_at=$3
+			WHERE id=$1 AND tenant_id=$2`,
+			id, tenantID, now,
+		)
+		if err != nil {
+			return fmt.Errorf("disconnect integration: %w", err)
+		}
+		if tag.RowsAffected() == 0 {
+			return ErrNotFound
+		}
+		return nil
+	})
+}
+
 // ─── Control Ownership ──────────────────────────────────────────────────────
 
 func (r *VCISOGovernanceRepository) ListControlOwnerships(ctx context.Context, tenantID uuid.UUID, params *dto.VCISOGovernanceListParams) ([]*model.VCISOControlOwnership, int, error) {
@@ -2336,6 +2354,11 @@ func (r *VCISOGovernanceRepository) ListControlOwnerships(ctx context.Context, t
 	args := []interface{}{tenantID}
 	i := 2
 
+	if params.Status != "" {
+		conds = append(conds, fmt.Sprintf("status=$%d", i))
+		args = append(args, params.Status)
+		i++
+	}
 	if params.Framework != "" {
 		conds = append(conds, fmt.Sprintf("framework=$%d", i))
 		args = append(args, params.Framework)
@@ -2349,11 +2372,24 @@ func (r *VCISOGovernanceRepository) ListControlOwnerships(ctx context.Context, t
 
 	where := "WHERE " + strings.Join(conds, " AND ")
 
+	allowedSort := map[string]bool{
+		"control_name": true, "framework": true, "owner_name": true,
+		"status": true, "last_reviewed_at": true, "next_review_date": true, "created_at": true,
+	}
+	orderCol := "next_review_date"
+	if params.Sort != "" && allowedSort[params.Sort] {
+		orderCol = params.Sort
+	}
+	dir := "ASC"
+	if strings.EqualFold(params.Order, "desc") {
+		dir = "DESC"
+	}
+
 	query := fmt.Sprintf(`SELECT id, tenant_id, control_id, control_name, framework,
 		owner_id, owner_name, delegate_id, delegate_name, status,
 		last_reviewed_at, next_review_date, created_at, updated_at
-		FROM vciso_control_ownership %s ORDER BY created_at DESC LIMIT $%d OFFSET $%d`,
-		where, i, i+1)
+		FROM vciso_control_ownership %s ORDER BY %s %s LIMIT $%d OFFSET $%d`,
+		where, orderCol, dir, i, i+1)
 	args = append(args, params.PerPage, params.Offset())
 
 	var items []*model.VCISOControlOwnership
@@ -2435,7 +2471,7 @@ func (r *VCISOGovernanceRepository) UpdateControlOwnership(ctx context.Context, 
 func (r *VCISOGovernanceRepository) MarkControlOwnershipReviewed(ctx context.Context, tenantID, id uuid.UUID) error {
 	now := time.Now().UTC()
 	return runWithTenantWrite(ctx, r.db, tenantID, func(db dbtx) error {
-		_, err := db.Exec(ctx, `UPDATE vciso_control_ownership SET last_reviewed_at=$3, updated_at=$3 WHERE id=$1 AND tenant_id=$2`,
+		_, err := db.Exec(ctx, `UPDATE vciso_control_ownership SET status='reviewed', last_reviewed_at=$3, updated_at=$3 WHERE id=$1 AND tenant_id=$2`,
 			id, tenantID, now,
 		)
 		if err != nil {
@@ -2462,6 +2498,11 @@ func (r *VCISOGovernanceRepository) ListApprovals(ctx context.Context, tenantID 
 		args = append(args, params.Type)
 		i++
 	}
+	if params.Priority != "" {
+		conds = append(conds, fmt.Sprintf("priority=$%d", i))
+		args = append(args, params.Priority)
+		i++
+	}
 	if params.Search != "" {
 		conds = append(conds, fmt.Sprintf("title ILIKE $%d", i))
 		args = append(args, "%"+params.Search+"%")
@@ -2470,12 +2511,25 @@ func (r *VCISOGovernanceRepository) ListApprovals(ctx context.Context, tenantID 
 
 	where := "WHERE " + strings.Join(conds, " AND ")
 
+	allowedApprovalSort := map[string]bool{
+		"title": true, "type": true, "priority": true, "status": true,
+		"deadline": true, "created_at": true, "decided_at": true, "requested_by_name": true, "approver_name": true,
+	}
+	approvalOrderCol := "created_at"
+	if params.Sort != "" && allowedApprovalSort[params.Sort] {
+		approvalOrderCol = params.Sort
+	}
+	approvalDir := "DESC"
+	if strings.EqualFold(params.Order, "asc") {
+		approvalDir = "ASC"
+	}
+
 	query := fmt.Sprintf(`SELECT id, tenant_id, type, title, description, status,
 		requested_by, requested_by_name, approver_id, approver_name, priority,
 		decision_notes, decided_at, deadline, linked_entity_type, linked_entity_id,
 		created_at, updated_at
-		FROM vciso_approvals %s ORDER BY created_at DESC LIMIT $%d OFFSET $%d`,
-		where, i, i+1)
+		FROM vciso_approvals %s ORDER BY %s %s LIMIT $%d OFFSET $%d`,
+		where, approvalOrderCol, approvalDir, i, i+1)
 	args = append(args, params.PerPage, params.Offset())
 
 	var items []*model.VCISOApprovalRequest

@@ -197,10 +197,18 @@ func (r *ExceptionRepository) List(ctx context.Context, tenantID uuid.UUID, para
 		return nil, 0, fmt.Errorf("count risk exceptions: %w", err)
 	}
 
-	// Data query with pagination.
+	// Data query with pagination and sorting.
+	orderCol := "created_at"
+	orderDir := "DESC"
+	if params.Sort != "" {
+		orderCol = params.Sort
+	}
+	if params.Order == "asc" {
+		orderDir = "ASC"
+	}
 	offset := (params.Page - 1) * params.PerPage
 	dataSQL := `SELECT ` + exceptionColumns + ` FROM dspm_risk_exceptions WHERE ` + whereClause +
-		fmt.Sprintf(" ORDER BY created_at DESC LIMIT %s OFFSET %s", nextArg(params.PerPage), nextArg(offset))
+		fmt.Sprintf(" ORDER BY %s %s LIMIT %s OFFSET %s", orderCol, orderDir, nextArg(params.PerPage), nextArg(offset))
 
 	rows, err := r.db.Query(ctx, dataSQL, args...)
 	if err != nil {

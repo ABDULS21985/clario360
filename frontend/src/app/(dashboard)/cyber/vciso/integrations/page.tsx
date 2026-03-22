@@ -34,11 +34,9 @@ import {
 
 import { useRealtimeData } from '@/hooks/use-realtime-data';
 import { useApiMutation } from '@/hooks/use-api-mutation';
-import { apiGet } from '@/lib/api';
 import { API_ENDPOINTS } from '@/lib/constants';
 import { titleCase } from '@/lib/format';
 import { cn } from '@/lib/utils';
-import type { PaginatedResponse } from '@/types/api';
 import type {
   VCISOIntegration,
   CyberIntegrationType,
@@ -128,8 +126,14 @@ export default function IntegrationsPage() {
   const [detailOpen, setDetailOpen] = useState(false);
   const [formOpen, setFormOpen] = useState(false);
   const [editIntegration, setEditIntegration] = useState<VCISOIntegration | null>(null);
+
+  // ── Disconnect (soft) confirmation ───────────────────────────────────────
   const [disconnectTarget, setDisconnectTarget] = useState<VCISOIntegration | null>(null);
   const [disconnectOpen, setDisconnectOpen] = useState(false);
+
+  // ── Remove (hard delete) confirmation ───────────────────────────────────
+  const [removeTarget, setRemoveTarget] = useState<VCISOIntegration | null>(null);
+  const [removeOpen, setRemoveOpen] = useState(false);
 
   // ── Filters ─────────────────────────────────────────────────────────────
   const [searchQuery, setSearchQuery] = useState('');
@@ -139,11 +143,11 @@ export default function IntegrationsPage() {
 
   // ── Data Fetch ──────────────────────────────────────────────────────────
   const {
-    data: integrationsEnvelope,
+    data: integrationsResponse,
     isLoading,
     error,
     mutate: refetch,
-  } = useRealtimeData<PaginatedResponse<VCISOIntegration>>(
+  } = useRealtimeData<{ data: VCISOIntegration[] }>(
     API_ENDPOINTS.CYBER_VCISO_INTEGRATIONS,
     {
       params: { per_page: 100 },
@@ -152,23 +156,49 @@ export default function IntegrationsPage() {
         'integration.updated',
         'integration.deleted',
         'integration.synced',
+        'integration.disconnected',
       ],
     },
   );
 
-  const integrations = integrationsEnvelope?.data ?? [];
+  const integrations = integrationsResponse?.data ?? [];
 
-  // ── Sync mutation ───────────────────────────────────────────────────────
-  const { triggerSync, syncing } = useSyncIntegration(() => void refetch());
+  // ── Sync mutation (per-integration syncing tracked by syncingId) ─────────
+  const { triggerSync, syncing, syncingId } = useSyncIntegration(() => void refetch());
 
-  // ── Disconnect mutation ─────────────────────────────────────────────────
+  // ── Disconnect mutation (soft: PATCH sets status=disconnected) ───────────
   const { mutate: disconnectIntegration } = useApiMutation<unknown, { id: string }>(
-    'delete',
-    (variables) => `${API_ENDPOINTS.CYBER_VCISO_INTEGRATIONS}/${variables.id}`,
+    'post',
+    (variables) => `${API_ENDPOINTS.CYBER_VCISO_INTEGRATIONS}/${variables.id}/disconnect`,
     {
       successMessage: 'Integration disconnected',
       invalidateKeys: [API_ENDPOINTS.CYBER_VCISO_INTEGRATIONS],
-      onSuccess: () => void refetch(),
+      onSuccess: () => {
+        void refetch();
+        if (disconnectTarget && selectedIntegration?.id === disconnectTarget.id) {
+          setDetailOpen(false);
+          setSelectedIntegration(null);
+        }
+        setDisconnectTarget(null);
+      },
+    },
+  );
+
+  // ── Remove mutation (hard DELETE) ────────────────────────────────────────
+  const { mutate: removeIntegration } = useApiMutation<unknown, { id: string }>(
+    'delete',
+    (variables) => `${API_ENDPOINTS.CYBER_VCISO_INTEGRATIONS}/${variables.id}`,
+    {
+      successMessage: 'Integration removed',
+      invalidateKeys: [API_ENDPOINTS.CYBER_VCISO_INTEGRATIONS],
+      onSuccess: () => {
+        void refetch();
+        if (removeTarget && selectedIntegration?.id === removeTarget.id) {
+          setDetailOpen(false);
+          setSelectedIntegration(null);
+        }
+        setRemoveTarget(null);
+      },
     },
   );
 
@@ -245,12 +275,32 @@ export default function IntegrationsPage() {
     setDisconnectOpen(true);
   }, []);
 
+  const handleRemove = useCallback((integration: VCISOIntegration) => {
+    setRemoveTarget(integration);
+    setRemoveOpen(true);
+  }, []);
+
   const confirmDisconnect = useCallback(async () => {
     if (disconnectTarget) {
       disconnectIntegration({ id: disconnectTarget.id });
-      setDisconnectTarget(null);
     }
   }, [disconnectTarget, disconnectIntegration]);
+
+  const confirmRemove = useCallback(async () => {
+    if (removeTarget) {
+      removeIntegration({ id: removeTarget.id });
+    }
+  }, [removeTarget, removeIntegration]);
+
+  // After form dialog saves, re-fetch and refresh the selected integration
+  // so the detail panel (if open) shows up-to-date data.
+  const handleFormSaved = useCallback(async () => {
+    await refetch();
+    if (selectedIntegration) {
+      const refreshed = integrations.find((i) => i.id === selectedIntegration.id);
+      if (refreshed) setSelectedIntegration(refreshed);
+    }
+  }, [refetch, selectedIntegration, integrations]);
 
   const hasActiveFilters =
     searchQuery.trim() !== '' ||
@@ -466,7 +516,8 @@ export default function IntegrationsPage() {
                 onConfigure={handleConfigure}
                 onSyncNow={triggerSync}
                 onDisconnect={handleDisconnect}
-                syncing={syncing}
+                onRemove={handleRemove}
+                syncingId={syncingId}
               />
             ))}
           </div>
@@ -487,7 +538,8 @@ export default function IntegrationsPage() {
           onSyncNow={triggerSync}
           onConfigure={handleConfigure}
           onDisconnect={handleDisconnect}
-          syncing={syncing}
+          onRemove={handleRemove}
+          syncingId={syncingId}
         />
 
         {/* Form Dialog */}
@@ -495,17 +547,29 @@ export default function IntegrationsPage() {
           open={formOpen}
           onOpenChange={setFormOpen}
           integration={editIntegration}
+          onSaved={handleFormSaved}
         />
 
-        {/* Disconnect Confirmation */}
+        {/* Disconnect Confirmation (soft: sets status=disconnected) */}
         <ConfirmDialog
           open={disconnectOpen}
           onOpenChange={setDisconnectOpen}
           title="Disconnect Integration"
-          description={`Are you sure you want to disconnect "${disconnectTarget?.name ?? ''}"? This will stop all data synchronization from this integration.`}
+          description={`Are you sure you want to disconnect "${disconnectTarget?.name ?? ''}"? This will pause all data synchronization. You can reconnect later by editing the integration.`}
           confirmLabel="Disconnect"
           variant="destructive"
           onConfirm={confirmDisconnect}
+        />
+
+        {/* Remove Confirmation (hard delete) */}
+        <ConfirmDialog
+          open={removeOpen}
+          onOpenChange={setRemoveOpen}
+          title="Remove Integration"
+          description={`Are you sure you want to permanently remove "${removeTarget?.name ?? ''}"? This action cannot be undone.`}
+          confirmLabel="Remove"
+          variant="destructive"
+          onConfirm={confirmRemove}
         />
       </div>
     </PermissionRedirect>

@@ -134,7 +134,7 @@ export function AddIndicatorDialog({
     'post',
     API_ENDPOINTS.CYBER_INDICATORS,
     {
-      invalidateKeys: ['cyber-indicators', 'cyber-indicator-stats'],
+      invalidateKeys: ['cyber-indicators', 'cyber-indicator-stats', 'cyber-indicator-detail'],
       successMessage: 'Indicator created',
       onSuccess: (response) => {
         onOpenChange(false);
@@ -147,7 +147,7 @@ export function AddIndicatorDialog({
     'put',
     () => API_ENDPOINTS.CYBER_INDICATOR_DETAIL(indicator!.id),
     {
-      invalidateKeys: ['cyber-indicators', 'cyber-indicator-stats'],
+      invalidateKeys: ['cyber-indicators', 'cyber-indicator-stats', 'cyber-indicator-detail', 'cyber-indicator-enrichment', 'cyber-indicator-matches'],
       successMessage: 'Indicator updated',
       onSuccess: (response) => {
         onOpenChange(false);

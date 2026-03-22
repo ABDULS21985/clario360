@@ -293,7 +293,7 @@ func (r *FileRepository) GetAccessLog(ctx context.Context, tenantID, fileID stri
 	if err != nil {
 		return nil, 0, err
 	}
-	var logs []*model.FileAccessLog
+	logs := make([]*model.FileAccessLog, 0, perPage)
 	var total int
 
 	err = database.RunReadWithTenant(ctx, r.db, tenant, func(tx pgx.Tx) error {
@@ -353,7 +353,7 @@ func (r *FileRepository) ListQuarantined(ctx context.Context, tenantID string, p
 	if err != nil {
 		return nil, 0, err
 	}
-	var logs []*model.QuarantineLog
+	logs := make([]*model.QuarantineLog, 0, perPage)
 	var total int
 
 	err = database.RunReadWithTenant(ctx, r.db, tenant, func(tx pgx.Tx) error {
@@ -590,49 +590,73 @@ type StorageStat struct {
 	TotalBytes int64  `json:"total_bytes"`
 }
 
-// GetVersions retrieves all versions of a file by checksum or entity association.
+// GetVersions retrieves all versions of a file by entity association.
+// Both the file lookup and the version scan run inside a single read transaction to eliminate
+// the race between fetching the anchor file and querying its sibling versions.
 func (r *FileRepository) GetVersions(ctx context.Context, tenantID, fileID string) ([]*model.FileRecord, error) {
 	tenant, err := parseTenant(tenantID)
 	if err != nil {
 		return nil, err
 	}
 
-	// First get the file to find its entity association
-	file, err := r.GetByID(ctx, tenantID, fileID)
-	if err != nil {
-		return nil, err
-	}
-	if file == nil {
-		return nil, fmt.Errorf("file not found")
-	}
+	const fileQuery = `SELECT id, tenant_id, bucket, storage_key, original_name, sanitized_name,
+		content_type, detected_content_type, size_bytes, checksum_sha256,
+		encrypted, encryption_metadata, virus_scan_status, virus_scan_result, virus_scanned_at,
+		uploaded_by, suite, entity_type, entity_id, tags,
+		version_id, version_number, is_public, lifecycle_policy, expires_at,
+		created_at, updated_at, deleted_at
+	FROM files WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL`
 
-	var files []*model.FileRecord
+	const versionsQuery = `SELECT id, tenant_id, bucket, storage_key, original_name, sanitized_name,
+		content_type, detected_content_type, size_bytes, checksum_sha256,
+		encrypted, encryption_metadata, virus_scan_status, virus_scan_result, virus_scanned_at,
+		uploaded_by, suite, entity_type, entity_id, tags,
+		version_id, version_number, is_public, lifecycle_policy, expires_at,
+		created_at, updated_at, deleted_at
+	FROM files WHERE tenant_id = $1 AND entity_type = $2 AND entity_id = $3 AND sanitized_name = $4 AND deleted_at IS NULL
+	ORDER BY version_number DESC`
+
+	var results []*model.FileRecord
 	err = database.RunReadWithTenant(ctx, r.db, tenant, func(tx pgx.Tx) error {
-		query := `SELECT id, tenant_id, bucket, storage_key, original_name, sanitized_name,
-			content_type, detected_content_type, size_bytes, checksum_sha256,
-			encrypted, encryption_metadata, virus_scan_status, virus_scan_result, virus_scanned_at,
-			uploaded_by, suite, entity_type, entity_id, tags,
-			version_id, version_number, is_public, lifecycle_policy, expires_at,
-			created_at, updated_at, deleted_at
-		FROM files WHERE tenant_id = $1 AND entity_type = $2 AND entity_id = $3 AND sanitized_name = $4 AND deleted_at IS NULL
-		ORDER BY version_number DESC`
+		// 1. Load the anchor file within the same transaction snapshot.
+		file, err := r.scanRow(tx.QueryRow(ctx, fileQuery, fileID, tenantID))
+		if err != nil {
+			return err
+		}
+		if file == nil {
+			return fmt.Errorf("file not found")
+		}
 
-		rows, err := tx.Query(ctx, query, tenantID, file.EntityType, file.EntityID, file.SanitizedName)
+		// 2. Files without an entity association have no versioning lineage; return just the file.
+		if file.EntityType == nil || file.EntityID == nil {
+			results = []*model.FileRecord{file}
+			return nil
+		}
+
+		// 3. Fetch sibling versions from the same transaction snapshot — consistent with step 1.
+		rows, err := tx.Query(ctx, versionsQuery, tenantID, file.EntityType, file.EntityID, file.SanitizedName)
 		if err != nil {
 			return fmt.Errorf("getting versions: %w", err)
 		}
 		defer rows.Close()
 
+		versions := make([]*model.FileRecord, 0, 8)
 		for rows.Next() {
 			f, err := r.scanRows(rows)
 			if err != nil {
 				return err
 			}
-			files = append(files, f)
+			versions = append(versions, f)
 		}
+
+		// 4. Guard: version scan should always include the anchor file itself; fall back if not.
+		if len(versions) == 0 {
+			versions = []*model.FileRecord{file}
+		}
+		results = versions
 		return nil
 	})
-	return files, err
+	return results, err
 }
 
 // GetLatestVersionNumber returns the highest version number for a given entity+name combination.

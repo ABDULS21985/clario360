@@ -10,6 +10,7 @@ import (
 	"time"
 	"unicode"
 
+	"github.com/google/uuid"
 	"github.com/pquerna/otp/totp"
 	"github.com/redis/go-redis/v9"
 	"github.com/rs/zerolog"
@@ -472,7 +473,11 @@ func (s *AuthService) IssueTokens(ctx context.Context, user *model.User, ip, use
 func (s *AuthService) generateTokens(ctx context.Context, user *model.User, ip, userAgent string) (*dto.AuthResponse, error) {
 	roleSlugs := user.RoleSlugs()
 
-	tokenPair, err := s.jwtMgr.GenerateTokenPair(user.ID, user.TenantID, user.Email, roleSlugs)
+	// Pre-generate the session ID so it can be embedded in the JWT claim.
+	// This lets downstream handlers identify the active session without ordering heuristics.
+	sessionID := uuid.New().String()
+
+	tokenPair, err := s.jwtMgr.GenerateTokenPair(user.ID, user.TenantID, user.Email, roleSlugs, sessionID)
 	if err != nil {
 		return nil, fmt.Errorf("generating tokens: %w", err)
 	}
@@ -488,6 +493,7 @@ func (s *AuthService) generateTokens(ctx context.Context, user *model.User, ip, 
 	}
 
 	session := &model.Session{
+		ID:               sessionID,
 		UserID:           user.ID,
 		TenantID:         user.TenantID,
 		RefreshTokenHash: tokenHash,

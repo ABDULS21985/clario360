@@ -863,6 +863,24 @@ export default function RiskRegisterPage() {
           if (closeTarget) {
             closeMutation.mutate({
               id: closeTarget.id,
+              title: closeTarget.title,
+              description: closeTarget.description,
+              category: closeTarget.category,
+              department: closeTarget.department,
+              inherent_score: closeTarget.inherent_score,
+              residual_score: closeTarget.residual_score,
+              likelihood: closeTarget.likelihood,
+              impact: closeTarget.impact,
+              treatment: closeTarget.treatment,
+              owner_id: closeTarget.owner_id || undefined,
+              owner_name: closeTarget.owner_name,
+              review_date: closeTarget.review_date || undefined,
+              business_services: closeTarget.business_services,
+              controls: closeTarget.controls,
+              tags: closeTarget.tags,
+              treatment_plan: closeTarget.treatment_plan,
+              acceptance_rationale: closeTarget.acceptance_rationale || undefined,
+              acceptance_expiry: closeTarget.acceptance_expiry || undefined,
               status: 'closed',
             });
           }
@@ -884,11 +902,23 @@ export default function RiskRegisterPage() {
           if (revokeTarget) {
             revokeMutation.mutate({
               id: revokeTarget.id,
+              title: revokeTarget.title,
+              description: revokeTarget.description,
+              category: revokeTarget.category,
+              department: revokeTarget.department,
+              inherent_score: revokeTarget.inherent_score,
+              residual_score: revokeTarget.residual_score,
+              likelihood: revokeTarget.likelihood,
+              impact: revokeTarget.impact,
+              treatment: revokeTarget.treatment,
+              owner_id: revokeTarget.owner_id || undefined,
+              owner_name: revokeTarget.owner_name,
+              review_date: revokeTarget.review_date || undefined,
+              business_services: revokeTarget.business_services,
+              controls: revokeTarget.controls,
+              tags: revokeTarget.tags,
+              treatment_plan: revokeTarget.treatment_plan,
               status: 'open',
-              acceptance_rationale: null,
-              acceptance_approved_by: null,
-              acceptance_approved_by_name: null,
-              acceptance_expiry: null,
             });
           }
         }}

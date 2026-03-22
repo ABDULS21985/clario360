@@ -29,15 +29,28 @@ func NewSessionRepository(pool *pgxpool.Pool) SessionRepository {
 }
 
 func (r *sessionRepo) Create(ctx context.Context, session *model.Session) error {
-	query := `
+	var query string
+	var args []any
+
+	if session.ID != "" {
+		// Caller pre-generated the UUID so it can be embedded in the JWT before DB insert.
+		query = `
+			INSERT INTO sessions (id, user_id, tenant_id, refresh_token_hash, ip_address, user_agent, expires_at)
+			VALUES ($1, $2, $3, $4, $5::inet, $6, $7)
+			RETURNING created_at`
+		args = []any{session.ID, session.UserID, session.TenantID, session.RefreshTokenHash,
+			session.IPAddress, session.UserAgent, session.ExpiresAt}
+		return r.pool.QueryRow(ctx, query, args...).Scan(&session.CreatedAt)
+	}
+
+	// Let the database generate the ID (legacy path, no session_id in JWT).
+	query = `
 		INSERT INTO sessions (user_id, tenant_id, refresh_token_hash, ip_address, user_agent, expires_at)
 		VALUES ($1, $2, $3, $4::inet, $5, $6)
 		RETURNING id, created_at`
-
-	return r.pool.QueryRow(ctx, query,
-		session.UserID, session.TenantID, session.RefreshTokenHash,
-		session.IPAddress, session.UserAgent, session.ExpiresAt,
-	).Scan(&session.ID, &session.CreatedAt)
+	args = []any{session.UserID, session.TenantID, session.RefreshTokenHash,
+		session.IPAddress, session.UserAgent, session.ExpiresAt}
+	return r.pool.QueryRow(ctx, query, args...).Scan(&session.ID, &session.CreatedAt)
 }
 
 func (r *sessionRepo) GetByTokenHash(ctx context.Context, tokenHash string) (*model.Session, error) {

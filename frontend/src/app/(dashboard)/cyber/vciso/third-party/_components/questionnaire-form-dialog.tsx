@@ -50,9 +50,11 @@ export function QuestionnaireFormDialog({
   const [title, setTitle] = useState('');
   const [type, setType] = useState<QuestionnaireType>('vendor');
   const [vendorId, setVendorId] = useState('');
+  const [vendorName, setVendorName] = useState('');
   const [totalQuestions, setTotalQuestions] = useState('');
   const [dueDate, setDueDate] = useState('');
   const [assignedTo, setAssignedTo] = useState('');
+  const [assignedToName, setAssignedToName] = useState('');
 
   useEffect(() => {
     if (open) {
@@ -60,16 +62,20 @@ export function QuestionnaireFormDialog({
         setTitle(questionnaire.title);
         setType(questionnaire.type);
         setVendorId(questionnaire.vendor_id ?? '');
+        setVendorName(questionnaire.vendor_name ?? '');
         setTotalQuestions(String(questionnaire.total_questions));
         setDueDate(questionnaire.due_date ? questionnaire.due_date.split('T')[0] : '');
         setAssignedTo(questionnaire.assigned_to ?? '');
+        setAssignedToName(questionnaire.assigned_to_name ?? '');
       } else {
         setTitle('');
         setType('vendor');
         setVendorId(defaultVendorId ?? '');
+        setVendorName('');
         setTotalQuestions('');
         setDueDate('');
         setAssignedTo('');
+        setAssignedToName('');
       }
     }
   }, [open, questionnaire, defaultVendorId]);
@@ -123,7 +129,9 @@ export function QuestionnaireFormDialog({
       total_questions: parseInt(totalQuestions, 10),
       due_date: dueDate,
       vendor_id: vendorId.trim() || undefined,
+      vendor_name: vendorName.trim() || undefined,
       assigned_to: assignedTo.trim() || undefined,
+      assigned_to_name: assignedToName.trim() || undefined,
     };
 
     if (isEditing) {
@@ -195,15 +203,27 @@ export function QuestionnaireFormDialog({
             </div>
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="q-vendor-id">Vendor ID (optional)</Label>
-            <Input
-              id="q-vendor-id"
-              placeholder="UUID of associated vendor"
-              value={vendorId}
-              onChange={(e) => setVendorId(e.target.value)}
-              disabled={isSubmitting}
-            />
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="q-vendor-id">Vendor ID (optional)</Label>
+              <Input
+                id="q-vendor-id"
+                placeholder="UUID of associated vendor"
+                value={vendorId}
+                onChange={(e) => setVendorId(e.target.value)}
+                disabled={isSubmitting}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="q-vendor-name">Vendor Name (optional)</Label>
+              <Input
+                id="q-vendor-name"
+                placeholder="e.g., Acme Corp"
+                value={vendorName}
+                onChange={(e) => setVendorName(e.target.value)}
+                disabled={isSubmitting}
+              />
+            </div>
           </div>
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -221,12 +241,23 @@ export function QuestionnaireFormDialog({
               <Label htmlFor="q-assigned-to">Assigned To (optional)</Label>
               <Input
                 id="q-assigned-to"
-                placeholder="User ID or email"
+                placeholder="User UUID"
                 value={assignedTo}
                 onChange={(e) => setAssignedTo(e.target.value)}
                 disabled={isSubmitting}
               />
             </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="q-assigned-to-name">Assignee Name (optional)</Label>
+            <Input
+              id="q-assigned-to-name"
+              placeholder="e.g., Jane Smith"
+              value={assignedToName}
+              onChange={(e) => setAssignedToName(e.target.value)}
+              disabled={isSubmitting}
+            />
           </div>
 
           <div className="flex justify-end gap-2 pt-2">

@@ -82,3 +82,35 @@ func (r *AlertStatusUpdateRequest) Validate() error {
 type FalsePositiveRequest struct {
 	Notes string `json:"notes,omitempty"`
 }
+
+// BulkAlertStatusRequest allows updating multiple alerts in a single request.
+type BulkAlertStatusRequest struct {
+	AlertIDs      []string `json:"alert_ids"`
+	Status        string   `json:"status"`
+	Notes         string   `json:"notes,omitempty"`
+	FalsePositive bool     `json:"false_positive,omitempty"`
+}
+
+func (r *BulkAlertStatusRequest) Validate() error {
+	if len(r.AlertIDs) == 0 {
+		return fmt.Errorf("alert_ids is required")
+	}
+	if len(r.AlertIDs) > 200 {
+		return fmt.Errorf("alert_ids must not exceed 200 items")
+	}
+	if r.FalsePositive {
+		return nil
+	}
+	switch strings.ToLower(strings.TrimSpace(r.Status)) {
+	case "acknowledged", "investigating", "resolved":
+		return nil
+	default:
+		return fmt.Errorf("invalid status for bulk update; allowed: acknowledged, investigating, resolved")
+	}
+}
+
+type BulkAlertStatusResponse struct {
+	Updated int      `json:"updated"`
+	Failed  int      `json:"failed"`
+	Errors  []string `json:"errors,omitempty"`
+}

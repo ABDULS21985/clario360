@@ -12,6 +12,7 @@ import (
 	"github.com/redis/go-redis/v9"
 	"github.com/rs/zerolog"
 
+	"github.com/clario360/platform/internal/cyber/dto"
 	"github.com/clario360/platform/internal/cyber/model"
 	"github.com/clario360/platform/internal/cyber/repository"
 	"github.com/clario360/platform/internal/cyber/service"
@@ -29,7 +30,7 @@ const (
 )
 
 type dspmTriggerService interface {
-	TriggerScan(ctx context.Context, tenantID, userID uuid.UUID, actor *service.Actor) (*model.DSPMScan, error)
+	TriggerScan(ctx context.Context, tenantID, userID uuid.UUID, actor *service.Actor, req *dto.DSPMScanTriggerRequest) (*model.DSPMScan, error)
 }
 
 type DataEventConsumer struct {
@@ -249,7 +250,7 @@ func (c *DataEventConsumer) handleDarkDataScanCompleted(ctx context.Context, eve
 		UserName:  cyberDataSystemActorName,
 		UserEmail: cyberDataSystemActorEmail,
 	}
-	if _, err := c.dspmService.TriggerScan(ctx, tenantID, systemUserID, actor); err != nil {
+	if _, err := c.dspmService.TriggerScan(ctx, tenantID, systemUserID, actor, nil); err != nil {
 		_ = c.guard.Release(ctx, event.ID)
 		_ = c.releaseDSPMSyncWindow(ctx, debounceKey)
 		return err

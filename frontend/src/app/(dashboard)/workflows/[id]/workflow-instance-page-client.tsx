@@ -24,12 +24,12 @@ export function WorkflowInstancePageClient() {
   const [cancelOpen, setCancelOpen] = useState(false);
 
   const { data: instance, isLoading, isError, refetch } = useQuery({
-    queryKey: ['workflow-instance', instanceId],
+    queryKey: ['workflow-instances', instanceId],
     queryFn: () => apiGet<WorkflowInstance>(`/api/v1/workflows/instances/${instanceId}`),
   });
 
   const { data: history, isLoading: historyLoading } = useQuery({
-    queryKey: ['workflow-instance-history', instanceId],
+    queryKey: ['workflow-instances', instanceId, 'history'],
     queryFn: async () => {
       const resp = await apiGet<{ instance_id: string; step_executions: StepExecution[] }>(
         `/api/v1/workflows/instances/${instanceId}/history`,
@@ -43,7 +43,7 @@ export function WorkflowInstancePageClient() {
     mutationFn: () => apiPost(`/api/v1/workflows/instances/${instanceId}/retry`),
     onSuccess: () => {
       showSuccess('Workflow retry initiated.');
-      queryClient.invalidateQueries({ queryKey: ['workflow-instance', instanceId] });
+      queryClient.invalidateQueries({ queryKey: ['workflow-instances', instanceId] });
     },
     onError: () => showError('Failed to retry workflow.'),
   });
@@ -52,7 +52,7 @@ export function WorkflowInstancePageClient() {
     mutationFn: () => apiPost(`/api/v1/workflows/instances/${instanceId}/suspend`),
     onSuccess: () => {
       showSuccess('Workflow suspended.');
-      queryClient.invalidateQueries({ queryKey: ['workflow-instance', instanceId] });
+      queryClient.invalidateQueries({ queryKey: ['workflow-instances', instanceId] });
     },
     onError: () => showError('Failed to suspend workflow.'),
   });
@@ -61,7 +61,7 @@ export function WorkflowInstancePageClient() {
     mutationFn: () => apiPost(`/api/v1/workflows/instances/${instanceId}/resume`),
     onSuccess: () => {
       showSuccess('Workflow resumed.');
-      queryClient.invalidateQueries({ queryKey: ['workflow-instance', instanceId] });
+      queryClient.invalidateQueries({ queryKey: ['workflow-instances', instanceId] });
     },
     onError: () => showError('Failed to resume workflow.'),
   });
@@ -179,7 +179,7 @@ export function WorkflowInstancePageClient() {
         onOpenChange={setCancelOpen}
         onSuccess={() => {
           setCancelOpen(false);
-          queryClient.invalidateQueries({ queryKey: ['workflow-instance', instanceId] });
+          queryClient.invalidateQueries({ queryKey: ['workflow-instances', instanceId] });
         }}
       />
     </div>

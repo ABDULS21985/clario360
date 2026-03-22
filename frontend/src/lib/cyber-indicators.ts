@@ -335,12 +335,14 @@ function extractStixPatternValues(pattern: string): IndicatorPreview[] {
   const mappings: Array<{ matcher: RegExp; type: IndicatorType }> = [
     { matcher: /ipv4-addr:value\s*=\s*'([^']+)'/gi, type: 'ip' },
     { matcher: /ipv6-addr:value\s*=\s*'([^']+)'/gi, type: 'ip' },
+    { matcher: /(?:ipv4-addr|ipv6-addr):value\s+ISSUBSET\s+'([^']+)'/gi, type: 'cidr' },
     { matcher: /domain-name:value\s*=\s*'([^']+)'/gi, type: 'domain' },
     { matcher: /url:value\s*=\s*'([^']+)'/gi, type: 'url' },
     { matcher: /email-addr:value\s*=\s*'([^']+)'/gi, type: 'email' },
     { matcher: /file:hashes\.'MD5'\s*=\s*'([^']+)'/gi, type: 'file_hash_md5' },
     { matcher: /file:hashes\.'SHA-1'\s*=\s*'([^']+)'/gi, type: 'file_hash_sha1' },
     { matcher: /file:hashes\.'SHA-256'\s*=\s*'([^']+)'/gi, type: 'file_hash_sha256' },
+    { matcher: /network-traffic:extensions\.'http-request-ext'\.request_header\.'User-Agent'\s*=\s*'([^']+)'/gi, type: 'user_agent' },
   ];
 
   const results: IndicatorPreview[] = [];
@@ -390,6 +392,10 @@ function toStixPattern(type: IndicatorType, value: string): string {
       return `[file:hashes.'SHA-1' = '${value}']`;
     case 'file_hash_sha256':
       return `[file:hashes.'SHA-256' = '${value}']`;
+    case 'cidr':
+      return `[ipv4-addr:value ISSUBSET '${value}']`;
+    case 'user_agent':
+      return `[network-traffic:extensions.'http-request-ext'.request_header.'User-Agent' = '${value}']`;
     default:
       return `[x-clario:value = '${value}']`;
   }

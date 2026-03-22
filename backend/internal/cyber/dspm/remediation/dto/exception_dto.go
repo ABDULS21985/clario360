@@ -77,11 +77,23 @@ type ExceptionListParams struct {
 	ExceptionType  []string   `json:"exception_type,omitempty"`
 	AssetID        *uuid.UUID `json:"asset_id,omitempty"`
 	Search         string     `json:"search,omitempty"`
+	Sort           string     `json:"sort,omitempty"`
+	Order          string     `json:"order,omitempty"`
 	Page           int        `json:"page"`
 	PerPage        int        `json:"per_page"`
 }
 
-// SetDefaults applies default pagination values.
+// validExceptionSorts is the set of columns allowed for sorting.
+var validExceptionSorts = map[string]bool{
+	"created_at": true,
+	"updated_at": true,
+	"risk_score": true,
+	"expires_at": true,
+	"risk_level": true,
+	"status":     true,
+}
+
+// SetDefaults applies default pagination and sort values.
 func (p *ExceptionListParams) SetDefaults() {
 	if p.Page <= 0 {
 		p.Page = 1
@@ -89,6 +101,23 @@ func (p *ExceptionListParams) SetDefaults() {
 	if p.PerPage <= 0 || p.PerPage > 200 {
 		p.PerPage = 25
 	}
+	if p.Sort == "" {
+		p.Sort = "created_at"
+	}
+	if p.Order == "" {
+		p.Order = "desc"
+	}
+}
+
+// Validate validates sort and order values.
+func (p *ExceptionListParams) Validate() error {
+	if p.Sort != "" && !validExceptionSorts[p.Sort] {
+		return fmt.Errorf("invalid sort field: %s", p.Sort)
+	}
+	if p.Order != "" && p.Order != "asc" && p.Order != "desc" {
+		return fmt.Errorf("invalid order: %s", p.Order)
+	}
+	return nil
 }
 
 // ExceptionListResponse is the paginated response for listing exceptions.

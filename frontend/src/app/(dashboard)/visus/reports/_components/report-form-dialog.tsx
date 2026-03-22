@@ -40,6 +40,16 @@ const REPORT_TYPES: ReportFormValues['report_type'][] = [
   'custom',
 ];
 
+const REPORT_PERIODS: ReportFormValues['period'][] = [
+  '7d',
+  '14d',
+  '30d',
+  '90d',
+  'quarterly',
+  'annual',
+  'custom',
+];
+
 function nullableString(value: string): string | null {
   const trimmed = value.trim();
   return trimmed.length > 0 ? trimmed : null;
@@ -95,7 +105,7 @@ export function ReportFormDialog({
       description: report?.description ?? '',
       report_type: report?.report_type ?? 'executive_summary',
       sections: report?.sections ?? [],
-      period: report?.period ?? '30d',
+      period: (report?.period as ReportFormValues['period']) ?? '30d',
       custom_period_start: report?.custom_period_start ?? null,
       custom_period_end: report?.custom_period_end ?? null,
       schedule: report?.schedule ?? null,
@@ -155,7 +165,18 @@ export function ReportFormDialog({
 
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <FormField name="period" label="Reporting Period" required>
-                <Input id="period" {...form.register('period')} placeholder="30d" />
+                <Select value={form.watch('period')} onValueChange={(value) => form.setValue('period', value as ReportFormValues['period'], { shouldDirty: true })}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select period" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {REPORT_PERIODS.map((item) => (
+                      <SelectItem key={item} value={item}>
+                        {item}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </FormField>
               <FormField name="schedule" label="Schedule">
                 <Input id="schedule" {...form.register('schedule')} placeholder="0 7 * * MON" />

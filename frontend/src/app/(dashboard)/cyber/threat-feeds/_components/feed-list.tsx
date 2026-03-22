@@ -2,7 +2,7 @@
 
 import { useMemo } from 'react';
 import { useQueries } from '@tanstack/react-query';
-import { MoreHorizontal, Play } from 'lucide-react';
+import { MoreHorizontal, Play, Trash2 } from 'lucide-react';
 import type { ColumnDef } from '@tanstack/react-table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -28,6 +28,7 @@ interface FeedListProps {
   onSelect: (feed: ThreatFeedConfig) => void;
   onEdit: (feed: ThreatFeedConfig) => void;
   onSync: (feed: ThreatFeedConfig) => void;
+  onDelete?: (feed: ThreatFeedConfig) => void;
 }
 
 export function FeedList({
@@ -35,6 +36,7 @@ export function FeedList({
   onSelect,
   onEdit,
   onSync,
+  onDelete,
 }: FeedListProps) {
   const historyQueries = useQueries({
     queries: tableProps.data.map((feed) => ({
@@ -151,11 +153,20 @@ export function FeedList({
               <Play className="mr-2 h-4 w-4" />
               Sync now
             </DropdownMenuItem>
+            {onDelete && (
+              <DropdownMenuItem
+                className="text-destructive focus:text-destructive"
+                onClick={() => onDelete(row.original)}
+              >
+                <Trash2 className="mr-2 h-4 w-4" />
+                Delete feed
+              </DropdownMenuItem>
+            )}
           </DropdownMenuContent>
         </DropdownMenu>
       ),
     },
-  ], [lastImportedMap, onEdit, onSelect, onSync]);
+  ], [lastImportedMap, onDelete, onEdit, onSelect, onSync]);
 
   return (
     <DataTable

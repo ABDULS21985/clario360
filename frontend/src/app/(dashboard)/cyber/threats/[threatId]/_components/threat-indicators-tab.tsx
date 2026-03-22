@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState, type Dispatch, type SetStateAction } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { ColumnDef } from '@tanstack/react-table';
 import { apiGet, apiPost, apiPut } from '@/lib/api';
 import { API_ENDPOINTS } from '@/lib/constants';
@@ -30,6 +30,7 @@ interface ThreatIndicatorsTabProps {
 }
 
 export function ThreatIndicatorsTab({ threatId }: ThreatIndicatorsTabProps) {
+  const queryClient = useQueryClient();
   const [createOpen, setCreateOpen] = useState(false);
   const [draft, setDraft] = useState({
     type: 'ip',
@@ -146,7 +147,7 @@ export function ThreatIndicatorsTab({ threatId }: ThreatIndicatorsTabProps) {
       return;
     }
     try {
-      await apiPost(API_ENDPOINTS.CYBER_THREAT_INDICATORS(threatId), {
+      const result = await apiPost<{ data: ThreatIndicator; existed?: boolean }>(API_ENDPOINTS.CYBER_THREAT_INDICATORS(threatId), {
         type: draft.type,
         value: draft.value.trim(),
         severity: draft.severity,
@@ -163,7 +164,8 @@ export function ThreatIndicatorsTab({ threatId }: ThreatIndicatorsTabProps) {
       });
       setCreateOpen(false);
       await refetch();
-      toast.success('Indicator added');
+      void queryClient.invalidateQueries({ queryKey: [`cyber-threat-${threatId}`] });
+      toast.success(result.existed ? 'Existing indicator updated' : 'Indicator added');
     } catch {
       toast.error('Failed to add indicator');
     }
@@ -290,6 +292,7 @@ function AddIndicatorDialog({ open, onOpenChange, draft, setDraft, onSubmit }: A
           <DialogTitle>Add Indicator</DialogTitle>
           <DialogDescription>
             Add an IOC to this threat so it can be matched against detections and analyst lookups.
+            If an indicator with the same type and value already exists, it will be updated.
           </DialogDescription>
         </DialogHeader>
 

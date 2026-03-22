@@ -213,7 +213,10 @@ func issueAuthTokens(
 	ip,
 	userAgent string,
 ) (*issuedTokens, error) {
-	tokenPair, err := jwtMgr.GenerateTokenPair(user.ID, user.TenantID, user.Email, user.RoleSlugs())
+	// Pre-generate the session ID so it can be embedded in the JWT "sid" claim.
+	sessionID := uuid.New().String()
+
+	tokenPair, err := jwtMgr.GenerateTokenPair(user.ID, user.TenantID, user.Email, user.RoleSlugs(), sessionID)
 	if err != nil {
 		return nil, fmt.Errorf("generate jwt tokens: %w", err)
 	}
@@ -232,6 +235,7 @@ func issueAuthTokens(
 	}
 
 	if err := sessionRepo.Create(ctx, &iammodel.Session{
+		ID:               sessionID,
 		UserID:           user.ID,
 		TenantID:         user.TenantID,
 		RefreshTokenHash: hashString,

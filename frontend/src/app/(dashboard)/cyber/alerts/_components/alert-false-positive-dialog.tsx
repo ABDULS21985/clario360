@@ -16,7 +16,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
-import { apiPut } from '@/lib/api';
+import { apiPost, apiPut } from '@/lib/api';
 import { API_ENDPOINTS } from '@/lib/constants';
 import { toast } from 'sonner';
 import type { CyberAlert } from '@/types/cyber';
@@ -61,11 +61,28 @@ export function AlertFalsePositiveDialog({
       return;
     }
 
-    await Promise.all(targetIds.map((id) => (
-      apiPut(API_ENDPOINTS.CYBER_ALERT_FALSE_POSITIVE(id), {
+    if (targetIds.length > 1) {
+      await apiPut(API_ENDPOINTS.CYBER_ALERT_BULK_FALSE_POSITIVE, {
+        alert_ids: targetIds,
         reason: values.reason.trim(),
-      })
-    )));
+      });
+    } else {
+      await apiPut(API_ENDPOINTS.CYBER_ALERT_FALSE_POSITIVE(targetIds[0]), {
+        reason: values.reason.trim(),
+      });
+    }
+
+    // Submit rule feedback for single-alert false positives when tied to a detection rule
+    if (alert?.rule_id && targetIds.length === 1) {
+      try {
+        await apiPost(API_ENDPOINTS.CYBER_RULE_FEEDBACK(alert.rule_id), {
+          alert_id: alert.id,
+          feedback: 'false_positive',
+        });
+      } catch {
+        // Best-effort — the alert was already marked FP above
+      }
+    }
 
     toast.success(targetIds.length === 1 ? 'Alert marked as false positive' : `${targetIds.length} alerts marked as false positive`);
     methods.reset({ reason: '' });

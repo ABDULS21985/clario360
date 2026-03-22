@@ -28,7 +28,7 @@ export default function DashboardHome() {
       <SecondaryMetricsStrip />
 
       {/* Main content grid — alerts + tasks side by side */}
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+      <div className={`grid grid-cols-1 gap-6${hasCyber ? ' lg:grid-cols-2' : ''}`}>
         {hasCyber && <RecentAlertsTable />}
         <MyTasksList />
       </div>

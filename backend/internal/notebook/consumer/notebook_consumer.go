@@ -9,7 +9,6 @@ import (
 	"github.com/clario360/platform/internal/events"
 )
 
-const notebookTopic = "platform.notebook.events"
 
 type NotebookConsumer struct {
 	producer *events.Producer
@@ -65,5 +64,5 @@ func (c *NotebookConsumer) Handle(ctx context.Context, event *events.Event) erro
 }
 
 func (c *NotebookConsumer) Topic() string {
-	return notebookTopic
+	return events.Topics.NotebookEvents
 }

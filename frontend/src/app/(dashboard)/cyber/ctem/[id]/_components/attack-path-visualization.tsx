@@ -30,8 +30,10 @@ export function AttackPathVisualization({ findings }: { findings: CTEMFinding[] 
           <div className="mb-3 flex flex-wrap items-center gap-2">
             <SeverityIndicator severity={finding.severity} showLabel size="sm" />
             <span className="text-sm font-semibold">{finding.title}</span>
-            {finding.asset_name && (
-              <span className="text-xs text-muted-foreground">— {finding.asset_name}</span>
+            {finding.affected_asset_count > 0 && (
+              <span className="text-xs text-muted-foreground">
+                — {finding.affected_asset_count} asset{finding.affected_asset_count > 1 ? 's' : ''}
+              </span>
             )}
           </div>
 

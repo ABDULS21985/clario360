@@ -19,8 +19,9 @@ import { API_ENDPOINTS } from '@/lib/constants';
 import { CheckCircle, XCircle } from 'lucide-react';
 import type { RemediationAction } from '@/types/cyber';
 
-const schema = z.object({ notes: z.string().optional() });
-type FormValues = z.infer<typeof schema>;
+const approveSchema = z.object({ notes: z.string().optional() });
+const rejectSchema = z.object({ notes: z.string().min(1, 'Rejection reason is required') });
+type FormValues = z.infer<typeof approveSchema>;
 
 interface RemediationApproveDialogProps {
   open: boolean;
@@ -31,10 +32,13 @@ interface RemediationApproveDialogProps {
 }
 
 export function RemediationApproveDialog({ open, onOpenChange, action, mode, onSuccess }: RemediationApproveDialogProps) {
-  const methods = useForm<FormValues>({ resolver: zodResolver(schema), defaultValues: { notes: '' } });
   const isApprove = mode === 'approve';
+  const methods = useForm<FormValues>({
+    resolver: zodResolver(isApprove ? approveSchema : rejectSchema),
+    defaultValues: { notes: '' },
+  });
 
-  const { mutate, isPending } = useApiMutation<RemediationAction, FormValues>(
+  const { mutate, isPending } = useApiMutation<RemediationAction, Record<string, string | undefined>>(
     'post',
     `${API_ENDPOINTS.CYBER_REMEDIATION}/${action.id}/${isApprove ? 'approve' : 'reject'}`,
     {
@@ -61,7 +65,7 @@ export function RemediationApproveDialog({ open, onOpenChange, action, mode, onS
           </DialogDescription>
         </DialogHeader>
         <FormProvider {...methods}>
-          <form onSubmit={methods.handleSubmit((d) => mutate(d))} className="space-y-4">
+          <form onSubmit={methods.handleSubmit((d) => mutate(isApprove ? { notes: d.notes } : { reason: d.notes ?? '' }))} className="space-y-4">
             <FormField name="notes" label={isApprove ? 'Approval Notes' : 'Rejection Reason'}>
               <Textarea rows={3} placeholder={isApprove ? 'Any conditions or notes…' : 'Why is this being rejected?'} {...methods.register('notes')} />
             </FormField>

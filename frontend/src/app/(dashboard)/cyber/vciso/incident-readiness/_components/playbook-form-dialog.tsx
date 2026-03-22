@@ -152,7 +152,7 @@ export function PlaybookFormDialog({
         .map((s) => s.trim())
         .filter(Boolean),
       next_test_date: form.next_test_date,
-      owner_id: isEditing ? (editPlaybook?.owner_id ?? '') : '',
+      owner_id: (isEditing && editPlaybook?.owner_id) ? editPlaybook.owner_id : undefined,
       owner_name: isEditing ? (editPlaybook?.owner_name ?? '') : '',
     };
 

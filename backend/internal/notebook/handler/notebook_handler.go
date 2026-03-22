@@ -24,6 +24,7 @@ func NewNotebookHandler(service *nbservice.NotebookService, logger zerolog.Logge
 
 func (h *NotebookHandler) Routes() chi.Router {
 	r := chi.NewRouter()
+	r.Get("/health", h.HealthCheck)
 	r.Get("/profiles", h.ListProfiles)
 	r.Get("/templates", h.ListTemplates)
 	r.Get("/servers", h.ListServers)
@@ -33,6 +34,21 @@ func (h *NotebookHandler) Routes() chi.Router {
 	r.Post("/servers/{id}/copy-template", h.CopyTemplate)
 	r.Post("/activity", h.RecordActivity)
 	return r
+}
+
+// HealthCheck always returns HTTP 200 so clients can distinguish
+// "service up but hub degraded" from a total outage.
+func (h *NotebookHandler) HealthCheck(w http.ResponseWriter, r *http.Request) {
+	resp := nbdto.HubHealthResponse{
+		Status:     "ok",
+		JupyterHub: nbdto.HubStatus{Status: "available"},
+	}
+	if err := h.service.Ping(r.Context()); err != nil {
+		resp.Status = "degraded"
+		resp.JupyterHub.Status = "unavailable"
+		resp.JupyterHub.Error = err.Error()
+	}
+	writeJSON(w, http.StatusOK, resp)
 }
 
 func (h *NotebookHandler) ListProfiles(w http.ResponseWriter, r *http.Request) {

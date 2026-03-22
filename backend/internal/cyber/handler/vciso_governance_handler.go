@@ -104,8 +104,9 @@ type vcisoGovernanceService interface {
 	ListIntegrations(ctx context.Context, tenantID uuid.UUID) ([]*model.VCISOIntegration, error)
 	CreateIntegration(ctx context.Context, tenantID uuid.UUID, req *dto.CreateIntegrationRequest) (*model.VCISOIntegration, error)
 	UpdateIntegration(ctx context.Context, tenantID, id uuid.UUID, req *dto.CreateIntegrationRequest) error
+	PatchIntegration(ctx context.Context, tenantID, id uuid.UUID, req *dto.PatchIntegrationRequest) error
 	DeleteIntegration(ctx context.Context, tenantID, id uuid.UUID) error
-	SyncIntegration(ctx context.Context, tenantID, id uuid.UUID) error
+	SyncIntegration(ctx context.Context, tenantID, id uuid.UUID, req *dto.SyncIntegrationRequest) error
 	// Control Ownership
 	ListControlOwnerships(ctx context.Context, tenantID uuid.UUID, params *dto.VCISOGovernanceListParams) (*dto.GovernanceListResponse, error)
 	CreateControlOwnership(ctx context.Context, tenantID uuid.UUID, req *dto.CreateControlOwnershipRequest) (*model.VCISOControlOwnership, error)
@@ -113,6 +114,7 @@ type vcisoGovernanceService interface {
 	MarkControlOwnershipReviewed(ctx context.Context, tenantID, id uuid.UUID) error
 	// Approvals
 	ListApprovals(ctx context.Context, tenantID uuid.UUID, params *dto.VCISOGovernanceListParams) (*dto.GovernanceListResponse, error)
+	CreateApproval(ctx context.Context, tenantID, userID uuid.UUID, req *dto.CreateApprovalRequest, userName string) (*model.VCISOApprovalRequest, error)
 	DecideApproval(ctx context.Context, tenantID, id, userID uuid.UUID, req *dto.UpdateApprovalRequest) error
 }
 
@@ -145,6 +147,7 @@ func parseGovernanceListParams(r *http.Request) *dto.VCISOGovernanceListParams {
 		Type:      q.Get("type"),
 		Framework: q.Get("framework"),
 		Category:  q.Get("category"),
+		Priority:  q.Get("priority"),
 		Sort:      q.Get("sort"),
 		Order:     q.Get("order"),
 	}
@@ -1480,11 +1483,38 @@ func (h *VCISOGovernanceHandler) SyncIntegration(w http.ResponseWriter, r *http.
 	if !ok {
 		return
 	}
-	if err := h.svc.SyncIntegration(r.Context(), tenantID, id); err != nil {
+	// Body is optional; if absent treat as empty request.
+	var req dto.SyncIntegrationRequest
+	_ = decodeJSONOptional(r, &req)
+	if err := h.svc.SyncIntegration(r.Context(), tenantID, id, &req); err != nil {
 		h.handleError(w, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, envelope{"data": map[string]any{"synced": true}})
+}
+
+func (h *VCISOGovernanceHandler) PatchIntegration(w http.ResponseWriter, r *http.Request) {
+	tenantID, _, ok := requireTenantAndUser(w, r)
+	if !ok {
+		return
+	}
+	id, ok := parseUUID(w, chi.URLParam(r, "id"))
+	if !ok {
+		return
+	}
+	var req dto.PatchIntegrationRequest
+	if !decodeJSON(w, r, &req) {
+		return
+	}
+	if fieldErrs := pkgvalidator.Validate(req); fieldErrs != nil {
+		writeValidationError(w, fieldErrs)
+		return
+	}
+	if err := h.svc.PatchIntegration(r.Context(), tenantID, id, &req); err != nil {
+		h.handleError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, envelope{"data": map[string]any{"updated": true}})
 }
 
 // ─── Control Ownership ──────────────────────────────────────────────────────
@@ -1576,6 +1606,31 @@ func (h *VCISOGovernanceHandler) ListApprovals(w http.ResponseWriter, r *http.Re
 		return
 	}
 	writeJSON(w, http.StatusOK, result)
+}
+
+func (h *VCISOGovernanceHandler) CreateApproval(w http.ResponseWriter, r *http.Request) {
+	tenantID, userID, ok := requireTenantAndUser(w, r)
+	if !ok {
+		return
+	}
+	var req dto.CreateApprovalRequest
+	if !decodeJSON(w, r, &req) {
+		return
+	}
+	if fieldErrs := pkgvalidator.Validate(req); fieldErrs != nil {
+		writeValidationError(w, fieldErrs)
+		return
+	}
+	userName := ""
+	if user := auth.UserFromContext(r.Context()); user != nil {
+		userName = user.Email
+	}
+	item, err := h.svc.CreateApproval(r.Context(), tenantID, userID, &req, userName)
+	if err != nil {
+		h.handleError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, envelope{"data": item})
 }
 
 func (h *VCISOGovernanceHandler) DecideApproval(w http.ResponseWriter, r *http.Request) {

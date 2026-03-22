@@ -82,7 +82,7 @@ export default function DataLineagePage() {
           description="End-to-end data flow from sources through pipelines and models to downstream consumers."
           actions={
             <div className="flex flex-wrap items-center gap-2">
-              <LineageSearch value={search} onChange={setSearch} />
+              <LineageSearch value={search} onChange={setSearch} onSelectResult={(node) => void handleSelectNode(node)} />
               <LineageControls
                 direction={direction}
                 onDirectionChange={setDirection}

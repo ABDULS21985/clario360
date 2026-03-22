@@ -33,6 +33,7 @@ interface SourceTableViewProps {
   onDelete: (source: DataSource) => void;
   onTest: (source: DataSource) => void;
   onSync: (source: DataSource) => void;
+  onToggleStatus?: (source: DataSource) => void;
 }
 
 export function SourceTableView({
@@ -45,6 +46,7 @@ export function SourceTableView({
   onDelete,
   onTest,
   onSync,
+  onToggleStatus,
 }: SourceTableViewProps) {
   const columns: ColumnDef<DataSource>[] = [
     {
@@ -125,6 +127,11 @@ export function SourceTableView({
               <DropdownMenuItem onClick={() => onEdit(row.original)}>
                 Edit
               </DropdownMenuItem>
+              {onToggleStatus && (row.original.status === 'active' || row.original.status === 'inactive') && (
+                <DropdownMenuItem onClick={() => onToggleStatus(row.original)}>
+                  {row.original.status === 'active' ? 'Deactivate' : 'Activate'}
+                </DropdownMenuItem>
+              )}
               <DropdownMenuSeparator />
               <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={() => onDelete(row.original)}>
                 Delete

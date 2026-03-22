@@ -54,7 +54,7 @@ func (s *RemediationService) Create(ctx context.Context, tenantID, userID uuid.U
 	if err := s.ensureAssetsExist(ctx, tenantID, req.AffectedAssetIDs); err != nil {
 		return nil, err
 	}
-	action, err := s.repo.Create(ctx, tenantID, userID, req)
+	action, err := s.repo.Create(ctx, tenantID, userID, safeActorLabel(actor), req)
 	if err != nil {
 		return nil, err
 	}

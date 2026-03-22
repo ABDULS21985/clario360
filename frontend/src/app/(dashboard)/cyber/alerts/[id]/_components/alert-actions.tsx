@@ -1,11 +1,12 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { ArrowUpCircle, CheckCircle2, Search, ShieldAlert, UserCheck } from 'lucide-react';
+import { ArrowUpCircle, CheckCircle2, Search, ShieldAlert, ThumbsUp, UserCheck } from 'lucide-react';
+import { toast } from 'sonner';
 import { PermissionGate } from '@/components/auth/permission-gate';
 import { ConfirmDialog } from '@/components/shared/confirm-dialog';
 import { Button } from '@/components/ui/button';
-import { apiPut } from '@/lib/api';
+import { apiPost, apiPut } from '@/lib/api';
 import { API_ENDPOINTS } from '@/lib/constants';
 import { ALERT_STATUS_TRANSITIONS } from '@/lib/cyber-alerts';
 import type { AlertStatus, CyberAlert } from '@/types/cyber';
@@ -27,6 +28,8 @@ export function AlertActions({ alert, onUpdated }: AlertActionsProps) {
   const [statusDialogOpen, setStatusDialogOpen] = useState(false);
   const [statusDialogTarget, setStatusDialogTarget] = useState<AlertStatus | undefined>(undefined);
   const [confirmStatus, setConfirmStatus] = useState<AlertStatus | null>(null);
+  const [confirmTruePositive, setConfirmTruePositive] = useState(false);
+  const [submittingFeedback, setSubmittingFeedback] = useState(false);
 
   const allowed = useMemo(
     () => new Set(ALERT_STATUS_TRANSITIONS[alert.status] ?? []),
@@ -40,6 +43,24 @@ export function AlertActions({ alert, onUpdated }: AlertActionsProps) {
     await apiPut(API_ENDPOINTS.CYBER_ALERT_STATUS(alert.id), { status: confirmStatus });
     setConfirmStatus(null);
     onUpdated();
+  }
+
+  async function handleTruePositiveFeedback() {
+    if (!alert.rule_id) return;
+    setSubmittingFeedback(true);
+    try {
+      await apiPost(API_ENDPOINTS.CYBER_RULE_FEEDBACK(alert.rule_id), {
+        alert_id: alert.id,
+        feedback: 'true_positive',
+      });
+      toast.success('Rule feedback submitted — confirmed true positive');
+      setConfirmTruePositive(false);
+      onUpdated();
+    } catch {
+      toast.error('Failed to submit rule feedback');
+    } finally {
+      setSubmittingFeedback(false);
+    }
   }
 
   const investigationLabel = alert.status === 'acknowledged' ? 'Start Investigation' : 'Reopen';
@@ -101,6 +122,13 @@ export function AlertActions({ alert, onUpdated }: AlertActionsProps) {
           </Button>
         )}
 
+        {alert.rule_id && (
+          <Button variant="outline" size="sm" onClick={() => setConfirmTruePositive(true)}>
+            <ThumbsUp className="mr-1.5 h-4 w-4" />
+            Confirm True Positive
+          </Button>
+        )}
+
         <Button variant="outline" size="sm" onClick={() => setAssignOpen(true)}>
           <UserCheck className="mr-1.5 h-4 w-4" />
           Assign
@@ -158,6 +186,15 @@ export function AlertActions({ alert, onUpdated }: AlertActionsProps) {
         description={confirmDescription(alert, confirmStatus)}
         confirmLabel={confirmLabel(confirmStatus)}
         onConfirm={handleConfirmTransition}
+      />
+
+      <ConfirmDialog
+        open={confirmTruePositive}
+        onOpenChange={setConfirmTruePositive}
+        title="Confirm True Positive"
+        description={`Submit feedback that "${alert.title}" is a genuine threat. This helps tune the detection rule's accuracy.`}
+        confirmLabel={submittingFeedback ? 'Submitting…' : 'Confirm'}
+        onConfirm={handleTruePositiveFeedback}
       />
     </PermissionGate>
   );

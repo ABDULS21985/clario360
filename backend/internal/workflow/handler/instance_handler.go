@@ -24,11 +24,12 @@ type engineService interface {
 	GetHistory(ctx context.Context, tenantID, instanceID string) ([]*model.StepExecution, error)
 }
 
-// instanceReader defines read operations for workflow instances.
+// instanceReader defines read and variable-update operations for workflow instances.
 type instanceReader interface {
 	GetByID(ctx context.Context, tenantID, id string) (*model.WorkflowInstance, error)
-	List(ctx context.Context, tenantID, status, definitionID, startedBy string, dateFrom, dateTo *time.Time, limit, offset int) ([]*model.WorkflowInstance, int, error)
+	List(ctx context.Context, tenantID, status, definitionID, startedBy string, dateFrom, dateTo *time.Time, sortBy, sortOrder string, limit, offset int) ([]*model.WorkflowInstance, int, error)
 	GetStepExecutions(ctx context.Context, instanceID string) ([]*model.StepExecution, error)
+	UpdateVariables(ctx context.Context, tenantID, instanceID string, variables map[string]interface{}) error
 }
 
 // definitionReader defines read operations for workflow definitions.
@@ -157,10 +158,15 @@ func (h *InstanceHandler) List(w http.ResponseWriter, r *http.Request) {
 
 	page, pageSize := parsePagination(r)
 	offset := (page - 1) * pageSize
+	sortBy := q.Get("sort")
+	sortOrder := q.Get("order")
+	if sortOrder != "asc" && sortOrder != "desc" {
+		sortOrder = ""
+	}
 
 	instances, total, err := h.instanceRepo.List(
 		r.Context(), user.TenantID, status, definitionID, startedBy,
-		dateFrom, dateTo, pageSize, offset,
+		dateFrom, dateTo, sortBy, sortOrder, pageSize, offset,
 	)
 	if err != nil {
 		h.logger.Error().Err(err).Str("tenant_id", user.TenantID).Msg("failed to list workflow instances")
@@ -265,28 +271,50 @@ func (h *InstanceHandler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	instance, err := h.instanceRepo.GetByID(r.Context(), user.TenantID, id)
-	if err != nil {
+	// Merge all provided variable sources into a single update map.
+	merged := make(map[string]interface{})
+	for k, v := range req.Variables {
+		merged[k] = v
+	}
+	for k, v := range req.InputVariables {
+		merged[k] = v
+	}
+
+	if len(merged) == 0 {
+		// Nothing to update — fetch and return current state.
+		instance, err := h.instanceRepo.GetByID(r.Context(), user.TenantID, id)
+		if err != nil {
+			handleServiceError(w, err)
+			return
+		}
+		resp := dto.InstanceToResponse(instance)
+		h.enrichInstanceResponse(r.Context(), user.TenantID, instance, &resp)
+		writeJSON(w, http.StatusOK, resp)
+		return
+	}
+
+	// Persist the merged variables to the database.
+	if err := h.instanceRepo.UpdateVariables(r.Context(), user.TenantID, id, merged); err != nil {
+		h.logger.Error().Err(err).
+			Str("tenant_id", user.TenantID).
+			Str("instance_id", id).
+			Msg("failed to update workflow instance variables")
 		handleServiceError(w, err)
 		return
 	}
 
-	// Merge provided variables into existing instance variables.
-	if req.Variables != nil {
-		if instance.Variables == nil {
-			instance.Variables = make(map[string]interface{})
-		}
-		for k, v := range req.Variables {
-			instance.Variables[k] = v
-		}
-	}
-	if req.InputVariables != nil {
-		if instance.Variables == nil {
-			instance.Variables = make(map[string]interface{})
-		}
-		for k, v := range req.InputVariables {
-			instance.Variables[k] = v
-		}
+	h.logger.Info().
+		Str("tenant_id", user.TenantID).
+		Str("instance_id", id).
+		Str("user_id", user.ID).
+		Int("variable_count", len(merged)).
+		Msg("workflow instance variables updated")
+
+	// Re-fetch to return the persisted state.
+	instance, err := h.instanceRepo.GetByID(r.Context(), user.TenantID, id)
+	if err != nil {
+		handleServiceError(w, err)
+		return
 	}
 
 	resp := dto.InstanceToResponse(instance)

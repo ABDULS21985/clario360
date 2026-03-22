@@ -120,6 +120,10 @@ func fileStatus(f *model.FileRecord) string {
 		return "quarantined"
 	case model.ScanStatusClean, model.ScanStatusSkipped:
 		return "available"
+	case model.ScanStatusError:
+		// Scan failed; treat as available so the file is not permanently inaccessible.
+		// The virus_scan_status field itself surfaces the "error" state to the client.
+		return "available"
 	default:
 		return "processing"
 	}

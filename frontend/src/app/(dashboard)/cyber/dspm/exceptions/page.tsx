@@ -228,6 +228,7 @@ interface ExceptionForm {
   expires_at: string;
   risk_score: string;
   risk_level: 'low' | 'medium' | 'high' | 'critical';
+  review_interval_days: string;
 }
 
 const INITIAL_FORM: ExceptionForm = {
@@ -241,6 +242,7 @@ const INITIAL_FORM: ExceptionForm = {
   expires_at: '',
   risk_score: '50',
   risk_level: 'medium',
+  review_interval_days: '90',
 };
 
 export default function RiskExceptionsPage() {
@@ -338,6 +340,7 @@ export default function RiskExceptionsPage() {
         expires_at: new Date(form.expires_at).toISOString(),
         risk_score: parseInt(form.risk_score, 10) || 50,
         risk_level: form.risk_level,
+        review_interval_days: parseInt(form.review_interval_days, 10) || 90,
       });
       toast.success('Exception request submitted');
       setCreateOpen(false);
@@ -523,14 +526,30 @@ export default function RiskExceptionsPage() {
                   />
                 </div>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="exc-expires">Expires At</Label>
-                <Input
-                  id="exc-expires"
-                  type="date"
-                  value={form.expires_at}
-                  onChange={(e) => setForm({ ...form, expires_at: e.target.value })}
-                />
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="exc-expires">Expires At</Label>
+                  <Input
+                    id="exc-expires"
+                    type="date"
+                    value={form.expires_at}
+                    onChange={(e) => setForm({ ...form, expires_at: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Review Interval</Label>
+                  <Select value={form.review_interval_days} onValueChange={(v) => setForm({ ...form, review_interval_days: v })}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="30">30 days</SelectItem>
+                      <SelectItem value="60">60 days</SelectItem>
+                      <SelectItem value="90">90 days</SelectItem>
+                      <SelectItem value="180">180 days</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
             </div>
             <DialogFooter>

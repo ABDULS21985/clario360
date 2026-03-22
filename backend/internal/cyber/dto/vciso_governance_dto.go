@@ -15,6 +15,7 @@ type VCISOGovernanceListParams struct {
 	Type      string `json:"type,omitempty"`
 	Framework string `json:"framework,omitempty"`
 	Category  string `json:"category,omitempty"`
+	Priority  string `json:"priority,omitempty"`
 }
 
 // SetDefaults applies safe defaults to unset pagination values.
@@ -70,7 +71,7 @@ type CreatePolicyRequest struct {
 	Title     string   `json:"title" validate:"required,min=2,max=255"`
 	Domain    string   `json:"domain" validate:"required"`
 	Version   string   `json:"version" validate:"omitempty,max=50"`
-	Status    string   `json:"status" validate:"omitempty,oneof=draft active under_review approved retired"`
+	Status    string   `json:"status" validate:"omitempty,oneof=draft review approved published retired"`
 	Content   string   `json:"content"`
 	OwnerID   *string  `json:"owner_id,omitempty" validate:"omitempty,uuid"`
 	OwnerName string   `json:"owner_name"`
@@ -83,7 +84,7 @@ type UpdatePolicyRequest = CreatePolicyRequest
 
 // UpdatePolicyStatusRequest changes only the status of a policy.
 type UpdatePolicyStatusRequest struct {
-	Status         string  `json:"status" validate:"required,oneof=draft active under_review approved retired"`
+	Status         string  `json:"status" validate:"required,oneof=draft review approved published retired"`
 	ReviewerID     *string `json:"reviewer_id,omitempty" validate:"omitempty,uuid"`
 	ReviewerName   *string `json:"reviewer_name,omitempty"`
 	ApprovedBy     *string `json:"approved_by,omitempty" validate:"omitempty,uuid"`
@@ -115,7 +116,7 @@ type CreateVendorRequest struct {
 	Name                 string   `json:"name" validate:"required,min=2,max=255"`
 	Category             string   `json:"category" validate:"required"`
 	RiskTier             string   `json:"risk_tier" validate:"required,oneof=critical high medium low"`
-	Status               string   `json:"status" validate:"omitempty,oneof=active inactive under_review"`
+	Status               string   `json:"status" validate:"omitempty,oneof=active onboarding under_review offboarding terminated inactive"`
 	RiskScore            int      `json:"risk_score" validate:"gte=0,lte=100"`
 	NextReviewDate       string   `json:"next_review_date" validate:"omitempty,datestr"`
 	ContactName          *string  `json:"contact_name,omitempty"`
@@ -351,6 +352,18 @@ type CreateIntegrationRequest struct {
 // UpdateIntegrationRequest is the JSON body for updating an integration.
 type UpdateIntegrationRequest = CreateIntegrationRequest
 
+// PatchIntegrationRequest is the JSON body for a partial integration update (PATCH).
+// Only non-nil fields are written. Validates the status against the allowed enum.
+type PatchIntegrationRequest struct {
+	Status *string `json:"status" validate:"omitempty,oneof=connected disconnected error pending"`
+}
+
+// SyncIntegrationRequest is the optional JSON body for triggering a manual sync.
+// When ItemsSynced is provided the stored counter is overwritten with that value.
+type SyncIntegrationRequest struct {
+	ItemsSynced *int `json:"items_synced"`
+}
+
 // ─── Control Ownership ──────────────────────────────────────────────────────
 
 // CreateControlOwnershipRequest is the JSON body for creating control ownership.
@@ -373,7 +386,7 @@ type UpdateControlOwnershipRequest = CreateControlOwnershipRequest
 
 // UpdateApprovalRequest records an approval decision.
 type UpdateApprovalRequest struct {
-	Status        string  `json:"status" validate:"required,oneof=approved rejected"`
+	Status        string  `json:"status" validate:"required,oneof=approved rejected escalated"`
 	DecisionNotes *string `json:"decision_notes,omitempty"`
 }
 

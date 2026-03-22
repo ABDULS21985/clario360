@@ -62,7 +62,6 @@ const SEVERITIES: { value: CyberSeverity; label: string }[] = [
   { value: 'high', label: 'High' },
   { value: 'medium', label: 'Medium' },
   { value: 'low', label: 'Low' },
-  { value: 'info', label: 'Info' },
 ];
 
 const CLASSIFICATIONS = ['public', 'internal', 'confidential', 'restricted'];

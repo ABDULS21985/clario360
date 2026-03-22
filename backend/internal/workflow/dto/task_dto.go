@@ -31,6 +31,7 @@ type CompleteTaskRequest struct {
 // DelegateTaskRequest is the payload for delegating a task to another user.
 type DelegateTaskRequest struct {
 	DelegateTo string `json:"delegate_to" validate:"required"`
+	Reason     string `json:"reason"`
 }
 
 // RejectTaskRequest is the payload for rejecting a human task.
@@ -88,11 +89,12 @@ type ListTasksResponse struct {
 
 // TaskCountResponse provides counts of tasks bucketed by status for a user dashboard.
 type TaskCountResponse struct {
-	Pending     int `json:"pending"`
-	ClaimedByMe int `json:"claimed_by_me"`
-	Completed   int `json:"completed"`
-	Overdue     int `json:"overdue"`
-	Escalated   int `json:"escalated"`
+	Pending     int   `json:"pending"`
+	ClaimedByMe int   `json:"claimed_by_me"`
+	Completed   int   `json:"completed"`
+	Overdue     int   `json:"overdue"`
+	Escalated   int   `json:"escalated"`
+	History     []int `json:"history,omitempty"`
 }
 
 // ---------- Converters ----------

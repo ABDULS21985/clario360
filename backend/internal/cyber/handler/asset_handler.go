@@ -776,9 +776,7 @@ func parseAssetListParams(r *http.Request) (*dto.AssetListParams, error) {
 		params.Location = &v
 	}
 	params.Tags = splitQueryValues(q, "tag")
-	if v := q.Get("discovery_source"); v != "" {
-		params.DiscoverySource = &v
-	}
+	params.DiscoverySources = splitQueryValues(q, "discovery_source")
 	if v := q.Get("discovered_after"); v != "" {
 		t, err := time.Parse(time.RFC3339, v)
 		if err != nil {
@@ -889,6 +887,8 @@ func parseScanListParams(r *http.Request) *dto.ScanListParams {
 	if v := q.Get("status"); v != "" {
 		params.Status = &v
 	}
+	params.Sort = q.Get("sort")
+	params.Order = q.Get("order")
 	if v := q.Get("page"); v != "" {
 		n, _ := strconv.Atoi(v)
 		params.Page = n

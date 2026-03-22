@@ -233,8 +233,8 @@ func (r *AssetRepository) applyAssetFilters(qb *database.QueryBuilder, tenantID 
 	if params.Location != nil {
 		qb.Where("a.location = ?", *params.Location)
 	}
-	if params.DiscoverySource != nil {
-		qb.Where("a.discovery_source = ?", *params.DiscoverySource)
+	if len(params.DiscoverySources) > 0 {
+		qb.WhereIn("a.discovery_source", params.DiscoverySources)
 	}
 	if params.DiscoveredAfter != nil {
 		qb.Where("a.discovered_at >= ?", *params.DiscoveredAfter)

@@ -51,20 +51,26 @@ import { PolicyDraftGenerator } from './_components/policy-draft-generator';
 
 // ─── KPI Stats ────────────────────────────────────────────────────────────────
 
-interface PolicyStats {
+interface PolicyStatsResponse {
   total: number;
-  published: number;
-  in_review: number;
-  overdue_reviews: number;
-  active_exceptions: number;
+  by_status: Record<string, number>;
 }
 
 function PolicyKpiCards() {
-  const { data: envelope, isLoading } = useRealtimeData<{ data: PolicyStats }>(
+  const { data: envelope, isLoading } = useRealtimeData<{ data: PolicyStatsResponse }>(
     `${API_ENDPOINTS.CYBER_VCISO_POLICIES}/stats`,
     { wsTopics: ['vciso.policies'], pollInterval: 60_000 },
   );
-  const data = envelope?.data;
+  const raw = envelope?.data;
+  const data = raw
+    ? {
+        total: raw.total ?? 0,
+        published: raw.by_status?.published ?? 0,
+        in_review: raw.by_status?.review ?? 0,
+        overdue_reviews: 0,
+        active_exceptions: 0,
+      }
+    : undefined;
 
   return (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">

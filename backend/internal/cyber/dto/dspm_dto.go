@@ -109,6 +109,13 @@ type DSPMScanListResponse struct {
 	TotalPages int               `json:"-"`
 }
 
+// DSPMScanTriggerRequest is the body for triggering a DSPM scan.
+type DSPMScanTriggerRequest struct {
+	Scope      []string `json:"scope,omitempty"`
+	AssetTypes string   `json:"asset_types,omitempty"`
+	FullScan   bool     `json:"full_scan,omitempty"`
+}
+
 type DSPMScanTriggerResponse struct {
 	Scan *model.DSPMScan `json:"scan"`
 }

@@ -27,6 +27,18 @@ func (h *OAuthHandler) Routes() chi.Router {
 	r.Get("/authorize", h.Authorize)
 	r.Post("/token", h.Token)
 	r.Get("/userinfo", h.UserInfo)
+	// Social-login provider discovery — always returns the configured provider list.
+	// Returns an empty array when no external social providers are configured.
+	r.Get("/providers", h.ListSocialProviders)
+	return r
+}
+
+// SocialAuthRoutes returns routes that require JWT authentication (connections, link).
+// Mount these inside the protected route group in main.go.
+func (h *OAuthHandler) SocialAuthRoutes() chi.Router {
+	r := chi.NewRouter()
+	r.Get("/connections", h.ListConnections)
+	r.Delete("/link/{provider}", h.UnlinkProvider)
 	return r
 }
 
@@ -109,6 +121,25 @@ func (h *OAuthHandler) JWKS(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, jwks)
+}
+
+// ListSocialProviders handles GET /api/v1/auth/oauth/providers.
+// Returns an empty list until social-login provider integration is implemented.
+func (h *OAuthHandler) ListSocialProviders(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, http.StatusOK, []any{})
+}
+
+// ListConnections handles GET /api/v1/auth/oauth/connections (auth-required).
+// Returns the calling user's linked social-login accounts.
+// Returns an empty list until social-login provider integration is implemented.
+func (h *OAuthHandler) ListConnections(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, http.StatusOK, []any{})
+}
+
+// UnlinkProvider handles DELETE /api/v1/auth/oauth/link/{provider} (auth-required).
+// Removes a linked social-login account. Returns 404 until social-login is implemented.
+func (h *OAuthHandler) UnlinkProvider(w http.ResponseWriter, r *http.Request) {
+	writeError(w, http.StatusNotFound, "social login provider linking is not yet configured")
 }
 
 func accessTokenFromRequest(r *http.Request) string {

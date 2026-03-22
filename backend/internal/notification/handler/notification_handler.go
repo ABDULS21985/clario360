@@ -2,6 +2,7 @@ package handler
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
@@ -56,6 +57,23 @@ func (h *NotificationHandler) ListNotifications(w http.ResponseWriter, r *http.R
 	})
 }
 
+// GetCounts handles GET /api/v1/notifications/counts.
+// Returns per-category totals and the unread count in a single response,
+// replacing the multiple individual count fetches previously required.
+func (h *NotificationHandler) GetCounts(w http.ResponseWriter, r *http.Request) {
+	user := auth.UserFromContext(r.Context())
+	tenantID := auth.TenantFromContext(r.Context())
+
+	counts, err := h.notifRepo.GetCounts(r.Context(), tenantID, user.ID)
+	if err != nil {
+		h.logger.Error().Err(err).Msg("failed to get notification counts")
+		writeErrorResponse(w, http.StatusInternalServerError, "INTERNAL_ERROR", "failed to get notification counts", r)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, counts)
+}
+
 // UnreadCount handles GET /api/v1/notifications/unread-count.
 func (h *NotificationHandler) UnreadCount(w http.ResponseWriter, r *http.Request) {
 	user := auth.UserFromContext(r.Context())
@@ -98,7 +116,12 @@ func (h *NotificationHandler) MarkRead(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 
 	if err := h.notifSvc.MarkRead(r.Context(), tenantID, user.ID, id); err != nil {
-		writeErrorResponse(w, http.StatusNotFound, "NOT_FOUND", err.Error(), r)
+		if errors.Is(err, repository.ErrNotFound) {
+			writeErrorResponse(w, http.StatusNotFound, "NOT_FOUND", "notification not found", r)
+			return
+		}
+		h.logger.Error().Err(err).Str("id", id).Msg("failed to mark notification as read")
+		writeErrorResponse(w, http.StatusInternalServerError, "INTERNAL_ERROR", "failed to mark notification as read", r)
 		return
 	}
 
@@ -158,7 +181,12 @@ func (h *NotificationHandler) DeleteNotification(w http.ResponseWriter, r *http.
 	id := chi.URLParam(r, "id")
 
 	if err := h.notifSvc.Delete(r.Context(), tenantID, user.ID, id); err != nil {
-		writeErrorResponse(w, http.StatusNotFound, "NOT_FOUND", err.Error(), r)
+		if errors.Is(err, repository.ErrNotFound) {
+			writeErrorResponse(w, http.StatusNotFound, "NOT_FOUND", "notification not found", r)
+			return
+		}
+		h.logger.Error().Err(err).Str("id", id).Msg("failed to delete notification")
+		writeErrorResponse(w, http.StatusInternalServerError, "INTERNAL_ERROR", "failed to delete notification", r)
 		return
 	}
 

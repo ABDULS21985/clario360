@@ -125,6 +125,8 @@ func (s *ThreatService) UpdateIndicator(ctx context.Context, tenantID, indicator
 		return nil, err
 	}
 
+	_ = s.enrichmentCache.Invalidate(ctx, tenantID, indicatorID)
+
 	_ = publishEvent(ctx, s.producer, events.Topics.ThreatEvents, "cyber.indicator.updated", tenantID, actor, map[string]interface{}{
 		"indicator_id": after.ID.String(),
 		"threat_id":    uuidPtrString(after.ThreatID),
@@ -149,6 +151,8 @@ func (s *ThreatService) DeleteIndicator(ctx context.Context, tenantID, indicator
 		return err
 	}
 
+	_ = s.enrichmentCache.Invalidate(ctx, tenantID, indicatorID)
+
 	_ = publishEvent(ctx, s.producer, events.Topics.ThreatEvents, "cyber.indicator.updated", tenantID, actor, map[string]interface{}{
 		"indicator_id": indicatorID.String(),
 		"deleted":      true,
@@ -159,6 +163,86 @@ func (s *ThreatService) DeleteIndicator(ctx context.Context, tenantID, indicator
 		"value": item.Value,
 	})
 	return nil
+}
+
+// BatchCreateIndicators creates multiple standalone indicators in a single request.
+func (s *ThreatService) BatchCreateIndicators(ctx context.Context, tenantID, userID uuid.UUID, actor *Actor, req *dto.IndicatorBatchRequest) (*dto.IndicatorBatchResponse, error) {
+	if req == nil || len(req.Indicators) == 0 {
+		return nil, repository.ErrInvalidInput
+	}
+	conflictMode := req.ConflictMode
+	if conflictMode == "" {
+		conflictMode = "update"
+	}
+
+	resp := &dto.IndicatorBatchResponse{
+		Errors: make([]dto.IndicatorBatchError, 0),
+	}
+
+	for i := range req.Indicators {
+		ind := &req.Indicators[i]
+		if err := s.validateStandaloneIndicator(ctx, tenantID, ind); err != nil {
+			resp.Failed++
+			resp.Errors = append(resp.Errors, dto.IndicatorBatchError{
+				Index:   i,
+				Value:   ind.Value,
+				Message: err.Error(),
+			})
+			continue
+		}
+
+		if conflictMode == "skip" || conflictMode == "fail" {
+			existing, _ := s.indicatorRepo.GetByTypeValue(ctx, tenantID, ind.Type, strings.TrimSpace(ind.Value))
+			if existing != nil {
+				if conflictMode == "fail" {
+					resp.Failed++
+					resp.Errors = append(resp.Errors, dto.IndicatorBatchError{
+						Index:   i,
+						Value:   ind.Value,
+						Message: "duplicate indicator",
+					})
+				} else {
+					resp.Skipped++
+				}
+				continue
+			}
+		}
+
+		_, err := s.indicatorRepo.Create(ctx, &model.ThreatIndicator{
+			TenantID:    tenantID,
+			ThreatID:    ind.ThreatID,
+			Type:        ind.Type,
+			Value:       strings.TrimSpace(ind.Value),
+			Description: strings.TrimSpace(ind.Description),
+			Severity:    ind.Severity,
+			Source:      coalesceSource(ind.Source),
+			Confidence:  normalizeIndicatorConfidence(ind.Confidence),
+			Active:      true,
+			ExpiresAt:   ind.ExpiresAt,
+			Tags:        normalizeStrings(ind.Tags),
+			Metadata:    ind.Metadata,
+			CreatedBy:   &userID,
+		})
+		if err != nil {
+			resp.Failed++
+			resp.Errors = append(resp.Errors, dto.IndicatorBatchError{
+				Index:   i,
+				Value:   ind.Value,
+				Message: err.Error(),
+			})
+			continue
+		}
+		resp.Imported++
+	}
+
+	if resp.Imported > 0 {
+		_ = publishAuditEvent(ctx, s.producer, "cyber.indicator.batch_created", tenantID, actor, map[string]interface{}{
+			"imported": resp.Imported,
+			"skipped":  resp.Skipped,
+			"failed":   resp.Failed,
+		})
+	}
+	return resp, nil
 }
 
 // IndicatorStats returns aggregated IOC metrics.
@@ -172,7 +256,17 @@ func (s *ThreatService) IndicatorStats(ctx context.Context, tenantID uuid.UUID, 
 }
 
 // IndicatorEnrichment returns best-effort enrichment data for one IOC.
+// Results are cached in Redis for 24 hours to avoid hitting external rate limits.
 func (s *ThreatService) IndicatorEnrichment(ctx context.Context, tenantID, indicatorID uuid.UUID, actor *Actor) (*model.IndicatorEnrichment, error) {
+	// Check cache first (fail-open: errors are ignored).
+	if cached, hit, _ := s.enrichmentCache.Get(ctx, tenantID, indicatorID); hit {
+		_ = publishAuditEvent(ctx, s.producer, "cyber.indicator.enrichment_viewed", tenantID, actor, map[string]interface{}{
+			"id":     indicatorID.String(),
+			"cached": true,
+		})
+		return cached, nil
+	}
+
 	item, err := s.indicatorRepo.GetByID(ctx, tenantID, indicatorID)
 	if err != nil {
 		return nil, err
@@ -219,6 +313,9 @@ func (s *ThreatService) IndicatorEnrichment(ctx context.Context, tenantID, indic
 			"note": "WHOIS lookup not configured",
 		}
 	}
+
+	// Cache the result (fire-and-forget; errors are ignored).
+	_ = s.enrichmentCache.Set(ctx, tenantID, indicatorID, result)
 
 	_ = publishAuditEvent(ctx, s.producer, "cyber.indicator.enrichment_viewed", tenantID, actor, map[string]interface{}{
 		"id": indicatorID.String(),

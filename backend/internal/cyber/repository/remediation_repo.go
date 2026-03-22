@@ -29,7 +29,7 @@ func NewRemediationRepository(db *pgxpool.Pool, logger zerolog.Logger) *Remediat
 }
 
 // Create inserts a new remediation action.
-func (r *RemediationRepository) Create(ctx context.Context, tenantID, createdBy uuid.UUID, req *dto.CreateRemediationRequest) (*model.RemediationAction, error) {
+func (r *RemediationRepository) Create(ctx context.Context, tenantID, createdBy uuid.UUID, createdByName string, req *dto.CreateRemediationRequest) (*model.RemediationAction, error) {
 	id := uuid.New()
 	now := time.Now().UTC()
 
@@ -65,17 +65,21 @@ func (r *RemediationRepository) Create(ctx context.Context, tenantID, createdBy 
 	}
 	metaJSON, _ := json.Marshal(metadata)
 
+	var namePtr *string
+	if createdByName != "" {
+		namePtr = &createdByName
+	}
 	_, err = r.db.Exec(ctx, `
 		INSERT INTO remediation_actions (
 			id, tenant_id, alert_id, vulnerability_id, assessment_id, ctem_finding_id, remediation_group_id,
 			type, severity, title, description, plan, affected_asset_ids, affected_asset_count,
-			execution_mode, status, requires_approval_from, tags, metadata, created_by, created_at, updated_at
+			execution_mode, status, requires_approval_from, tags, metadata, created_by, created_by_name, created_at, updated_at
 		) VALUES (
-			$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,'draft',$16,$17,$18,$19,$20,$20
+			$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,'draft',$16,$17,$18,$19,$20,$21,$21
 		)`,
 		id, tenantID, req.AlertID, req.VulnerabilityID, req.AssessmentID, req.CTEMFindingID, req.RemediationGroupID,
 		req.Type, severity, req.Title, req.Description, planJSON, assetIDs, len(assetIDs),
-		executionMode, requiresApprovalFrom, tags, metaJSON, createdBy, now,
+		executionMode, requiresApprovalFrom, tags, metaJSON, createdBy, namePtr, now,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("insert remediation: %w", err)
@@ -94,7 +98,7 @@ func (r *RemediationRepository) GetByID(ctx context.Context, tenantID, id uuid.U
 		       execution_result, executed_by, execution_started_at, execution_completed_at, execution_duration_ms,
 		       verification_result, verified_by, verified_at,
 		       rollback_result, rollback_reason, rollback_approved_by, rolled_back_at, rollback_deadline,
-		       workflow_instance_id, tags, metadata, created_by, created_at, updated_at
+		       workflow_instance_id, tags, metadata, created_by, created_by_name, created_at, updated_at
 		FROM remediation_actions
 		WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL`,
 		id, tenantID,
@@ -421,7 +425,7 @@ func (r *RemediationRepository) FindActiveByAlertID(ctx context.Context, tenantI
 		       execution_result, executed_by, execution_started_at, execution_completed_at, execution_duration_ms,
 		       verification_result, verified_by, verified_at,
 		       rollback_result, rollback_reason, rollback_approved_by, rolled_back_at, rollback_deadline,
-		       workflow_instance_id, tags, metadata, created_by, created_at, updated_at
+		       workflow_instance_id, tags, metadata, created_by, created_by_name, created_at, updated_at
 		FROM remediation_actions
 		WHERE tenant_id = $1
 		  AND alert_id = $2
@@ -445,7 +449,7 @@ func (r *RemediationRepository) FindActiveByRemediationGroupID(ctx context.Conte
 		       execution_result, executed_by, execution_started_at, execution_completed_at, execution_duration_ms,
 		       verification_result, verified_by, verified_at,
 		       rollback_result, rollback_reason, rollback_approved_by, rolled_back_at, rollback_deadline,
-		       workflow_instance_id, tags, metadata, created_by, created_at, updated_at
+		       workflow_instance_id, tags, metadata, created_by, created_by_name, created_at, updated_at
 		FROM remediation_actions
 		WHERE tenant_id = $1
 		  AND remediation_group_id = $2
@@ -477,7 +481,7 @@ func scanRemediation(row interface {
 		&execResultJSON, &a.ExecutedBy, &a.ExecutionStartedAt, &a.ExecutionCompletedAt, &a.ExecutionDurationMs,
 		&verResultJSON, &a.VerifiedBy, &a.VerifiedAt,
 		&rollbackResultJSON, &a.RollbackReason, &a.RollbackApprovedBy, &a.RolledBackAt, &a.RollbackDeadline,
-		&a.WorkflowInstanceID, &tags, &metaJSON, &a.CreatedBy, &a.CreatedAt, &a.UpdatedAt,
+		&a.WorkflowInstanceID, &tags, &metaJSON, &a.CreatedBy, &a.CreatedByName, &a.CreatedAt, &a.UpdatedAt,
 	)
 	if err != nil {
 		if err == pgx.ErrNoRows {

@@ -41,6 +41,7 @@ export function StepBranding({
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [logoPreviewUrl, setLogoPreviewUrl] = useState<string | null>(null);
   const [isDraggingLogo, setIsDraggingLogo] = useState(false);
+  const [isSkipping, setIsSkipping] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const values = watch();
 
@@ -83,6 +84,18 @@ export function StepBranding({
 
     setLogoError(null);
     setLogoFile(file);
+  };
+
+  const handleSkip = async () => {
+    setApiError(null);
+    setIsSkipping(true);
+    try {
+      await onSaved();
+    } catch {
+      setApiError('Failed to proceed. Please try again.');
+    } finally {
+      setIsSkipping(false);
+    }
   };
 
   const submit = handleSubmit(async (branding) => {
@@ -255,10 +268,11 @@ export function StepBranding({
           Back
         </Button>
         <div className="flex gap-2">
-          <Button type="button" variant="ghost" onClick={onSaved}>
+          <Button type="button" variant="ghost" disabled={isSubmitting || isSkipping} onClick={() => void handleSkip()}>
+            {isSkipping ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
             Skip
           </Button>
-          <Button type="submit" disabled={isSubmitting}>
+          <Button type="submit" disabled={isSubmitting || isSkipping}>
             {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
             Continue
           </Button>

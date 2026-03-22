@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { Clock3, Play, RefreshCcw, TriangleAlert } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
@@ -38,6 +38,19 @@ export function FeedDetail({
   onSynced,
 }: FeedDetailProps) {
   const [syncing, setSyncing] = useState(false);
+  const queryClient = useQueryClient();
+
+  // Fetch fresh feed data directly from the backend so the detail panel is self-sufficient
+  const feedQuery = useQuery({
+    queryKey: ['cyber-threat-feed-detail', feed?.id],
+    queryFn: () => apiGet<{ data: ThreatFeedConfig }>(API_ENDPOINTS.CYBER_THREAT_FEED_DETAIL(feed!.id)),
+    enabled: open && Boolean(feed?.id),
+    // Use the parent-supplied feed as initial data to avoid a loading flash
+    initialData: feed ? { data: feed } : undefined,
+  });
+
+  // Use the freshly fetched feed when available, fall back to the prop
+  const liveFeed = feedQuery.data?.data ?? feed;
 
   const historyQuery = useQuery({
     queryKey: ['cyber-threat-feed-history', feed?.id],
@@ -61,7 +74,10 @@ export function FeedDetail({
       setSyncing(true);
       const response = await apiPost<{ data: ThreatFeedSyncSummary }>(API_ENDPOINTS.CYBER_THREAT_FEED_SYNC(feed.id));
       toast.success(`${response.data.indicators_imported} indicators imported`);
-      await historyQuery.refetch();
+      // Refetch both the feed detail and history immediately so the panel updates
+      void queryClient.invalidateQueries({ queryKey: ['cyber-threat-feed-detail', feed.id] });
+      void queryClient.invalidateQueries({ queryKey: ['cyber-threat-feed-history', feed.id] });
+      void queryClient.invalidateQueries({ queryKey: ['cyber-threat-feed-last-history'] });
       onSynced?.();
     } catch (error) {
       toast.error(parseApiError(error));
@@ -74,29 +90,29 @@ export function FeedDetail({
     <DetailPanel
       open={open}
       onOpenChange={onOpenChange}
-      title={feed?.name ?? 'Threat Feed'}
-      description={feed ? `${getThreatFeedTypeLabel(feed.type)} feed configuration` : 'Threat feed detail'}
+      title={liveFeed?.name ?? 'Threat Feed'}
+      description={liveFeed ? `${getThreatFeedTypeLabel(liveFeed.type)} feed configuration` : 'Threat feed detail'}
       width="xl"
     >
-      {!feed ? (
+      {!liveFeed ? (
         <p className="text-sm text-muted-foreground">Select a feed to inspect its sync history.</p>
       ) : (
         <div className="space-y-6">
           <div className="flex flex-wrap items-start justify-between gap-3 rounded-2xl border border-border/70 bg-slate-50/70 p-4">
             <div className="space-y-3">
               <div className="flex flex-wrap items-center gap-2">
-                <Badge variant="outline">{getThreatFeedTypeLabel(feed.type)}</Badge>
-                <Badge variant={feed.enabled ? 'default' : 'secondary'}>
-                  {feed.enabled ? 'Enabled' : 'Paused'}
+                <Badge variant="outline">{getThreatFeedTypeLabel(liveFeed.type)}</Badge>
+                <Badge variant={liveFeed.enabled ? 'default' : 'secondary'}>
+                  {liveFeed.enabled ? 'Enabled' : 'Paused'}
                 </Badge>
-                <Badge variant="outline">{feed.status}</Badge>
+                <Badge variant="outline">{liveFeed.status}</Badge>
               </div>
-              <p className="max-w-2xl break-all text-sm text-slate-700">{feed.url ?? 'Manual feed without remote URL'}</p>
+              <p className="max-w-2xl break-all text-sm text-slate-700">{liveFeed.url ?? 'Manual feed without remote URL'}</p>
             </div>
 
             <div className="flex flex-wrap gap-2">
               {onEdit && (
-                <Button variant="outline" size="sm" onClick={() => onEdit(feed)}>
+                <Button variant="outline" size="sm" onClick={() => onEdit(liveFeed)}>
                   Edit Feed
                 </Button>
               )}
@@ -109,36 +125,36 @@ export function FeedDetail({
 
           <section className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <InfoCard title="Configuration">
-              <InfoRow label="Sync Interval">{getThreatFeedIntervalLabel(feed.sync_interval)}</InfoRow>
-              <InfoRow label="Default Severity">{feed.default_severity}</InfoRow>
-              <InfoRow label="Default Confidence">{Math.round(feed.default_confidence * 100)}%</InfoRow>
+              <InfoRow label="Sync Interval">{getThreatFeedIntervalLabel(liveFeed.sync_interval)}</InfoRow>
+              <InfoRow label="Default Severity">{liveFeed.default_severity}</InfoRow>
+              <InfoRow label="Default Confidence">{Math.round(liveFeed.default_confidence * 100)}%</InfoRow>
               <InfoRow label="Indicator Filter">
-                {feed.indicator_types.length > 0 ? feed.indicator_types.join(', ') : 'All types'}
+                {liveFeed.indicator_types.length > 0 ? liveFeed.indicator_types.join(', ') : 'All types'}
               </InfoRow>
               <InfoRow label="Tags">
-                {feed.default_tags.length > 0 ? feed.default_tags.join(', ') : 'No defaults'}
+                {liveFeed.default_tags.length > 0 ? liveFeed.default_tags.join(', ') : 'No defaults'}
               </InfoRow>
             </InfoCard>
 
             <InfoCard title="Sync State">
               <InfoRow label="Last Sync">
-                {feed.last_sync_at ? <RelativeTime date={feed.last_sync_at} /> : 'Never'}
+                {liveFeed.last_sync_at ? <RelativeTime date={liveFeed.last_sync_at} /> : 'Never'}
               </InfoRow>
-              <InfoRow label="Last Status">{feed.last_sync_status ?? 'Not synced yet'}</InfoRow>
+              <InfoRow label="Last Status">{liveFeed.last_sync_status ?? 'Not synced yet'}</InfoRow>
               <InfoRow label="Next Sync">
-                {feed.next_sync_at ? formatDateTime(feed.next_sync_at) : 'Manual only'}
+                {liveFeed.next_sync_at ? formatDateTime(liveFeed.next_sync_at) : 'Manual only'}
               </InfoRow>
-              <InfoRow label="Auth Type">{feed.auth_type}</InfoRow>
+              <InfoRow label="Auth Type">{liveFeed.auth_type}</InfoRow>
             </InfoCard>
           </section>
 
-          {feed.last_error && (
+          {liveFeed.last_error && (
             <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">
               <div className="mb-2 flex items-center gap-2 font-medium">
                 <TriangleAlert className="h-4 w-4" />
                 Last Sync Error
               </div>
-              <p>{feed.last_error}</p>
+              <p>{liveFeed.last_error}</p>
             </div>
           )}
 

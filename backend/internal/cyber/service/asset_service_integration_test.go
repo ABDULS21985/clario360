@@ -251,6 +251,7 @@ func newIntegrationAssetService(pool *pgxpool.Pool) *AssetService {
 	vulnRepo := repository.NewVulnerabilityRepository(pool, logger)
 	relRepo := repository.NewRelationshipRepository(pool, logger)
 	scanRepo := repository.NewScanRepository(pool, logger)
+	activityRepo := repository.NewActivityRepository(pool, logger)
 	enrichSvc := NewEnrichmentService(enrichment.NewPipeline(logger), assetRepo, metrics.New(), logger)
 
 	return NewAssetService(
@@ -258,6 +259,7 @@ func newIntegrationAssetService(pool *pgxpool.Pool) *AssetService {
 		vulnRepo,
 		relRepo,
 		scanRepo,
+		activityRepo,
 		scanner.NewRegistry(),
 		classifier.NewAssetClassifier(logger),
 		enrichSvc,

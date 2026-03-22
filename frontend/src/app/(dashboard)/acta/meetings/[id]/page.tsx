@@ -181,7 +181,10 @@ export default function ActaMeetingDetailPage() {
   const bulkAttendanceMutation = useMutation({
     mutationFn: (values: Array<{ user_id: string; status: 'present' | 'absent' | 'proxy' | 'excused'; proxy_user_name?: string | null; proxy_authorized_by?: string | null }>) =>
       enterpriseApi.acta.bulkRecordAttendance(id, { attendance: values }),
-    onSuccess: async () => refreshMeeting(),
+    onSuccess: async (_data, variables) => {
+      showSuccess('Attendance updated.', `${variables.length} attendee${variables.length === 1 ? '' : 's'} marked as absent.`);
+      await refreshMeeting();
+    },
     onError: showApiError,
   });
   const agendaCreateMutation = useMutation({

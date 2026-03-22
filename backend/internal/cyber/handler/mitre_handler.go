@@ -9,16 +9,15 @@ import (
 	"github.com/clario360/platform/internal/cyber/dto"
 	"github.com/clario360/platform/internal/cyber/mitre"
 	"github.com/clario360/platform/internal/cyber/repository"
-	"github.com/clario360/platform/internal/cyber/service"
 )
 
 // MITREHandler handles ATT&CK reference endpoints.
 type MITREHandler struct {
-	ruleSvc *service.RuleService
+	ruleSvc mitreRuleService
 }
 
 // NewMITREHandler creates a new MITREHandler.
-func NewMITREHandler(ruleSvc *service.RuleService) *MITREHandler {
+func NewMITREHandler(ruleSvc mitreRuleService) *MITREHandler {
 	return &MITREHandler{ruleSvc: ruleSvc}
 }
 
@@ -37,10 +36,10 @@ func (h *MITREHandler) ListTactics(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *MITREHandler) ListTechniques(w http.ResponseWriter, r *http.Request) {
-	tacticID := r.URL.Query().Get("tactic_id")
+	tacticIDs := splitQueryValues(r.URL.Query(), "tactic_id")
 	var items []mitre.Technique
-	if tacticID != "" {
-		items = mitre.TechniquesByTactic(tacticID)
+	if len(tacticIDs) > 0 {
+		items = mitre.TechniquesByTactics(tacticIDs)
 	} else {
 		items = mitre.AllTechniques()
 	}
@@ -147,4 +146,8 @@ func (h *MITREHandler) Coverage(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, envelope{"data": resp})
+}
+
+func (h *MITREHandler) FrameworkMeta(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, http.StatusOK, envelope{"data": mitre.FrameworkMeta()})
 }

@@ -167,12 +167,16 @@ func (h *ThreatHandler) AddIndicatorToThreat(w http.ResponseWriter, r *http.Requ
 		writeValidationError(w, fieldErrs)
 		return
 	}
-	item, err := h.svc.AddThreatIndicator(r.Context(), tenantID, threatID, userID, actorFromRequest(r), &req)
+	existed, item, err := h.svc.AddThreatIndicator(r.Context(), tenantID, threatID, userID, actorFromRequest(r), &req)
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "INDICATOR_ADD_FAILED", err.Error(), nil)
 		return
 	}
-	writeJSON(w, http.StatusCreated, envelope{"data": item})
+	if existed {
+		writeJSON(w, http.StatusOK, envelope{"data": item, "existed": true})
+	} else {
+		writeJSON(w, http.StatusCreated, envelope{"data": item})
+	}
 }
 
 func (h *ThreatHandler) UpdateIndicatorStatus(w http.ResponseWriter, r *http.Request) {
@@ -193,6 +197,7 @@ func (h *ThreatHandler) UpdateIndicatorStatus(w http.ResponseWriter, r *http.Req
 		writeError(w, http.StatusBadRequest, "INDICATOR_STATUS_FAILED", err.Error(), nil)
 		return
 	}
+	item.Normalize()
 	writeJSON(w, http.StatusOK, envelope{"data": item})
 }
 
@@ -206,6 +211,7 @@ func (h *ThreatHandler) Stats(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "STATS_FAILED", err.Error(), nil)
 		return
 	}
+	stats.Normalize()
 	writeJSON(w, http.StatusOK, envelope{"data": stats})
 }
 
@@ -291,6 +297,27 @@ func (h *ThreatHandler) BulkImportIndicators(w http.ResponseWriter, r *http.Requ
 	writeJSON(w, http.StatusCreated, envelope{"data": map[string]any{"count": count}})
 }
 
+func (h *ThreatHandler) BatchCreateIndicators(w http.ResponseWriter, r *http.Request) {
+	tenantID, userID, ok := requireTenantAndUser(w, r)
+	if !ok {
+		return
+	}
+	var req dto.IndicatorBatchRequest
+	if !decodeJSON(w, r, &req) {
+		return
+	}
+	if fieldErrs := pkgvalidator.Validate(req); fieldErrs != nil {
+		writeValidationError(w, fieldErrs)
+		return
+	}
+	result, err := h.svc.BatchCreateIndicators(r.Context(), tenantID, userID, actorFromRequest(r), &req)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "BATCH_CREATE_FAILED", err.Error(), nil)
+		return
+	}
+	writeJSON(w, http.StatusCreated, envelope{"data": result})
+}
+
 func (h *ThreatHandler) ListIndicators(w http.ResponseWriter, r *http.Request) {
 	tenantID, _, ok := requireTenantAndUser(w, r)
 	if !ok {
@@ -311,6 +338,7 @@ func (h *ThreatHandler) ListIndicators(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "LIST_FAILED", err.Error(), nil)
 		return
 	}
+	result.Normalize()
 	writeJSON(w, http.StatusOK, result)
 }
 
@@ -324,6 +352,7 @@ func (h *ThreatHandler) IndicatorStats(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "STATS_FAILED", err.Error(), nil)
 		return
 	}
+	stats.Normalize()
 	writeJSON(w, http.StatusOK, envelope{"data": stats})
 }
 
@@ -345,6 +374,7 @@ func (h *ThreatHandler) CreateIndicator(w http.ResponseWriter, r *http.Request) 
 		writeError(w, http.StatusBadRequest, "CREATE_FAILED", err.Error(), nil)
 		return
 	}
+	item.Normalize()
 	writeJSON(w, http.StatusCreated, envelope{"data": item})
 }
 
@@ -362,6 +392,7 @@ func (h *ThreatHandler) GetIndicator(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "GET_FAILED", err.Error(), nil)
 		return
 	}
+	item.Normalize()
 	writeJSON(w, http.StatusOK, envelope{"data": item})
 }
 
@@ -387,6 +418,7 @@ func (h *ThreatHandler) UpdateIndicator(w http.ResponseWriter, r *http.Request) 
 		writeError(w, http.StatusBadRequest, "UPDATE_FAILED", err.Error(), nil)
 		return
 	}
+	item.Normalize()
 	writeJSON(w, http.StatusOK, envelope{"data": item})
 }
 

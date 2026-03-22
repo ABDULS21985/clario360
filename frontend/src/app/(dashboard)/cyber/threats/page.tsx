@@ -15,7 +15,7 @@ import { PieChart } from '@/components/shared/charts/pie-chart';
 import { useDataTable } from '@/hooks/use-data-table';
 import { apiGet } from '@/lib/api';
 import { API_ENDPOINTS, ROUTES } from '@/lib/constants';
-import { SEVERITY_COLORS } from '@/lib/cyber-threats';
+import { SEVERITY_COLORS, THREAT_TYPE_OPTIONS } from '@/lib/cyber-threats';
 import type { PaginatedResponse } from '@/types/api';
 import type { FetchParams, FilterConfig } from '@/types/table';
 import type { NamedCount, Threat, ThreatStats, ThreatTrendPoint } from '@/types/cyber';
@@ -47,6 +47,12 @@ const THREAT_FILTERS: FilterConfig[] = [
       { label: 'Monitoring', value: 'monitoring' },
       { label: 'Closed', value: 'closed' },
     ],
+  },
+  {
+    key: 'type',
+    label: 'Type',
+    type: 'multi-select',
+    options: THREAT_TYPE_OPTIONS,
   },
 ];
 

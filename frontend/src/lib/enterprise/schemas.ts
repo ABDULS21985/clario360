@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-const uuidSchema = z.string().uuid('Invalid identifier.');
+export const uuidSchema = z.string().uuid('Invalid identifier.');
 const optionalUuidSchema = z.string().uuid('Invalid identifier.').optional().nullable();
 const optionalStringSchema = z.string().trim().optional().nullable();
 
@@ -45,12 +45,16 @@ export const committeeMemberSchema = z.object({
 });
 
 export const meetingSchema = z.object({
-  committee_id: uuidSchema,
+  // Optional so the edit form can load legacy meetings that have no committee assignment.
+  // The edit mutation strips this field before submission; UpdateMeetingRequest has no committee_id.
+  committee_id: optionalUuidSchema,
   title: z.string().trim().min(3, 'Meeting title is required.'),
   description: z.string().trim().min(3, 'Meeting description is required.'),
   scheduled_at: z.string().min(1, 'Scheduled start is required.'),
   scheduled_end_at: optionalStringSchema,
-  duration_minutes: z.number().int().min(15).max(480),
+  duration_minutes: z.number().int()
+    .min(15, 'Duration must be at least 15 minutes.')
+    .max(480, 'Duration cannot exceed 8 hours (480 minutes).'),
   location: optionalStringSchema,
   location_type: z.enum(['physical', 'virtual', 'hybrid']),
   virtual_link: optionalStringSchema,
@@ -208,6 +212,7 @@ export const lexDocumentSchema = z.object({
   description: z.string().trim().min(3, 'Description is required.'),
   category: optionalStringSchema,
   confidentiality: z.enum(['public', 'internal', 'confidential', 'privileged']),
+  status: z.enum(['draft', 'active', 'archived', 'superseded']).optional(),
   contract_id: optionalUuidSchema,
   tags: z.array(z.string().trim()).default([]),
   metadata: z.record(z.unknown()).default({}),
@@ -288,7 +293,7 @@ export const visusReportSchema = z.object({
   description: z.string().trim().min(3, 'Description is required.'),
   report_type: z.enum(['executive_summary', 'security_posture', 'data_intelligence', 'governance', 'legal', 'custom']),
   sections: z.array(z.string().trim()).min(1, 'At least one section is required.'),
-  period: z.string().trim().min(1, 'Reporting period is required.'),
+  period: z.enum(['7d', '14d', '30d', '90d', 'quarterly', 'annual', 'custom'], { required_error: 'Reporting period is required.' }),
   custom_period_start: optionalStringSchema,
   custom_period_end: optionalStringSchema,
   schedule: optionalStringSchema,

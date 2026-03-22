@@ -307,8 +307,9 @@ func main() {
 	scanRegistry.Register(agentCollector)
 
 	// ── 11. Asset service ──────────────────────────────────────────────────────
+	activityRepo := repository.NewActivityRepository(db, logger)
 	assetSvc := service.NewAssetService(
-		assetRepo, vulnRepo, relRepo, scanRepo,
+		assetRepo, vulnRepo, relRepo, scanRepo, activityRepo,
 		scanRegistry, cls, enrichSvc,
 		producer, m, cyberCfg, db, logger,
 	)
@@ -375,7 +376,8 @@ func main() {
 	)
 	detectionSvc := service.NewDetectionService(detectionEngine, logger)
 	detectionSvc.Start(ctx, time.Duration(cyberCfg.DetectionRuleRefreshSec)*time.Second)
-	threatSvc := service.NewThreatService(threatRepo, indicatorRepo, alertRepo, producer, logger)
+	enrichmentCache := service.NewEnrichmentCache(rdb)
+	threatSvc := service.NewThreatService(threatRepo, indicatorRepo, alertRepo, enrichmentCache, producer, logger)
 	threatFeedSvc := service.NewThreatFeedService(threatFeedRepo, indicatorRepo, threatRepo, producer, logger)
 	workflowLauncher := service.NewWorkflowRemediationLauncher(workflowDefRepo, workflowInstRepo, workflowTaskRepo, logger)
 	scoringEngine := cyberctem.NewScoringEngine(db, ctemSnapshotRepo, logger)

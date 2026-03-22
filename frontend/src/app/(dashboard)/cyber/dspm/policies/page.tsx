@@ -12,24 +12,6 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import { Switch } from '@/components/ui/switch';
 import { PageHeader } from '@/components/common/page-header';
 import { LoadingSkeleton } from '@/components/common/loading-skeleton';
 import { ErrorState } from '@/components/common/error-state';
@@ -39,6 +21,7 @@ import { useDataTable } from '@/hooks/use-data-table';
 import { useRealtimeData } from '@/hooks/use-realtime-data';
 import { apiGet, apiPost } from '@/lib/api';
 import { API_ENDPOINTS } from '@/lib/constants';
+import { PolicyEditorForm } from '../_components/policy-editor-form';
 import { toast } from 'sonner';
 import type {
   DSPMDataPolicy,
@@ -81,7 +64,7 @@ const POLICY_CATEGORIES: DSPMPolicyCategory[] = [
 ];
 
 const ENFORCEMENT_OPTIONS: DSPMPolicyEnforcement[] = ['alert', 'auto_remediate', 'block'];
-const SEVERITY_OPTIONS: CyberSeverity[] = ['critical', 'high', 'medium', 'low', 'info'];
+const SEVERITY_OPTIONS: CyberSeverity[] = ['critical', 'high', 'medium', 'low'];
 
 const policyColumns: ColumnDef<DSPMDataPolicy>[] = [
   {
@@ -196,27 +179,8 @@ const policyColumns: ColumnDef<DSPMDataPolicy>[] = [
   },
 ];
 
-interface CreatePolicyForm {
-  name: string;
-  description: string;
-  category: DSPMPolicyCategory;
-  enforcement: DSPMPolicyEnforcement;
-  severity: CyberSeverity;
-  enabled: boolean;
-}
-
-const INITIAL_FORM: CreatePolicyForm = {
-  name: '',
-  description: '',
-  category: 'encryption',
-  enforcement: 'alert',
-  severity: 'medium',
-  enabled: true,
-};
-
 export default function DataPoliciesPage() {
   const [createOpen, setCreateOpen] = useState(false);
-  const [form, setForm] = useState<CreatePolicyForm>(INITIAL_FORM);
   const [creating, setCreating] = useState(false);
 
   const { tableProps, refetch } = useDataTable<DSPMDataPolicy>({
@@ -272,25 +236,27 @@ export default function DataPoliciesPage() {
     },
   ];
 
-  async function handleCreatePolicy() {
-    if (!form.name.trim()) {
+  async function handleCreatePolicy(data: {
+    name: string;
+    description: string;
+    category: DSPMPolicyCategory;
+    enforcement: DSPMPolicyEnforcement;
+    severity: CyberSeverity;
+    rule: Record<string, unknown>;
+    scope_classification: string[];
+    scope_asset_types: string[];
+    enabled: boolean;
+    compliance_frameworks: string[];
+  }) {
+    if (!data.name.trim()) {
       toast.error('Policy name is required');
       return;
     }
     setCreating(true);
     try {
-      await apiPost(API_ENDPOINTS.CYBER_DSPM_DATA_POLICIES, {
-        name: form.name,
-        description: form.description,
-        category: form.category,
-        enforcement: form.enforcement,
-        severity: form.severity,
-        enabled: form.enabled,
-        rule: {},
-      });
+      await apiPost(API_ENDPOINTS.CYBER_DSPM_DATA_POLICIES, data);
       toast.success('Policy created');
       setCreateOpen(false);
-      setForm(INITIAL_FORM);
       refetch();
     } catch {
       toast.error('Failed to create policy');
@@ -421,101 +387,20 @@ export default function DataPoliciesPage() {
           </div>
         </div>
 
-        <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-          <DialogContent className="sm:max-w-lg">
-            <DialogHeader>
-              <DialogTitle>Create Data Policy</DialogTitle>
-              <DialogDescription>
+        {createOpen && (
+          <div className="rounded-xl border bg-card p-5">
+            <div className="mb-4 border-b pb-4">
+              <h3 className="text-sm font-semibold">Create Data Policy</h3>
+              <p className="text-xs text-muted-foreground">
                 Define a new data security policy with enforcement rules.
-              </DialogDescription>
-            </DialogHeader>
-            <div className="space-y-4 py-2">
-              <div className="space-y-2">
-                <Label htmlFor="policy-name">Name</Label>
-                <Input
-                  id="policy-name"
-                  placeholder="e.g. Require encryption at rest"
-                  value={form.name}
-                  onChange={(e) => setForm({ ...form, name: e.target.value })}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="policy-desc">Description</Label>
-                <Input
-                  id="policy-desc"
-                  placeholder="What does this policy enforce?"
-                  value={form.description}
-                  onChange={(e) => setForm({ ...form, description: e.target.value })}
-                />
-              </div>
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <div className="space-y-2">
-                  <Label>Category</Label>
-                  <Select value={form.category} onValueChange={(v) => setForm({ ...form, category: v as DSPMPolicyCategory })}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {POLICY_CATEGORIES.map((c) => (
-                        <SelectItem key={c} value={c}>
-                          {c.replace(/_/g, ' ').replace(/\b\w/g, (x) => x.toUpperCase())}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label>Enforcement</Label>
-                  <Select value={form.enforcement} onValueChange={(v) => setForm({ ...form, enforcement: v as DSPMPolicyEnforcement })}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {ENFORCEMENT_OPTIONS.map((e) => (
-                        <SelectItem key={e} value={e}>
-                          {e.replace(/_/g, ' ').replace(/\b\w/g, (x) => x.toUpperCase())}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <div className="space-y-2">
-                  <Label>Severity</Label>
-                  <Select value={form.severity} onValueChange={(v) => setForm({ ...form, severity: v as CyberSeverity })}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {SEVERITY_OPTIONS.map((s) => (
-                        <SelectItem key={s} value={s}>
-                          {s.charAt(0).toUpperCase() + s.slice(1)}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="flex items-end gap-3 pb-1">
-                  <Label htmlFor="policy-enabled" className="pb-0.5">Enabled</Label>
-                  <Switch
-                    id="policy-enabled"
-                    checked={form.enabled}
-                    onCheckedChange={(checked) => setForm({ ...form, enabled: checked })}
-                  />
-                </div>
-              </div>
+              </p>
             </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setCreateOpen(false)}>
-                Cancel
-              </Button>
-              <Button onClick={handleCreatePolicy} disabled={creating}>
-                {creating ? 'Creating...' : 'Create Policy'}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+            <PolicyEditorForm
+              onSubmit={handleCreatePolicy}
+              onCancel={() => setCreateOpen(false)}
+            />
+          </div>
+        )}
       </div>
     </PermissionRedirect>
   );

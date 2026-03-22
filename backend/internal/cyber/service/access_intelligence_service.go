@@ -145,6 +145,19 @@ func (s *AccessIntelligenceService) GetAssetAudit(ctx context.Context, tenantID 
 	}, nil
 }
 
+// GetIdentityAudit returns the access audit trail for a specific identity.
+func (s *AccessIntelligenceService) GetIdentityAudit(ctx context.Context, tenantID uuid.UUID, identityID string, params *dto.AuditListParams) (*dto.AuditListResponse, error) {
+	entries, total, err := s.auditRepo.ListByIdentity(ctx, tenantID, identityID, params)
+	if err != nil {
+		return nil, err
+	}
+	totalPages := int(math.Ceil(float64(total) / float64(params.PerPage)))
+	return &dto.AuditListResponse{
+		Data: entries,
+		Meta: dto.PaginationMeta{Page: params.Page, PerPage: params.PerPage, Total: total, TotalPages: totalPages},
+	}, nil
+}
+
 // ── Mappings ─────────────────────────────────────────────────────────────────
 
 // ListMappings returns paginated access mappings.

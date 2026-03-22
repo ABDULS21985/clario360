@@ -43,6 +43,7 @@ export default function RiskHeatmapPage() {
                 currentFilters={{}}
                 totalCount={heatmap.total_vulnerabilities}
                 enabledFormats={['csv', 'json']}
+                csvDataKey="cells"
               />
             ) : undefined
           }

@@ -208,7 +208,7 @@ export default function RemediationsPage() {
       key: 'severity',
       label: 'Severity',
       type: 'multi-select' as const,
-      options: ['critical', 'high', 'medium', 'low', 'info'].map((s) => ({
+      options: ['critical', 'high', 'medium', 'low'].map((s) => ({
         label: s.charAt(0).toUpperCase() + s.slice(1),
         value: s,
       })),
@@ -271,7 +271,7 @@ export default function RemediationsPage() {
                 <div className="rounded-lg border bg-muted/20 p-4">
                   <p className="mb-2 text-xs font-medium text-muted-foreground">By Severity</p>
                   <div className="space-y-1">
-                    {Object.entries(stats.by_severity).map(([sev, count]) => (
+                    {Object.entries(stats.by_severity ?? {}).map(([sev, count]) => (
                       <div key={sev} className="flex items-center justify-between text-xs">
                         <span className="capitalize">{sev}</span>
                         <span className="font-medium tabular-nums">{count}</span>
@@ -282,7 +282,7 @@ export default function RemediationsPage() {
                 <div className="rounded-lg border bg-muted/20 p-4">
                   <p className="mb-2 text-xs font-medium text-muted-foreground">By Status</p>
                   <div className="space-y-1">
-                    {Object.entries(stats.by_status).map(([status, count]) => (
+                    {Object.entries(stats.by_status ?? {}).map(([status, count]) => (
                       <div key={status} className="flex items-center justify-between text-xs">
                         <span className="capitalize">{status.replace(/_/g, ' ')}</span>
                         <span className="font-medium tabular-nums">{count}</span>

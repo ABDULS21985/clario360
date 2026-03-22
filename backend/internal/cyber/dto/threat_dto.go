@@ -151,6 +151,27 @@ type IndicatorBulkImportRequest struct {
 	ConflictMode string          `json:"conflict_mode,omitempty" validate:"omitempty,oneof=skip update fail"`
 }
 
+// IndicatorBatchRequest creates multiple standalone indicators in one request.
+type IndicatorBatchRequest struct {
+	Indicators   []StandaloneIndicatorRequest `json:"indicators" validate:"required,min=1,max=1000,dive"`
+	ConflictMode string                       `json:"conflict_mode,omitempty" validate:"omitempty,oneof=skip update fail"`
+}
+
+// IndicatorBatchResponse summarises the outcome of a batch create.
+type IndicatorBatchResponse struct {
+	Imported int                    `json:"imported"`
+	Skipped  int                    `json:"skipped"`
+	Failed   int                    `json:"failed"`
+	Errors   []IndicatorBatchError  `json:"errors"`
+}
+
+// IndicatorBatchError describes one failed item in a batch import.
+type IndicatorBatchError struct {
+	Index   int    `json:"index"`
+	Value   string `json:"value"`
+	Message string `json:"message"`
+}
+
 // IndicatorListParams captures filters for GET /cyber/indicators.
 type IndicatorListParams struct {
 	Types         []string   `form:"type"`
@@ -210,6 +231,16 @@ func (p *IndicatorListParams) Validate() error {
 type IndicatorListResponse struct {
 	Data []*model.ThreatIndicator `json:"data"`
 	Meta PaginationMeta           `json:"meta"`
+}
+
+// Normalize ensures all slice fields are non-nil so they serialize as [] not null.
+func (r *IndicatorListResponse) Normalize() {
+	if r.Data == nil {
+		r.Data = []*model.ThreatIndicator{}
+	}
+	for _, item := range r.Data {
+		item.Normalize()
+	}
 }
 
 // IndicatorStatsResponse returns dashboard metrics for standalone IOC management.

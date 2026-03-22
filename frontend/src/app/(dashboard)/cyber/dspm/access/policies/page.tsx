@@ -61,7 +61,6 @@ const SEVERITY_OPTIONS: { label: string; value: CyberSeverity }[] = [
   { label: 'High', value: 'high' },
   { label: 'Medium', value: 'medium' },
   { label: 'Low', value: 'low' },
-  { label: 'Info', value: 'info' },
 ];
 
 function severityBadgeVariant(severity: CyberSeverity) {

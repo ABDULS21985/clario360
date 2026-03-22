@@ -79,16 +79,37 @@ func (s *DSPMService) GetDataAsset(ctx context.Context, tenantID, assetID uuid.U
 	return item, nil
 }
 
-func (s *DSPMService) TriggerScan(ctx context.Context, tenantID, userID uuid.UUID, actor *Actor) (*model.DSPMScan, error) {
+func (s *DSPMService) TriggerScan(ctx context.Context, tenantID, userID uuid.UUID, actor *Actor, req *dto.DSPMScanTriggerRequest) (*model.DSPMScan, error) {
 	scan, err := s.repo.CreateScan(ctx, tenantID, userID)
 	if err != nil {
 		return nil, err
 	}
-	if err := publishEvent(ctx, s.producer, events.Topics.DSPMEvents, "com.clario360.cyber.dspm.scan_started", tenantID, actor, map[string]interface{}{
+
+	eventData := map[string]interface{}{
 		"scan_id":   scan.ID.String(),
 		"tenant_id": tenantID.String(),
-	}); err != nil {
+	}
+	if req != nil {
+		if len(req.Scope) > 0 {
+			eventData["scope"] = req.Scope
+		}
+		if req.AssetTypes != "" {
+			eventData["asset_types"] = req.AssetTypes
+		}
+		eventData["full_scan"] = req.FullScan
+	}
+	if err := publishEvent(ctx, s.producer, events.Topics.DSPMEvents, "com.clario360.cyber.dspm.scan_started", tenantID, actor, eventData); err != nil {
 		s.logger.Error().Err(err).Str("scan_id", scan.ID.String()).Msg("publish dspm scan started event")
+	}
+
+	// Build scan options for the scanner to filter scope.
+	var opts *dspm.ScanOptions
+	if req != nil && (len(req.Scope) > 0 || req.AssetTypes != "" || req.FullScan) {
+		opts = &dspm.ScanOptions{
+			Scope:      req.Scope,
+			AssetTypes: req.AssetTypes,
+			FullScan:   req.FullScan,
+		}
 	}
 
 	runCtx, cancel := context.WithTimeout(context.Background(), 20*time.Minute)
@@ -104,7 +125,7 @@ func (s *DSPMService) TriggerScan(ctx context.Context, tenantID, userID uuid.UUI
 			s.mu.Unlock()
 		}()
 
-		result, err := s.scanner.Scan(runCtx, tenantID, scan)
+		result, err := s.scanner.ScanWithOptions(runCtx, tenantID, scan, opts)
 		if err != nil {
 			s.logger.Error().Err(err).Str("scan_id", scanID.String()).Msg("dspm scan failed")
 			_ = s.repo.UpdateScanFailed(context.Background(), tenantID, scanID)

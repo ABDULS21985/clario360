@@ -145,7 +145,6 @@ export default function VisusDashboardsPage() {
       id: 'widget_count',
       accessorKey: 'widget_count',
       header: 'Widgets',
-      enableSorting: true,
       cell: ({ row }) => <span className="text-sm">{row.original.widget_count ?? 0}</span>,
     },
     {

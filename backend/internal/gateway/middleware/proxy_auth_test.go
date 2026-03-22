@@ -56,7 +56,7 @@ func newJWTManager(t *testing.T, key *rsa.PrivateKey, ttl time.Duration) *auth.J
 
 func makeValidToken(t *testing.T, mgr *auth.JWTManager) string {
 	t.Helper()
-	pair, err := mgr.GenerateTokenPair("user-1", "tenant-1", "user@example.com", []string{"viewer"})
+	pair, err := mgr.GenerateTokenPair("user-1", "tenant-1", "user@example.com", []string{"viewer"}, "")
 	if err != nil {
 		t.Fatalf("GenerateTokenPair: %v", err)
 	}

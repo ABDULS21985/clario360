@@ -19,6 +19,7 @@ func RegisterRoutes(r chi.Router, handler *UEBAHandler) {
 		r.Put("/profiles/{entityId}/status", handler.UpdateProfileStatus)
 
 		r.Get("/alerts", handler.ListAlerts)
+		r.Put("/alerts/bulk/status", handler.BulkUpdateAlertStatus)
 		r.Get("/alerts/{id}", handler.GetAlert)
 		r.Put("/alerts/{id}/status", handler.UpdateAlertStatus)
 		r.Post("/alerts/{id}/false-positive", handler.MarkFalsePositive)

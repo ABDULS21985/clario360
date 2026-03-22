@@ -33,10 +33,11 @@ func Auth(jwtMgr *auth.JWTManager) func(http.Handler) http.Handler {
 
 			// Build context user from claims
 			ctxUser := &auth.ContextUser{
-				ID:       claims.UserID,
-				TenantID: claims.TenantID,
-				Email:    claims.Email,
-				Roles:    claims.Roles,
+				ID:        claims.UserID,
+				TenantID:  claims.TenantID,
+				Email:     claims.Email,
+				Roles:     claims.Roles,
+				SessionID: claims.SessionID,
 			}
 
 			ctx := auth.WithUser(r.Context(), ctxUser)

@@ -32,7 +32,7 @@ export function AssetVulnerabilitiesTab({ assetId }: AssetVulnerabilitiesTabProp
     queryFn: () =>
       apiGet<PaginatedResponse<Vulnerability>>(
         `${API_ENDPOINTS.CYBER_ASSETS}/${assetId}/vulnerabilities`,
-        { per_page: 50, sort: 'severity', order: 'desc' },
+        { per_page: 50 },
       ),
   });
 

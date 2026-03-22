@@ -18,14 +18,24 @@ export interface UebaFrequencyEntry {
   last_accessed: string;
 }
 
+export interface UebaSessionStatsBaseline {
+  daily_session_count_mean: number;
+  daily_session_count_stddev: number;
+  avg_session_duration_minutes: number;
+}
+
 export interface UebaBaseline {
   access_times: {
+    hourly_distribution: number[];
+    daily_distribution: number[];
     peak_hours: number[];
     active_hours_count: number;
   };
   data_volume: {
     daily_bytes_mean: number;
+    daily_bytes_stddev: number;
     daily_rows_mean: number;
+    daily_rows_stddev: number;
     max_single_query_bytes: number;
     max_single_query_rows: number;
   };
@@ -33,9 +43,14 @@ export interface UebaBaseline {
     databases_accessed: string[];
     tables_accessed: UebaFrequencyEntry[];
     query_types: Record<string, number>;
+    avg_query_duration_ms: number;
+    avg_query_duration_stddev: number;
   };
   source_ips: string[];
+  session_stats: UebaSessionStatsBaseline;
   failure_rate: {
+    daily_failure_count_mean: number;
+    daily_failure_count_stddev: number;
     failure_rate_percent: number;
   };
 }
@@ -67,6 +82,10 @@ export interface UebaSignal {
   actual_value: string;
   event_id: string;
   mitre_technique: string;
+  mitre_tactic?: string;
+  table_sensitivity?: string;
+  entity_id?: string;
+  event_timestamp?: string;
 }
 
 export interface UebaAlert {
@@ -142,6 +161,18 @@ export interface UebaProfileDetailResponse {
     alert_type?: string;
   }>;
 }
+
+// Alert status values supported by the backend
+export const UEBA_ALERT_STATUSES = ['new', 'acknowledged', 'investigating', 'resolved', 'false_positive'] as const;
+export type UebaAlertStatus = (typeof UEBA_ALERT_STATUSES)[number];
+
+// Profile status values supported by the backend
+export const UEBA_PROFILE_STATUSES = ['active', 'inactive', 'suppressed', 'whitelisted'] as const;
+export type UebaProfileStatus = (typeof UEBA_PROFILE_STATUSES)[number];
+
+// Entity types supported by the backend
+export const UEBA_ENTITY_TYPES = ['user', 'service_account', 'application', 'api_key'] as const;
+export type UebaEntityType = (typeof UEBA_ENTITY_TYPES)[number];
 
 export interface UebaHeatmapResponse {
   entity_id: string;

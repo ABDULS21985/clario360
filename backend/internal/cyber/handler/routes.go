@@ -79,6 +79,9 @@ func RegisterRoutes(
 		r.Put("/assets/{id}/vulnerabilities/{vid}", assetHandler.UpdateVulnerability)
 
 		// ---- Alerts ----
+		r.Put("/alerts/bulk/status", alertHandler.BulkUpdateStatus)
+		r.Put("/alerts/bulk/assign", alertHandler.BulkAssign)
+		r.Put("/alerts/bulk/false-positive", alertHandler.BulkMarkFalsePositive)
 		r.Get("/alerts/stats", alertHandler.Stats)
 		r.Get("/alerts/count", alertHandler.Count)
 		r.Get("/alerts/{id}/comments", alertHandler.ListComments)
@@ -123,6 +126,7 @@ func RegisterRoutes(
 		r.Put("/threats/{id}/status", threatHandler.UpdateStatus)
 		r.Post("/indicators/check", threatHandler.CheckIndicators)
 		r.Post("/indicators/bulk", threatHandler.BulkImportIndicators)
+		r.Post("/indicators/batch", threatHandler.BatchCreateIndicators)
 		r.Get("/indicators/stats", threatHandler.IndicatorStats)
 		r.Post("/indicators", threatHandler.CreateIndicator)
 		r.Get("/indicators", threatHandler.ListIndicators)
@@ -136,7 +140,9 @@ func RegisterRoutes(
 		if threatFeedHandler != nil {
 			r.Get("/threat-feeds", threatFeedHandler.List)
 			r.Post("/threat-feeds", threatFeedHandler.Create)
+			r.Get("/threat-feeds/{feedId}", threatFeedHandler.Get)
 			r.Put("/threat-feeds/{feedId}", threatFeedHandler.Update)
+			r.Delete("/threat-feeds/{feedId}", threatFeedHandler.Delete)
 			r.Post("/threat-feeds/{feedId}/sync", threatFeedHandler.Sync)
 			r.Get("/threat-feeds/{feedId}/history", threatFeedHandler.History)
 		}
@@ -146,6 +152,7 @@ func RegisterRoutes(
 		r.Get("/mitre/techniques/{id}", mitreHandler.GetTechnique)
 		r.Get("/mitre/techniques", mitreHandler.ListTechniques)
 		r.Get("/mitre/coverage", mitreHandler.Coverage)
+		r.Get("/mitre/framework-meta", mitreHandler.FrameworkMeta)
 
 		if vulnerabilityHandler != nil {
 			r.Get("/vulnerabilities/stats", vulnerabilityHandler.Stats)
@@ -216,8 +223,10 @@ func RegisterRoutes(
 		// ---- Security Events ----
 		if eventHandler != nil {
 			r.Get("/events/stats", eventHandler.GetEventStats)
+			r.Get("/events/export", eventHandler.ExportEvents)
 			r.Get("/events/{id}", eventHandler.GetEvent)
 			r.Get("/events", eventHandler.ListEvents)
+			r.Post("/events", eventHandler.IngestEvents)
 		}
 
 		// ---- Analytics ----

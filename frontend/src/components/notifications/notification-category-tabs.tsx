@@ -16,6 +16,8 @@ const TABS: CategoryTab[] = [
   { key: 'security', label: 'Security' },
   { key: 'workflow', label: 'Workflow' },
   { key: 'data', label: 'Data' },
+  { key: 'governance', label: 'Governance' },
+  { key: 'legal', label: 'Legal' },
   { key: 'system', label: 'System' },
 ];
 

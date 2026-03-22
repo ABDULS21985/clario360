@@ -64,14 +64,19 @@ export function EditMeetingDialog({
   }, [form, open, meeting]);
 
   const updateMutation = useMutation({
-    mutationFn: (payload: MeetingFormValues) =>
-      enterpriseApi.acta.updateMeeting(meeting.id, {
-        ...payload,
+    mutationFn: (payload: MeetingFormValues) => {
+      // committee_id is not accepted by UpdateMeetingRequest; omit it before sending.
+      const { committee_id: _committeeId, ...updateFields } = payload;
+      return enterpriseApi.acta.updateMeeting(meeting.id, {
+        ...updateFields,
         scheduled_at: new Date(payload.scheduled_at).toISOString(),
+        // null is safe: UpdateMeetingRequest.ScheduledEndAt is *time.Time (pointer).
+        // When null the service derives end = scheduled_at + duration_minutes.
         scheduled_end_at: payload.scheduled_end_at
           ? new Date(payload.scheduled_end_at).toISOString()
           : null,
-      }),
+      });
+    },
     onSuccess: async () => {
       showSuccess('Meeting updated.', 'Changes have been saved.');
       await Promise.all([

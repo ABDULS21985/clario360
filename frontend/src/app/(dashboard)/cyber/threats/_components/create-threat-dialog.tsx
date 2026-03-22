@@ -130,21 +130,11 @@ export function CreateThreatDialog({
   const selectedTactics = methods.watch('mitre_tactic_ids');
   const techniquesQuery = useQuery({
     queryKey: ['mitre-techniques', selectedTactics],
-    queryFn: async () => {
-      if (selectedTactics.length === 0) {
-        return apiGet<{ data: MITRETechniqueItem[] }>(API_ENDPOINTS.CYBER_MITRE_TECHNIQUES);
-      }
-      const all = await Promise.all(
-        selectedTactics.map((id) =>
-          apiGet<{ data: MITRETechniqueItem[] }>(API_ENDPOINTS.CYBER_MITRE_TECHNIQUES, { tactic_id: id }),
-        ),
-      );
-      return {
-        data: all.flatMap((entry) => entry.data).filter((item, index, arr) => (
-          arr.findIndex((candidate) => candidate.id === item.id) === index
-        )),
-      };
-    },
+    queryFn: () =>
+      apiGet<{ data: MITRETechniqueItem[] }>(
+        API_ENDPOINTS.CYBER_MITRE_TECHNIQUES,
+        selectedTactics.length > 0 ? { tactic_id: selectedTactics } : undefined,
+      ),
     enabled: open,
     staleTime: 300000,
   });

@@ -142,12 +142,14 @@ export default function VisusKpisPage() {
       id: 'last_value',
       accessorKey: 'last_value',
       header: 'Latest',
+      enableSorting: true,
       cell: ({ row }) => <span className="text-sm">{row.original.last_value ?? '—'}</span>,
     },
     {
       id: 'last_status',
       accessorKey: 'last_status',
       header: 'Status',
+      enableSorting: true,
       cell: ({ row }) => <Badge variant={statusVariant(row.original.last_status)}>{row.original.last_status ?? 'unknown'}</Badge>,
     },
   ];

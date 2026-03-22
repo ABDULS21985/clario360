@@ -39,7 +39,12 @@ const statusLabel: Record<CTEMFinding['status'], string> = {
   deferred: 'Deferred',
 };
 
-export function AssessmentReportView({ assessment }: { assessment: CTEMAssessment }) {
+interface AssessmentReportViewProps {
+  assessment: CTEMAssessment;
+  findings: CTEMFinding[];
+}
+
+export function AssessmentReportView({ assessment, findings }: AssessmentReportViewProps) {
   const isCompleted = assessment.status === 'completed';
 
   if (!isCompleted) {
@@ -53,7 +58,6 @@ export function AssessmentReportView({ assessment }: { assessment: CTEMAssessmen
     );
   }
 
-  const findings = assessment.findings ?? [];
   const summary = assessment.findings_summary;
 
   const groupedFindings = SEVERITY_ORDER.reduce<Record<CyberSeverity, CTEMFinding[]>>(
@@ -127,7 +131,7 @@ export function AssessmentReportView({ assessment }: { assessment: CTEMAssessmen
         )}
       </div>
 
-      {/* Findings by Severity */}
+      {/* Findings by Severity — use real backend fields */}
       {findings.length > 0 && (
         <div className="rounded-xl border bg-card p-5 space-y-5">
           <h3 className="text-sm font-semibold">Findings by Severity</h3>
@@ -146,7 +150,7 @@ export function AssessmentReportView({ assessment }: { assessment: CTEMAssessmen
                       <tr className="border-b bg-muted/40">
                         <th className="px-3 py-2 text-left font-semibold">Finding</th>
                         <th className="px-3 py-2 text-left font-semibold">Status</th>
-                        <th className="px-3 py-2 text-right font-semibold">CVSS</th>
+                        <th className="px-3 py-2 text-right font-semibold">Priority</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y">
@@ -159,7 +163,7 @@ export function AssessmentReportView({ assessment }: { assessment: CTEMAssessmen
                             </Badge>
                           </td>
                           <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">
-                            {finding.cvss_score != null ? finding.cvss_score.toFixed(1) : '—'}
+                            {Math.round(finding.priority_score)}
                           </td>
                         </tr>
                       ))}

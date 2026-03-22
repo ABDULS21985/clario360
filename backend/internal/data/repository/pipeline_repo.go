@@ -331,6 +331,48 @@ func (r *PipelineRepository) Stats(ctx context.Context, tenantID uuid.UUID) (*mo
 	return stats, nil
 }
 
+// DailyFailedRunCounts returns the number of failed pipeline runs per day for
+// the last N days. Used for dashboard KPI sparklines.
+func (r *PipelineRepository) DailyFailedRunCounts(ctx context.Context, tenantID uuid.UUID, days int) ([]int, error) {
+	if days <= 0 {
+		days = 12
+	}
+	rows, err := r.db.Query(ctx, `
+		WITH days AS (
+			SELECT generate_series(
+				DATE_TRUNC('day', NOW()) - ($2::int - 1) * INTERVAL '1 day',
+				DATE_TRUNC('day', NOW()),
+				INTERVAL '1 day'
+			) AS day
+		)
+		SELECT COALESCE(a.cnt, 0)::int
+		FROM days d
+		LEFT JOIN (
+			SELECT DATE_TRUNC('day', created_at) AS day, COUNT(*) AS cnt
+			FROM pipeline_runs
+			WHERE tenant_id = $1 AND status = 'failed'
+			  AND created_at >= NOW() - ($2::int * INTERVAL '1 day')
+			GROUP BY DATE_TRUNC('day', created_at)
+		) a ON a.day = d.day
+		ORDER BY d.day ASC`,
+		tenantID, days,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("query daily failed run counts: %w", err)
+	}
+	defer rows.Close()
+
+	counts := make([]int, 0, days)
+	for rows.Next() {
+		var c int
+		if err := rows.Scan(&c); err != nil {
+			return nil, fmt.Errorf("scan daily failed run count: %w", err)
+		}
+		counts = append(counts, c)
+	}
+	return counts, rows.Err()
+}
+
 type pipelineScanner interface {
 	Scan(dest ...any) error
 }

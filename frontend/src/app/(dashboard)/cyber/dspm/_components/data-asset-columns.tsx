@@ -105,7 +105,7 @@ export const dataAssetColumns: ColumnDef<DataAsset>[] = [
     id: 'pii',
     header: 'PII Types',
     cell: ({ row }: { row: Row<DataAsset> }) => {
-      const types = row.original.pii_types;
+      const types = row.original.pii_types ?? [];
       if (!types.length) return <span className="text-xs text-muted-foreground">None</span>;
       return (
         <div className="flex flex-wrap gap-1">
@@ -139,7 +139,7 @@ export const dataAssetColumns: ColumnDef<DataAsset>[] = [
     id: 'findings',
     header: 'Findings',
     cell: ({ row }: { row: Row<DataAsset> }) => {
-      const count = row.original.posture_findings.length;
+      const count = (row.original.posture_findings ?? []).length;
       if (!count) return <span className="text-xs text-green-600">✓ Clean</span>;
       return <span className="text-xs font-medium text-orange-600">{count} issue{count !== 1 ? 's' : ''}</span>;
     },

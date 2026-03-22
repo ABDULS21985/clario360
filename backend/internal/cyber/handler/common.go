@@ -1,7 +1,9 @@
 package handler
 
 import (
+	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"strconv"
 	"time"
@@ -39,6 +41,13 @@ func parseAlertListParams(r *http.Request) (*dto.AlertListParams, error) {
 	}
 	params.Severities = splitQueryValues(q, "severity")
 	params.Statuses = splitQueryValues(q, "status")
+	for _, raw := range splitQueryValues(q, "alert_ids") {
+		id, err := uuid.Parse(raw)
+		if err != nil {
+			return nil, fmt.Errorf("invalid alert_ids value: %w", err)
+		}
+		params.AlertIDs = append(params.AlertIDs, id)
+	}
 	if v := q.Get("assigned_to"); v != "" {
 		id, err := uuid.Parse(v)
 		if err != nil {
@@ -309,4 +318,15 @@ func stringValue(value string) *string {
 		return nil
 	}
 	return &value
+}
+
+// decodeJSONOptional reads the request body and attempts to unmarshal it into v.
+// If the body is empty it leaves v unchanged and returns without error.
+// Used for endpoints where a request body is optional (e.g. POST /sync).
+func decodeJSONOptional(r *http.Request, v any) error {
+	body, err := io.ReadAll(io.LimitReader(r.Body, 10<<20))
+	if err != nil || len(body) == 0 {
+		return nil
+	}
+	return json.Unmarshal(body, v)
 }

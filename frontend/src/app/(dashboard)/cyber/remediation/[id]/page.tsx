@@ -21,6 +21,7 @@ import {
   ClipboardList,
   AlertTriangle,
   Clock,
+  Send,
   User,
 } from 'lucide-react';
 import { timeAgo } from '@/lib/utils';
@@ -57,18 +58,25 @@ export default function RemediationDetailPage({ params }: Props) {
   const action = envelope?.data;
   const auditTrail = auditEnvelope?.data ?? [];
 
+  const { mutate: submitForApproval, isPending: submitting } = useApiMutation<unknown, Record<string, never>>(
+    'post',
+    `${API_ENDPOINTS.CYBER_REMEDIATION}/${id}/submit`,
+    { successMessage: 'Submitted for approval', invalidateKeys: ['cyber-remediation', `cyber-remediation-${id}`], onSuccess: () => void refetch() },
+  );
+
   const { mutate: runDryRun, isPending: dryRunning } = useApiMutation<unknown, Record<string, never>>(
     'post',
     `${API_ENDPOINTS.CYBER_REMEDIATION}/${id}/dry-run`,
-    { successMessage: 'Dry run started', invalidateKeys: [`cyber-remediation-${id}`], onSuccess: () => void refetch() },
+    { successMessage: 'Dry run started', invalidateKeys: ['cyber-remediation', `cyber-remediation-${id}`], onSuccess: () => void refetch() },
   );
 
   const { mutate: execute, isPending: executing } = useApiMutation<unknown, Record<string, never>>(
     'post',
     `${API_ENDPOINTS.CYBER_REMEDIATION}/${id}/execute`,
-    { successMessage: 'Execution started', invalidateKeys: [`cyber-remediation-${id}`], onSuccess: () => void refetch() },
+    { successMessage: 'Execution started', invalidateKeys: ['cyber-remediation', `cyber-remediation-${id}`], onSuccess: () => void refetch() },
   );
 
+  const canSubmit = action?.status === 'draft' || action?.status === 'revision_requested';
   const canApprove = action?.status === 'pending_approval';
   const canDryRun = action?.status === 'approved' || action?.status === 'dry_run_failed';
   const canExecute = action?.status === 'dry_run_completed' || action?.status === 'approved';
@@ -107,6 +115,11 @@ export default function RemediationDetailPage({ params }: Props) {
               }
               actions={
                 <div className="flex items-center gap-2">
+                  {canSubmit && (
+                    <Button size="sm" onClick={() => submitForApproval({} as Record<string, never>)} disabled={submitting}>
+                      {submitting ? 'Submitting…' : <><Send className="mr-1.5 h-3.5 w-3.5" /> Submit for Approval</>}
+                    </Button>
+                  )}
                   {canApprove && (
                     <>
                       <Button

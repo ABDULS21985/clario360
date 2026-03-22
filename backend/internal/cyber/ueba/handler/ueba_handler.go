@@ -1,22 +1,42 @@
 package handler
 
 import (
+	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"strconv"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
 
 	cyberrepo "github.com/clario360/platform/internal/cyber/repository"
 	"github.com/clario360/platform/internal/cyber/ueba/dto"
-	uebasvc "github.com/clario360/platform/internal/cyber/ueba/service"
+	"github.com/clario360/platform/internal/cyber/ueba/model"
 )
 
-type UEBAHandler struct {
-	svc *uebasvc.UEBAService
+// uebaService abstracts the UEBA service layer for testability.
+type uebaService interface {
+	ListProfiles(ctx context.Context, tenantID uuid.UUID, params *dto.ProfileListParams) (*dto.ProfileListResponse, error)
+	GetProfile(ctx context.Context, tenantID uuid.UUID, entityID string) (*dto.ProfileDetailResponse, error)
+	GetTimeline(ctx context.Context, tenantID uuid.UUID, entityID string, page, perPage int) (*dto.TimelineResponse, error)
+	GetHeatmap(ctx context.Context, tenantID uuid.UUID, entityID string, days int) (*dto.HeatmapResponse, error)
+	UpdateProfileStatus(ctx context.Context, tenantID uuid.UUID, entityID string, req *dto.ProfileStatusUpdateRequest) (*model.UEBAProfile, error)
+	ListAlerts(ctx context.Context, tenantID uuid.UUID, params *dto.AlertListParams) (*dto.AlertListResponse, error)
+	GetAlert(ctx context.Context, tenantID, alertID uuid.UUID) (*model.UEBAAlert, error)
+	UpdateAlertStatus(ctx context.Context, tenantID, alertID uuid.UUID, actorID *uuid.UUID, req *dto.AlertStatusUpdateRequest) (*model.UEBAAlert, error)
+	MarkFalsePositive(ctx context.Context, tenantID, alertID uuid.UUID, actorID *uuid.UUID, req *dto.FalsePositiveRequest) (*model.UEBAAlert, error)
+	GetDashboard(ctx context.Context, tenantID uuid.UUID) (*dto.DashboardResponse, error)
+	GetRiskRanking(ctx context.Context, tenantID uuid.UUID, limit int) ([]dto.RiskRankingItem, error)
+	GetConfig() dto.UEBAConfigDTO
+	UpdateConfig(ctx context.Context, req dto.UEBAConfigDTO) (dto.UEBAConfigDTO, error)
 }
 
-func NewUEBAHandler(svc *uebasvc.UEBAService) *UEBAHandler {
+type UEBAHandler struct {
+	svc uebaService
+}
+
+func NewUEBAHandler(svc uebaService) *UEBAHandler {
 	return &UEBAHandler{svc: svc}
 }
 
@@ -182,6 +202,43 @@ func (h *UEBAHandler) MarkFalsePositive(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	writeJSON(w, http.StatusOK, envelope{"data": alert})
+}
+
+func (h *UEBAHandler) BulkUpdateAlertStatus(w http.ResponseWriter, r *http.Request) {
+	tenantID, userID, ok := requireTenantAndUser(w, r)
+	if !ok {
+		return
+	}
+	var req dto.BulkAlertStatusRequest
+	if !decodeJSON(w, r, &req) {
+		return
+	}
+	if err := req.Validate(); err != nil {
+		writeError(w, http.StatusBadRequest, "VALIDATION_ERROR", err.Error())
+		return
+	}
+
+	result := dto.BulkAlertStatusResponse{}
+	for _, rawID := range req.AlertIDs {
+		alertID, err := uuid.Parse(rawID)
+		if err != nil {
+			result.Failed++
+			result.Errors = append(result.Errors, fmt.Sprintf("invalid UUID: %s", rawID))
+			continue
+		}
+		if req.FalsePositive {
+			_, err = h.svc.MarkFalsePositive(r.Context(), tenantID, alertID, &userID, &dto.FalsePositiveRequest{Notes: req.Notes})
+		} else {
+			_, err = h.svc.UpdateAlertStatus(r.Context(), tenantID, alertID, &userID, &dto.AlertStatusUpdateRequest{Status: req.Status, Notes: req.Notes})
+		}
+		if err != nil {
+			result.Failed++
+			result.Errors = append(result.Errors, fmt.Sprintf("%s: %v", rawID, err))
+		} else {
+			result.Updated++
+		}
+	}
+	writeJSON(w, http.StatusOK, envelope{"data": result})
 }
 
 func (h *UEBAHandler) GetDashboard(w http.ResponseWriter, r *http.Request) {

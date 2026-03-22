@@ -38,6 +38,9 @@ interface EvidenceFormData {
   frameworks: string;
   control_ids: string;
   file_name: string;
+  file_size: string;
+  file_url: string;
+  collector_name: string;
   expires_at: string;
   collected_at: string;
 }
@@ -67,6 +70,9 @@ function getDefaultForm(evidence?: VCISOEvidence | null): EvidenceFormData {
       frameworks: evidence.frameworks.join(', '),
       control_ids: evidence.control_ids.join(', '),
       file_name: evidence.file_name ?? '',
+      file_size: evidence.file_size != null ? String(evidence.file_size) : '',
+      file_url: evidence.file_url ?? '',
+      collector_name: evidence.collector_name ?? '',
       expires_at: evidence.expires_at
         ? evidence.expires_at.slice(0, 10)
         : '',
@@ -83,6 +89,9 @@ function getDefaultForm(evidence?: VCISOEvidence | null): EvidenceFormData {
     frameworks: '',
     control_ids: '',
     file_name: '',
+    file_size: '',
+    file_url: '',
+    collector_name: '',
     expires_at: '',
     collected_at: new Date().toISOString().slice(0, 10),
   };
@@ -154,6 +163,18 @@ export function EvidenceFormDialog({
 
     if (form.file_name.trim()) {
       payload.file_name = form.file_name.trim();
+    }
+    if (form.file_size.trim()) {
+      const size = parseInt(form.file_size, 10);
+      if (!isNaN(size) && size >= 0) {
+        payload.file_size = size;
+      }
+    }
+    if (form.file_url.trim()) {
+      payload.file_url = form.file_url.trim();
+    }
+    if (form.collector_name.trim()) {
+      payload.collector_name = form.collector_name.trim();
     }
     if (form.expires_at) {
       payload.expires_at = new Date(form.expires_at).toISOString();
@@ -274,14 +295,47 @@ export function EvidenceFormDialog({
             <p className="text-xs text-muted-foreground">Separate multiple control IDs with commas</p>
           </div>
 
-          {/* File name */}
+          {/* File info */}
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="evidence-filename">File Name</Label>
+              <Input
+                id="evidence-filename"
+                placeholder="access-review-2026-Q1.pdf"
+                value={form.file_name}
+                onChange={(e) => updateField('file_name', e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="evidence-filesize">File Size (bytes)</Label>
+              <Input
+                id="evidence-filesize"
+                type="number"
+                min={0}
+                placeholder="e.g., 1048576"
+                value={form.file_size}
+                onChange={(e) => updateField('file_size', e.target.value)}
+              />
+            </div>
+          </div>
+
           <div className="space-y-2">
-            <Label htmlFor="evidence-filename">File Name</Label>
+            <Label htmlFor="evidence-fileurl">File URL</Label>
             <Input
-              id="evidence-filename"
-              placeholder="access-review-2026-Q1.pdf"
-              value={form.file_name}
-              onChange={(e) => updateField('file_name', e.target.value)}
+              id="evidence-fileurl"
+              placeholder="https://storage.example.com/evidence/file.pdf"
+              value={form.file_url}
+              onChange={(e) => updateField('file_url', e.target.value)}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="evidence-collector">Collector Name</Label>
+            <Input
+              id="evidence-collector"
+              placeholder="e.g., Jane Smith"
+              value={form.collector_name}
+              onChange={(e) => updateField('collector_name', e.target.value)}
             />
           </div>
 

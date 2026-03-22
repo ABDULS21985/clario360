@@ -1,122 +1,208 @@
 'use client';
 
 import { useState } from 'react';
-import { ChevronRight, CheckCircle2, Zap } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
+import { ChevronRight, Play, Clock, CheckCircle2, PauseCircle, ShieldCheck } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
-import { SeverityIndicator } from '@/components/shared/severity-indicator';
-import type { CTEMFinding, CyberSeverity } from '@/types/cyber';
+import { Button } from '@/components/ui/button';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { apiGet, apiPut, apiPost } from '@/lib/api';
+import { API_ENDPOINTS } from '@/lib/constants';
+import { showSuccess, showError } from '@/lib/toast';
+import { LoadingSkeleton } from '@/components/common/loading-skeleton';
+import type { CTEMRemediationGroup, CTEMRemediationGroupStatus } from '@/types/cyber';
 
-const SEVERITY_ORDER: CyberSeverity[] = ['critical', 'high', 'medium', 'low'];
-
-const severityHeaderColors: Record<CyberSeverity, string> = {
-  critical: 'text-red-700 dark:text-red-400 border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950/20',
-  high: 'text-orange-700 dark:text-orange-400 border-orange-200 dark:border-orange-800 bg-orange-50 dark:bg-orange-950/20',
-  medium: 'text-yellow-700 dark:text-yellow-400 border-yellow-200 dark:border-yellow-800 bg-yellow-50 dark:bg-yellow-950/20',
-  low: 'text-blue-700 dark:text-blue-400 border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-950/20',
-  info: 'text-gray-700 dark:text-gray-400 border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-900/20',
+const GROUP_STATUS_CONFIG: Record<CTEMRemediationGroupStatus, { label: string; color: string; icon: typeof Clock }> = {
+  planned: { label: 'Planned', color: 'bg-blue-100 text-blue-800 dark:bg-blue-950/30 dark:text-blue-400', icon: Clock },
+  in_progress: { label: 'In Progress', color: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-950/30 dark:text-yellow-400', icon: Play },
+  completed: { label: 'Completed', color: 'bg-green-100 text-green-800 dark:bg-green-950/30 dark:text-green-400', icon: CheckCircle2 },
+  deferred: { label: 'Deferred', color: 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300', icon: PauseCircle },
+  accepted: { label: 'Accepted', color: 'bg-purple-100 text-purple-800 dark:bg-purple-950/30 dark:text-purple-400', icon: ShieldCheck },
 };
 
-function FindingCard({ finding }: { finding: CTEMFinding }) {
+const EFFORT_COLORS: Record<string, string> = {
+  low: 'text-green-600',
+  medium: 'text-yellow-600',
+  high: 'text-red-600',
+};
+
+function GroupCard({
+  group,
+  onRefresh,
+}: {
+  group: CTEMRemediationGroup;
+  onRefresh: () => void;
+}) {
   const [expanded, setExpanded] = useState(false);
-  const hasSteps = (finding.remediation_steps?.length ?? 0) > 0;
+  const [updating, setUpdating] = useState(false);
+  const config = GROUP_STATUS_CONFIG[group.status] ?? GROUP_STATUS_CONFIG.planned;
+  const StatusIcon = config.icon;
+
+  const handleStatusChange = async (newStatus: CTEMRemediationGroupStatus) => {
+    setUpdating(true);
+    try {
+      await apiPut(API_ENDPOINTS.CYBER_CTEM_REMEDIATION_GROUP_STATUS(group.id), { status: newStatus });
+      showSuccess('Group status updated');
+      onRefresh();
+    } catch {
+      showError('Failed to update group status');
+    } finally {
+      setUpdating(false);
+    }
+  };
+
+  const handleExecute = async () => {
+    setUpdating(true);
+    try {
+      await apiPost(API_ENDPOINTS.CYBER_CTEM_REMEDIATION_GROUP_EXECUTE(group.id));
+      showSuccess('Remediation group execution started');
+      onRefresh();
+    } catch {
+      showError('Failed to execute remediation group');
+    } finally {
+      setUpdating(false);
+    }
+  };
 
   return (
-    <div className="rounded-lg border bg-card">
+    <div className="rounded-xl border bg-card">
       <button
         type="button"
         className="flex w-full items-start justify-between gap-3 px-4 py-3 text-left"
-        onClick={() => hasSteps && setExpanded((v) => !v)}
+        onClick={() => setExpanded((v) => !v)}
         aria-expanded={expanded}
       >
         <div className="flex min-w-0 flex-1 flex-col gap-1">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="text-sm font-medium leading-tight">{finding.title}</span>
-            {finding.exploit_available && (
-              <span className="inline-flex items-center gap-1 rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-700 dark:bg-red-900/40 dark:text-red-400">
-                <Zap className="h-3 w-3" aria-hidden />
-                Exploit Available
-              </span>
-            )}
+            <span className="text-sm font-semibold">{group.title}</span>
+            <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${config.color}`}>
+              <StatusIcon className="h-3 w-3" />
+              {config.label}
+            </span>
           </div>
-          {finding.asset_name && (
-            <span className="text-xs text-muted-foreground">{finding.asset_name}</span>
-          )}
+          <p className="text-xs text-muted-foreground line-clamp-1">{group.description}</p>
         </div>
         <div className="flex shrink-0 items-center gap-3">
-          <Badge variant="outline" className="text-xs tabular-nums">
-            Priority {finding.priority_score}
-          </Badge>
-          {hasSteps && (
-            <ChevronRight
-              className={`h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-150 ${expanded ? 'rotate-90' : ''}`}
-              aria-hidden
-            />
-          )}
+          <div className="text-right">
+            <p className="text-xs tabular-nums text-muted-foreground">{group.finding_count} finding{group.finding_count !== 1 ? 's' : ''}</p>
+            {group.affected_asset_count > 0 && (
+              <p className="text-xs tabular-nums text-muted-foreground">{group.affected_asset_count} asset{group.affected_asset_count !== 1 ? 's' : ''}</p>
+            )}
+          </div>
+          <ChevronRight
+            className={`h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-150 ${expanded ? 'rotate-90' : ''}`}
+            aria-hidden
+          />
         </div>
       </button>
 
-      {expanded && hasSteps && (
-        <div className="border-t px-4 pb-4 pt-3">
-          <p className="mb-2 text-xs font-semibold text-muted-foreground">Remediation Steps</p>
-          <ol className="space-y-2">
-            {finding.remediation_steps!.map((step, idx) => (
-              <li key={idx} className="flex items-start gap-2.5 text-sm">
-                <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-green-600 dark:text-green-400" aria-hidden />
-                <span>{step}</span>
-              </li>
-            ))}
-          </ol>
+      {expanded && (
+        <div className="space-y-3 border-t px-4 pb-4 pt-3">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <div>
+              <p className="text-xs text-muted-foreground">Type</p>
+              <p className="text-sm font-medium capitalize">{group.type.replace(/_/g, ' ')}</p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Effort</p>
+              <p className={`text-sm font-medium capitalize ${EFFORT_COLORS[group.effort] ?? ''}`}>{group.effort}</p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Priority Group</p>
+              <p className="text-sm font-medium tabular-nums">P{group.priority_group}</p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Max Priority</p>
+              <p className="text-sm font-medium tabular-nums">{Math.round(group.max_priority_score)}</p>
+            </div>
+          </div>
+
+          {group.estimated_days != null && (
+            <p className="text-xs text-muted-foreground">Estimated: ~{group.estimated_days} day{group.estimated_days !== 1 ? 's' : ''}</p>
+          )}
+
+          {group.score_reduction != null && (
+            <p className="text-xs text-muted-foreground">
+              Score reduction: <span className="font-medium text-green-600">-{group.score_reduction.toFixed(1)}</span>
+            </p>
+          )}
+
+          {(group.cve_ids?.length ?? 0) > 0 && (
+            <div className="flex flex-wrap gap-1">
+              {group.cve_ids.map((cve) => (
+                <Badge key={cve} variant="outline" className="text-xs">{cve}</Badge>
+              ))}
+            </div>
+          )}
+
+          <div className="flex flex-wrap items-center gap-2 pt-1">
+            <Select
+              value={group.status}
+              onValueChange={(v) => handleStatusChange(v as CTEMRemediationGroupStatus)}
+              disabled={updating}
+            >
+              <SelectTrigger className="h-8 w-40 text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {Object.entries(GROUP_STATUS_CONFIG).map(([value, cfg]) => (
+                  <SelectItem key={value} value={value}>{cfg.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            {(group.status === 'planned' || group.status === 'in_progress') && (
+              <Button size="sm" variant="outline" className="h-8 gap-1 text-xs" onClick={handleExecute} disabled={updating}>
+                <Play className="h-3 w-3" />
+                Execute
+              </Button>
+            )}
+          </div>
         </div>
       )}
     </div>
   );
 }
 
-export function RemediationGroups({ findings }: { findings: CTEMFinding[] }) {
-  const withSteps = findings.filter((f) => (f.remediation_steps?.length ?? 0) > 0);
+interface RemediationGroupsProps {
+  assessmentId: string;
+}
 
-  const grouped = SEVERITY_ORDER.reduce<Record<CyberSeverity, CTEMFinding[]>>(
-    (acc, sev) => {
-      acc[sev] = withSteps.filter((f) => f.severity === sev);
-      return acc;
-    },
-    { critical: [], high: [], medium: [], low: [], info: [] },
-  );
+export function RemediationGroups({ assessmentId }: RemediationGroupsProps) {
+  const { data, isLoading, refetch } = useQuery({
+    queryKey: [`ctem-remediation-groups-${assessmentId}`],
+    queryFn: () =>
+      apiGet<{ data: CTEMRemediationGroup[] }>(API_ENDPOINTS.CYBER_CTEM_ASSESSMENT_REMEDIATION_GROUPS(assessmentId)),
+  });
 
-  const hasAny = withSteps.length > 0;
+  const groups = data?.data ?? [];
+
+  if (isLoading) return <LoadingSkeleton variant="card" />;
 
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-2">
-        <h3 className="text-base font-semibold">Remediation Actions</h3>
-        <Badge variant="secondary" className="tabular-nums">
-          {withSteps.length}
-        </Badge>
+        <h3 className="text-base font-semibold">Remediation Groups</h3>
+        <Badge variant="secondary" className="tabular-nums">{groups.length}</Badge>
       </div>
 
-      {!hasAny && (
+      {groups.length === 0 ? (
         <p className="py-6 text-center text-sm text-muted-foreground">
-          No remediation actions available
+          No remediation groups available. Groups are generated during the mobilization phase.
         </p>
+      ) : (
+        <div className="space-y-3">
+          {groups.map((group) => (
+            <GroupCard key={group.id} group={group} onRefresh={() => void refetch()} />
+          ))}
+        </div>
       )}
-
-      {SEVERITY_ORDER.map((sev) => {
-        const group = grouped[sev];
-        if (group.length === 0) return null;
-        return (
-          <div key={sev} className="space-y-2">
-            <div className={`flex items-center gap-2 rounded-lg border px-3 py-2 ${severityHeaderColors[sev]}`}>
-              <SeverityIndicator severity={sev} showLabel size="sm" />
-              <span className="ml-auto text-xs font-medium tabular-nums">{group.length} finding{group.length !== 1 ? 's' : ''}</span>
-            </div>
-            <div className="space-y-2 pl-1">
-              {group.map((finding) => (
-                <FindingCard key={finding.id} finding={finding} />
-              ))}
-            </div>
-          </div>
-        );
-      })}
     </div>
   );
 }

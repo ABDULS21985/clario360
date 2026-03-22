@@ -838,6 +838,32 @@ export type CTEMRemediationType =
 
 export type CTEMRemediationEffort = 'low' | 'medium' | 'high';
 
+export type CTEMRemediationGroupStatus = 'planned' | 'in_progress' | 'completed' | 'deferred' | 'accepted';
+
+export interface CTEMRemediationGroup {
+  id: string;
+  tenant_id: string;
+  assessment_id: string;
+  title: string;
+  description: string;
+  type: CTEMRemediationType;
+  finding_count: number;
+  affected_asset_count: number;
+  cve_ids: string[];
+  max_priority_score: number;
+  priority_group: number;
+  effort: CTEMRemediationEffort;
+  estimated_days?: number;
+  score_reduction?: number;
+  status: CTEMRemediationGroupStatus;
+  workflow_instance_id?: string;
+  target_date?: string;
+  started_at?: string;
+  completed_at?: string;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface CTEMFinding {
   id: string;
   tenant_id: string;
@@ -1663,6 +1689,15 @@ export interface MITREAlertReference {
   confidence_score: number;
   asset_name?: string;
   created_at: string;
+}
+
+export interface MITREFrameworkMeta {
+  version: string;
+  updated_at: string;
+  tactic_count: number;
+  technique_count: number;
+  stale_days: number;
+  is_stale: boolean;
 }
 
 export interface MITRETechniqueDetail {

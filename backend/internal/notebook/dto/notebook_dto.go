@@ -23,3 +23,19 @@ type ActivityRequest struct {
 type MessageResponse struct {
 	Message string `json:"message"`
 }
+
+// HubStatus reports the reachability of the backing JupyterHub instance.
+// "available" means the hub responded with a non-5xx status.
+// "unavailable" means the hub could not be reached or returned 5xx.
+type HubStatus struct {
+	Status string `json:"status"`          // "available" | "unavailable"
+	Error  string `json:"error,omitempty"` // human-readable reason when unavailable
+}
+
+// HubHealthResponse is the response body for GET /notebooks/health.
+// The endpoint always returns HTTP 200 so clients can distinguish "service up
+// but hub degraded" from a total outage.
+type HubHealthResponse struct {
+	Status     string    `json:"status"` // "ok" | "degraded"
+	JupyterHub HubStatus `json:"jupyterhub"`
+}

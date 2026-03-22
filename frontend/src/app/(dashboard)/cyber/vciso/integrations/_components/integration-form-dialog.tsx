@@ -49,6 +49,8 @@ interface IntegrationFormDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   integration?: VCISOIntegration | null;
+  /** Called after a successful save so the parent can refresh its data. */
+  onSaved?: () => void | Promise<void>;
 }
 
 // ─── Form State ──────────────────────────────────────────────────────────────
@@ -95,6 +97,7 @@ export function IntegrationFormDialog({
   open,
   onOpenChange,
   integration,
+  onSaved,
 }: IntegrationFormDialogProps) {
   const isEdit = !!integration;
   const [form, setForm] = useState<IntegrationFormData>(() => getDefaultForm(integration));
@@ -113,6 +116,7 @@ export function IntegrationFormDialog({
     invalidateKeys: [API_ENDPOINTS.CYBER_VCISO_INTEGRATIONS],
     onSuccess: () => {
       onOpenChange(false);
+      void onSaved?.();
     },
   });
 
@@ -127,6 +131,7 @@ export function IntegrationFormDialog({
       invalidateKeys: [API_ENDPOINTS.CYBER_VCISO_INTEGRATIONS],
       onSuccess: () => {
         onOpenChange(false);
+        void onSaved?.();
       },
     },
   );

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import { Pencil, Power, ShieldCheck, Trash2 } from 'lucide-react';
@@ -9,6 +9,7 @@ import { ErrorState } from '@/components/common/error-state';
 import { LoadingSkeleton } from '@/components/common/loading-skeleton';
 import { PageHeader } from '@/components/common/page-header';
 import { PermissionRedirect } from '@/components/common/permission-redirect';
+import { ConfirmDialog } from '@/components/shared/confirm-dialog';
 import { SeverityIndicator } from '@/components/shared/severity-indicator';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -16,6 +17,7 @@ import { useApiMutation } from '@/hooks/use-api-mutation';
 import { apiGet } from '@/lib/api';
 import { normalizeRule } from '@/lib/cyber-rules';
 import { API_ENDPOINTS } from '@/lib/constants';
+import { useRealtimeStore } from '@/stores/realtime-store';
 import type { DetectionRule, DetectionRulePerformance } from '@/types/cyber';
 
 import { RuleAlertsTab } from './_components/rule-alerts-tab';
@@ -31,6 +33,7 @@ export default function DetectionRuleDetailPage() {
   const router = useRouter();
   const [editing, setEditing] = useState(false);
   const [testing, setTesting] = useState(false);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
 
   const { data: ruleEnvelope, isLoading, error, refetch } = useQuery({
     queryKey: ['cyber-rule-detail', ruleId],
@@ -45,6 +48,32 @@ export default function DetectionRuleDetailPage() {
   });
 
   const rule = ruleEnvelope?.data ? normalizeRule(ruleEnvelope.data) : null;
+
+  // WebSocket-driven cache invalidation
+  const WS_TOPICS = useMemo(
+    () => ['cyber.rule.updated', 'cyber.rule.toggled', 'cyber.rule.deleted'],
+    [],
+  );
+  const realtimeKey = `cyber-rule-detail:${ruleId}`;
+  const { register, unregister } = useRealtimeStore();
+  const queryEvent = useRealtimeStore((s) => s.queryEvents[realtimeKey]);
+
+  useEffect(() => {
+    for (const topic of WS_TOPICS) {
+      register(topic, realtimeKey);
+    }
+    return () => {
+      for (const topic of WS_TOPICS) {
+        unregister(topic, realtimeKey);
+      }
+    };
+  }, [register, unregister, realtimeKey, WS_TOPICS]);
+
+  useEffect(() => {
+    if (queryEvent) {
+      refetch();
+    }
+  }, [queryEvent, refetch]);
 
   const toggleMutation = useApiMutation<DetectionRule, Record<string, unknown>>(
     'put',
@@ -116,7 +145,7 @@ export default function DetectionRuleDetailPage() {
                 <Power className="mr-2 h-4 w-4" />
                 {rule.enabled ? 'Disable' : 'Enable'}
               </Button>
-              <Button variant="outline" className="text-red-600" onClick={() => deleteMutation.mutate({ id: rule.id })}>
+              <Button variant="outline" className="text-red-600" onClick={() => setDeleteConfirmOpen(true)}>
                 <Trash2 className="mr-2 h-4 w-4" />
                 Delete
               </Button>
@@ -161,6 +190,16 @@ export default function DetectionRuleDetailPage() {
       />
 
       <RuleTestDialog open={testing} onOpenChange={setTesting} rule={rule} />
+
+      <ConfirmDialog
+        open={deleteConfirmOpen}
+        onOpenChange={setDeleteConfirmOpen}
+        title="Delete detection rule"
+        description={`Delete "${rule.name}"? The rule will be soft-deleted and no longer available in the detection engine.`}
+        confirmLabel="Delete"
+        variant="destructive"
+        onConfirm={() => deleteMutation.mutate({ id: rule.id })}
+      />
     </PermissionRedirect>
   );
 }

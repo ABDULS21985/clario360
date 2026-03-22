@@ -33,15 +33,16 @@ export function ExposureScoreGauge() {
   const circumference = 2 * Math.PI * radius;
   const offset = circumference - (score.score / 100) * circumference;
 
-  const TrendIcon = score.trend === 'increasing'
-    ? TrendingDown
-    : score.trend === 'decreasing'
+  // Backend scoring engine returns: 'worsening' (score up = bad), 'improving' (score down = good), 'stable'
+  const TrendIcon = score.trend === 'worsening'
     ? TrendingUp
+    : score.trend === 'improving'
+    ? TrendingDown
     : Minus;
 
-  const trendColor = score.trend === 'increasing'
+  const trendColor = score.trend === 'worsening'
     ? 'text-red-500'
-    : score.trend === 'decreasing'
+    : score.trend === 'improving'
     ? 'text-green-500'
     : 'text-muted-foreground';
 

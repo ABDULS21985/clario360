@@ -181,13 +181,13 @@ func (e *ForecastEngine) PredictAssetRisk(ctx context.Context, tenantID uuid.UUI
 			aggregate = top
 		}
 		items = append(items, predictmodel.AssetRiskItem{
-			AssetID:     item.sample.AssetID,
-			AssetName:   item.sample.AssetName,
-			AssetType:   item.sample.AssetType,
-			Probability: item.score,
-			Confidence:  interval,
-			CurrentRisk: item.sample.HistoricalAlerts + item.sample.OpenCritical*2 + item.sample.OpenHigh,
-			TopFeatures: top,
+			AssetID:            item.sample.AssetID,
+			AssetName:          item.sample.AssetName,
+			AssetType:          item.sample.AssetType,
+			Probability:        item.score,
+			ConfidenceInterval: interval,
+			CurrentRisk:        item.sample.HistoricalAlerts + item.sample.OpenCritical*2 + item.sample.OpenHigh,
+			TopFeatures:        top,
 		})
 	}
 	confidenceScore := averageScores(len(ranked), func(idx int) float64 { return ranked[idx].score })
@@ -264,7 +264,7 @@ func (e *ForecastEngine) PredictVulnerabilityPriority(ctx context.Context, tenan
 			CVEID:           item.sample.CVEID,
 			Severity:        item.sample.Severity,
 			Probability:     item.score,
-			Confidence:      bounds,
+			ConfidenceInterval: bounds,
 			TopFeatures:     top,
 		})
 	}
@@ -385,15 +385,15 @@ func (e *ForecastEngine) ForecastInsiderThreats(ctx context.Context, tenantID uu
 			"peer_deviation":    last.PeerDeviation,
 		}), 5)
 		items = append(items, predictmodel.InsiderThreatTrajectoryItem{
-			EntityID:         last.EntityID,
-			EntityName:       last.EntityName,
-			CurrentRisk:      last.RiskScore,
-			ProjectedRisk:    projected,
-			Confidence:       confidence,
-			DaysToThreshold:  daysToThreshold,
-			Accelerating:     accelerating,
-			TopFeatures:      top,
-			VerificationStep: "Review the underlying UEBA evidence before escalation.",
+			EntityID:           last.EntityID,
+			EntityName:         last.EntityName,
+			CurrentRisk:        last.RiskScore,
+			ProjectedRisk:      projected,
+			ConfidenceInterval: confidence,
+			DaysToThreshold:    daysToThreshold,
+			Accelerating:       accelerating,
+			TopFeatures:        top,
+			VerificationStep:   "Review the underlying UEBA evidence before escalation.",
 		})
 	}
 	sort.SliceStable(items, func(i, j int) bool { return items[i].ProjectedRisk > items[j].ProjectedRisk })
@@ -446,7 +446,7 @@ func (e *ForecastEngine) DetectCampaigns(ctx context.Context, tenantID uuid.UUID
 	}
 	cohesion := make([]float64, 0, len(items))
 	for _, item := range items {
-		cohesion = append(cohesion, item.Confidence.P50)
+		cohesion = append(cohesion, item.ConfidenceInterval.P50)
 	}
 	quality, _ := e.backtester.ClusterQuality(cohesion)
 	confidenceScore := clamp(quality.Accuracy, 0.20, 0.95)
@@ -778,7 +778,7 @@ func (e *ForecastEngine) retrainCampaign(ctx context.Context, tenantID uuid.UUID
 	clusters := model.Detect(samples)
 	cohesion := make([]float64, 0, len(clusters))
 	for _, cluster := range clusters {
-		cohesion = append(cohesion, cluster.Confidence.P50)
+		cohesion = append(cohesion, cluster.ConfidenceInterval.P50)
 	}
 	backtest, err := e.backtester.ClusterQuality(cohesion)
 	if err != nil {

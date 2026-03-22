@@ -42,18 +42,23 @@ export function AttendanceTab({
     <div className="space-y-4">
       <QuorumIndicator attendance={attendance} quorumRequired={meeting.quorum_required} />
       <div className="flex justify-end">
-        <Button
-          variant="outline"
-          onClick={() =>
-            onBulkAbsent(
-              attendance
-                .filter((entry) => !['present', 'proxy', 'excused', 'absent'].includes(entry.status))
-                .map((entry) => ({ user_id: entry.user_id, status: 'absent' as const })),
-            )
-          }
-        >
-          Mark All Remaining as Absent
-        </Button>
+        {(() => {
+          const remaining = attendance.filter(
+            (entry) => !['present', 'proxy', 'excused', 'absent'].includes(entry.status),
+          );
+          return (
+            <Button
+              variant="outline"
+              disabled={remaining.length === 0}
+              onClick={() =>
+                onBulkAbsent(remaining.map((entry) => ({ user_id: entry.user_id, status: 'absent' as const })))
+              }
+            >
+              Mark All Remaining as Absent
+              {remaining.length > 0 ? ` (${remaining.length})` : ''}
+            </Button>
+          );
+        })()}
       </div>
       <div className="space-y-3">
         {attendance.map((entry) => (

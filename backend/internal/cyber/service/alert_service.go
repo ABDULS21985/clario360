@@ -413,6 +413,53 @@ func (s *AlertService) Stats(ctx context.Context, tenantID uuid.UUID, actor *Act
 	return stats, nil
 }
 
+// BulkUpdateStatus updates the status of multiple alerts, collecting per-alert errors.
+func (s *AlertService) BulkUpdateStatus(ctx context.Context, tenantID uuid.UUID, actor *Actor, req *dto.BulkAlertStatusRequest) (*dto.BulkOperationResult, error) {
+	result := &dto.BulkOperationResult{Processed: len(req.AlertIDs)}
+	for _, alertID := range req.AlertIDs {
+		statusReq := &dto.AlertStatusUpdateRequest{
+			Status: req.Status,
+			Notes:  req.Notes,
+			Reason: req.Reason,
+		}
+		if _, err := s.UpdateStatus(ctx, tenantID, alertID, actor, statusReq); err != nil {
+			result.Failed++
+			result.Errors = append(result.Errors, dto.BulkError{AlertID: alertID.String(), Error: err.Error()})
+		} else {
+			result.Successful++
+		}
+	}
+	return result, nil
+}
+
+// BulkAssign assigns multiple alerts to an analyst, collecting per-alert errors.
+func (s *AlertService) BulkAssign(ctx context.Context, tenantID uuid.UUID, actor *Actor, req *dto.BulkAlertAssignRequest) (*dto.BulkOperationResult, error) {
+	result := &dto.BulkOperationResult{Processed: len(req.AlertIDs)}
+	for _, alertID := range req.AlertIDs {
+		if _, err := s.Assign(ctx, tenantID, alertID, actor, req.AssignedTo); err != nil {
+			result.Failed++
+			result.Errors = append(result.Errors, dto.BulkError{AlertID: alertID.String(), Error: err.Error()})
+		} else {
+			result.Successful++
+		}
+	}
+	return result, nil
+}
+
+// BulkMarkFalsePositive marks multiple alerts as false positive, collecting per-alert errors.
+func (s *AlertService) BulkMarkFalsePositive(ctx context.Context, tenantID uuid.UUID, actor *Actor, req *dto.BulkAlertFalsePositiveRequest) (*dto.BulkOperationResult, error) {
+	result := &dto.BulkOperationResult{Processed: len(req.AlertIDs)}
+	for _, alertID := range req.AlertIDs {
+		if _, err := s.MarkFalsePositive(ctx, tenantID, alertID, actor, req.Reason); err != nil {
+			result.Failed++
+			result.Errors = append(result.Errors, dto.BulkError{AlertID: alertID.String(), Error: err.Error()})
+		} else {
+			result.Successful++
+		}
+	}
+	return result, nil
+}
+
 // Count returns a simple filtered alert count.
 func (s *AlertService) Count(ctx context.Context, tenantID uuid.UUID, params *dto.AlertListParams, actor *Actor) (int, error) {
 	params.SetDefaults()
@@ -425,6 +472,34 @@ func (s *AlertService) Count(ctx context.Context, tenantID uuid.UUID, params *dt
 	}
 	_ = publishAuditEvent(ctx, s.producer, "cyber.alert.counted", tenantID, actor, map[string]interface{}{"count": count})
 	return count, nil
+}
+
+// CountWithHistory returns a filtered alert count together with a 12-day daily
+// history array and a day-over-day trend delta suitable for KPI cards.
+func (s *AlertService) CountWithHistory(ctx context.Context, tenantID uuid.UUID, params *dto.AlertListParams, actor *Actor) (*dto.AlertCountResponse, error) {
+	params.SetDefaults()
+	if err := params.Validate(); err != nil {
+		return nil, err
+	}
+	count, err := s.alertRepo.Count(ctx, tenantID, params)
+	if err != nil {
+		return nil, err
+	}
+	history, err := s.alertRepo.DailyCreatedCounts(ctx, tenantID, 12)
+	if err != nil {
+		// Non-fatal — return count without history.
+		return &dto.AlertCountResponse{Count: count}, nil
+	}
+	resp := &dto.AlertCountResponse{
+		Count:   count,
+		History: history,
+	}
+	if len(history) >= 2 {
+		delta := history[len(history)-1] - history[len(history)-2]
+		resp.Trend = &delta
+	}
+	_ = publishAuditEvent(ctx, s.producer, "cyber.alert.counted", tenantID, actor, map[string]interface{}{"count": count})
+	return resp, nil
 }
 
 // CreateOrMergeDetectionAlert creates a new alert or aggregates into an open alert for deduplication.

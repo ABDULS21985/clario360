@@ -20,6 +20,9 @@ import {
   RULE_SEVERITY_OPTIONS,
   serializeRuleContent,
   stringifySigmaContent,
+  validateAnomalyContent,
+  validateCorrelationContent,
+  validateThresholdContent,
 } from '@/lib/cyber-rules';
 import type {
   AnomalyRuleContent,
@@ -159,7 +162,7 @@ export function RuleWizard({
     editingRule ? API_ENDPOINTS.CYBER_RULE_DETAIL(editingRule.id) : API_ENDPOINTS.CYBER_RULES,
     {
       successMessage: editingRule ? 'Detection rule updated' : 'Detection rule created',
-      invalidateKeys: ['cyber-rules', 'cyber-rules-stats', 'cyber-mitre-coverage'],
+      invalidateKeys: ['cyber-rules', 'cyber-rules-stats', 'cyber-mitre-coverage', 'cyber-rule-detail'],
       onSuccess: () => {
         onOpenChange(false);
         onSuccess?.();
@@ -190,25 +193,36 @@ export function RuleWizard({
       return true;
     }
 
-    if (targetStep === 1 && ruleType === 'sigma') {
-      try {
-        parseSigmaYamlText(sigmaYaml);
-        setValidationError(null);
-        return true;
-      } catch (error) {
-        setValidationError(error instanceof Error ? error.message : 'Invalid Sigma YAML');
-        return false;
+    if (targetStep === 1) {
+      if (ruleType === 'sigma') {
+        try {
+          parseSigmaYamlText(sigmaYaml);
+        } catch (error) {
+          setValidationError(error instanceof Error ? error.message : 'Invalid Sigma YAML');
+          return false;
+        }
+      } else if (ruleType === 'threshold') {
+        const err = validateThresholdContent(thresholdContent);
+        if (err) {
+          setValidationError(err);
+          return false;
+        }
+      } else if (ruleType === 'correlation') {
+        const err = validateCorrelationContent(correlationContent);
+        if (err) {
+          setValidationError(err);
+          return false;
+        }
+      } else if (ruleType === 'anomaly') {
+        const err = validateAnomalyContent(anomalyContent);
+        if (err) {
+          setValidationError(err);
+          return false;
+        }
       }
-    }
 
-    if (targetStep === 1 && ruleType === 'threshold' && !thresholdContent.group_by) {
-      setValidationError('Threshold rules require a group-by field.');
-      return false;
-    }
-
-    if (targetStep === 1 && ruleType === 'correlation' && !correlationContent.group_by) {
-      setValidationError('Correlation rules require a correlation field.');
-      return false;
+      setValidationError(null);
+      return true;
     }
 
     setValidationError(null);
@@ -250,10 +264,9 @@ export function RuleWizard({
           ? parseSigmaYamlText(sigmaYaml)
           : serializeRuleContent(ruleType, currentLogic as ThresholdRuleContent | CorrelationRuleContent | AnomalyRuleContent);
 
-      mutation.mutate({
+      const payload: Record<string, unknown> = {
         name: name.trim(),
         description: description.trim(),
-        rule_type: ruleType,
         severity,
         enabled,
         base_confidence: baseConfidence,
@@ -264,7 +277,15 @@ export function RuleWizard({
           .split(',')
           .map((tag) => tag.trim())
           .filter(Boolean),
-      });
+      };
+
+      // rule_type is only accepted during creation; the backend UpdateRuleRequest
+      // does not include it (type cannot change after creation).
+      if (!editingRule) {
+        payload.rule_type = ruleType;
+      }
+
+      mutation.mutate(payload);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unable to build rule payload';
       setValidationError(message);
@@ -331,7 +352,7 @@ export function RuleWizard({
               <div className="space-y-4 rounded-[26px] border border-[color:var(--card-border)] bg-[var(--card-bg)] p-5 shadow-[var(--card-shadow)]">
                 <div className="space-y-2">
                   <Label>Rule type</Label>
-                  <Select value={ruleType} onValueChange={(value) => setRuleType(value as DetectionRuleType)}>
+                  <Select value={ruleType} onValueChange={(value) => setRuleType(value as DetectionRuleType)} disabled={Boolean(editingRule)}>
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
@@ -343,6 +364,9 @@ export function RuleWizard({
                       ))}
                     </SelectContent>
                   </Select>
+                  {editingRule ? (
+                    <p className="text-xs text-muted-foreground">Rule type cannot be changed after creation.</p>
+                  ) : null}
                 </div>
 
                 <div className="space-y-2">

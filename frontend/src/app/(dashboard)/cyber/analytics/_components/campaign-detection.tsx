@@ -2,7 +2,7 @@
 
 import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
-import { ExternalLink } from 'lucide-react';
+import { AlertCircle, ExternalLink } from 'lucide-react';
 import { apiGet } from '@/lib/api';
 import { API_ENDPOINTS } from '@/lib/constants';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -10,6 +10,8 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { LoadingSkeleton } from '@/components/common/loading-skeleton';
 import type { CampaignCluster } from '@/types/cyber';
+
+const LOOKBACK_DAYS = 30;
 
 interface CampaignResponse {
   items?: CampaignCluster[];
@@ -22,9 +24,12 @@ const STAGE_COLORS: Record<string, string> = {
 };
 
 export function CampaignDetection() {
-  const { data, isLoading } = useQuery({
-    queryKey: ['cyber-analytics-campaigns'],
-    queryFn: () => apiGet<{ data: CampaignResponse }>(API_ENDPOINTS.CYBER_ANALYTICS_CAMPAIGNS),
+  const { data, isLoading, isError, refetch } = useQuery({
+    queryKey: ['cyber-analytics-campaigns', LOOKBACK_DAYS],
+    queryFn: () =>
+      apiGet<{ data: CampaignResponse }>(API_ENDPOINTS.CYBER_ANALYTICS_CAMPAIGNS, {
+        lookback_days: LOOKBACK_DAYS,
+      }),
     refetchInterval: 300000,
   });
 
@@ -32,6 +37,23 @@ export function CampaignDetection() {
 
   if (isLoading) {
     return <LoadingSkeleton variant="card" />;
+  }
+
+  if (isError) {
+    return (
+      <div className="space-y-4">
+        <h3 className="text-lg font-semibold">Campaign Detection</h3>
+        <Card>
+          <CardContent className="flex items-center gap-3 py-6">
+            <AlertCircle className="h-4 w-4 text-destructive" />
+            <span className="text-sm text-muted-foreground">Failed to load campaign data.</span>
+            <Button variant="outline" size="sm" onClick={() => void refetch()}>
+              Retry
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
   }
 
   return (
@@ -121,9 +143,9 @@ export function CampaignDetection() {
                 )}
 
                 <Button variant="outline" size="sm" className="w-full" asChild>
-                  <Link href={`/cyber/threats?campaign=${campaign.cluster_id}`}>
+                  <Link href={buildCampaignAlertLink(campaign)}>
                     <ExternalLink className="mr-1.5 h-3 w-3" />
-                    Investigate
+                    Investigate Alerts
                   </Link>
                 </Button>
               </CardContent>
@@ -133,4 +155,16 @@ export function CampaignDetection() {
       )}
     </div>
   );
+}
+
+/** Build a link to the alerts page filtered by the campaign's alert IDs.
+ *  The backend supports `?alert_ids=id1&alert_ids=id2` to filter by exact IDs. */
+function buildCampaignAlertLink(campaign: CampaignCluster): string {
+  const ids = campaign.alert_ids ?? [];
+  if (ids.length === 0) return '/cyber/alerts';
+  const params = new URLSearchParams();
+  for (const id of ids) {
+    params.append('alert_ids', id);
+  }
+  return `/cyber/alerts?${params.toString()}`;
 }

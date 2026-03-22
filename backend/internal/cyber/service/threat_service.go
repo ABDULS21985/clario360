@@ -19,11 +19,12 @@ import (
 
 // ThreatService manages threats and indicators.
 type ThreatService struct {
-	threatRepo    *repository.ThreatRepository
-	indicatorRepo *repository.IndicatorRepository
-	alertRepo     *repository.AlertRepository
-	producer      *events.Producer
-	logger        zerolog.Logger
+	threatRepo      *repository.ThreatRepository
+	indicatorRepo   *repository.IndicatorRepository
+	alertRepo       *repository.AlertRepository
+	enrichmentCache *EnrichmentCache
+	producer        *events.Producer
+	logger          zerolog.Logger
 }
 
 // NewThreatService creates a new ThreatService.
@@ -31,15 +32,17 @@ func NewThreatService(
 	threatRepo *repository.ThreatRepository,
 	indicatorRepo *repository.IndicatorRepository,
 	alertRepo *repository.AlertRepository,
+	enrichmentCache *EnrichmentCache,
 	producer *events.Producer,
 	logger zerolog.Logger,
 ) *ThreatService {
 	return &ThreatService{
-		threatRepo:    threatRepo,
-		indicatorRepo: indicatorRepo,
-		alertRepo:     alertRepo,
-		producer:      producer,
-		logger:        logger,
+		threatRepo:      threatRepo,
+		indicatorRepo:   indicatorRepo,
+		alertRepo:       alertRepo,
+		enrichmentCache: enrichmentCache,
+		producer:        producer,
+		logger:          logger,
 	}
 }
 
@@ -256,11 +259,15 @@ func (s *ThreatService) ListThreatIndicators(ctx context.Context, tenantID, thre
 	return items, nil
 }
 
-// AddThreatIndicator adds an indicator to a threat.
-func (s *ThreatService) AddThreatIndicator(ctx context.Context, tenantID, threatID, userID uuid.UUID, actor *Actor, req *dto.ThreatIndicatorRequest) (*model.ThreatIndicator, error) {
+// AddThreatIndicator adds an indicator to a threat. The returned bool is true
+// when an existing indicator was updated (UPSERT matched on tenant_id+type+value).
+func (s *ThreatService) AddThreatIndicator(ctx context.Context, tenantID, threatID, userID uuid.UUID, actor *Actor, req *dto.ThreatIndicatorRequest) (bool, *model.ThreatIndicator, error) {
 	if !req.Type.IsValid() || !req.Severity.IsValid() {
-		return nil, repository.ErrInvalidInput
+		return false, nil, repository.ErrInvalidInput
 	}
+	// Check if an indicator with the same key already exists before UPSERT.
+	_, lookupErr := s.indicatorRepo.GetByTypeValue(ctx, tenantID, req.Type, req.Value)
+	existed := lookupErr == nil
 	indicatorModel := &model.ThreatIndicator{
 		TenantID:    tenantID,
 		ThreatID:    &threatID,
@@ -278,16 +285,20 @@ func (s *ThreatService) AddThreatIndicator(ctx context.Context, tenantID, threat
 	}
 	item, err := s.indicatorRepo.Create(ctx, indicatorModel)
 	if err != nil {
-		return nil, err
+		return false, nil, err
 	}
-	_ = publishEvent(ctx, s.producer, events.Topics.ThreatEvents, "cyber.threat.indicator_added", tenantID, actor, map[string]interface{}{
+	eventName := "cyber.threat.indicator_added"
+	if existed {
+		eventName = "cyber.threat.indicator_updated"
+	}
+	_ = publishEvent(ctx, s.producer, events.Topics.ThreatEvents, eventName, tenantID, actor, map[string]interface{}{
 		"threat_id":    threatID.String(),
 		"indicator_id": item.ID.String(),
 		"type":         item.Type,
 		"value":        item.Value,
 	})
-	_ = publishAuditEvent(ctx, s.producer, "cyber.threat.indicator_added", tenantID, actor, item)
-	return item, nil
+	_ = publishAuditEvent(ctx, s.producer, eventName, tenantID, actor, item)
+	return existed, item, nil
 }
 
 // UpdateIndicatorStatus toggles whether an IOC is active for matching.

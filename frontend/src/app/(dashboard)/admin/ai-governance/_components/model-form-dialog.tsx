@@ -67,6 +67,7 @@ const MODEL_TYPES: AIModelType[] = [
   'anomaly_detector',
   'scorer',
   'recommender',
+  'llm_agentic',
 ];
 
 const MODEL_SUITES: AIModelSuite[] = ['cyber', 'data', 'acta', 'lex', 'visus', 'platform'];

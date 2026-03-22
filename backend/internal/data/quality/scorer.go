@@ -115,6 +115,13 @@ func (s *Scorer) CalculateScore(ctx context.Context, tenantID uuid.UUID) (*model
 	}
 	score.Grade = grade(score.OverallScore)
 	score.Trend = "stable"
+	if trendPts, err := s.resultRepo.Trend(ctx, tenantID, 12); err == nil && len(trendPts) > 0 {
+		hist := make([]float64, len(trendPts))
+		for i, pt := range trendPts {
+			hist[i] = pt.Score
+		}
+		score.History = hist
+	}
 	sort.Slice(score.TopFailures, func(i, j int) bool {
 		return score.TopFailures[i].RecordsFailed > score.TopFailures[j].RecordsFailed
 	})

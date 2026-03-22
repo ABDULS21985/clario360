@@ -2,7 +2,8 @@
 
 import { useRouter, useParams } from 'next/navigation';
 import { format } from 'date-fns';
-import { ArrowLeft, Clock } from 'lucide-react';
+import { useState } from 'react';
+import { ArrowLeft, CheckCircle, ChevronLeft, ChevronRight, Clock, XCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -16,10 +17,12 @@ import { API_ENDPOINTS } from '@/lib/constants';
 import type {
   IdentityProfile,
   AccessMapping,
+  AccessAuditEntry,
   BlastRadius,
   AccessRecommendation,
   DataClassification,
 } from '@/types/cyber';
+import type { PaginationMeta } from '@/types/api';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -125,6 +128,20 @@ export default function DspmAccessIdentityDetailPage() {
     `${API_ENDPOINTS.CYBER_DSPM_ACCESS_IDENTITIES}/${identityId}/recommendations`,
     { pollInterval: 60000 },
   );
+
+  const [auditPage, setAuditPage] = useState(1);
+  const {
+    data: auditEnvelope,
+    isLoading: auditLoading,
+    error: auditError,
+    mutate: refetchAudit,
+  } = useRealtimeData<{ data: AccessAuditEntry[]; meta: PaginationMeta }>(
+    `${API_ENDPOINTS.CYBER_DSPM_ACCESS_IDENTITIES}/${identityId}/audit?page=${auditPage}&per_page=25`,
+    { pollInterval: 60000 },
+  );
+
+  const auditEntries = auditEnvelope?.data ?? [];
+  const auditMeta = auditEnvelope?.meta;
 
   const profile = profileEnvelope?.data;
   const mappings = mappingsEnvelope?.data ?? [];
@@ -546,16 +563,107 @@ export default function DspmAccessIdentityDetailPage() {
           </TabsContent>
 
           {/* ── Audit Trail Tab ─────────────────────────────────────────────── */}
-          <TabsContent value="audit-trail">
-            <Card>
-              <CardContent className="flex flex-col items-center justify-center py-12">
-                <Clock className="mb-3 h-10 w-10 text-muted-foreground/50" />
-                <p className="text-sm font-medium text-muted-foreground">Coming soon</p>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Identity access audit trail is under development.
-                </p>
-              </CardContent>
-            </Card>
+          <TabsContent value="audit-trail" className="space-y-4">
+            {auditLoading ? (
+              <LoadingSkeleton variant="table-row" count={5} />
+            ) : auditError ? (
+              <ErrorState
+                message="Failed to load audit trail"
+                onRetry={() => void refetchAudit()}
+              />
+            ) : auditEntries.length === 0 ? (
+              <Card>
+                <CardContent className="flex flex-col items-center justify-center py-12">
+                  <Clock className="mb-3 h-10 w-10 text-muted-foreground/50" />
+                  <p className="text-sm font-medium text-muted-foreground">No audit events</p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    No access audit events have been recorded for this identity.
+                  </p>
+                </CardContent>
+              </Card>
+            ) : (
+              <>
+                <div className="overflow-x-auto rounded-xl border">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b bg-muted/50">
+                        <th className="px-4 py-3 text-left font-medium">Action</th>
+                        <th className="px-4 py-3 text-left font-medium">Table</th>
+                        <th className="px-4 py-3 text-left font-medium">Database</th>
+                        <th className="px-4 py-3 text-left font-medium">Source IP</th>
+                        <th className="px-4 py-3 text-right font-medium">Rows</th>
+                        <th className="px-4 py-3 text-right font-medium">Duration</th>
+                        <th className="px-4 py-3 text-center font-medium">Status</th>
+                        <th className="px-4 py-3 text-left font-medium">Time</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {auditEntries.map((entry) => (
+                        <tr key={entry.id} className="border-b last:border-b-0 hover:bg-muted/30">
+                          <td className="px-4 py-3">
+                            <span className="rounded bg-muted px-2 py-0.5 text-xs font-mono uppercase">
+                              {entry.action}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-xs text-muted-foreground">
+                            {entry.table_name || '--'}
+                          </td>
+                          <td className="px-4 py-3 text-xs text-muted-foreground">
+                            {entry.database_name || '--'}
+                          </td>
+                          <td className="px-4 py-3 text-xs font-mono text-muted-foreground">
+                            {entry.source_ip || '--'}
+                          </td>
+                          <td className="px-4 py-3 text-right text-xs tabular-nums text-muted-foreground">
+                            {entry.rows_affected ?? '--'}
+                          </td>
+                          <td className="px-4 py-3 text-right text-xs tabular-nums text-muted-foreground">
+                            {entry.duration_ms != null ? `${entry.duration_ms}ms` : '--'}
+                          </td>
+                          <td className="px-4 py-3 text-center">
+                            {entry.success ? (
+                              <CheckCircle className="mx-auto h-4 w-4 text-green-500" />
+                            ) : (
+                              <XCircle className="mx-auto h-4 w-4 text-red-500" />
+                            )}
+                          </td>
+                          <td className="px-4 py-3 text-xs text-muted-foreground">
+                            {format(new Date(entry.event_timestamp), 'MMM d, yyyy HH:mm')}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Pagination */}
+                {auditMeta && auditMeta.total_pages > 1 && (
+                  <div className="flex items-center justify-between text-xs text-muted-foreground">
+                    <span>
+                      Page {auditMeta.page} of {auditMeta.total_pages} ({auditMeta.total} events)
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={auditPage <= 1}
+                        onClick={() => setAuditPage((p) => Math.max(1, p - 1))}
+                      >
+                        <ChevronLeft className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={auditPage >= auditMeta.total_pages}
+                        onClick={() => setAuditPage((p) => p + 1)}
+                      >
+                        <ChevronRight className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
           </TabsContent>
         </Tabs>
       </div>

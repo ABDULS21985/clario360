@@ -1,17 +1,20 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { Plus, RotateCw } from 'lucide-react';
 import { PageHeader } from '@/components/common/page-header';
 import { PermissionRedirect } from '@/components/common/permission-redirect';
 import { useDataTable } from '@/hooks/use-data-table';
-import { apiGet, apiPost } from '@/lib/api';
+import { apiDelete, apiGet, apiPost } from '@/lib/api';
 import { API_ENDPOINTS } from '@/lib/constants';
+import { parseApiError } from '@/lib/format';
 import type { PaginatedResponse } from '@/types/api';
 import type { FetchParams } from '@/types/table';
 import type { ThreatFeedConfig, ThreatFeedSyncSummary } from '@/types/cyber';
 import { Button } from '@/components/ui/button';
+import { ConfirmDialog } from '@/components/shared/confirm-dialog';
 
 import { AddFeedDialog } from './_components/add-feed-dialog';
 import { FeedDetail } from './_components/feed-detail';
@@ -32,6 +35,10 @@ export default function CyberThreatFeedsPage() {
   const [editorFeed, setEditorFeed] = useState<ThreatFeedConfig | null>(null);
   const [editorOpen, setEditorOpen] = useState(false);
   const [syncingFeedId, setSyncingFeedId] = useState<string | null>(null);
+  const [deletingFeed, setDeletingFeed] = useState<ThreatFeedConfig | null>(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
+
+  const queryClient = useQueryClient();
 
   const { tableProps, refetch } = useDataTable<ThreatFeedConfig>({
     fetchFn: fetchThreatFeeds,
@@ -40,16 +47,46 @@ export default function CyberThreatFeedsPage() {
     defaultSort: { column: 'updated_at', direction: 'desc' },
   });
 
+  // Keep selectedFeed in sync with fresh list data after refetch
+  useEffect(() => {
+    if (!selectedFeed) return;
+    const fresh = tableProps.data.find((f) => f.id === selectedFeed.id);
+    if (fresh && fresh.updated_at !== selectedFeed.updated_at) {
+      setSelectedFeed(fresh);
+    }
+  }, [tableProps.data, selectedFeed]);
+
   async function handleSync(feed: ThreatFeedConfig) {
     try {
       setSyncingFeedId(feed.id);
       const response = await apiPost<{ data: ThreatFeedSyncSummary }>(API_ENDPOINTS.CYBER_THREAT_FEED_SYNC(feed.id));
       toast.success(`${response.data.indicators_imported} indicators imported from ${feed.name}`);
+      // Invalidate history queries so the "Imported" column and detail panel refresh
+      void queryClient.invalidateQueries({ queryKey: ['cyber-threat-feed-last-history'] });
+      void queryClient.invalidateQueries({ queryKey: ['cyber-threat-feed-history'] });
       await refetch();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Unable to sync feed');
     } finally {
       setSyncingFeedId(null);
+    }
+  }
+
+  async function handleDelete() {
+    if (!deletingFeed) return;
+    try {
+      setDeleteLoading(true);
+      await apiDelete(`${API_ENDPOINTS.CYBER_THREAT_FEEDS}/${deletingFeed.id}`);
+      toast.success(`Feed "${deletingFeed.name}" deleted`);
+      if (selectedFeed?.id === deletingFeed.id) {
+        setSelectedFeed(null);
+      }
+      setDeletingFeed(null);
+      await refetch();
+    } catch (error) {
+      toast.error(parseApiError(error));
+    } finally {
+      setDeleteLoading(false);
     }
   }
 
@@ -89,6 +126,7 @@ export default function CyberThreatFeedsPage() {
               setEditorOpen(true);
             }}
             onSync={(feed) => void handleSync(feed)}
+            onDelete={setDeletingFeed}
           />
         </div>
       </div>
@@ -116,8 +154,21 @@ export default function CyberThreatFeedsPage() {
           setEditorOpen(true);
         }}
         onSynced={() => {
+          void queryClient.invalidateQueries({ queryKey: ['cyber-threat-feed-last-history'] });
+          void queryClient.invalidateQueries({ queryKey: ['cyber-threat-feed-history'] });
           void refetch();
         }}
+      />
+
+      <ConfirmDialog
+        open={Boolean(deletingFeed)}
+        onOpenChange={(open) => { if (!open) setDeletingFeed(null); }}
+        title="Delete threat feed"
+        description={`Are you sure you want to delete "${deletingFeed?.name}"? Previously imported indicators will not be removed.`}
+        confirmLabel={deleteLoading ? 'Deleting…' : 'Delete'}
+        variant="destructive"
+        loading={deleteLoading}
+        onConfirm={() => void handleDelete()}
       />
     </PermissionRedirect>
   );

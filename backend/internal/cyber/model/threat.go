@@ -60,6 +60,16 @@ type ThreatIndicator struct {
 	UpdatedAt    time.Time       `json:"updated_at" db:"updated_at"`
 }
 
+// Normalize ensures all slice and json fields are non-nil so they serialize correctly.
+func (t *ThreatIndicator) Normalize() {
+	if t.Tags == nil {
+		t.Tags = []string{}
+	}
+	if t.Metadata == nil {
+		t.Metadata = json.RawMessage("{}")
+	}
+}
+
 // IndicatorMatch captures a runtime match between a security event and an indicator.
 type IndicatorMatch struct {
 	Indicator *ThreatIndicator `json:"indicator"`
@@ -78,6 +88,19 @@ type ThreatStats struct {
 	ContainedThisMonth int          `json:"contained_this_month"`
 }
 
+// Normalize ensures all slice fields are non-nil so they serialize as [] not null.
+func (s *ThreatStats) Normalize() {
+	if s.ByType == nil {
+		s.ByType = []NamedCount{}
+	}
+	if s.ByStatus == nil {
+		s.ByStatus = []NamedCount{}
+	}
+	if s.BySeverity == nil {
+		s.BySeverity = []NamedCount{}
+	}
+}
+
 // ThreatLandscape is an aggregated threat landscape response for the analytics dashboard.
 type ThreatLandscape struct {
 	ActiveThreatCount int          `json:"active_threat_count"`
@@ -86,4 +109,14 @@ type ThreatLandscape struct {
 	TopThreatType     string       `json:"top_threat_type"`
 	ByType            []NamedCount `json:"by_type"`
 	BySeverity        []NamedCount `json:"by_severity"`
+}
+
+// Normalize ensures all slice fields are non-nil so they serialize as [] not null.
+func (l *ThreatLandscape) Normalize() {
+	if l.ByType == nil {
+		l.ByType = []NamedCount{}
+	}
+	if l.BySeverity == nil {
+		l.BySeverity = []NamedCount{}
+	}
 }

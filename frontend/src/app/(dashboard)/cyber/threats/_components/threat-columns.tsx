@@ -4,6 +4,7 @@ import { ColumnDef, Row } from '@tanstack/react-table';
 import { MoreHorizontal } from 'lucide-react';
 import { SeverityIndicator } from '@/components/shared/severity-indicator';
 import { StatusBadge } from '@/components/shared/status-badge';
+import { threatStatusConfig } from '@/lib/status-configs';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -66,7 +67,7 @@ export function getThreatColumns(options: ThreatColumnOptions = {}): ColumnDef<T
       accessorKey: 'status',
       header: 'Status',
       cell: ({ row }: { row: Row<Threat> }) => (
-        <StatusBadge status={row.original.status} />
+        <StatusBadge status={row.original.status} config={threatStatusConfig} />
       ),
       enableSorting: true,
     },

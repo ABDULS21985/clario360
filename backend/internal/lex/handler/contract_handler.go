@@ -252,7 +252,10 @@ func (h *ContractHandler) Analyze(w http.ResponseWriter, r *http.Request) {
 		h.writeError(w, r, err)
 		return
 	}
-	suiteapi.WriteData(w, http.StatusOK, result)
+	// Return only the flat ContractRiskAnalysis, not the full AnalysisResult wrapper.
+	// The frontend expects shape { data: ContractRiskAnalysis }. Extracted clauses are
+	// already embedded in the ContractDetail returned by GetContract.
+	suiteapi.WriteData(w, http.StatusOK, result.Analysis)
 }
 
 func (h *ContractHandler) Analysis(w http.ResponseWriter, r *http.Request) {

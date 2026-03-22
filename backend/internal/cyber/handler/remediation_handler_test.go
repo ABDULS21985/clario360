@@ -197,6 +197,7 @@ func authRequestWithID(method, path string, id uuid.UUID, body []byte) *http.Req
 // sampleAction returns a *model.RemediationAction with reasonable test data.
 func sampleAction() *model.RemediationAction {
 	now := time.Now()
+	creatorName := "admin@clario.dev"
 	return &model.RemediationAction{
 		ID:          uuid.MustParse("00000000-0000-0000-0000-000000000010"),
 		TenantID:    uuid.MustParse("00000000-0000-0000-0000-000000000001"),
@@ -216,6 +217,7 @@ func sampleAction() *model.RemediationAction {
 		ExecutionMode:      "automatic",
 		Status:             model.StatusDraft,
 		CreatedBy:          uuid.MustParse("00000000-0000-0000-0000-000000000002"),
+		CreatedByName:      &creatorName,
 		CreatedAt:          now,
 		UpdatedAt:          now,
 		Tags:               []string{"openssl", "cve"},
@@ -1320,5 +1322,184 @@ func TestStats_Success(t *testing.T) {
 	}
 	if statsResp.Draft != 5 {
 		t.Errorf("expected draft=5, got %d", statsResp.Draft)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Reject endpoint — verify the JSON contract (reason field, not notes)
+// ---------------------------------------------------------------------------
+
+func TestRemediationHandler_Reject_Success(t *testing.T) {
+	action := sampleAction()
+	action.Status = model.StatusRejected
+
+	var capturedReq *dto.RejectRemediationRequest
+	mock := &mockRemediationService{
+		rejectFn: func(ctx context.Context, tenantID, remediationID, actorID uuid.UUID, actorName, actorRole string, req *dto.RejectRemediationRequest) (*model.RemediationAction, error) {
+			capturedReq = req
+			return action, nil
+		},
+	}
+	h := NewRemediationHandler(mock)
+
+	// Send the payload with "reason" field (matching backend DTO contract)
+	body := `{"reason":"does not meet compliance requirements"}`
+	r := httptest.NewRequest(http.MethodPost, "/api/v1/cyber/remediation/00000000-0000-0000-0000-000000000010/reject", bytes.NewBufferString(body))
+	r.Header.Set("Content-Type", "application/json")
+
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("id", action.ID.String())
+	r = r.WithContext(context.WithValue(r.Context(), chi.RouteCtxKey, rctx))
+	r = r.WithContext(auth.WithTenantID(r.Context(), action.TenantID.String()))
+	r = r.WithContext(auth.WithUser(r.Context(), &auth.ContextUser{
+		ID:    uuid.MustParse("00000000-0000-0000-0000-000000000002").String(),
+		Email: "admin@clario.dev",
+		Roles: []string{"admin"},
+	}))
+
+	w := httptest.NewRecorder()
+	h.Reject(w, r)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d; body: %s", w.Code, w.Body.String())
+	}
+	if capturedReq == nil {
+		t.Fatal("reject service method was never called")
+	}
+	if capturedReq.Reason != "does not meet compliance requirements" {
+		t.Errorf("expected reason=%q, got %q", "does not meet compliance requirements", capturedReq.Reason)
+	}
+}
+
+func TestRemediationHandler_Reject_EmptyReasonFails(t *testing.T) {
+	mock := &mockRemediationService{
+		rejectFn: func(ctx context.Context, tenantID, remediationID, actorID uuid.UUID, actorName, actorRole string, req *dto.RejectRemediationRequest) (*model.RemediationAction, error) {
+			// Validate should fail before reaching here
+			if err := req.Validate(); err != nil {
+				return nil, err
+			}
+			return sampleAction(), nil
+		},
+	}
+	h := NewRemediationHandler(mock)
+
+	body := `{"reason":""}`
+	r := httptest.NewRequest(http.MethodPost, "/api/v1/cyber/remediation/00000000-0000-0000-0000-000000000010/reject", bytes.NewBufferString(body))
+	r.Header.Set("Content-Type", "application/json")
+
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("id", "00000000-0000-0000-0000-000000000010")
+	r = r.WithContext(context.WithValue(r.Context(), chi.RouteCtxKey, rctx))
+	r = r.WithContext(auth.WithTenantID(r.Context(), "00000000-0000-0000-0000-000000000001"))
+	r = r.WithContext(auth.WithUser(r.Context(), &auth.ContextUser{
+		ID:    "00000000-0000-0000-0000-000000000002",
+		Email: "admin@clario.dev",
+		Roles: []string{"admin"},
+	}))
+
+	w := httptest.NewRecorder()
+	h.Reject(w, r)
+
+	// The handler will forward the validation error from the service layer (500)
+	// because RejectRemediationRequest.Validate() returns error for empty reason
+	if w.Code == http.StatusOK {
+		t.Error("expected non-200 for empty rejection reason")
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Submit endpoint
+// ---------------------------------------------------------------------------
+
+func TestRemediationHandler_Submit_Success(t *testing.T) {
+	action := sampleAction()
+	action.Status = model.StatusPendingApproval
+
+	mock := &mockRemediationService{
+		submitFn: func(ctx context.Context, tenantID, remediationID, actorID uuid.UUID, actorName, actorRole string) (*model.RemediationAction, error) {
+			return action, nil
+		},
+	}
+	h := NewRemediationHandler(mock)
+
+	r := httptest.NewRequest(http.MethodPost, "/api/v1/cyber/remediation/00000000-0000-0000-0000-000000000010/submit", nil)
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("id", action.ID.String())
+	r = r.WithContext(context.WithValue(r.Context(), chi.RouteCtxKey, rctx))
+	r = r.WithContext(auth.WithTenantID(r.Context(), action.TenantID.String()))
+	r = r.WithContext(auth.WithUser(r.Context(), &auth.ContextUser{
+		ID:    "00000000-0000-0000-0000-000000000002",
+		Email: "admin@clario.dev",
+		Roles: []string{"admin"},
+	}))
+
+	w := httptest.NewRecorder()
+	h.Submit(w, r)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d; body: %s", w.Code, w.Body.String())
+	}
+
+	var resp map[string]json.RawMessage
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("response not valid JSON: %v", err)
+	}
+	var data model.RemediationAction
+	if err := json.Unmarshal(resp["data"], &data); err != nil {
+		t.Fatalf("failed to unmarshal data: %v", err)
+	}
+	if data.Status != model.StatusPendingApproval {
+		t.Errorf("expected status=%s, got %s", model.StatusPendingApproval, data.Status)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// created_by_name JSON contract
+// ---------------------------------------------------------------------------
+
+func TestRemediationHandler_Get_CreatedByNameInJSON(t *testing.T) {
+	action := sampleAction()
+	mock := &mockRemediationService{
+		getFn: func(ctx context.Context, tenantID, remediationID uuid.UUID) (*model.RemediationAction, error) {
+			return action, nil
+		},
+	}
+	h := NewRemediationHandler(mock)
+
+	r := httptest.NewRequest(http.MethodGet, "/api/v1/cyber/remediation/00000000-0000-0000-0000-000000000010", nil)
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("id", action.ID.String())
+	r = r.WithContext(context.WithValue(r.Context(), chi.RouteCtxKey, rctx))
+	r = r.WithContext(auth.WithTenantID(r.Context(), action.TenantID.String()))
+	r = r.WithContext(auth.WithUser(r.Context(), &auth.ContextUser{
+		ID:    "00000000-0000-0000-0000-000000000002",
+		Email: "admin@clario.dev",
+		Roles: []string{"admin"},
+	}))
+
+	w := httptest.NewRecorder()
+	h.Get(w, r)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d; body: %s", w.Code, w.Body.String())
+	}
+
+	var envelope map[string]json.RawMessage
+	if err := json.NewDecoder(w.Body).Decode(&envelope); err != nil {
+		t.Fatalf("not valid JSON: %v", err)
+	}
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(envelope["data"], &raw); err != nil {
+		t.Fatalf("failed to unmarshal data: %v", err)
+	}
+	if _, ok := raw["created_by_name"]; !ok {
+		t.Error("missing created_by_name in JSON response")
+	}
+	var name string
+	if err := json.Unmarshal(raw["created_by_name"], &name); err != nil {
+		t.Fatalf("created_by_name is not a string: %v", err)
+	}
+	if name != "admin@clario.dev" {
+		t.Errorf("created_by_name = %q, want %q", name, "admin@clario.dev")
 	}
 }

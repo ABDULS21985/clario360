@@ -7,9 +7,14 @@ import { timeAgo, cn } from '@/lib/utils';
 import { Target, ChevronRight, Clock } from 'lucide-react';
 import type { CTEMAssessment } from '@/types/cyber';
 
+/** Map ALL backend CTEMAssessmentStatus values to display styles */
 const STATUS_CONFIG: Record<string, { color: string; dot: string }> = {
-  draft: { color: 'text-muted-foreground', dot: 'bg-muted-foreground' },
-  running: { color: 'text-blue-600', dot: 'bg-blue-500 animate-pulse' },
+  created: { color: 'text-muted-foreground', dot: 'bg-muted-foreground' },
+  scoping: { color: 'text-blue-600', dot: 'bg-blue-500 animate-pulse' },
+  discovery: { color: 'text-blue-600', dot: 'bg-blue-500 animate-pulse' },
+  prioritizing: { color: 'text-blue-600', dot: 'bg-blue-500 animate-pulse' },
+  validating: { color: 'text-blue-600', dot: 'bg-blue-500 animate-pulse' },
+  mobilizing: { color: 'text-blue-600', dot: 'bg-blue-500 animate-pulse' },
   completed: { color: 'text-green-600', dot: 'bg-green-500' },
   failed: { color: 'text-red-600', dot: 'bg-red-500' },
   cancelled: { color: 'text-gray-500', dot: 'bg-gray-400' },
@@ -21,7 +26,7 @@ interface AssessmentCardProps {
 
 export function AssessmentCard({ assessment }: AssessmentCardProps) {
   const router = useRouter();
-  const cfg = STATUS_CONFIG[assessment.status] ?? STATUS_CONFIG.draft;
+  const cfg = STATUS_CONFIG[assessment.status] ?? STATUS_CONFIG.created;
   const summary = assessment.findings_summary;
 
   return (

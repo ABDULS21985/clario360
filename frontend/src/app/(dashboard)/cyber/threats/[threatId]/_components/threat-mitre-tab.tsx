@@ -118,7 +118,7 @@ export function ThreatMitreTab({ threat }: ThreatMitreTabProps) {
               <div className="mt-4">
                 <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Platforms</p>
                 <div className="mt-2 flex flex-wrap gap-2">
-                  {technique.platforms.map((platform) => (
+                  {technique.platforms?.map((platform) => (
                     <Badge key={platform} variant="outline">{platform}</Badge>
                   ))}
                 </div>

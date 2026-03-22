@@ -6,6 +6,7 @@ import { FolderOpen, LayoutGrid, Rows3 } from 'lucide-react';
 import { PageHeader } from '@/components/common/page-header';
 import { PermissionRedirect } from '@/components/common/permission-redirect';
 import { EmptyState } from '@/components/common/empty-state';
+import { ConfirmDialog } from '@/components/shared/confirm-dialog';
 import { Button } from '@/components/ui/button';
 import { SearchInput } from '@/components/shared/forms/search-input';
 import { DataTableToolbar } from '@/components/shared/data-table/data-table-toolbar';
@@ -69,6 +70,8 @@ export default function DataSourcesPage() {
   const [editingSource, setEditingSource] = useState<DataSource | null>(null);
   const [syncSource, setSyncSource] = useState<DataSource | null>(null);
   const [testStates, setTestStates] = useState<Record<string, TestState>>({});
+  const [statusToggleSource, setStatusToggleSource] = useState<DataSource | null>(null);
+  const [togglingStatus, setTogglingStatus] = useState(false);
 
   const view = searchParams?.get('view') === 'table' ? 'table' : 'cards';
 
@@ -160,6 +163,22 @@ export default function DataSourcesPage() {
     }
   };
 
+  const handleToggleStatus = async () => {
+    if (!statusToggleSource) return;
+    const newStatus = statusToggleSource.status === 'active' ? 'inactive' : 'active';
+    setTogglingStatus(true);
+    try {
+      await dataSuiteApi.changeSourceStatus(statusToggleSource.id, newStatus);
+      showSuccess(`Source ${newStatus === 'active' ? 'activated' : 'deactivated'}.`);
+      setStatusToggleSource(null);
+      void refetch();
+    } catch (error) {
+      showApiError(error);
+    } finally {
+      setTogglingStatus(false);
+    }
+  };
+
   return (
     <PermissionRedirect permission="data:read">
       <div className="space-y-6">
@@ -206,6 +225,7 @@ export default function DataSourcesPage() {
               onSync={(source) => void handleSync(source)}
               onEdit={setEditingSource}
               onDelete={(source) => void handleDelete(source)}
+              onToggleStatus={setStatusToggleSource}
             />
           </div>
         ) : (
@@ -219,6 +239,7 @@ export default function DataSourcesPage() {
             onDelete={(source) => void handleDelete(source)}
             onTest={(source) => void handleTest(source)}
             onSync={(source) => void handleSync(source)}
+            onToggleStatus={setStatusToggleSource}
           />
         )}
 
@@ -276,6 +297,17 @@ export default function DataSourcesPage() {
           }}
           source={syncSource}
           onComplete={() => void refetch()}
+        />
+
+        <ConfirmDialog
+          open={Boolean(statusToggleSource)}
+          onOpenChange={(open) => { if (!open) setStatusToggleSource(null); }}
+          title={statusToggleSource?.status === 'active' ? 'Deactivate Source' : 'Activate Source'}
+          description={`Are you sure you want to ${statusToggleSource?.status === 'active' ? 'deactivate' : 'activate'} "${statusToggleSource?.name ?? ''}"?`}
+          confirmLabel={statusToggleSource?.status === 'active' ? 'Deactivate' : 'Activate'}
+          variant={statusToggleSource?.status === 'active' ? 'destructive' : 'default'}
+          onConfirm={handleToggleStatus}
+          loading={togglingStatus}
         />
       </div>
     </PermissionRedirect>

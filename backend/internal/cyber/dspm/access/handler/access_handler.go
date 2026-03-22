@@ -126,6 +126,27 @@ func (h *AccessIntelligenceHandler) GetRecommendations(w http.ResponseWriter, r 
 	writeJSON(w, http.StatusOK, envelope{"data": recs})
 }
 
+func (h *AccessIntelligenceHandler) GetIdentityAudit(w http.ResponseWriter, r *http.Request) {
+	tenantID, _, ok := requireTenantAndUser(w, r)
+	if !ok {
+		return
+	}
+	identityID := chi.URLParam(r, "identityId")
+	if identityID == "" {
+		writeError(w, http.StatusBadRequest, "VALIDATION_ERROR", "identityId is required")
+		return
+	}
+	params := &dto.AuditListParams{}
+	params.Page, params.PerPage = parsePageParams(r, 50)
+	params.SetDefaults()
+	result, err := h.svc.GetIdentityAudit(r.Context(), tenantID, identityID, params)
+	if err != nil {
+		h.handleError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, result)
+}
+
 // ── Data Asset Access ────────────────────────────────────────────────────────
 
 func (h *AccessIntelligenceHandler) GetAssetIdentities(w http.ResponseWriter, r *http.Request) {

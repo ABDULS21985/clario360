@@ -43,8 +43,6 @@ export function MFASetupDialog({ open, onOpenChange }: MFASetupDialogProps) {
   const [savedConfirmed, setSavedConfirmed] = useState(false);
   const { toast } = useToast();
 
-  const setUser = useAuthStore((s) => s.user);
-
   const fetchMFASetup = useCallback(async () => {
     setIsLoading(true);
     setError(null);

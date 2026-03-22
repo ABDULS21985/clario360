@@ -326,7 +326,7 @@ func (h *DSPMRemediationHandler) CreatePolicy(w http.ResponseWriter, r *http.Req
 		Severity:             req.Severity,
 		ScopeClassification:  req.ScopeClassification,
 		ScopeAssetTypes:      req.ScopeAssetTypes,
-		Enabled:              true,
+		Enabled:              req.Enabled == nil || *req.Enabled,
 		ComplianceFrameworks: req.ComplianceFrameworks,
 		CreatedBy:            &userID,
 	}
@@ -520,10 +520,16 @@ func (h *DSPMRemediationHandler) ListExceptions(w http.ResponseWriter, r *http.R
 		ExceptionType:  parseMultiValue(q, "exception_type"),
 		AssetID:        uuidPtr(q.Get("asset_id")),
 		Search:         q.Get("search"),
+		Sort:           q.Get("sort"),
+		Order:          q.Get("order"),
 		Page:           page,
 		PerPage:        perPage,
 	}
 	params.SetDefaults()
+	if err := params.Validate(); err != nil {
+		writeError(w, http.StatusBadRequest, "VALIDATION_ERROR", err.Error())
+		return
+	}
 	data, total, err := h.exceptionRepo.List(r.Context(), tenantID, params)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "INTERNAL_ERROR", err.Error())

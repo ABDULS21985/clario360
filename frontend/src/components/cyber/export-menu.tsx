@@ -46,15 +46,21 @@ function buildParams(
   return params;
 }
 
+function formatCsvValue(val: unknown): string {
+  if (val === null || val === undefined) return '';
+  // Arrays: join with semicolons so Excel doesn't split them across columns
+  if (Array.isArray(val)) return val.map(String).join('; ');
+  return String(val);
+}
+
 function jsonToCsv(data: unknown[]): string {
   if (data.length === 0) return '';
   const headers = Object.keys(data[0] as Record<string, unknown>);
   const rows = data.map((row) =>
     headers
       .map((h) => {
-        const val = (row as Record<string, unknown>)[h];
-        const str = val === null || val === undefined ? '' : String(val);
-        return str.includes(',') || str.includes('"') || str.includes('\n')
+        const str = formatCsvValue((row as Record<string, unknown>)[h]);
+        return str.includes(',') || str.includes('"') || str.includes('\n') || str.includes(';')
           ? `"${str.replace(/"/g, '""')}"`
           : str;
       })

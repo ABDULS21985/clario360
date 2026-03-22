@@ -46,6 +46,7 @@ import { OwnershipFormDialog } from './_components/ownership-form-dialog';
 import { OwnershipDetailPanel } from './_components/ownership-detail-panel';
 import { ApprovalDetailPanel } from './_components/approval-detail-panel';
 import { ApprovalActionDialog } from './_components/approval-action-dialog';
+import { CreateApprovalDialog } from './_components/create-approval-dialog';
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
@@ -400,6 +401,7 @@ export default function VCISOWorkflowsPage() {
   const [markReviewedTarget, setMarkReviewedTarget] = useState<VCISOControlOwnership | null>(null);
 
   // ── Approval state ─────────────────────────────────
+  const [showCreateApproval, setShowCreateApproval] = useState(false);
   const [selectedApproval, setSelectedApproval] = useState<VCISOApprovalRequest | null>(null);
   const [approvalAction, setApprovalAction] = useState<{
     approval: VCISOApprovalRequest;
@@ -437,10 +439,10 @@ export default function VCISOWorkflowsPage() {
   });
 
   // ── Mark Reviewed Mutation ─────────────────────────
-  const markReviewedMutation = useApiMutation<VCISOControlOwnership, Record<string, unknown>>(
-    'put',
+  const markReviewedMutation = useApiMutation<Record<string, unknown>, Record<string, unknown>>(
+    'post',
     (variables) =>
-      `${API_ENDPOINTS.CYBER_VCISO_CONTROL_OWNERSHIP}/${(variables as Record<string, string>).id}`,
+      `${API_ENDPOINTS.CYBER_VCISO_CONTROL_OWNERSHIP}/${(variables as Record<string, string>).id}/mark-reviewed`,
     {
       successMessage: 'Control marked as reviewed',
       invalidateKeys: ['vciso-control-ownership'],
@@ -510,6 +512,14 @@ export default function VCISOWorkflowsPage() {
         <Button onClick={() => setShowOwnershipForm(true)}>
           <Plus className="mr-2 h-4 w-4" />
           Assign Ownership
+        </Button>
+      );
+    }
+    if (activeTab === 'approvals') {
+      return (
+        <Button onClick={() => setShowCreateApproval(true)}>
+          <Plus className="mr-2 h-4 w-4" />
+          New Approval
         </Button>
       );
     }
@@ -647,11 +657,7 @@ export default function VCISOWorkflowsPage() {
         loading={markReviewedMutation.isPending}
         onConfirm={async () => {
           if (markReviewedTarget) {
-            markReviewedMutation.mutate({
-              id: markReviewedTarget.id,
-              status: 'reviewed',
-              last_reviewed_at: new Date().toISOString(),
-            });
+            markReviewedMutation.mutate({ id: markReviewedTarget.id });
           }
         }}
       />
@@ -680,6 +686,13 @@ export default function VCISOWorkflowsPage() {
           onSuccess={handleRefreshAll}
         />
       )}
+
+      {/* ── Create Approval Dialog ────────────────────── */}
+      <CreateApprovalDialog
+        open={showCreateApproval}
+        onOpenChange={setShowCreateApproval}
+        onSuccess={handleRefreshAll}
+      />
     </PermissionRedirect>
   );
 }

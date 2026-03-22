@@ -32,7 +32,7 @@ export function KpiGrid() {
     isLoading: pipelineLoading,
     error: pipelineError,
     lastUpdate: pipelineUpdate,
-  } = useRealtimeData<PipelineCountEnvelope>('/api/v1/data/pipelines/count', {
+  } = useRealtimeData<PipelineCountEnvelope>(API_ENDPOINTS.DATA_PIPELINES_COUNT, {
     params: { status: 'failed' },
     wsTopics: ['pipeline.failed', 'pipeline.completed'],
     enabled: hasData,

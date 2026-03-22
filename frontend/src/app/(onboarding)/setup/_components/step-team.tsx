@@ -69,7 +69,12 @@ export function StepTeam({
         API_ENDPOINTS.ONBOARDING_TEAM,
         { invitations },
       );
-      setSentCount(response.invitations_sent ?? response.count ?? invitations.length);
+      const sent = response.invitations_sent ?? response.count ?? invitations.length;
+      setSentCount(sent);
+      // Give the user a moment to read the confirmation before navigating away.
+      if (sent > 0) {
+        await new Promise<void>((resolve) => setTimeout(resolve, 1200));
+      }
       await onSaved();
     } catch (error) {
       setApiError(isApiError(error) ? error.message : 'Failed to send invitations.');

@@ -120,7 +120,14 @@ export function WorkflowsPageClient() {
         />
       )}
 
-      <StartWorkflowDialog open={startOpen} onOpenChange={setStartOpen} />
+      <StartWorkflowDialog
+        open={startOpen}
+        onOpenChange={setStartOpen}
+        onSuccess={(instance) => {
+          queryClient.invalidateQueries({ queryKey: ['workflow-instances'] });
+          router.push(`/workflows/${instance.id}`);
+        }}
+      />
     </div>
   );
 }

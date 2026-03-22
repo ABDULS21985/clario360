@@ -55,6 +55,7 @@ export function ControlTestFormDialog({
 }: ControlTestFormDialogProps) {
   const isEditing = !!controlTest;
 
+  const [controlId, setControlId] = useState('');
   const [controlName, setControlName] = useState('');
   const [framework, setFramework] = useState('');
   const [testType, setTestType] = useState<ControlTestType | ''>('');
@@ -66,6 +67,7 @@ export function ControlTestFormDialog({
   useEffect(() => {
     if (open) {
       if (controlTest) {
+        setControlId(controlTest.control_id);
         setControlName(controlTest.control_name);
         setFramework(controlTest.framework);
         setTestType(controlTest.test_type);
@@ -74,6 +76,7 @@ export function ControlTestFormDialog({
         setFindings(controlTest.findings);
         setNextTestDate(controlTest.next_test_date?.slice(0, 10) ?? '');
       } else {
+        setControlId('');
         setControlName('');
         setFramework('');
         setTestType('');
@@ -101,6 +104,10 @@ export function ControlTestFormDialog({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
+    if (!controlId.trim()) {
+      toast.error('Control ID is required');
+      return;
+    }
     if (!controlName.trim()) {
       toast.error('Control name is required');
       return;
@@ -123,7 +130,7 @@ export function ControlTestFormDialog({
     }
 
     const payload = {
-      control_id: controlTest?.control_id ?? '',
+      control_id: controlId.trim(),
       control_name: controlName.trim(),
       framework: framework.trim(),
       test_type: testType,
@@ -153,26 +160,43 @@ export function ControlTestFormDialog({
         <form onSubmit={handleSubmit} className="space-y-5">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="space-y-2">
-              <Label htmlFor="ct-control-name">Control Name</Label>
+              <Label htmlFor="ct-control-id">
+                Control ID <span className="text-destructive">*</span>
+              </Label>
               <Input
-                id="ct-control-name"
-                placeholder="e.g., AC-2 Account Management"
-                value={controlName}
-                onChange={(e) => setControlName(e.target.value)}
+                id="ct-control-id"
+                placeholder="e.g., AC-2"
+                value={controlId}
+                onChange={(e) => setControlId(e.target.value)}
                 disabled={isSubmitting}
               />
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="ct-framework">Framework</Label>
+              <Label htmlFor="ct-control-name">
+                Control Name <span className="text-destructive">*</span>
+              </Label>
               <Input
-                id="ct-framework"
-                placeholder="e.g., NIST 800-53"
-                value={framework}
-                onChange={(e) => setFramework(e.target.value)}
+                id="ct-control-name"
+                placeholder="e.g., Account Management"
+                value={controlName}
+                onChange={(e) => setControlName(e.target.value)}
                 disabled={isSubmitting}
               />
             </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="ct-framework">
+              Framework <span className="text-destructive">*</span>
+            </Label>
+            <Input
+              id="ct-framework"
+              placeholder="e.g., NIST 800-53"
+              value={framework}
+              onChange={(e) => setFramework(e.target.value)}
+              disabled={isSubmitting}
+            />
           </div>
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">

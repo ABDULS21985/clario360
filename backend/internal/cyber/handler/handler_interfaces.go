@@ -9,6 +9,7 @@ import (
 	"github.com/clario360/platform/internal/cyber/dto"
 	"github.com/clario360/platform/internal/cyber/model"
 	"github.com/clario360/platform/internal/cyber/service"
+	predictdto "github.com/clario360/platform/internal/cyber/vciso/predict/dto"
 )
 
 // dashboardService abstracts the dashboard service layer for testability.
@@ -46,11 +47,22 @@ type remediationService interface {
 	Stats(ctx context.Context, tenantID uuid.UUID) (*model.RemediationStats, error)
 }
 
+// threatFeedService abstracts the threat-feed service layer for testability.
+type threatFeedService interface {
+	ListFeeds(ctx context.Context, tenantID uuid.UUID, page, perPage int, search, sort, order string, actor *service.Actor) (*dto.ThreatFeedListResponse, error)
+	GetFeed(ctx context.Context, tenantID, feedID uuid.UUID, actor *service.Actor) (*model.ThreatFeedConfig, error)
+	CreateFeed(ctx context.Context, tenantID, userID uuid.UUID, actor *service.Actor, req *dto.ThreatFeedConfigRequest) (*model.ThreatFeedConfig, error)
+	UpdateFeed(ctx context.Context, tenantID, feedID uuid.UUID, actor *service.Actor, req *dto.ThreatFeedConfigRequest) (*model.ThreatFeedConfig, error)
+	DeleteFeed(ctx context.Context, tenantID, feedID uuid.UUID, actor *service.Actor) error
+	SyncFeed(ctx context.Context, tenantID, feedID uuid.UUID, actor *service.Actor) (map[string]interface{}, error)
+	ListHistory(ctx context.Context, tenantID, feedID uuid.UUID, actor *service.Actor) ([]*model.ThreatFeedSyncHistory, error)
+}
+
 // dspmService abstracts the DSPM service layer for testability.
 type dspmService interface {
 	ListDataAssets(ctx context.Context, tenantID uuid.UUID, params *dto.DSPMAssetListParams) (*dto.DSPMAssetListResponse, error)
 	GetDataAsset(ctx context.Context, tenantID, assetID uuid.UUID) (*model.DSPMDataAsset, error)
-	TriggerScan(ctx context.Context, tenantID, userID uuid.UUID, actor *service.Actor) (*model.DSPMScan, error)
+	TriggerScan(ctx context.Context, tenantID, userID uuid.UUID, actor *service.Actor, req *dto.DSPMScanTriggerRequest) (*model.DSPMScan, error)
 	ListScans(ctx context.Context, tenantID uuid.UUID, params *dto.DSPMScanListParams) (*dto.DSPMScanListResponse, error)
 	GetScan(ctx context.Context, tenantID, scanID uuid.UUID) (*model.DSPMScanResult, error)
 	ClassificationSummary(ctx context.Context, tenantID uuid.UUID) (*model.DSPMClassificationSummary, error)
@@ -60,6 +72,43 @@ type dspmService interface {
 	DetectShadowCopies(ctx context.Context, tenantID uuid.UUID) (*shadow.DetectionResult, error)
 }
 
+// riskService abstracts the risk service layer for testability.
+type riskService interface {
+	GetCurrentScore(ctx context.Context, tenantID uuid.UUID) (*model.OrganizationRiskScore, error)
+	Recalculate(ctx context.Context, tenantID uuid.UUID, actor *service.Actor) (*model.OrganizationRiskScore, error)
+	Trend(ctx context.Context, tenantID uuid.UUID, days int) ([]model.RiskTrendPoint, error)
+	Heatmap(ctx context.Context, tenantID uuid.UUID) (*model.RiskHeatmap, error)
+	TopRisks(ctx context.Context, tenantID uuid.UUID) ([]model.RiskContributor, error)
+	Recommendations(ctx context.Context, tenantID uuid.UUID) ([]model.RiskRecommendation, error)
+}
+
+// alertService abstracts the alert service layer for testability.
+type alertService interface {
+	ListAlerts(ctx context.Context, tenantID uuid.UUID, params *dto.AlertListParams, actor *service.Actor) (*dto.AlertListResponse, error)
+	GetAlert(ctx context.Context, tenantID, alertID uuid.UUID, actor *service.Actor) (*model.Alert, error)
+	UpdateStatus(ctx context.Context, tenantID, alertID uuid.UUID, actor *service.Actor, req *dto.AlertStatusUpdateRequest) (*model.Alert, error)
+	Assign(ctx context.Context, tenantID, alertID uuid.UUID, actor *service.Actor, assignedTo uuid.UUID) (*model.Alert, error)
+	Escalate(ctx context.Context, tenantID, alertID uuid.UUID, actor *service.Actor, escalatedTo uuid.UUID, reason string) (*model.Alert, error)
+	MarkFalsePositive(ctx context.Context, tenantID, alertID uuid.UUID, actor *service.Actor, reason string) (*model.Alert, error)
+	AddComment(ctx context.Context, tenantID, alertID uuid.UUID, actor *service.Actor, req *dto.AlertCommentRequest) (*model.AlertComment, error)
+	ListComments(ctx context.Context, tenantID, alertID uuid.UUID, actor *service.Actor) ([]*model.AlertComment, error)
+	ListTimeline(ctx context.Context, tenantID, alertID uuid.UUID, actor *service.Actor) ([]*model.AlertTimelineEntry, error)
+	Merge(ctx context.Context, tenantID, primaryAlertID uuid.UUID, mergeIDs []uuid.UUID, actor *service.Actor) (*model.Alert, error)
+	Related(ctx context.Context, tenantID, alertID uuid.UUID, actor *service.Actor) ([]*model.Alert, error)
+	Stats(ctx context.Context, tenantID uuid.UUID, actor *service.Actor) (*model.AlertStats, error)
+	Count(ctx context.Context, tenantID uuid.UUID, params *dto.AlertListParams, actor *service.Actor) (int, error)
+	BulkUpdateStatus(ctx context.Context, tenantID uuid.UUID, actor *service.Actor, req *dto.BulkAlertStatusRequest) (*dto.BulkOperationResult, error)
+	BulkAssign(ctx context.Context, tenantID uuid.UUID, actor *service.Actor, req *dto.BulkAlertAssignRequest) (*dto.BulkOperationResult, error)
+	BulkMarkFalsePositive(ctx context.Context, tenantID uuid.UUID, actor *service.Actor, req *dto.BulkAlertFalsePositiveRequest) (*dto.BulkOperationResult, error)
+	CountWithHistory(ctx context.Context, tenantID uuid.UUID, params *dto.AlertListParams, actor *service.Actor) (*dto.AlertCountResponse, error)
+}
+
+// mitreRuleService abstracts the rule service methods used by the MITRE handler.
+type mitreRuleService interface {
+	Coverage(ctx context.Context, tenantID uuid.UUID, actor *service.Actor) ([]dto.MITRECoverageDTO, error)
+	TechniqueDetail(ctx context.Context, tenantID uuid.UUID, techniqueID string, actor *service.Actor) (*dto.MITRETechniqueDetailDTO, error)
+}
+
 // vcisoService abstracts the vCISO service layer for testability.
 type vcisoService interface {
 	GenerateBriefing(ctx context.Context, tenantID, userID uuid.UUID, periodDays int, actor *service.Actor) (*model.ExecutiveBriefing, error)
@@ -67,4 +116,16 @@ type vcisoService interface {
 	Recommendations(ctx context.Context, tenantID uuid.UUID) ([]model.RiskRecommendation, error)
 	GenerateReport(ctx context.Context, tenantID, userID uuid.UUID, req *dto.VCISOReportRequest, actor *service.Actor) (*dto.VCISOReportResponse, error)
 	PostureSummary(ctx context.Context, tenantID uuid.UUID) (*model.PostureSummary, error)
+}
+
+// analyticsForecastEngine abstracts the forecast engine for testability.
+type analyticsForecastEngine interface {
+	PredictTechniqueTrends(ctx context.Context, tenantID uuid.UUID, horizonDays int) (*predictdto.TechniqueTrendResponse, error)
+	ForecastAlertVolume(ctx context.Context, tenantID uuid.UUID, horizonDays int) (*predictdto.ForecastResponse, error)
+	DetectCampaigns(ctx context.Context, tenantID uuid.UUID, lookbackDays int) (*predictdto.CampaignResponse, error)
+}
+
+// threatStatsProvider abstracts the threat stats query for testability.
+type threatStatsProvider interface {
+	Stats(ctx context.Context, tenantID uuid.UUID) (*model.ThreatStats, error)
 }

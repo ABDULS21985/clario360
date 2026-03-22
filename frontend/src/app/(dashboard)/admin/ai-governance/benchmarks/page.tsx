@@ -273,7 +273,7 @@ export default function BenchmarksPage() {
   );
 
   return (
-    <PermissionRedirect permission="users:read">
+    <PermissionRedirect permission="admin:read">
       <div className="space-y-6">
         <PageHeader
           title="Inference Benchmarks"

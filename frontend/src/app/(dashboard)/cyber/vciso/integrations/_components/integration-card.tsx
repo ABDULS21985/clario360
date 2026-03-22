@@ -12,6 +12,7 @@ import {
   TicketCheck,
   Eye,
   Unplug,
+  Trash2,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -65,7 +66,9 @@ interface IntegrationCardProps {
   onConfigure: (integration: VCISOIntegration) => void;
   onSyncNow: (integration: VCISOIntegration) => void;
   onDisconnect: (integration: VCISOIntegration) => void;
-  syncing?: boolean;
+  onRemove: (integration: VCISOIntegration) => void;
+  /** ID of the integration currently being synced (null if none). */
+  syncingId?: string | null;
 }
 
 // ─── Component ───────────────────────────────────────────────────────────────
@@ -76,11 +79,14 @@ export function IntegrationCard({
   onConfigure,
   onSyncNow,
   onDisconnect,
-  syncing = false,
+  onRemove,
+  syncingId = null,
 }: IntegrationCardProps) {
   const TypeIcon = TYPE_ICON_MAP[integration.type] ?? Monitor;
   const typeColor = TYPE_COLOR_MAP[integration.type] ?? TYPE_COLOR_MAP.siem;
   const healthDot = HEALTH_DOT_MAP[integration.health_status] ?? HEALTH_DOT_MAP.unavailable;
+  const isSyncing = syncingId === integration.id;
+  const isDisconnected = integration.status === 'disconnected';
 
   return (
     <Card
@@ -141,19 +147,19 @@ export function IntegrationCard({
               Configure
             </DropdownMenuItem>
             <DropdownMenuItem
-              disabled={syncing || integration.status === 'disconnected'}
+              disabled={isSyncing || isDisconnected}
               onClick={(e) => {
                 e.stopPropagation();
                 onSyncNow(integration);
               }}
             >
-              <RefreshCw className={cn('mr-2 h-3.5 w-3.5', syncing && 'animate-spin')} />
-              {syncing ? 'Syncing...' : 'Sync Now'}
+              <RefreshCw className={cn('mr-2 h-3.5 w-3.5', isSyncing && 'animate-spin')} />
+              {isSyncing ? 'Syncing...' : 'Sync Now'}
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem
-              className="text-destructive"
-              disabled={integration.status === 'disconnected'}
+              className="text-amber-600 dark:text-amber-400"
+              disabled={isDisconnected}
               onClick={(e) => {
                 e.stopPropagation();
                 onDisconnect(integration);
@@ -161,6 +167,16 @@ export function IntegrationCard({
             >
               <Unplug className="mr-2 h-3.5 w-3.5" />
               Disconnect
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              className="text-destructive"
+              onClick={(e) => {
+                e.stopPropagation();
+                onRemove(integration);
+              }}
+            >
+              <Trash2 className="mr-2 h-3.5 w-3.5" />
+              Remove
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

@@ -18,6 +18,7 @@ type CreatePolicyRequest struct {
 	Severity             string          `json:"severity"`
 	ScopeClassification  []string        `json:"scope_classification,omitempty"`
 	ScopeAssetTypes      []string        `json:"scope_asset_types,omitempty"`
+	Enabled              *bool           `json:"enabled,omitempty"`
 	ComplianceFrameworks []string        `json:"compliance_frameworks,omitempty"`
 }
 
@@ -32,6 +33,11 @@ func (r *CreatePolicyRequest) Validate() error {
 	}
 	if len(r.Rule) == 0 {
 		return fmt.Errorf("rule is required")
+	}
+	// Reject semantically empty rule objects like "{}".
+	var ruleMap map[string]interface{}
+	if json.Unmarshal(r.Rule, &ruleMap) == nil && len(ruleMap) == 0 {
+		return fmt.Errorf("rule must contain at least one configuration key")
 	}
 	enf := model.PolicyEnforcement(r.Enforcement)
 	if !enf.IsValid() {

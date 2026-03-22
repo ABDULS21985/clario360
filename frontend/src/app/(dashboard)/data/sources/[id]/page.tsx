@@ -1,18 +1,20 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useParams, useSearchParams, useRouter } from 'next/navigation';
 import { useQueries } from '@tanstack/react-query';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Power } from 'lucide-react';
 import { PageHeader } from '@/components/common/page-header';
 import { PermissionRedirect } from '@/components/common/permission-redirect';
 import { ErrorState } from '@/components/common/error-state';
 import { LoadingSkeleton } from '@/components/common/loading-skeleton';
+import { ConfirmDialog } from '@/components/shared/confirm-dialog';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAuth } from '@/hooks/use-auth';
 import { dataSuiteApi, type DataModel, type Pipeline, type QualityRule } from '@/lib/data-suite';
+import { showApiError, showSuccess } from '@/lib/toast';
 import { formatMaybeBytes, formatMaybeCompact, getSourceTypeVisual } from '@/lib/data-suite/utils';
 import { SourceActivityTab } from '@/app/(dashboard)/data/sources/[id]/_components/source-activity-tab';
 import { SourceLineageTab } from '@/app/(dashboard)/data/sources/[id]/_components/source-lineage-tab';
@@ -29,6 +31,8 @@ export default function SourceDetailPage() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const { hasPermission } = useAuth();
+  const [statusDialogOpen, setStatusDialogOpen] = useState(false);
+  const [togglingStatus, setTogglingStatus] = useState(false);
 
   const sourceId = params?.id ?? '';
   const activeTab = TABS.includes((searchParams?.get('tab') ?? 'overview') as SourceTabValue)
@@ -127,6 +131,16 @@ export default function SourceDetailPage() {
           description={source.description || 'Governed source detail with schema, lineage, quality, and pipeline context.'}
           actions={
             <div className="flex items-center gap-2">
+              {(source.status === 'active' || source.status === 'inactive') && (
+                <Button
+                  variant={source.status === 'active' ? 'outline' : 'default'}
+                  size="sm"
+                  onClick={() => setStatusDialogOpen(true)}
+                >
+                  <Power className="mr-1.5 h-3.5 w-3.5" />
+                  {source.status === 'active' ? 'Deactivate' : 'Activate'}
+                </Button>
+              )}
               <Button variant="outline" size="sm" asChild>
                 <Link href="/data/sources">
                   <ArrowLeft className="mr-1.5 h-3.5 w-3.5" />
@@ -189,6 +203,30 @@ export default function SourceDetailPage() {
             <SourceActivityTab source={source} syncHistory={syncHistoryQuery.data ?? []} />
           </TabsContent>
         </Tabs>
+
+        <ConfirmDialog
+          open={statusDialogOpen}
+          onOpenChange={setStatusDialogOpen}
+          title={source.status === 'active' ? 'Deactivate Source' : 'Activate Source'}
+          description={`Are you sure you want to ${source.status === 'active' ? 'deactivate' : 'activate'} "${source.name}"?`}
+          confirmLabel={source.status === 'active' ? 'Deactivate' : 'Activate'}
+          variant={source.status === 'active' ? 'destructive' : 'default'}
+          onConfirm={async () => {
+            const newStatus = source.status === 'active' ? 'inactive' : 'active';
+            setTogglingStatus(true);
+            try {
+              await dataSuiteApi.changeSourceStatus(source.id, newStatus);
+              showSuccess(`Source ${newStatus === 'active' ? 'activated' : 'deactivated'}.`);
+              setStatusDialogOpen(false);
+              void sourceQuery.refetch();
+            } catch (error) {
+              showApiError(error);
+            } finally {
+              setTogglingStatus(false);
+            }
+          }}
+          loading={togglingStatus}
+        />
       </div>
     </PermissionRedirect>
   );

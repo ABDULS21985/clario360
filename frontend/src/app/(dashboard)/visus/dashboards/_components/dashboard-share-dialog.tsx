@@ -21,11 +21,12 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { MultiSelect } from '@/components/shared/forms/multi-select';
+import { uuidSchema } from '@/lib/enterprise/schemas';
 import type { UserDirectoryEntry, VisusDashboard } from '@/types/suites';
 
 const shareSchema = z.object({
   visibility: z.enum(['private', 'team', 'organization', 'public']),
-  shared_with: z.array(z.string()).default([]),
+  shared_with: z.array(uuidSchema).default([]),
 });
 
 type ShareFormValues = z.infer<typeof shareSchema>;

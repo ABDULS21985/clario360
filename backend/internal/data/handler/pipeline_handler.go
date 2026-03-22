@@ -301,7 +301,12 @@ func (h *PipelineHandler) Count(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	suiteapi.WriteData(w, http.StatusOK, map[string]int{"count": count})
+	resp := map[string]interface{}{"count": count}
+	history, err := h.service.DailyFailedRunCounts(r.Context(), tenantID, 12)
+	if err == nil && len(history) > 0 {
+		resp["history"] = history
+	}
+	suiteapi.WriteData(w, http.StatusOK, resp)
 }
 
 func (h *PipelineHandler) Active(w http.ResponseWriter, r *http.Request) {

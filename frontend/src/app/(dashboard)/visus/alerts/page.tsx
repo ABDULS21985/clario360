@@ -6,14 +6,59 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Bell } from 'lucide-react';
 import { PageHeader } from '@/components/common/page-header';
 import { PermissionRedirect } from '@/components/common/permission-redirect';
+import { RelativeTime } from '@/components/shared/relative-time';
 import { DataTable } from '@/components/shared/data-table/data-table';
 import { useDataTable } from '@/hooks/use-data-table';
 import { enterpriseApi } from '@/lib/enterprise';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { showApiError, showSuccess } from '@/lib/toast';
+import type { FilterConfig } from '@/types/table';
 import type { VisusExecutiveAlert } from '@/types/suites';
 import { DismissAlertDialog } from './_components/dismiss-alert-dialog';
+
+const ALERT_FILTERS: FilterConfig[] = [
+  {
+    key: 'severity',
+    label: 'Severity',
+    type: 'select',
+    options: [
+      { label: 'Critical', value: 'critical' },
+      { label: 'High', value: 'high' },
+      { label: 'Medium', value: 'medium' },
+      { label: 'Low', value: 'low' },
+      { label: 'Info', value: 'info' },
+    ],
+  },
+  {
+    key: 'status',
+    label: 'Status',
+    type: 'select',
+    options: [
+      { label: 'New', value: 'new' },
+      { label: 'Viewed', value: 'viewed' },
+      { label: 'Acknowledged', value: 'acknowledged' },
+      { label: 'Actioned', value: 'actioned' },
+      { label: 'Dismissed', value: 'dismissed' },
+      { label: 'Escalated', value: 'escalated' },
+    ],
+  },
+  {
+    key: 'category',
+    label: 'Category',
+    type: 'select',
+    options: [
+      { label: 'Risk', value: 'risk' },
+      { label: 'Compliance', value: 'compliance' },
+      { label: 'Data Quality', value: 'data_quality' },
+      { label: 'Governance', value: 'governance' },
+      { label: 'Legal', value: 'legal' },
+      { label: 'Operational', value: 'operational' },
+      { label: 'Financial', value: 'financial' },
+      { label: 'Strategic', value: 'strategic' },
+    ],
+  },
+];
 
 export default function VisusAlertsPage() {
   const queryClient = useQueryClient();
@@ -82,6 +127,13 @@ export default function VisusAlertsPage() {
       cell: ({ row }) => <Badge variant="outline">{row.original.status}</Badge>,
     },
     {
+      id: 'created_at',
+      accessorKey: 'created_at',
+      header: 'Created',
+      enableSorting: true,
+      cell: ({ row }) => <RelativeTime date={row.original.created_at} />,
+    },
+    {
       id: 'actions',
       header: '',
       cell: ({ row }) => (
@@ -112,6 +164,8 @@ export default function VisusAlertsPage() {
         <DataTable
           {...tableProps}
           columns={columns}
+          filters={ALERT_FILTERS}
+          searchPlaceholder="Search alerts..."
           emptyState={{
             icon: Bell,
             title: 'No alerts',

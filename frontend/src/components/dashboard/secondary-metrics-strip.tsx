@@ -11,6 +11,7 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { useAuth } from '@/hooks/use-auth';
+import { API_ENDPOINTS } from '@/lib/constants';
 import { useRealtimeData } from '@/hooks/use-realtime-data';
 
 interface DashboardMetrics {
@@ -69,7 +70,7 @@ export function SecondaryMetricsStrip() {
   const hasCyber = hasPermission('cyber:read');
 
   const { data: envelope, isLoading, error } = useRealtimeData<{ data: DashboardMetrics }>(
-    '/api/v1/cyber/dashboard/metrics',
+    API_ENDPOINTS.CYBER_DASHBOARD_METRICS,
     {
       wsTopics: ['dashboard.metrics.updated'],
       enabled: hasCyber,
@@ -77,6 +78,8 @@ export function SecondaryMetricsStrip() {
   );
   const data = envelope?.data;
 
+  // Hide entire strip when user has no cyber access (all data comes from cyber endpoint)
+  if (!hasCyber) return null;
   // Hide entire strip if the endpoint doesn't exist or returned an error
   if (error && !isLoading) return null;
   // Also hide if we got a response but all values are undefined (no data)

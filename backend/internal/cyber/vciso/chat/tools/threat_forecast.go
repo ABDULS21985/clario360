@@ -78,7 +78,7 @@ func (t *ThreatForecastTool) Execute(ctx context.Context, tenantID uuid.UUID, _ 
 		}
 		lines := []string{fmt.Sprintf("Detected %d candidate campaign clusters in the last %d days.", len(response.Items), horizon), ""}
 		for idx, item := range response.Items {
-			lines = append(lines, fmt.Sprintf("%d. %s — %d alerts, stage %s, confidence %.0f%%", idx+1, item.ClusterID, len(item.AlertIDs), item.Stage, item.Confidence.P50*100))
+			lines = append(lines, fmt.Sprintf("%d. %s — %d alerts, stage %s, confidence %.0f%%", idx+1, item.ClusterID, len(item.AlertIDs), item.Stage, item.ConfidenceInterval.P50*100))
 			if idx == 4 {
 				break
 			}

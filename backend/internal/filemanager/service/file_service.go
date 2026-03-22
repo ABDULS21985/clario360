@@ -542,9 +542,17 @@ func (s *FileService) RescanFile(ctx context.Context, tenantID, fileID string) e
 		return &ServiceError{Code: http.StatusNotFound, ErrCode: "NOT_FOUND", Message: "file not found"}
 	}
 
-	// Reset scan status to pending
+	// Reset scan status to pending; bail out if the optimistic update fails (concurrent state change).
 	now := time.Now()
-	s.repo.UpdateScanStatus(ctx, tenantID, fileID, record.VirusScanStatus, model.ScanStatusPending, nil, &now)
+	updated, err := s.repo.UpdateScanStatus(ctx, tenantID, fileID, record.VirusScanStatus, model.ScanStatusPending, nil, &now)
+	if err != nil {
+		return fmt.Errorf("resetting scan status: %w", err)
+	}
+	if !updated {
+		// Another process changed the scan status between our read and this update; treat as a no-op.
+		s.logger.Warn().Str("file_id", fileID).Str("expected_status", record.VirusScanStatus).Msg("rescan: scan status changed concurrently, skipping re-queue")
+		return nil
+	}
 
 	s.publishFileEvent(ctx, "com.clario360.file.uploaded", record.TenantID, "", map[string]interface{}{
 		"file_id":      fileID,

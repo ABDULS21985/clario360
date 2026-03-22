@@ -784,7 +784,7 @@ func (s *VCISOGovernanceService) CreateIntegration(ctx context.Context, tenantID
 		item.Config = make(map[string]interface{})
 	}
 	if item.Status == "" {
-		item.Status = "active"
+		item.Status = "pending"
 	}
 	if err := s.repo.CreateIntegration(ctx, tenantID, item); err != nil {
 		return nil, err
@@ -800,8 +800,12 @@ func (s *VCISOGovernanceService) DeleteIntegration(ctx context.Context, tenantID
 	return s.repo.DeleteIntegration(ctx, tenantID, id)
 }
 
-func (s *VCISOGovernanceService) SyncIntegration(ctx context.Context, tenantID, id uuid.UUID) error {
-	return s.repo.SyncIntegration(ctx, tenantID, id)
+func (s *VCISOGovernanceService) SyncIntegration(ctx context.Context, tenantID, id uuid.UUID, req *dto.SyncIntegrationRequest) error {
+	return s.repo.SyncIntegration(ctx, tenantID, id, req)
+}
+
+func (s *VCISOGovernanceService) PatchIntegration(ctx context.Context, tenantID, id uuid.UUID, req *dto.PatchIntegrationRequest) error {
+	return s.repo.PatchIntegration(ctx, tenantID, id, req)
 }
 
 // ─── Control Ownership ──────────────────────────────────────────────────────

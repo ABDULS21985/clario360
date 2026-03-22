@@ -48,7 +48,6 @@ import type {
   ActaMeetingSummary,
   ActaAgendaItem,
   ActaAttendee,
-  FileUploadRecord,
   JsonObject,
   LexClause,
   LexComplianceAlert,
@@ -155,6 +154,17 @@ function normalizeCommitteePayload(payload: unknown): unknown {
     secretary_name: normalizeOptionalString(payload.secretary_name),
     secretary_email: normalizeOptionalString(payload.secretary_email),
   };
+}
+
+// CreateCommitteeRequest does not have a `status` field; the backend defaults new
+// committees to "active". Strip it so DisallowUnknownFields does not reject it.
+function normalizeCommitteeCreatePayload(payload: unknown): unknown {
+  const normalized = normalizeCommitteePayload(payload);
+  if (!isRecord(normalized)) {
+    return normalized;
+  }
+  const { status: _status, ...rest } = normalized;
+  return rest;
 }
 
 function normalizeMeetingPayload(payload: unknown): unknown {
@@ -285,7 +295,7 @@ export const enterpriseApi = {
       file: File,
       fields: Record<string, string>,
       onProgress?: (progress: number) => void,
-    ): Promise<FileUploadRecord> => apiUpload<FileUploadRecord>('/api/v1/files/upload', file, fields, onProgress),
+    ): Promise<FileRecord> => apiUpload<FileRecord>('/api/v1/files/upload', file, fields, onProgress),
     delete: (id: string): Promise<{ status: string }> => apiDelete<{ status: string }>(`/api/v1/files/${id}`),
     versions: (id: string): Promise<FileRecord[]> =>
       apiGet<{ versions: FileRecord[] }>(`/api/v1/files/${id}/versions`).then((res) => res.versions),
@@ -322,7 +332,7 @@ export const enterpriseApi = {
     listCommittees: (params: FetchParams) => fetchSuitePaginated<ActaCommittee>('/api/v1/acta/committees', params),
     getCommittee: (id: string) => fetchSuiteData<ActaCommittee>(`/api/v1/acta/committees/${id}`),
     createCommittee: (payload: unknown) =>
-      apiPost<{ data: ActaCommittee }>('/api/v1/acta/committees', normalizeCommitteePayload(payload)).then((res) => res.data),
+      apiPost<{ data: ActaCommittee }>('/api/v1/acta/committees', normalizeCommitteeCreatePayload(payload)).then((res) => res.data),
     updateCommittee: (id: string, payload: unknown) =>
       apiPut<{ data: ActaCommittee }>(`/api/v1/acta/committees/${id}`, normalizeCommitteePayload(payload)).then((res) => res.data),
     deleteCommittee: (id: string) => apiDelete<void>(`/api/v1/acta/committees/${id}`),

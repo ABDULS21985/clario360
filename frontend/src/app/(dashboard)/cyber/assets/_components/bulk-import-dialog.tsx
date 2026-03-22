@@ -18,10 +18,12 @@ import { Upload, AlertCircle } from 'lucide-react';
 import type { CyberAsset } from '@/types/cyber';
 
 interface BulkImportResult {
+  count: number;
   created: number;
   updated: number;
   failed: number;
   errors?: string[];
+  ids: string[];
 }
 
 interface BulkImportDialogProps {

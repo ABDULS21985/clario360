@@ -8,6 +8,7 @@ import {
   Hash,
   RefreshCw,
   Settings,
+  Trash2,
   Unplug,
 } from 'lucide-react';
 
@@ -32,7 +33,9 @@ interface IntegrationDetailPanelProps {
   onSyncNow?: (integration: VCISOIntegration) => void;
   onConfigure?: (integration: VCISOIntegration) => void;
   onDisconnect?: (integration: VCISOIntegration) => void;
-  syncing?: boolean;
+  onRemove?: (integration: VCISOIntegration) => void;
+  /** ID of the integration currently being synced (null if none). */
+  syncingId?: string | null;
 }
 
 // ─── Helper ──────────────────────────────────────────────────────────────────
@@ -58,13 +61,16 @@ export function IntegrationDetailPanel({
   onSyncNow,
   onConfigure,
   onDisconnect,
-  syncing = false,
+  onRemove,
+  syncingId = null,
 }: IntegrationDetailPanelProps) {
   if (!integration) return null;
 
   const TypeIcon = TYPE_ICON_MAP[integration.type] ?? Database;
   const typeColor = TYPE_COLOR_MAP[integration.type] ?? TYPE_COLOR_MAP.siem;
   const configEntries = Object.entries(integration.config);
+  const isSyncing = syncingId === integration.id;
+  const isDisconnected = integration.status === 'disconnected';
 
   return (
     <DetailPanel
@@ -215,13 +221,13 @@ export function IntegrationDetailPanel({
         <div className="flex flex-col gap-2">
           <Button
             className="w-full"
-            disabled={syncing || integration.status === 'disconnected'}
+            disabled={isSyncing || isDisconnected}
             onClick={() => onSyncNow?.(integration)}
           >
-            <RefreshCw className={cn('mr-1.5 h-4 w-4', syncing && 'animate-spin')} />
-            {syncing ? 'Syncing...' : 'Sync Now'}
+            <RefreshCw className={cn('mr-1.5 h-4 w-4', isSyncing && 'animate-spin')} />
+            {isSyncing ? 'Syncing...' : 'Sync Now'}
           </Button>
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
             <Button
               variant="outline"
               onClick={() => onConfigure?.(integration)}
@@ -231,12 +237,20 @@ export function IntegrationDetailPanel({
             </Button>
             <Button
               variant="outline"
-              className="text-destructive hover:text-destructive"
-              disabled={integration.status === 'disconnected'}
+              className="text-amber-600 hover:text-amber-600 dark:text-amber-400 dark:hover:text-amber-400"
+              disabled={isDisconnected}
               onClick={() => onDisconnect?.(integration)}
             >
               <Unplug className="mr-1.5 h-4 w-4" />
               Disconnect
+            </Button>
+            <Button
+              variant="outline"
+              className="text-destructive hover:text-destructive"
+              onClick={() => onRemove?.(integration)}
+            >
+              <Trash2 className="mr-1.5 h-4 w-4" />
+              Remove
             </Button>
           </div>
         </div>

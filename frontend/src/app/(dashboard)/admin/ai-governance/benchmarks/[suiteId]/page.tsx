@@ -124,7 +124,7 @@ export default function BenchmarkSuiteDetailPage() {
     : null;
 
   return (
-    <PermissionRedirect permission="users:read">
+    <PermissionRedirect permission="admin:read">
       <div className="space-y-6">
         <PageHeader
           title={suite?.name ?? 'Benchmark Suite'}

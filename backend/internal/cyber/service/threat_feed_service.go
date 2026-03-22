@@ -102,6 +102,15 @@ func (s *ThreatFeedService) ListFeeds(ctx context.Context, tenantID uuid.UUID, p
 	}, nil
 }
 
+func (s *ThreatFeedService) GetFeed(ctx context.Context, tenantID, feedID uuid.UUID, actor *Actor) (*model.ThreatFeedConfig, error) {
+	item, err := s.feedRepo.GetByID(ctx, tenantID, feedID)
+	if err != nil {
+		return nil, err
+	}
+	item.NextSyncAt = computeThreatFeedNextSync(item)
+	return item, nil
+}
+
 func (s *ThreatFeedService) CreateFeed(ctx context.Context, tenantID, userID uuid.UUID, actor *Actor, req *dto.ThreatFeedConfigRequest) (*model.ThreatFeedConfig, error) {
 	if err := validateThreatFeedConfig(req); err != nil {
 		return nil, err
@@ -179,6 +188,18 @@ func (s *ThreatFeedService) ListHistory(ctx context.Context, tenantID, feedID uu
 		"count": len(items),
 	})
 	return items, nil
+}
+
+func (s *ThreatFeedService) DeleteFeed(ctx context.Context, tenantID, feedID uuid.UUID, actor *Actor) error {
+	feed, err := s.feedRepo.GetByID(ctx, tenantID, feedID)
+	if err != nil {
+		return err
+	}
+	if err := s.feedRepo.Delete(ctx, tenantID, feedID); err != nil {
+		return err
+	}
+	_ = publishAuditEvent(ctx, s.producer, "cyber.threat_feed.deleted", tenantID, actor, feed)
+	return nil
 }
 
 func (s *ThreatFeedService) SyncFeed(ctx context.Context, tenantID, feedID uuid.UUID, actor *Actor) (map[string]interface{}, error) {

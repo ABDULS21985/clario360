@@ -1,10 +1,13 @@
 'use client';
 
 import { useQuery } from '@tanstack/react-query';
+import { AlertCircle } from 'lucide-react';
 import { apiGet } from '@/lib/api';
 import { API_ENDPOINTS } from '@/lib/constants';
 import { KpiCard } from '@/components/shared/kpi-card';
 import { PieChart } from '@/components/shared/charts/pie-chart';
+import { Card, CardContent } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import type { AnalyticsLandscape } from '@/types/cyber';
 
 const SEVERITY_COLORS: Record<string, string> = {
@@ -18,7 +21,7 @@ const SEVERITY_COLORS: Record<string, string> = {
 const TYPE_COLORS = ['#3B82F6', '#8B5CF6', '#EC4899', '#F97316', '#10B981', '#6366F1', '#EAB308', '#14B8A6'];
 
 export function ThreatLandscape() {
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['cyber-analytics-landscape'],
     queryFn: () => apiGet<{ data: AnalyticsLandscape }>(API_ENDPOINTS.CYBER_ANALYTICS_LANDSCAPE),
     refetchInterval: 120000,
@@ -36,6 +39,23 @@ export function ThreatLandscape() {
     value: entry.count,
     color: SEVERITY_COLORS[entry.name] ?? '#6B7280',
   }));
+
+  if (isError) {
+    return (
+      <div className="space-y-4">
+        <h3 className="text-lg font-semibold">Threat Landscape</h3>
+        <Card>
+          <CardContent className="flex items-center gap-3 py-6">
+            <AlertCircle className="h-4 w-4 text-destructive" />
+            <span className="text-sm text-muted-foreground">Failed to load threat landscape data.</span>
+            <Button variant="outline" size="sm" onClick={() => void refetch()}>
+              Retry
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">

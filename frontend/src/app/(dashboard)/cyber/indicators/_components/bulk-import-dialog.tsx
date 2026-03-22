@@ -674,26 +674,21 @@ async function importStandaloneIndicators(
     expires_at?: string;
   }>,
 ): Promise<ImportSummary> {
-  const summary: ImportSummary = {
-    parsed: items.length,
-    imported: 0,
-    skipped: 0,
-    failed: 0,
-  };
-
-  for (const item of items) {
-    try {
-      await apiPost(API_ENDPOINTS.CYBER_INDICATORS, item);
-      summary.imported += 1;
-    } catch (error) {
-      const message = error instanceof Error ? error.message.toLowerCase() : '';
-      if (message.includes('duplicate') || message.includes('already exists')) {
-        summary.skipped += 1;
-      } else {
-        summary.failed += 1;
-      }
-    }
+  if (items.length === 0) {
+    return { parsed: 0, imported: 0, skipped: 0, failed: 0 };
   }
 
-  return summary;
+  const response = await apiPost<{
+    data: { imported: number; skipped: number; failed: number };
+  }>(API_ENDPOINTS.CYBER_INDICATORS_BATCH, {
+    indicators: items,
+    conflict_mode: 'update',
+  });
+
+  return {
+    parsed: items.length,
+    imported: response.data.imported,
+    skipped: response.data.skipped,
+    failed: response.data.failed,
+  };
 }

@@ -193,11 +193,11 @@ export default function DataAssetDetailPage() {
             <CardTitle className="text-sm">PII Types Detected</CardTitle>
           </CardHeader>
           <CardContent>
-            {asset.pii_types.length === 0 ? (
+            {(asset.pii_types ?? []).length === 0 ? (
               <p className="text-sm text-muted-foreground">No PII types detected</p>
             ) : (
               <div className="flex flex-wrap gap-2">
-                {asset.pii_types.map((pii) => (
+                {(asset.pii_types ?? []).map((pii) => (
                   <Badge key={pii} variant="outline" className="text-xs">
                     {pii.replace(/_/g, ' ')}
                   </Badge>
@@ -284,7 +284,7 @@ export default function DataAssetDetailPage() {
 
   function renderFindings() {
     if (!asset) return null;
-    const findings = asset.posture_findings;
+    const findings = asset.posture_findings ?? [];
     if (findings.length === 0) {
       return (
         <Card>
@@ -400,8 +400,8 @@ export default function DataAssetDetailPage() {
               <ScoreDisplay label="Sensitivity" score={asset.sensitivity_score} invert />
               <div className="text-center">
                 <p className="text-xs text-muted-foreground">Findings</p>
-                <p className={`text-2xl font-bold tabular-nums ${asset.posture_findings.length > 0 ? 'text-orange-600' : 'text-green-600'}`}>
-                  {asset.posture_findings.length}
+                <p className={`text-2xl font-bold tabular-nums ${(asset.posture_findings ?? []).length > 0 ? 'text-orange-600' : 'text-green-600'}`}>
+                  {(asset.posture_findings ?? []).length}
                 </p>
               </div>
             </div>

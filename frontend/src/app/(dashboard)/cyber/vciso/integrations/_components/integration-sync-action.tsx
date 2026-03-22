@@ -34,7 +34,7 @@ export function IntegrationSyncAction({
     (variables) => `${API_ENDPOINTS.CYBER_VCISO_INTEGRATIONS}/${variables.id}/sync`,
     {
       successMessage: 'Sync triggered successfully',
-      invalidateKeys: ['vciso-integrations'],
+      invalidateKeys: [API_ENDPOINTS.CYBER_VCISO_INTEGRATIONS],
       onSuccess: () => {
         onSynced?.();
       },
@@ -62,15 +62,17 @@ export function IntegrationSyncAction({
   );
 }
 
-// ─── Hook for parent usage ───────────────────────────────────────────────────
+// ─── Hook for parent usage ────────────────────────────────────────────────────
+// Returns a function to trigger sync for a specific integration and tracks
+// which integration ID is currently syncing (not a global flag).
 
 export function useSyncIntegration(onSynced?: () => void) {
-  const { mutate, isPending } = useApiMutation<unknown, { id: string }>(
+  const { mutate, isPending, variables } = useApiMutation<unknown, { id: string }>(
     'post',
-    (variables) => `${API_ENDPOINTS.CYBER_VCISO_INTEGRATIONS}/${variables.id}/sync`,
+    (vars) => `${API_ENDPOINTS.CYBER_VCISO_INTEGRATIONS}/${vars.id}/sync`,
     {
       successMessage: 'Sync triggered successfully',
-      invalidateKeys: ['vciso-integrations'],
+      invalidateKeys: [API_ENDPOINTS.CYBER_VCISO_INTEGRATIONS],
       onSuccess: () => {
         onSynced?.();
       },
@@ -80,5 +82,6 @@ export function useSyncIntegration(onSynced?: () => void) {
   return {
     triggerSync: (integration: VCISOIntegration) => mutate({ id: integration.id }),
     syncing: isPending,
+    syncingId: isPending ? (variables?.id ?? null) : null,
   };
 }

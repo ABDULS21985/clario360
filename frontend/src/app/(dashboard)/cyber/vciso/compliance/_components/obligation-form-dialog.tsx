@@ -52,6 +52,8 @@ export function ObligationFormDialog({
   const [description, setDescription] = useState('');
   const [effectiveDate, setEffectiveDate] = useState('');
   const [reviewDate, setReviewDate] = useState('');
+  const [ownerId, setOwnerId] = useState('');
+  const [ownerName, setOwnerName] = useState('');
 
   useEffect(() => {
     if (open) {
@@ -62,6 +64,8 @@ export function ObligationFormDialog({
         setDescription(obligation.description);
         setEffectiveDate(obligation.effective_date?.slice(0, 10) ?? '');
         setReviewDate(obligation.review_date?.slice(0, 10) ?? '');
+        setOwnerId(obligation.owner_id ?? '');
+        setOwnerName(obligation.owner_name ?? '');
       } else {
         setName('');
         setType('');
@@ -69,6 +73,8 @@ export function ObligationFormDialog({
         setDescription('');
         setEffectiveDate('');
         setReviewDate('');
+        setOwnerId('');
+        setOwnerName('');
       }
     }
   }, [open, obligation]);
@@ -131,6 +137,8 @@ export function ObligationFormDialog({
       met_requirements: isEditing ? (obligation?.met_requirements ?? 0) : 0,
       effective_date: effectiveDate || undefined,
       review_date: reviewDate || undefined,
+      owner_id: ownerId.trim() || undefined,
+      owner_name: ownerName.trim() || undefined,
     };
 
     if (isEditing) {
@@ -211,6 +219,29 @@ export function ObligationFormDialog({
               disabled={isSubmitting}
               className="min-h-[120px]"
             />
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="obligation-owner-id">Owner ID (optional)</Label>
+              <Input
+                id="obligation-owner-id"
+                placeholder="User UUID"
+                value={ownerId}
+                onChange={(e) => setOwnerId(e.target.value)}
+                disabled={isSubmitting}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="obligation-owner-name">Owner Name (optional)</Label>
+              <Input
+                id="obligation-owner-name"
+                placeholder="e.g., Jane Smith"
+                value={ownerName}
+                onChange={(e) => setOwnerName(e.target.value)}
+                disabled={isSubmitting}
+              />
+            </div>
           </div>
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">

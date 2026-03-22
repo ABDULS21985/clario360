@@ -72,6 +72,24 @@ export function RiskAcceptanceDialog({
     }
 
     acceptMutation.mutate({
+      // Preserve all existing fields (UpdateRiskRequest requires full DTO)
+      title: risk.title,
+      description: risk.description,
+      category: risk.category,
+      department: risk.department,
+      inherent_score: risk.inherent_score,
+      residual_score: risk.residual_score,
+      likelihood: risk.likelihood,
+      impact: risk.impact,
+      treatment: risk.treatment,
+      owner_id: risk.owner_id || undefined,
+      owner_name: risk.owner_name,
+      review_date: risk.review_date || undefined,
+      business_services: risk.business_services,
+      controls: risk.controls,
+      tags: risk.tags,
+      treatment_plan: risk.treatment_plan,
+      // Updated fields
       status: 'accepted',
       acceptance_rationale: rationale.trim(),
       acceptance_expiry: expiryDate || undefined,

@@ -140,7 +140,7 @@ export function BudgetFormDialog({
       priority: Number(form.priority),
       justification: form.justification.trim(),
       fiscal_year: form.fiscal_year.trim(),
-      quarter: form.quarter || undefined,
+      quarter: (form.quarter && form.quarter !== 'none') ? form.quarter : undefined,
       linked_risk_ids: form.linked_risk_ids
         .split(',')
         .map((s) => s.trim())
@@ -149,6 +149,7 @@ export function BudgetFormDialog({
         .split(',')
         .map((s) => s.trim())
         .filter(Boolean),
+      risk_reduction_estimate: 0,
       status: 'proposed',
     });
   };

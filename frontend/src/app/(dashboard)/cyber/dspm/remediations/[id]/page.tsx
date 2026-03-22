@@ -94,8 +94,10 @@ export default function RemediationDetailPage() {
   }
 
   async function handleCancel() {
+    const reason = window.prompt('Provide a reason for cancelling this remediation:');
+    if (!reason) return;
     try {
-      await apiPost(API_ENDPOINTS.CYBER_DSPM_REMEDIATIONS + '/' + id + '/cancel');
+      await apiPost(API_ENDPOINTS.CYBER_DSPM_REMEDIATIONS + '/' + id + '/cancel', { reason });
       toast.success('Remediation cancelled');
       await refetch();
     } catch {
@@ -104,8 +106,10 @@ export default function RemediationDetailPage() {
   }
 
   async function handleRollback() {
+    const reason = window.prompt('Provide a reason for rolling back this remediation:');
+    if (!reason) return;
     try {
-      await apiPost(API_ENDPOINTS.CYBER_DSPM_REMEDIATIONS + '/' + id + '/rollback');
+      await apiPost(API_ENDPOINTS.CYBER_DSPM_REMEDIATIONS + '/' + id + '/rollback', { reason });
       toast.success('Rollback initiated');
       await refetch();
     } catch {
@@ -242,7 +246,7 @@ export default function RemediationDetailPage() {
               </CardHeader>
               <CardContent>
                 <div className="relative space-y-0">
-                  {remediation.steps.map((step, idx) => {
+                  {(remediation.steps ?? []).map((step, idx) => {
                     const Icon = STEP_ICONS[step.status] ?? Circle;
                     const iconColor = STEP_COLORS[step.status] ?? 'text-muted-foreground';
                     const isLast = idx === remediation.steps.length - 1;
@@ -319,7 +323,7 @@ export default function RemediationDetailPage() {
                               by {entry.actor_type.replace(/_/g, ' ')}
                               {entry.actor_id ? ` (${entry.actor_id.slice(0, 8)}...)` : ''}
                             </p>
-                            {Object.keys(entry.details).length > 0 && (
+                            {entry.details && Object.keys(entry.details).length > 0 && (
                               <div className="mt-2 rounded bg-muted/40 p-2 text-xs font-mono text-muted-foreground">
                                 {Object.entries(entry.details).map(([key, val]) => (
                                   <div key={key}>
@@ -337,14 +341,14 @@ export default function RemediationDetailPage() {
               </CardContent>
             </Card>
 
-            {remediation.compliance_tags.length > 0 && (
+            {(remediation.compliance_tags ?? []).length > 0 && (
               <Card>
                 <CardHeader>
                   <CardTitle className="text-sm">Compliance Tags</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="flex flex-wrap gap-2">
-                    {remediation.compliance_tags.map((tag) => (
+                    {(remediation.compliance_tags ?? []).map((tag) => (
                       <Badge key={tag} variant="outline" className="text-xs">{tag}</Badge>
                     ))}
                   </div>

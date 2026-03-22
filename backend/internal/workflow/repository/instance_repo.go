@@ -151,10 +151,52 @@ func (r *InstanceRepository) UpdateWithLock(ctx context.Context, inst *model.Wor
 	return nil
 }
 
+// UpdateVariables merges the provided key-value pairs into the instance's
+// variables map and persists the result inside a transaction with a row-level
+// lock (SELECT FOR UPDATE) to prevent concurrent variable overwrites.
+func (r *InstanceRepository) UpdateVariables(ctx context.Context, tenantID, instanceID string, variables map[string]interface{}) error {
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("beginning update-variables transaction: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
+	// Lock the row for the duration of the transaction.
+	inst, err := r.GetByIDForUpdate(ctx, tx, instanceID)
+	if err != nil {
+		return err
+	}
+	if inst.TenantID != tenantID {
+		return fmt.Errorf("instance: %w", model.ErrNotFound)
+	}
+
+	if inst.Variables == nil {
+		inst.Variables = make(map[string]interface{})
+	}
+	for k, v := range variables {
+		inst.Variables[k] = v
+	}
+
+	variablesJSON, err := json.Marshal(inst.Variables)
+	if err != nil {
+		return fmt.Errorf("marshaling instance variables: %w", err)
+	}
+
+	_, err = tx.Exec(ctx,
+		`UPDATE workflow_instances SET variables = $2, updated_at = now() WHERE id = $1`,
+		instanceID, variablesJSON,
+	)
+	if err != nil {
+		return fmt.Errorf("updating instance variables: %w", err)
+	}
+
+	return tx.Commit(ctx)
+}
+
 // List returns paginated instances filtered by tenant and optional criteria:
 // status, definition_id, started_by, and date range. The second return value
 // is the total count matching the filters.
-func (r *InstanceRepository) List(ctx context.Context, tenantID, status, definitionID, startedBy string, dateFrom, dateTo *time.Time, limit, offset int) ([]*model.WorkflowInstance, int, error) {
+func (r *InstanceRepository) List(ctx context.Context, tenantID, status, definitionID, startedBy string, dateFrom, dateTo *time.Time, sortBy, sortOrder string, limit, offset int) ([]*model.WorkflowInstance, int, error) {
 	var conditions []string
 	var args []any
 	argIdx := 1
@@ -202,6 +244,23 @@ func (r *InstanceRepository) List(ctx context.Context, tenantID, status, definit
 		return []*model.WorkflowInstance{}, 0, nil
 	}
 
+	// Build ORDER BY clause from allowlisted columns.
+	instanceSortAllowlist := map[string]string{
+		"started_at": "started_at",
+		"updated_at": "updated_at",
+		"status":     "status",
+	}
+	var orderBy string
+	if col, ok := instanceSortAllowlist[sortBy]; ok {
+		dir := "DESC"
+		if sortOrder == "asc" {
+			dir = "ASC"
+		}
+		orderBy = col + " " + dir
+	} else {
+		orderBy = "started_at DESC"
+	}
+
 	// Paginated data.
 	dataQuery := fmt.Sprintf(`
 		SELECT id, tenant_id, definition_id, definition_ver, status,
@@ -210,8 +269,8 @@ func (r *InstanceRepository) List(ctx context.Context, tenantID, status, definit
 		       updated_at, lock_version
 		FROM workflow_instances
 		WHERE %s
-		ORDER BY started_at DESC
-		LIMIT $%d OFFSET $%d`, where, argIdx, argIdx+1)
+		ORDER BY %s
+		LIMIT $%d OFFSET $%d`, where, orderBy, argIdx, argIdx+1)
 	args = append(args, limit, offset)
 
 	rows, err := r.pool.Query(ctx, dataQuery, args...)

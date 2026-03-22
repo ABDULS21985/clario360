@@ -285,7 +285,10 @@ export default function VisusDashboardDetailPage({ params }: DashboardDetailPage
           pending={createMutation.isPending || updateMutation.isPending}
           onSubmit={async (payload) => {
             if (editingWidget) {
-              await updateMutation.mutateAsync({ id: editingWidget.id, payload });
+              // Strip `type` — backend UpdateWidgetRequest does not accept it
+              // (DecodeJSON uses DisallowUnknownFields).
+              const { type: _type, ...updatePayload } = payload as Record<string, unknown>;
+              await updateMutation.mutateAsync({ id: editingWidget.id, payload: updatePayload });
               return;
             }
             await createMutation.mutateAsync(payload);

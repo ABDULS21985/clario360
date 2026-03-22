@@ -447,6 +447,8 @@ func main() {
 			r.Mount("/tenants", tenantHandler.Routes())
 			r.Mount("/api-keys", apiKeyHandler.Routes())
 			r.Mount("/notebooks", notebookHandler.Routes())
+			// Authenticated social-login endpoints (connections + unlink).
+			r.Mount("/auth/oauth", oauthHandler.SocialAuthRoutes())
 			aigovhandler.RegisterRoutes(r, aiServices, svc.Logger)
 
 			r.Route("/users/{id}/roles", func(r chi.Router) {

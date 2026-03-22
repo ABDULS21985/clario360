@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -33,6 +34,7 @@ type AssetService struct {
 	vulnRepo         *repository.VulnerabilityRepository
 	relRepo          *repository.RelationshipRepository
 	scanRepo         *repository.ScanRepository
+	activityRepo     *repository.ActivityRepository
 	scanRegistry     *scanner.Registry
 	classifier       *classifier.AssetClassifier
 	enrichSvc        *EnrichmentService
@@ -52,6 +54,7 @@ func NewAssetService(
 	vulnRepo *repository.VulnerabilityRepository,
 	relRepo *repository.RelationshipRepository,
 	scanRepo *repository.ScanRepository,
+	activityRepo *repository.ActivityRepository,
 	scanRegistry *scanner.Registry,
 	cls *classifier.AssetClassifier,
 	enrichSvc *EnrichmentService,
@@ -66,6 +69,7 @@ func NewAssetService(
 		vulnRepo:     vulnRepo,
 		relRepo:      relRepo,
 		scanRepo:     scanRepo,
+		activityRepo: activityRepo,
 		scanRegistry: scanRegistry,
 		classifier:   cls,
 		enrichSvc:    enrichSvc,
@@ -119,6 +123,10 @@ func (s *AssetService) CreateAsset(ctx context.Context, tenantID, userID uuid.UU
 		"discovery_source": asset.DiscoverySource,
 	})
 
+	// Record activity
+	s.recordActivity(ctx, tenantID, asset.ID, &userID, "asset_created",
+		"Asset "+asset.Name+" was created", nil, nil)
+
 	return asset, nil
 }
 
@@ -159,6 +167,10 @@ func (s *AssetService) UpdateAsset(ctx context.Context, tenantID, assetID, userI
 		return nil, err
 	}
 	_ = s.publishEvent(ctx, "cyber.asset.updated", tenantID.String(), buildAssetUpdatedEvent(before, updated))
+
+	s.recordActivity(ctx, tenantID, assetID, &userID, "asset_updated",
+		"Asset "+updated.Name+" was updated", nil, nil)
+
 	return updated, nil
 }
 
@@ -173,6 +185,10 @@ func (s *AssetService) DeleteAsset(ctx context.Context, tenantID, assetID uuid.U
 	}
 	s.metrics.AssetsDeleted.WithLabelValues(tenantID.String(), "unknown").Inc()
 	_ = s.publishEvent(ctx, "cyber.asset.deleted", tenantID.String(), map[string]any{"id": assetID.String(), "name": asset.Name})
+
+	s.recordActivity(ctx, tenantID, assetID, nil, "asset_deleted",
+		"Asset "+asset.Name+" was deleted", nil, nil)
+
 	return nil
 }
 
@@ -187,6 +203,16 @@ func (s *AssetService) PatchTags(ctx context.Context, tenantID, assetID uuid.UUI
 		"added_tags":   req.Add,
 		"removed_tags": req.Remove,
 	})
+
+	desc := "Tags updated"
+	if len(req.Add) > 0 {
+		desc += " (added: " + strings.Join(req.Add, ", ") + ")"
+	}
+	if len(req.Remove) > 0 {
+		desc += " (removed: " + strings.Join(req.Remove, ", ") + ")"
+	}
+	s.recordActivity(ctx, tenantID, assetID, nil, "tags_updated", desc, nil, nil)
+
 	return asset, nil
 }
 
@@ -645,29 +671,85 @@ func derefCriticality(c *model.Criticality) string {
 	return string(*c)
 }
 
-// ListAssetActivity returns a synthetic timeline of activity for an asset.
-// This aggregates vulnerability discoveries, alert associations, and scan events.
+// recordActivity is a fire-and-forget helper that inserts an asset_activity row.
+func (s *AssetService) recordActivity(ctx context.Context, tenantID, assetID uuid.UUID, actorID *uuid.UUID, action, description string, oldVal, newVal *string) {
+	if s.activityRepo == nil {
+		return
+	}
+	entry := &repository.ActivityEntry{
+		TenantID:    tenantID,
+		AssetID:     assetID,
+		Action:      action,
+		ActorID:     actorID,
+		Description: description,
+		OldValue:    oldVal,
+		NewValue:    newVal,
+	}
+	if err := s.activityRepo.Insert(ctx, entry); err != nil {
+		s.logger.Warn().Err(err).Str("action", action).Msg("failed to record asset activity")
+	}
+}
+
+// ListAssetActivity returns the activity timeline for an asset, combining
+// recorded mutations with vulnerability discovery entries.
 func (s *AssetService) ListAssetActivity(ctx context.Context, tenantID, assetID uuid.UUID) ([]map[string]any, error) {
-	// Get recent vulnerabilities for this asset as activity entries
+	entries := make([]map[string]any, 0, 40)
+
+	// 1. Real activity entries from the asset_activity table
+	if s.activityRepo != nil {
+		realEntries, err := s.activityRepo.ListByAsset(ctx, tenantID, assetID, 50)
+		if err != nil {
+			s.logger.Warn().Err(err).Msg("failed to fetch asset activity entries")
+		} else {
+			for _, e := range realEntries {
+				m := map[string]any{
+					"id":          e.ID,
+					"alert_id":    e.AssetID,
+					"action":      e.Action,
+					"actor_name":  e.ActorName,
+					"description": e.Description,
+					"created_at":  e.CreatedAt,
+				}
+				if e.ActorID != nil {
+					m["actor_id"] = *e.ActorID
+				}
+				if e.OldValue != nil {
+					m["old_value"] = *e.OldValue
+				}
+				if e.NewValue != nil {
+					m["new_value"] = *e.NewValue
+				}
+				entries = append(entries, m)
+			}
+		}
+	}
+
+	// 2. Synthetic vulnerability-discovery entries
 	vulnParams := &dto.VulnerabilityListParams{Page: 1, PerPage: 20}
 	vulnParams.SetDefaults()
 	vulns, _, err := s.vulnRepo.List(ctx, tenantID, assetID, vulnParams)
 	if err != nil {
 		return nil, err
 	}
-
-	entries := make([]map[string]any, 0, len(vulns))
 	for _, v := range vulns {
 		entries = append(entries, map[string]any{
 			"id":          v.ID,
 			"alert_id":    v.AssetID,
 			"action":      "vulnerability_discovered",
+			"actor_name":  v.Source,
 			"description": v.Title + " (" + v.Severity + ")",
 			"created_at":  v.DetectedAt,
 		})
 	}
 
-	// If no vulns, include a creation entry from the asset itself
+	// 3. Sort combined entries by created_at descending
+	sort.Slice(entries, func(i, j int) bool {
+		ti := toTime(entries[i]["created_at"])
+		tj := toTime(entries[j]["created_at"])
+		return ti.After(tj)
+	})
+
+	// If still empty, add a synthetic creation entry
 	if len(entries) == 0 {
 		asset, err := s.assetRepo.GetByID(ctx, tenantID, assetID)
 		if err == nil && asset != nil {
@@ -675,6 +757,7 @@ func (s *AssetService) ListAssetActivity(ctx context.Context, tenantID, assetID 
 				"id":          asset.ID,
 				"alert_id":    asset.ID,
 				"action":      "asset_created",
+				"actor_name":  "system",
 				"description": "Asset " + asset.Name + " was added to inventory",
 				"created_at":  asset.CreatedAt,
 			})
@@ -682,6 +765,19 @@ func (s *AssetService) ListAssetActivity(ctx context.Context, tenantID, assetID 
 	}
 
 	return entries, nil
+}
+
+// toTime converts a value to time.Time for sorting purposes.
+func toTime(v any) time.Time {
+	switch t := v.(type) {
+	case time.Time:
+		return t
+	case *time.Time:
+		if t != nil {
+			return *t
+		}
+	}
+	return time.Time{}
 }
 
 // CreateRelationship creates a directed relationship between two assets.

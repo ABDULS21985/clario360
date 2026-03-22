@@ -33,7 +33,8 @@ import {
   userDisplayName,
 } from '@/lib/enterprise';
 import { showApiError, showSuccess } from '@/lib/toast';
-import type { FileUploadRecord, LexContractRecord, UserDirectoryEntry } from '@/types/suites';
+import type { FileRecord } from '@/types/models';
+import type { LexContractRecord, UserDirectoryEntry } from '@/types/suites';
 
 interface ContractFormDialogProps {
   contract?: LexContractRecord | null;
@@ -564,7 +565,6 @@ function buildUpdateContractPayload(
   if (original.expiry_date && !values.expiry_date) clearedFields.push('expiry_date');
   if (original.renewal_date && !values.renewal_date) clearedFields.push('renewal_date');
   if (original.total_value != null && values.total_value == null) clearedFields.push('total_value');
-  if (original.signed_date && !values.effective_date) clearedFields.push('signed_date');
 
   return {
     title: values.title.trim(),
@@ -609,7 +609,7 @@ async function uploadContractDocument({
   onProgress: (progress: number) => void;
   tags: string[];
   type: LexContractFormValues['type'];
-}): Promise<FileUploadRecord> {
+}): Promise<FileRecord> {
   return enterpriseApi.files.upload(
     file,
     {
@@ -623,7 +623,7 @@ async function uploadContractDocument({
 }
 
 function toFileReference(
-  upload: FileUploadRecord,
+  upload: FileRecord,
   extractedText: string,
   changeSummary: string,
 ): Record<string, unknown> {

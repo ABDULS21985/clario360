@@ -18,13 +18,14 @@ import (
 
 // taskService defines operations available for human task management.
 type taskService interface {
-	ListTasks(ctx context.Context, tenantID, userID string, roles []string, statuses []string, page, pageSize int) ([]*model.HumanTask, int, error)
+	ListTasks(ctx context.Context, tenantID, userID string, roles []string, statuses []string, sortBy, sortOrder string, page, pageSize int) ([]*model.HumanTask, int, error)
 	GetTask(ctx context.Context, tenantID, taskID string) (*model.HumanTask, error)
 	ClaimTask(ctx context.Context, tenantID, taskID, userID string) error
 	CompleteTask(ctx context.Context, tenantID, taskID, userID string, formData map[string]interface{}) error
-	DelegateTask(ctx context.Context, tenantID, taskID, fromUserID, toUserID string) error
+	DelegateTask(ctx context.Context, tenantID, taskID, fromUserID, toUserID, reason string) error
 	RejectTask(ctx context.Context, tenantID, taskID, userID, reason string) error
 	CountTasks(ctx context.Context, tenantID, userID string, roles []string) (map[string]int, error)
+	DailyCreatedCounts(ctx context.Context, tenantID string, days int) ([]int, error)
 	UpdateMetadata(ctx context.Context, tenantID, taskID string, metadata map[string]interface{}) error
 }
 
@@ -104,8 +105,13 @@ func (h *TaskHandler) ListTasks(w http.ResponseWriter, r *http.Request) {
 	}
 
 	page, pageSize := parsePagination(r)
+	sortBy := r.URL.Query().Get("sort")
+	sortOrder := r.URL.Query().Get("order")
+	if sortOrder != "asc" && sortOrder != "desc" {
+		sortOrder = ""
+	}
 
-	tasks, total, err := h.service.ListTasks(r.Context(), user.TenantID, user.ID, user.Roles, statuses, page, pageSize)
+	tasks, total, err := h.service.ListTasks(r.Context(), user.TenantID, user.ID, user.Roles, statuses, sortBy, sortOrder, page, pageSize)
 	if err != nil {
 		h.logger.Error().Err(err).
 			Str("tenant_id", user.TenantID).
@@ -159,13 +165,17 @@ func (h *TaskHandler) CountTasks(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusOK, dto.TaskCountResponse{
+	resp := dto.TaskCountResponse{
 		Pending:     counts["pending"],
 		ClaimedByMe: counts["claimed_by_me"],
 		Completed:   counts["completed"],
 		Overdue:     counts["overdue"],
 		Escalated:   counts["escalated"],
-	})
+	}
+	if history, err := h.service.DailyCreatedCounts(r.Context(), user.TenantID, 12); err == nil && len(history) > 0 {
+		resp.History = history
+	}
+	writeJSON(w, http.StatusOK, resp)
 }
 
 // GetTask handles GET /{id} — retrieves a single human task by ID.
@@ -315,7 +325,7 @@ func (h *TaskHandler) DelegateTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.service.DelegateTask(r.Context(), user.TenantID, id, user.ID, req.DelegateTo); err != nil {
+	if err := h.service.DelegateTask(r.Context(), user.TenantID, id, user.ID, req.DelegateTo, req.Reason); err != nil {
 		h.logger.Error().Err(err).
 			Str("tenant_id", user.TenantID).
 			Str("task_id", id).
@@ -421,7 +431,7 @@ func (h *TaskHandler) AssignTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.service.DelegateTask(r.Context(), user.TenantID, id, user.ID, req.UserID); err != nil {
+	if err := h.service.DelegateTask(r.Context(), user.TenantID, id, user.ID, req.UserID, ""); err != nil {
 		h.logger.Error().Err(err).
 			Str("tenant_id", user.TenantID).
 			Str("task_id", id).

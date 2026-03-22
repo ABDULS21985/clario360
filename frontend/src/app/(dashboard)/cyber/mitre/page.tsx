@@ -10,7 +10,7 @@ import { PermissionRedirect } from '@/components/common/permission-redirect';
 import { ExportMenu } from '@/components/cyber/export-menu';
 import { apiGet } from '@/lib/api';
 import { API_ENDPOINTS } from '@/lib/constants';
-import type { MITRECoverage, MITRETechniqueCoverage } from '@/types/cyber';
+import type { MITRECoverage, MITREFrameworkMeta, MITRETechniqueCoverage } from '@/types/cyber';
 
 import { MitreCoverageStats } from './_components/mitre-coverage-stats';
 import { MitreFilterBar, type MitreFilter } from './_components/mitre-filter-bar';
@@ -54,6 +54,13 @@ export default function MitreCoveragePage() {
     staleTime: 120_000,
   });
 
+  const { data: metaData } = useQuery({
+    queryKey: ['cyber-mitre-framework-meta'],
+    queryFn: () => apiGet<{ data: MITREFrameworkMeta }>(API_ENDPOINTS.CYBER_MITRE_FRAMEWORK_META),
+    staleTime: 3_600_000,
+  });
+  const frameworkMeta = metaData?.data;
+
   const coverage = useMemo(() => (data?.data ? expandCoverage(data.data) : null), [data?.data]);
 
   return (
@@ -85,6 +92,11 @@ export default function MitreCoveragePage() {
           <ErrorState message="Failed to load MITRE coverage." onRetry={() => void refetch()} />
         ) : (
           <>
+            {frameworkMeta?.is_stale && (
+              <div className="rounded-xl border border-yellow-200 bg-yellow-50 px-4 py-3 text-sm text-yellow-800">
+                The embedded MITRE ATT&CK catalog (v{frameworkMeta.version}, updated {frameworkMeta.updated_at}) is {frameworkMeta.stale_days} days old. New techniques may be missing.
+              </div>
+            )}
             <MitreCoverageStats coverage={coverage} />
             <MitreFilterBar
               activeFilter={activeFilter}

@@ -8,6 +8,9 @@ const analyzer = withBundleAnalyzer({
 const nextConfig = {
   reactStrictMode: true,
   output: 'standalone',
+  experimental: {
+    optimizePackageImports: ['lucide-react', 'recharts', 'framer-motion'],
+  },
   async rewrites() {
     return [
       {

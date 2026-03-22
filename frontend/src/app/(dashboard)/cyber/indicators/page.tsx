@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { FileUp, Fingerprint, Plus, Search } from 'lucide-react';
 import { toast } from 'sonner';
 import { PermissionGate } from '@/components/auth/permission-gate';
@@ -101,6 +101,7 @@ async function fetchIndicators(params: FetchParams): Promise<PaginatedResponse<T
 
 export default function CyberIndicatorsPage() {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const { hasPermission } = useAuth();
   const canWrite = hasPermission('cyber:write');
 
@@ -204,17 +205,23 @@ export default function CyberIndicatorsPage() {
         onClick: async (ids) => {
           await Promise.all(ids.map((id) => apiDelete(API_ENDPOINTS.CYBER_INDICATOR_DETAIL(id))));
           toast.success(`${ids.length} indicators deleted`);
+          if (detailIndicator && ids.includes(detailIndicator.id)) {
+            setDetailIndicator(null);
+          }
           await handleMutationComplete();
         },
       },
     ];
-  }, [canWrite, selectedIndicators]);
+  }, [canWrite, detailIndicator, selectedIndicators]);
 
   async function handleMutationComplete() {
     setSelectedIds([]);
     setTableResetKey((value) => value + 1);
     await refetch();
     void statsQuery.refetch();
+    void queryClient.invalidateQueries({ queryKey: ['cyber-indicator-detail'] });
+    void queryClient.invalidateQueries({ queryKey: ['cyber-indicator-enrichment'] });
+    void queryClient.invalidateQueries({ queryKey: ['cyber-indicator-matches'] });
   }
 
   return (

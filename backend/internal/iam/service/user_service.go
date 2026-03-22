@@ -258,25 +258,31 @@ func (s *UserService) ChangePassword(ctx context.Context, userID string, req *dt
 	return nil
 }
 
-func (s *UserService) ListSessions(ctx context.Context, userID string) ([]dto.SessionResponse, error) {
+// ListSessions returns the user's active sessions. currentSessionID is extracted
+// from the caller's JWT "sid" claim and used to mark the active session accurately.
+func (s *UserService) ListSessions(ctx context.Context, userID, currentSessionID string) ([]dto.SessionResponse, error) {
 	sessions, err := s.sessionRepo.GetByUserID(ctx, userID)
 	if err != nil {
 		return nil, err
 	}
-	return dto.SessionsToResponse(sessions), nil
+	return dto.SessionsToResponse(sessions, currentSessionID), nil
 }
 
-func (s *UserService) DeleteSession(ctx context.Context, userID, sessionID string) error {
+func (s *UserService) DeleteSession(ctx context.Context, userID, currentSessionID, targetSessionID string) error {
+	if currentSessionID != "" && currentSessionID == targetSessionID {
+		return fmt.Errorf("cannot revoke current session: %w", model.ErrForbidden)
+	}
 	sessions, err := s.sessionRepo.GetByUserID(ctx, userID)
 	if err != nil {
 		return err
 	}
-	if len(sessions) > 0 && sessions[0].ID == sessionID {
+	// Fallback: if no session_id in JWT, treat the most-recently-active session as current.
+	if currentSessionID == "" && len(sessions) > 0 && sessions[0].ID == targetSessionID {
 		return fmt.Errorf("cannot revoke current session: %w", model.ErrForbidden)
 	}
 	for _, session := range sessions {
-		if session.ID == sessionID {
-			return s.sessionRepo.Delete(ctx, sessionID)
+		if session.ID == targetSessionID {
+			return s.sessionRepo.Delete(ctx, targetSessionID)
 		}
 	}
 	return model.ErrNotFound

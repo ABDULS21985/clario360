@@ -2,7 +2,7 @@
 
 import { Bot, Brain, ShieldAlert, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import type { NotebookProfile } from '@/lib/notebooks';
 
@@ -27,6 +27,7 @@ export function ProfileSelector({ open, onOpenChange, profiles, busy, onSelect }
       <DialogContent className="max-w-4xl">
         <DialogHeader>
           <DialogTitle>Launch Notebook Workspace</DialogTitle>
+          <DialogDescription>Select a compute profile to start your notebook server.</DialogDescription>
         </DialogHeader>
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           {profiles.map((profile) => {

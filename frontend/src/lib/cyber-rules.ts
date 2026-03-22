@@ -440,6 +440,90 @@ export function getTechniqueStateLabel(technique: MITRETechniqueCoverage): strin
   }[technique.coverage_state];
 }
 
+// ─── Duration validation ────────────────────────────────────────────────────
+// Matches Go-style durations accepted by the backend evaluators (e.g. "5m", "1h30m", "24h").
+const DURATION_REGEX = /^(\d+h)?(\d+m)?(\d+s)?$/;
+
+function isValidDuration(value: string): boolean {
+  if (!value) return false;
+  return DURATION_REGEX.test(value) && value !== '';
+}
+
+// ─── Content validation (mirrors backend evaluator Compile checks) ──────────
+
+export function validateThresholdContent(content: ThresholdRuleContent): string | null {
+  if (!content.group_by) {
+    return 'Threshold rules require a group-by field.';
+  }
+  const nonEmpty = content.filter_conditions.filter((c) => c.field.trim());
+  if (nonEmpty.length === 0) {
+    return 'At least one filter condition with a non-empty field is required.';
+  }
+  if (!content.threshold || content.threshold <= 0) {
+    return 'Threshold must be greater than 0.';
+  }
+  if (!isValidDuration(content.window)) {
+    return 'Window must be a valid duration (e.g. "5m", "1h", "24h").';
+  }
+  if ((content.metric === 'sum' || content.metric === 'distinct') && !content.metric_field) {
+    return `Metric "${content.metric}" requires a metric field.`;
+  }
+  return null;
+}
+
+export function validateCorrelationContent(content: CorrelationRuleContent): string | null {
+  if (!content.group_by) {
+    return 'Correlation rules require a correlation (group-by) field.';
+  }
+  if (content.event_types.length === 0) {
+    return 'At least one event type is required.';
+  }
+  for (const eventType of content.event_types) {
+    if (!eventType.name.trim()) {
+      return 'Each event type must have a name.';
+    }
+    const nonEmpty = eventType.conditions.filter((c) => c.field.trim());
+    if (nonEmpty.length === 0) {
+      return `Event "${eventType.name}" needs at least one condition with a non-empty field.`;
+    }
+  }
+  if (content.sequence.length < 2) {
+    return 'Sequence must reference at least 2 events.';
+  }
+  const eventNames = new Set(content.event_types.map((e) => e.name));
+  for (const name of content.sequence) {
+    if (!eventNames.has(name)) {
+      return `Sequence references unknown event "${name}".`;
+    }
+  }
+  if (!isValidDuration(content.window)) {
+    return 'Window must be a valid duration (e.g. "10m", "1h").';
+  }
+  return null;
+}
+
+export function validateAnomalyContent(content: AnomalyRuleContent): string | null {
+  if (!content.metric) {
+    return 'Anomaly metric is required.';
+  }
+  if (!content.group_by) {
+    return 'Anomaly rules require a group-by field.';
+  }
+  if (!isValidDuration(content.window)) {
+    return 'Window must be a valid duration (e.g. "1h", "24h").';
+  }
+  if (!content.z_score_threshold || content.z_score_threshold <= 0) {
+    return 'Z-score threshold must be greater than 0.';
+  }
+  if (content.min_baseline_samples < 0) {
+    return 'Minimum baseline samples must be 0 or greater.';
+  }
+  if (!['above', 'below', 'both'].includes(content.direction)) {
+    return 'Direction must be "above", "below", or "both".';
+  }
+  return null;
+}
+
 function parseConditionValue(operator: string, value: string): unknown {
   if (operator === 'in' || operator === 'all' || operator === '|in') {
     return value

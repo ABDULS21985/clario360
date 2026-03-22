@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { BookOpenText } from 'lucide-react';
+import { AlertTriangle, BookOpenText } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { PageHeader } from '@/components/common/page-header';
 import { PermissionRedirect } from '@/components/common/permission-redirect';
@@ -12,13 +12,28 @@ import { ProfileSelector } from './_components/profile-selector';
 import { ServerList } from './_components/server-list';
 import { TemplateGallery } from './_components/template-gallery';
 import { notebookApi, type NotebookProfile, type NotebookServer, type NotebookTemplate } from '@/lib/notebooks';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { showApiError, showSuccess } from '@/lib/toast';
+
+/** Poll every 5 s while any server is transitioning; every 30 s otherwise. */
+const POLL_FAST_MS = 5_000;
+const POLL_SLOW_MS = 30_000;
+
+function hasTransitioningServer(servers: NotebookServer[] | undefined): boolean {
+  return servers?.some((s) => s.status === 'starting' || s.status === 'stopping') ?? false;
+}
 
 export default function NotebookWorkspacePage() {
   const queryClient = useQueryClient();
   const [selectorOpen, setSelectorOpen] = useState(false);
   const [busyServerId, setBusyServerId] = useState<string | null>(null);
   const [busyTemplateId, setBusyTemplateId] = useState<string | null>(null);
+
+  const healthQuery = useQuery({
+    queryKey: ['notebook-health'],
+    queryFn: notebookApi.checkHealth,
+    refetchInterval: 60_000,
+  });
 
   const profilesQuery = useQuery({
     queryKey: ['notebook-profiles'],
@@ -28,10 +43,14 @@ export default function NotebookWorkspacePage() {
     queryKey: ['notebook-templates'],
     queryFn: notebookApi.listTemplates,
   });
+
+  // Adaptive polling: faster while a server is starting or stopping so the
+  // UI reflects the state transition promptly without hammering the API at rest.
   const serversQuery = useQuery({
     queryKey: ['notebook-servers'],
     queryFn: notebookApi.listServers,
-    refetchInterval: 30000,
+    refetchInterval: (query) =>
+      hasTransitioningServer(query.state.data) ? POLL_FAST_MS : POLL_SLOW_MS,
   });
 
   const activeServer = useMemo<NotebookServer | null>(
@@ -50,10 +69,10 @@ export default function NotebookWorkspacePage() {
   });
 
   const stopMutation = useMutation({
-    mutationFn: async (server: NotebookServer) => {
-      setBusyServerId(server.id);
-      return notebookApi.stopServer(server.id);
-    },
+    mutationFn: (server: NotebookServer) => notebookApi.stopServer(server.id),
+    // Set busy state immediately on mutation start so the button disables
+    // before the async mutationFn even begins (prevents duplicate clicks).
+    onMutate: (server) => setBusyServerId(server.id),
     onSuccess: async () => {
       showSuccess('Notebook server stopped');
       await queryClient.invalidateQueries({ queryKey: ['notebook-servers'] });
@@ -63,13 +82,13 @@ export default function NotebookWorkspacePage() {
   });
 
   const copyMutation = useMutation({
-    mutationFn: async (template: NotebookTemplate) => {
+    mutationFn: (template: NotebookTemplate) => {
       if (!activeServer) {
         throw new Error('Launch a notebook server before opening a template.');
       }
-      setBusyTemplateId(template.id);
       return notebookApi.copyTemplate(activeServer.id, template.id);
     },
+    onMutate: (template) => setBusyTemplateId(template.id),
     onSuccess: async (result) => {
       showSuccess('Template copied', 'Opening JupyterLab in a new tab.');
       window.open(result.open_url, '_blank', 'noopener,noreferrer');
@@ -82,6 +101,15 @@ export default function NotebookWorkspacePage() {
   return (
     <PermissionRedirect permission="*:read">
       <div className="space-y-6">
+        {healthQuery.data?.status === 'degraded' && (
+          <Alert variant="destructive">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertDescription>
+              JupyterHub is currently unreachable. Notebook servers may not start or respond correctly.
+              {healthQuery.data.jupyterhub.error ? ` (${healthQuery.data.jupyterhub.error})` : ''}
+            </AlertDescription>
+          </Alert>
+        )}
         <PageHeader
           title="Notebook Workspace"
           description="Secure Jupyter-based analysis for SOC investigation, model validation, and Spark-scale threat research."

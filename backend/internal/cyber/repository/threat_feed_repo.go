@@ -251,6 +251,23 @@ func (r *ThreatFeedRepository) ListHistory(ctx context.Context, tenantID, feedID
 	return items, rows.Err()
 }
 
+func (r *ThreatFeedRepository) Delete(ctx context.Context, tenantID, feedID uuid.UUID) error {
+	tag, err := r.db.Exec(ctx, `DELETE FROM threat_feed_sync_history WHERE tenant_id = $1 AND feed_id = $2`, tenantID, feedID)
+	if err != nil {
+		return fmt.Errorf("delete threat feed history: %w", err)
+	}
+	r.logger.Debug().Int64("history_deleted", tag.RowsAffected()).Str("feed_id", feedID.String()).Msg("deleted feed history")
+
+	tag, err = r.db.Exec(ctx, `DELETE FROM threat_feed_configs WHERE tenant_id = $1 AND id = $2`, tenantID, feedID)
+	if err != nil {
+		return fmt.Errorf("delete threat feed config: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
 func scanThreatFeedConfig(row scanner) (*model.ThreatFeedConfig, error) {
 	var item model.ThreatFeedConfig
 	if err := row.Scan(

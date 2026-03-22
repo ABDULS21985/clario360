@@ -98,9 +98,7 @@ export default function CyberAlertsPage() {
             toast.error('Select at least one alert');
             return;
           }
-          await Promise.all(ids.map((id) => (
-            apiPut(API_ENDPOINTS.CYBER_ALERT_STATUS(id), { status: 'acknowledged' })
-          )));
+          await apiPut(API_ENDPOINTS.CYBER_ALERT_BULK_STATUS, { alert_ids: ids, status: 'acknowledged' });
           toast.success(`${ids.length} alerts acknowledged`);
           await handleMutationComplete();
         },

@@ -2,8 +2,8 @@
 
 import { useState, useCallback, useEffect } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { useQueries } from '@tanstack/react-query';
-import { Settings } from 'lucide-react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { Settings, CheckSquare, Square, Trash2, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { PageHeader } from '@/components/common/page-header';
 import { NotificationList } from '@/components/notifications/notification-list';
@@ -14,7 +14,7 @@ import { useNotificationStore } from '@/stores/notification-store';
 import { useRealtimeStore } from '@/stores/realtime-store';
 import { apiGet } from '@/lib/api';
 import { API_ENDPOINTS } from '@/lib/constants';
-import type { Notification } from '@/types/models';
+import type { Notification, NotificationCounts } from '@/types/models';
 import type { PaginatedResponse } from '@/types/api';
 import { ConfirmDialog } from '@/components/shared/confirm-dialog';
 import { showNewDataToast } from '@/components/realtime/new-data-toast';
@@ -30,11 +30,16 @@ export function NotificationsPageClient() {
   const currentPath = pathname ?? '/notifications';
   const searchParams = useSearchParams();
   const activeTab = searchParams?.get('tab') ?? 'all';
+  const queryClient = useQueryClient();
   const unreadCount = useNotificationStore((state) => state.unreadCount);
-  const { markAsRead, markAllAsRead, deleteNotification } = useNotificationActions();
+  const { markAsRead, markAllAsRead, deleteNotification, bulkDeleteNotifications } =
+    useNotificationActions();
   const [markAllLoading, setMarkAllLoading] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [bulkConfirmOpen, setBulkConfirmOpen] = useState(false);
   const [newIds, setNewIds] = useState<string[]>([]);
+  const [isSelecting, setIsSelecting] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const notificationEvent = useRealtimeStore((state) => state.topicEvents['notification.new']);
   const notificationReadEvent = useRealtimeStore((state) => state.topicEvents['notification.read']);
 
@@ -70,23 +75,21 @@ export function NotificationsPageClient() {
     updateItems,
   } = useInfiniteScroll<Notification>(fetchFn, { maxPages: MAX_PAGES });
 
-  const countQueries = useQueries({
-    queries: [
-      { queryKey: ['notification-count', 'all'], queryFn: () => fetchNotificationCount() },
-      { queryKey: ['notification-count', 'security'], queryFn: () => fetchNotificationCount('security') },
-      { queryKey: ['notification-count', 'workflow'], queryFn: () => fetchNotificationCount('workflow') },
-      { queryKey: ['notification-count', 'data'], queryFn: () => fetchNotificationCount('data') },
-      { queryKey: ['notification-count', 'system'], queryFn: () => fetchNotificationCount('system') },
-    ],
+  const { data: fetchedCounts } = useQuery<NotificationCounts>({
+    queryKey: ['notification-counts'],
+    queryFn: () => apiGet<NotificationCounts>(API_ENDPOINTS.NOTIFICATIONS_COUNTS),
+    staleTime: 30_000,
   });
 
   const counts = {
-    all: countQueries[0]?.data ?? 0,
+    all: fetchedCounts?.all ?? 0,
     unread: unreadCount,
-    security: countQueries[1]?.data ?? 0,
-    workflow: countQueries[2]?.data ?? 0,
-    data: countQueries[3]?.data ?? 0,
-    system: countQueries[4]?.data ?? 0,
+    security: fetchedCounts?.security ?? 0,
+    workflow: fetchedCounts?.workflow ?? 0,
+    data: fetchedCounts?.data ?? 0,
+    governance: fetchedCounts?.governance ?? 0,
+    legal: fetchedCounts?.legal ?? 0,
+    system: fetchedCounts?.system ?? 0,
   };
 
   const handleTabChange = (tab: string) => {
@@ -97,6 +100,9 @@ export function NotificationsPageClient() {
       nextParams.set('tab', tab);
     }
     router.push(nextParams.toString() ? `${currentPath}?${nextParams.toString()}` : currentPath);
+    // Exit selection mode when switching tabs
+    setIsSelecting(false);
+    setSelectedIds(new Set());
   };
 
   const handleMarkAllRead = async () => {
@@ -134,6 +140,42 @@ export function NotificationsPageClient() {
   const handleDelete = async (id: string) => {
     await deleteNotification(id);
     updateItems((items) => items.filter((notification) => notification.id !== id));
+    void queryClient.invalidateQueries({ queryKey: ['notification-counts'] });
+  };
+
+  const handleToggleSelect = useCallback((id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  }, []);
+
+  const handleSelectAll = useCallback(() => {
+    if (selectedIds.size === notifications.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(notifications.map((n) => n.id)));
+    }
+  }, [notifications, selectedIds.size]);
+
+  const handleExitSelecting = useCallback(() => {
+    setIsSelecting(false);
+    setSelectedIds(new Set());
+  }, []);
+
+  const handleBulkDelete = async () => {
+    const ids = Array.from(selectedIds);
+    setBulkConfirmOpen(false);
+    await bulkDeleteNotifications(ids);
+    updateItems((items) => items.filter((n) => !selectedIds.has(n.id)));
+    setSelectedIds(new Set());
+    setIsSelecting(false);
+    void queryClient.invalidateQueries({ queryKey: ['notification-counts'] });
   };
 
   useEffect(() => {
@@ -185,6 +227,8 @@ export function NotificationsPageClient() {
     );
   }, [notificationReadEvent, updateItems]);
 
+  const allSelected = notifications.length > 0 && selectedIds.size === notifications.length;
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -192,22 +236,58 @@ export function NotificationsPageClient() {
         description="Stay up to date with activity across the platform."
         actions={
           <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setConfirmOpen(true)}
-              disabled={markAllLoading || unreadCount === 0}
-            >
-              {markAllLoading ? 'Marking...' : 'Mark All Read'}
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => router.push('/settings/notifications')}
-              aria-label="Notification settings"
-            >
-              <Settings className="h-4 w-4" />
-            </Button>
+            {!isSelecting ? (
+              <>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setConfirmOpen(true)}
+                  disabled={markAllLoading || unreadCount === 0}
+                >
+                  {markAllLoading ? 'Marking...' : 'Mark All Read'}
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsSelecting(true)}
+                  disabled={notifications.length === 0}
+                >
+                  <CheckSquare className="mr-1.5 h-3.5 w-3.5" />
+                  Select
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => router.push('/settings/notifications')}
+                  aria-label="Notification settings"
+                >
+                  <Settings className="h-4 w-4" />
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button variant="ghost" size="sm" onClick={handleSelectAll}>
+                  {allSelected ? (
+                    <CheckSquare className="mr-1.5 h-3.5 w-3.5" />
+                  ) : (
+                    <Square className="mr-1.5 h-3.5 w-3.5" />
+                  )}
+                  {allSelected ? 'Deselect all' : 'Select all'}
+                </Button>
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={() => setBulkConfirmOpen(true)}
+                  disabled={selectedIds.size === 0}
+                >
+                  <Trash2 className="mr-1.5 h-3.5 w-3.5" />
+                  Delete ({selectedIds.size})
+                </Button>
+                <Button variant="ghost" size="sm" onClick={handleExitSelecting}>
+                  <X className="h-4 w-4" />
+                </Button>
+              </>
+            )}
           </div>
         }
       />
@@ -233,6 +313,9 @@ export function NotificationsPageClient() {
           sentinelRef={sentinelRef}
           newIds={newIds}
           category={activeTab}
+          isSelecting={isSelecting}
+          selectedIds={selectedIds}
+          onSelect={handleToggleSelect}
         />
       </div>
 
@@ -245,20 +328,17 @@ export function NotificationsPageClient() {
         onConfirm={handleMarkAllRead}
         loading={markAllLoading}
       />
+
+      <ConfirmDialog
+        open={bulkConfirmOpen}
+        onOpenChange={setBulkConfirmOpen}
+        title="Delete Notifications"
+        description={`Permanently delete ${selectedIds.size} selected notification${selectedIds.size === 1 ? '' : 's'}?`}
+        confirmLabel="Delete"
+        onConfirm={handleBulkDelete}
+      />
     </div>
   );
-}
-
-async function fetchNotificationCount(category?: string): Promise<number> {
-  const response = await apiGet<PaginatedResponse<Notification>>(API_ENDPOINTS.NOTIFICATIONS, {
-    per_page: 1,
-    page: 1,
-    sort: 'created_at',
-    order: 'desc',
-    ...(category ? { category } : {}),
-  });
-
-  return response.meta.total;
 }
 
 function normalizeNotification(payload: unknown): Notification {

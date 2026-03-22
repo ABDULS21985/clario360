@@ -126,7 +126,7 @@ export default function AIGovernancePage() {
   const kpis = dashboardQuery.data?.kpis;
 
   return (
-    <PermissionRedirect permission="users:read">
+    <PermissionRedirect permission="admin:read">
       <div className="space-y-6">
         <PageHeader
           title="AI Governance"

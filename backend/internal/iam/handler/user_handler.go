@@ -341,7 +341,7 @@ func (h *UserHandler) ListSessions(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	sessions, err := h.userSvc.ListSessions(r.Context(), currentUser.ID)
+	sessions, err := h.userSvc.ListSessions(r.Context(), currentUser.ID, currentUser.SessionID)
 	if err != nil {
 		handleServiceError(w, err)
 		return
@@ -357,7 +357,7 @@ func (h *UserHandler) DeleteSession(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.userSvc.DeleteSession(r.Context(), currentUser.ID, urlParam(r, "id")); err != nil {
+	if err := h.userSvc.DeleteSession(r.Context(), currentUser.ID, currentUser.SessionID, urlParam(r, "id")); err != nil {
 		handleServiceError(w, err)
 		return
 	}

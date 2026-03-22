@@ -43,6 +43,9 @@ export function ConfirmDialog({
       await onConfirm();
       onOpenChange(false);
       setTypedValue("");
+    } catch {
+      // Caller already handles the error (toast, state); swallow here so the dialog
+      // stays open for retry rather than producing an unhandled promise rejection.
     } finally {
       setIsSubmitting(false);
     }

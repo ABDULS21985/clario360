@@ -215,6 +215,10 @@ function normalizeTopics(type: string | undefined): string[] {
     'data_quality.issue_detected': ['data_quality.issue_detected'],
     'remediation.approval_required': ['remediation.approval_required'],
     'security.incident': ['security.incident'],
+    'cyber.rule.created': ['cyber.rule.created', 'cyber.rule.updated'],
+    'cyber.rule.updated': ['cyber.rule.updated'],
+    'cyber.rule.toggled': ['cyber.rule.toggled', 'cyber.rule.updated'],
+    'cyber.rule.deleted': ['cyber.rule.deleted', 'cyber.rule.updated'],
   };
 
   return aliases[type] ?? [type];

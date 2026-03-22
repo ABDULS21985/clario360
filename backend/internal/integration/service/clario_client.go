@@ -101,7 +101,7 @@ func (c *ClarioAPIClient) MintUserToken(user *iamdto.UserResponse) (string, erro
 	for _, role := range user.Roles {
 		roles = append(roles, role.Slug)
 	}
-	pair, err := c.jwtMgr.GenerateTokenPair(user.ID, user.TenantID, user.Email, roles)
+	pair, err := c.jwtMgr.GenerateTokenPair(user.ID, user.TenantID, user.Email, roles, "")
 	if err != nil {
 		return "", fmt.Errorf("mint user token: %w", err)
 	}
@@ -109,7 +109,7 @@ func (c *ClarioAPIClient) MintUserToken(user *iamdto.UserResponse) (string, erro
 }
 
 func (c *ClarioAPIClient) MintSystemToken(tenantID string) (string, error) {
-	pair, err := c.jwtMgr.GenerateTokenPair("00000000-0000-0000-0000-000000000000", tenantID, "integrations@clario360.local", []string{"tenant-admin"})
+	pair, err := c.jwtMgr.GenerateTokenPair("00000000-0000-0000-0000-000000000000", tenantID, "integrations@clario360.local", []string{"tenant-admin"}, "")
 	if err != nil {
 		return "", fmt.Errorf("mint system token: %w", err)
 	}

@@ -106,7 +106,7 @@ func (p *ServiceTokenProvider) Token(ctx context.Context, tenantID uuid.UUID) (s
 	if existing, ok := p.cache[tenantID]; ok && time.Until(existing.expiresAt) > time.Minute {
 		return existing.token, nil
 	}
-	pair, err := p.jwtMgr.GenerateTokenPair(p.userID, tenantID.String(), p.email, []string{"service:visus"})
+	pair, err := p.jwtMgr.GenerateTokenPair(p.userID, tenantID.String(), p.email, []string{"service:visus"}, "")
 	if err != nil {
 		return "", fmt.Errorf("generate service account token: %w", err)
 	}

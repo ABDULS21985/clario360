@@ -334,6 +334,7 @@ func main() {
 
 		// Notification endpoints.
 		r.Get("/", notifHandler.ListNotifications)
+		r.Get("/counts", notifHandler.GetCounts)
 		r.Get("/unread-count", notifHandler.UnreadCount)
 		r.Get("/read-all", notifHandler.MarkAllRead) // PUT mapped to GET for simplicity; see below
 		r.Put("/read-all", notifHandler.MarkAllRead)

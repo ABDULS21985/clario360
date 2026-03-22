@@ -123,9 +123,10 @@ export function useAddTaskComment() {
       ),
     onSuccess: (_data, variables) => {
       showSuccess('Comment added.');
-      queryClient.invalidateQueries({
-        queryKey: [TASKS_KEY, variables.taskId],
-      });
+      // Invalidate the task detail query key used by TaskDetailPageClient.
+      queryClient.invalidateQueries({ queryKey: ['task', variables.taskId] });
+      // Also refresh the task list cache.
+      queryClient.invalidateQueries({ queryKey: [TASKS_KEY] });
     },
     onError: (error) => showApiError(error),
   });

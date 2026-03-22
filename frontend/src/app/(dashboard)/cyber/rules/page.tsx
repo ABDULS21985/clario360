@@ -121,9 +121,9 @@ export default function DetectionRulesPage() {
     );
   }, [tacticsEnvelope?.data]);
 
-  const toggleMutation = useApiMutation<DetectionRule, Record<string, unknown>>(
+  const toggleMutation = useApiMutation<DetectionRule, { id: string; enabled: boolean }>(
     'put',
-    (variables) => API_ENDPOINTS.CYBER_RULE_TOGGLE(String(variables.id)),
+    (variables) => API_ENDPOINTS.CYBER_RULE_TOGGLE(variables.id),
     {
       successMessage: 'Rule status updated',
       invalidateKeys: ['cyber-rules', 'cyber-rules-stats', 'cyber-mitre-coverage'],

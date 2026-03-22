@@ -2,6 +2,7 @@
 
 import { SeverityIndicator } from '@/components/shared/severity-indicator';
 import { StatusBadge } from '@/components/shared/status-badge';
+import { threatStatusConfig } from '@/lib/status-configs';
 import { Badge } from '@/components/ui/badge';
 import { timeAgo, cn } from '@/lib/utils';
 import { X, Shield } from 'lucide-react';
@@ -44,7 +45,7 @@ export function ThreatDetailPanel({ threat, onClose }: ThreatDetailPanelProps) {
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
         {/* Status row */}
         <div className="flex items-center gap-3 flex-wrap">
-          <StatusBadge status={threat.status} />
+          <StatusBadge status={threat.status} config={threatStatusConfig} />
           <span className="text-xs text-muted-foreground">
             {threat.indicator_count} indicators
           </span>

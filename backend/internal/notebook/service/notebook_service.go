@@ -253,6 +253,30 @@ func (s *NotebookService) CopyTemplate(ctx context.Context, actor nbmodel.Actor,
 	}, nil
 }
 
+// Ping performs a lightweight GET against the JupyterHub API root and returns
+// nil if the hub responds with any HTTP status below 500 (including 401/403,
+// which indicate the hub is running but the token is not accepted at that
+// endpoint). A network error or a 5xx response is returned as an error.
+func (s *NotebookService) Ping(ctx context.Context) error {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, s.jupyterhubAPIURL, nil)
+	if err != nil {
+		return fmt.Errorf("build jupyterhub ping request: %w", err)
+	}
+	if s.jupyterhubToken != "" {
+		req.Header.Set("Authorization", fmt.Sprintf(jupyterAuthHeaderFmt, s.jupyterhubToken))
+	}
+	resp, err := s.httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("ping jupyterhub: %w", err)
+	}
+	defer resp.Body.Close()
+	_, _ = io.Copy(io.Discard, resp.Body)
+	if resp.StatusCode >= 500 {
+		return fmt.Errorf("jupyterhub ping returned %d", resp.StatusCode)
+	}
+	return nil
+}
+
 func (s *NotebookService) RecordActivity(ctx context.Context, actor nbmodel.Actor, req nbdto.ActivityRequest) error {
 	occurredAt := time.Now().UTC()
 	if req.OccurredAt != nil && !req.OccurredAt.IsZero() {

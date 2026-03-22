@@ -29,11 +29,28 @@ export function StepReady({
   const [currentStatus, setCurrentStatus] = useState(initialStatus);
 
   useEffect(() => {
+    // Skip calling CompleteWizard when provisioning is already running or done
+    // (e.g. user navigated back and returned to step 5, or page was refreshed).
+    if (initialStatus === 'provisioning' || initialStatus === 'completed') {
+      setIsCompleting(false);
+      return;
+    }
+
+    // Session-level deduplication: guard against a second CompleteWizard call
+    // even when initialStatus is 'pending' (e.g. provisioning job externally reset).
+    const sessionKey = `clario360:wizard-completed:${tenantID}`;
+    if (sessionStorage.getItem(sessionKey) === '1') {
+      setIsCompleting(false);
+      return;
+    }
+
     let active = true;
 
     const completeWizard = async () => {
       try {
         await apiPost(API_ENDPOINTS.ONBOARDING_COMPLETE, {});
+        // Mark as completed for this browser session so re-entry never re-fires.
+        sessionStorage.setItem(sessionKey, '1');
       } catch (error) {
         if (active) {
           setCompleteError(isApiError(error) ? error.message : 'Failed to finalize onboarding.');
@@ -50,6 +67,7 @@ export function StepReady({
     return () => {
       active = false;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {

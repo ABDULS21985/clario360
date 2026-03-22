@@ -43,6 +43,7 @@ export const API_ENDPOINTS = {
   // Cyber — Dashboard
   CYBER_DASHBOARD: '/api/v1/cyber/dashboard',
   CYBER_DASHBOARD_KPIS: '/api/v1/cyber/dashboard/kpis',
+  CYBER_DASHBOARD_METRICS: '/api/v1/cyber/dashboard/metrics',
   CYBER_DASHBOARD_ALERTS_TIMELINE: '/api/v1/cyber/dashboard/alerts-timeline',
   CYBER_DASHBOARD_SEVERITY_DISTRIBUTION: '/api/v1/cyber/dashboard/severity-distribution',
   CYBER_DASHBOARD_MITRE_HEATMAP: '/api/v1/cyber/dashboard/mitre-heatmap',
@@ -70,6 +71,9 @@ export const API_ENDPOINTS = {
   CYBER_ALERT_ESCALATE: (id: string) => `/api/v1/cyber/alerts/${id}/escalate`,
   CYBER_ALERT_FALSE_POSITIVE: (id: string) => `/api/v1/cyber/alerts/${id}/false-positive`,
   CYBER_ALERT_MERGE: (id: string) => `/api/v1/cyber/alerts/${id}/merge`,
+  CYBER_ALERT_BULK_STATUS: '/api/v1/cyber/alerts/bulk/status',
+  CYBER_ALERT_BULK_ASSIGN: '/api/v1/cyber/alerts/bulk/assign',
+  CYBER_ALERT_BULK_FALSE_POSITIVE: '/api/v1/cyber/alerts/bulk/false-positive',
 
   // Cyber — Vulnerabilities
   CYBER_VULNERABILITIES_AGING: '/api/v1/cyber/vulnerabilities/aging',
@@ -86,12 +90,14 @@ export const API_ENDPOINTS = {
   CYBER_INDICATORS: '/api/v1/cyber/indicators',
   CYBER_INDICATORS_STATS: '/api/v1/cyber/indicators/stats',
   CYBER_INDICATORS_BULK: '/api/v1/cyber/indicators/bulk',
+  CYBER_INDICATORS_BATCH: '/api/v1/cyber/indicators/batch',
   CYBER_INDICATOR_DETAIL: (id: string) => `/api/v1/cyber/indicators/${id}`,
   CYBER_INDICATOR_ENRICHMENT: (id: string) => `/api/v1/cyber/indicators/${id}/enrichment`,
   CYBER_INDICATOR_MATCHES: (id: string) => `/api/v1/cyber/indicators/${id}/matches`,
   CYBER_INDICATOR_STATUS: (id: string) => `/api/v1/cyber/indicators/${id}/status`,
   CYBER_INDICATORS_CHECK: '/api/v1/cyber/indicators/check',
   CYBER_THREAT_FEEDS: '/api/v1/cyber/threat-feeds',
+  CYBER_THREAT_FEED_DETAIL: (id: string) => `/api/v1/cyber/threat-feeds/${id}`,
   CYBER_THREAT_FEED_SYNC: (id: string) => `/api/v1/cyber/threat-feeds/${id}/sync`,
   CYBER_THREAT_FEED_HISTORY: (id: string) => `/api/v1/cyber/threat-feeds/${id}/history`,
 
@@ -103,15 +109,28 @@ export const API_ENDPOINTS = {
   CYBER_RULE_TOGGLE: (id: string) => `/api/v1/cyber/rules/${id}/toggle`,
   CYBER_RULE_TEST: (id: string) => `/api/v1/cyber/rules/${id}/test`,
   CYBER_RULE_PERFORMANCE: (id: string) => `/api/v1/cyber/rules/${id}/performance`,
+  CYBER_RULE_FEEDBACK: (ruleId: string) => `/api/v1/cyber/rules/${ruleId}/feedback`,
 
   // Cyber — CTEM
   CYBER_CTEM_ASSESSMENTS: '/api/v1/cyber/ctem/assessments',
+  CYBER_CTEM_ASSESSMENT_DETAIL: (id: string) => `/api/v1/cyber/ctem/assessments/${id}`,
+  CYBER_CTEM_ASSESSMENT_START: (id: string) => `/api/v1/cyber/ctem/assessments/${id}/start`,
+  CYBER_CTEM_ASSESSMENT_CANCEL: (id: string) => `/api/v1/cyber/ctem/assessments/${id}/cancel`,
+  CYBER_CTEM_ASSESSMENT_FINDINGS: (id: string) => `/api/v1/cyber/ctem/assessments/${id}/findings`,
+  CYBER_CTEM_ASSESSMENT_REMEDIATION_GROUPS: (id: string) => `/api/v1/cyber/ctem/assessments/${id}/remediation-groups`,
+  CYBER_CTEM_FINDING_STATUS: (findingId: string) => `/api/v1/cyber/ctem/findings/${findingId}/status`,
+  CYBER_CTEM_REMEDIATION_GROUP: (groupId: string) => `/api/v1/cyber/ctem/remediation-groups/${groupId}`,
+  CYBER_CTEM_REMEDIATION_GROUP_STATUS: (groupId: string) => `/api/v1/cyber/ctem/remediation-groups/${groupId}/status`,
+  CYBER_CTEM_REMEDIATION_GROUP_EXECUTE: (groupId: string) => `/api/v1/cyber/ctem/remediation-groups/${groupId}/execute`,
+  CYBER_CTEM_ASSESSMENT_REPORT_EXPORT: (id: string) => `/api/v1/cyber/ctem/assessments/${id}/report/export`,
+  CYBER_CTEM_ASSESSMENT_COMPARE: (id: string, otherId: string) => `/api/v1/cyber/ctem/assessments/${id}/compare/${otherId}`,
   CYBER_CTEM_EXPOSURE_SCORE: '/api/v1/cyber/ctem/exposure-score',
   CYBER_CTEM_EXPOSURE_HISTORY: '/api/v1/cyber/ctem/exposure-score/history',
   CYBER_CTEM_DASHBOARD: '/api/v1/cyber/ctem/dashboard',
 
   // Cyber — Security Events
   CYBER_EVENTS: '/api/v1/cyber/events',
+  CYBER_EVENTS_EXPORT: '/api/v1/cyber/events/export',
   CYBER_EVENT_DETAIL: (id: string) => `/api/v1/cyber/events/${id}`,
   CYBER_EVENT_STATS: '/api/v1/cyber/events/stats',
 
@@ -225,6 +244,7 @@ export const API_ENDPOINTS = {
   CYBER_MITRE_TACTICS: '/api/v1/cyber/mitre/tactics',
   CYBER_MITRE_TECHNIQUES: '/api/v1/cyber/mitre/techniques',
   CYBER_MITRE_TECHNIQUE_DETAIL: (id: string) => `/api/v1/cyber/mitre/techniques/${id}`,
+  CYBER_MITRE_FRAMEWORK_META: '/api/v1/cyber/mitre/framework-meta',
 
   // Cyber — Risk
   CYBER_RISK_SCORE: '/api/v1/cyber/risk/score',
@@ -233,6 +253,7 @@ export const API_ENDPOINTS = {
   CYBER_UEBA_RISK_RANKING: '/api/v1/cyber/ueba/risk-ranking',
   CYBER_UEBA_PROFILES: '/api/v1/cyber/ueba/profiles',
   CYBER_UEBA_ALERTS: '/api/v1/cyber/ueba/alerts',
+  CYBER_UEBA_ALERTS_BULK_STATUS: '/api/v1/cyber/ueba/alerts/bulk/status',
   CYBER_UEBA_CONFIG: '/api/v1/cyber/ueba/config',
 
   // Jobs
@@ -242,6 +263,7 @@ export const API_ENDPOINTS = {
   DATA_SOURCES: '/api/v1/data/sources',
   DATA_SOURCES_STATS: '/api/v1/data/sources/stats',
   DATA_PIPELINES: '/api/v1/data/pipelines',
+  DATA_PIPELINES_COUNT: '/api/v1/data/pipelines/count',
   DATA_PIPELINES_STATS: '/api/v1/data/pipelines/stats',
   DATA_MODELS: '/api/v1/data/models',
   DATA_DATASETS: '/api/v1/data/models',
@@ -288,6 +310,7 @@ export const API_ENDPOINTS = {
 
   // Notifications
   NOTIFICATIONS: '/api/v1/notifications',
+  NOTIFICATIONS_COUNTS: '/api/v1/notifications/counts',
   NOTIFICATIONS_UNREAD_COUNT: '/api/v1/notifications/unread-count',
   NOTIFICATIONS_READ_ALL: '/api/v1/notifications/read-all',
   NOTIFICATIONS_BULK_DELETE: '/api/v1/notifications/bulk',

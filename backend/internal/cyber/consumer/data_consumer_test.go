@@ -11,6 +11,7 @@ import (
 	"github.com/redis/go-redis/v9"
 	"github.com/rs/zerolog"
 
+	"github.com/clario360/platform/internal/cyber/dto"
 	"github.com/clario360/platform/internal/cyber/model"
 	"github.com/clario360/platform/internal/cyber/service"
 	"github.com/clario360/platform/internal/events"
@@ -23,7 +24,7 @@ type fakeDSPMTriggerService struct {
 	actor    *service.Actor
 }
 
-func (f *fakeDSPMTriggerService) TriggerScan(_ context.Context, tenantID, userID uuid.UUID, actor *service.Actor) (*model.DSPMScan, error) {
+func (f *fakeDSPMTriggerService) TriggerScan(_ context.Context, tenantID, userID uuid.UUID, actor *service.Actor, _ *dto.DSPMScanTriggerRequest) (*model.DSPMScan, error) {
 	f.calls++
 	f.tenantID = tenantID
 	f.userID = userID

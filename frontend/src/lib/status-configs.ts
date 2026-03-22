@@ -217,9 +217,8 @@ export const visusAlertStatusConfig: StatusConfig = {
 };
 
 export const riskStatusConfig: StatusConfig = {
-  identified: { label: 'Identified', color: 'yellow', icon: AlertCircle },
-  assessed: { label: 'Assessed', color: 'blue', icon: Eye },
-  mitigating: { label: 'Mitigating', color: 'orange', icon: Play },
+  open: { label: 'Open', color: 'yellow', icon: AlertCircle },
+  mitigated: { label: 'Mitigated', color: 'blue', icon: Shield },
   accepted: { label: 'Accepted', color: 'green', icon: CheckCircle },
   closed: { label: 'Closed', color: 'gray', icon: XCircle },
 };
@@ -293,6 +292,14 @@ export const iamFindingStatusConfig: StatusConfig = {
   in_progress: { label: 'In Progress', color: 'blue', icon: Play },
   resolved: { label: 'Resolved', color: 'green', icon: CheckCircle },
   accepted: { label: 'Accepted', color: 'gray', icon: CheckCheck },
+};
+
+export const threatStatusConfig: StatusConfig = {
+  active: { label: 'Active', color: 'red', icon: AlertCircle },
+  contained: { label: 'Contained', color: 'orange', icon: Shield },
+  eradicated: { label: 'Eradicated', color: 'green', icon: CheckCircle },
+  monitoring: { label: 'Monitoring', color: 'blue', icon: Eye },
+  closed: { label: 'Closed', color: 'gray', icon: XCircle },
 };
 
 export const playbookStatusConfig: StatusConfig = {

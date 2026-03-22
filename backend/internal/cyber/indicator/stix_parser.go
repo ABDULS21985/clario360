@@ -86,13 +86,12 @@ func ParseSTIXBundle(payload json.RawMessage, defaultSource string) (*ParsedBund
 		if objectType, _ := object["type"].(string); objectType != "indicator" {
 			continue
 		}
-		parsedIndicator, ok := parseIndicatorObject(object, defaultSource)
-		if !ok {
-			continue
-		}
 		id, _ := object["id"].(string)
-		parsedIndicator.RelatedThreatIDs = append(parsedIndicator.RelatedThreatIDs, indicatorThreats[id]...)
-		parsed.Indicators = append(parsed.Indicators, parsedIndicator)
+		relatedThreats := indicatorThreats[id]
+		for _, parsedIndicator := range parseIndicatorObjects(object, defaultSource) {
+			parsedIndicator.RelatedThreatIDs = append(parsedIndicator.RelatedThreatIDs, relatedThreats...)
+			parsed.Indicators = append(parsed.Indicators, parsedIndicator)
+		}
 	}
 
 	for _, threat := range threatsByID {
@@ -126,11 +125,13 @@ func parseThreatObject(object map[string]interface{}) ParsedThreat {
 	}
 }
 
-func parseIndicatorObject(object map[string]interface{}, defaultSource string) (ParsedIndicator, bool) {
+// parseIndicatorObjects extracts ALL observables from a STIX indicator object.
+// Compound AND/OR patterns yield multiple ParsedIndicator entries.
+func parseIndicatorObjects(object map[string]interface{}, defaultSource string) []ParsedIndicator {
 	pattern, _ := object["pattern"].(string)
-	indicatorType, value, err := parseIndicatorPattern(pattern)
-	if err != nil {
-		return ParsedIndicator{}, false
+	observables := parseIndicatorPatterns(pattern)
+	if len(observables) == 0 {
+		return nil
 	}
 
 	confidence := 0.80
@@ -149,45 +150,93 @@ func parseIndicatorObject(object map[string]interface{}, defaultSource string) (
 	severity := severityFromLabels(labels)
 	expiresAt := parseSTIXTime(object["valid_until"])
 
-	return ParsedIndicator{
-		Indicator: model.ThreatIndicator{
-			Type:        indicatorType,
-			Value:       value,
-			Description: description,
-			Severity:    severity,
-			Source:      sourceOrDefault(defaultSource),
-			Confidence:  confidence,
-			Active:      true,
-			ExpiresAt:   expiresAt,
-			Tags:        labels,
-		},
-	}, true
+	results := make([]ParsedIndicator, 0, len(observables))
+	for _, obs := range observables {
+		results = append(results, ParsedIndicator{
+			Indicator: model.ThreatIndicator{
+				Type:        obs.indicatorType,
+				Value:       obs.value,
+				Description: description,
+				Severity:    severity,
+				Source:      sourceOrDefault(defaultSource),
+				Confidence:  confidence,
+				Active:      true,
+				ExpiresAt:   expiresAt,
+				Tags:        labels,
+			},
+		})
+	}
+	return results
 }
 
-func parseIndicatorPattern(pattern string) (model.IndicatorType, string, error) {
+// parseIndicatorObject is kept for backward compatibility; returns only the first match.
+func parseIndicatorObject(object map[string]interface{}, defaultSource string) (ParsedIndicator, bool) {
+	results := parseIndicatorObjects(object, defaultSource)
+	if len(results) == 0 {
+		return ParsedIndicator{}, false
+	}
+	return results[0], true
+}
+
+type parsedObservable struct {
+	indicatorType model.IndicatorType
+	value         string
+}
+
+// stixPatternMatchers maps each regex to the indicator type it extracts.
+var stixPatternMatchers = []struct {
+	pattern       *regexp.Regexp
+	indicatorType model.IndicatorType
+}{
+	{stixIPPattern, model.IndicatorTypeIP},
+	{stixCIDRPattern, model.IndicatorTypeCIDR},
+	{stixDomainPattern, model.IndicatorTypeDomain},
+	{stixURLPattern, model.IndicatorTypeURL},
+	{stixEmailPattern, model.IndicatorTypeEmail},
+	{stixMD5Pattern, model.IndicatorTypeHashMD5},
+	{stixSHA1Pattern, model.IndicatorTypeHashSHA1},
+	{stixSHA256Pattern, model.IndicatorTypeHashSHA256},
+	{stixUserAgentPattern, model.IndicatorTypeUserAgent},
+}
+
+// parseIndicatorPatterns extracts ALL observables from a STIX pattern string,
+// including compound AND/OR patterns like "[A] AND [B] OR [C]".
+// Results are deduplicated by type:value.
+func parseIndicatorPatterns(pattern string) []parsedObservable {
 	pattern = strings.TrimSpace(pattern)
-	switch {
-	case stixIPPattern.MatchString(pattern):
-		return model.IndicatorTypeIP, stixIPPattern.FindStringSubmatch(pattern)[1], nil
-	case stixCIDRPattern.MatchString(pattern):
-		return model.IndicatorTypeCIDR, stixCIDRPattern.FindStringSubmatch(pattern)[1], nil
-	case stixDomainPattern.MatchString(pattern):
-		return model.IndicatorTypeDomain, stixDomainPattern.FindStringSubmatch(pattern)[1], nil
-	case stixURLPattern.MatchString(pattern):
-		return model.IndicatorTypeURL, stixURLPattern.FindStringSubmatch(pattern)[1], nil
-	case stixEmailPattern.MatchString(pattern):
-		return model.IndicatorTypeEmail, stixEmailPattern.FindStringSubmatch(pattern)[1], nil
-	case stixMD5Pattern.MatchString(pattern):
-		return model.IndicatorTypeHashMD5, stixMD5Pattern.FindStringSubmatch(pattern)[1], nil
-	case stixSHA1Pattern.MatchString(pattern):
-		return model.IndicatorTypeHashSHA1, stixSHA1Pattern.FindStringSubmatch(pattern)[1], nil
-	case stixSHA256Pattern.MatchString(pattern):
-		return model.IndicatorTypeHashSHA256, stixSHA256Pattern.FindStringSubmatch(pattern)[1], nil
-	case stixUserAgentPattern.MatchString(pattern):
-		return model.IndicatorTypeUserAgent, stixUserAgentPattern.FindStringSubmatch(pattern)[1], nil
-	default:
+	if pattern == "" {
+		return nil
+	}
+
+	seen := make(map[string]struct{})
+	var results []parsedObservable
+
+	for _, matcher := range stixPatternMatchers {
+		for _, match := range matcher.pattern.FindAllStringSubmatch(pattern, -1) {
+			if len(match) < 2 || match[1] == "" {
+				continue
+			}
+			key := string(matcher.indicatorType) + ":" + match[1]
+			if _, ok := seen[key]; ok {
+				continue
+			}
+			seen[key] = struct{}{}
+			results = append(results, parsedObservable{
+				indicatorType: matcher.indicatorType,
+				value:         match[1],
+			})
+		}
+	}
+	return results
+}
+
+// parseIndicatorPattern returns the first observable from a STIX pattern (backward compat).
+func parseIndicatorPattern(pattern string) (model.IndicatorType, string, error) {
+	results := parseIndicatorPatterns(pattern)
+	if len(results) == 0 {
 		return "", "", fmt.Errorf("unsupported stix pattern %q", pattern)
 	}
+	return results[0].indicatorType, results[0].value, nil
 }
 
 func stringSlice(value interface{}) []string {

@@ -254,6 +254,12 @@ func (s *PipelineService) Stats(ctx context.Context, tenantID uuid.UUID) (*model
 	return s.pipelineRepo.Stats(ctx, tenantID)
 }
 
+// DailyFailedRunCounts returns a zero-filled daily count of failed pipeline
+// runs for the last N days, suitable for KPI sparklines.
+func (s *PipelineService) DailyFailedRunCounts(ctx context.Context, tenantID uuid.UUID, days int) ([]int, error) {
+	return s.pipelineRepo.DailyFailedRunCounts(ctx, tenantID, days)
+}
+
 func (s *PipelineService) Active(ctx context.Context, tenantID uuid.UUID) ([]*model.PipelineRun, error) {
 	return s.runRepo.ListActive(ctx, tenantID)
 }

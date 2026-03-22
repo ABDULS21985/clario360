@@ -7,27 +7,28 @@ import (
 	"github.com/rs/zerolog"
 
 	"github.com/clario360/platform/internal/cyber/model"
-	"github.com/clario360/platform/internal/cyber/repository"
 	predictengine "github.com/clario360/platform/internal/cyber/vciso/predict/engine"
 )
 
 // AnalyticsHandler serves the /api/v1/cyber/analytics/* endpoints, delegating
 // to the existing predictive engine and threat repository.
 type AnalyticsHandler struct {
-	forecastEngine *predictengine.ForecastEngine
-	threatRepo     *repository.ThreatRepository
+	forecastEngine analyticsForecastEngine
+	threatStats    threatStatsProvider
 	logger         zerolog.Logger
 }
 
 // NewAnalyticsHandler creates a new AnalyticsHandler.
+// The forecastEngine (*ForecastEngine) and threatStats (*ThreatRepository)
+// both satisfy the internal interfaces used by this handler.
 func NewAnalyticsHandler(
 	forecastEngine *predictengine.ForecastEngine,
-	threatRepo *repository.ThreatRepository,
+	threatStats threatStatsProvider,
 	logger zerolog.Logger,
 ) *AnalyticsHandler {
 	return &AnalyticsHandler{
 		forecastEngine: forecastEngine,
-		threatRepo:     threatRepo,
+		threatStats:    threatStats,
 		logger:         logger,
 	}
 }
@@ -50,6 +51,7 @@ func (h *AnalyticsHandler) ThreatForecast(w http.ResponseWriter, r *http.Request
 		writeError(w, http.StatusInternalServerError, "FORECAST_FAILED", err.Error(), nil)
 		return
 	}
+	resp.Normalize()
 	writeJSON(w, http.StatusOK, envelope{"data": resp})
 }
 
@@ -71,6 +73,7 @@ func (h *AnalyticsHandler) AlertForecast(w http.ResponseWriter, r *http.Request)
 		writeError(w, http.StatusInternalServerError, "FORECAST_FAILED", err.Error(), nil)
 		return
 	}
+	resp.Normalize()
 	writeJSON(w, http.StatusOK, envelope{"data": resp})
 }
 
@@ -92,6 +95,7 @@ func (h *AnalyticsHandler) TechniqueTrends(w http.ResponseWriter, r *http.Reques
 		writeError(w, http.StatusInternalServerError, "TRENDS_FAILED", err.Error(), nil)
 		return
 	}
+	resp.Normalize()
 	writeJSON(w, http.StatusOK, envelope{"data": resp})
 }
 
@@ -113,6 +117,7 @@ func (h *AnalyticsHandler) Campaigns(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "CAMPAIGNS_FAILED", err.Error(), nil)
 		return
 	}
+	resp.Normalize()
 	writeJSON(w, http.StatusOK, envelope{"data": resp})
 }
 
@@ -122,7 +127,7 @@ func (h *AnalyticsHandler) Landscape(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	stats, err := h.threatRepo.Stats(r.Context(), tenantID)
+	stats, err := h.threatStats.Stats(r.Context(), tenantID)
 	if err != nil {
 		h.logger.Error().Err(err).Msg("landscape failed")
 		writeError(w, http.StatusInternalServerError, "LANDSCAPE_FAILED", err.Error(), nil)
@@ -141,6 +146,7 @@ func (h *AnalyticsHandler) Landscape(w http.ResponseWriter, r *http.Request) {
 	if len(stats.ByType) > 0 {
 		landscape.TopThreatType = stats.ByType[0].Name
 	}
+	landscape.Normalize()
 
 	writeJSON(w, http.StatusOK, envelope{"data": landscape})
 }

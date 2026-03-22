@@ -63,7 +63,7 @@ type AssetListParams struct {
 	Owner                 *string    `form:"owner"`
 	Location              *string    `form:"location"`
 	Tags                  []string   `form:"tag"`
-	DiscoverySource       *string    `form:"discovery_source"`
+	DiscoverySources      []string   `form:"discovery_source"`
 	DiscoveredAfter       *time.Time `form:"discovered_after"`
 	DiscoveredBefore      *time.Time `form:"discovered_before"`
 	LastSeenAfter         *time.Time `form:"last_seen_after"`
@@ -133,16 +133,16 @@ func (p *AssetListParams) Validate() error {
 			return fmt.Errorf("invalid status: %q", s)
 		}
 	}
-	if p.DiscoverySource != nil {
+	for _, ds := range p.DiscoverySources {
 		valid := false
 		for _, source := range model.ValidDiscoverySources {
-			if *p.DiscoverySource == source {
+			if ds == source {
 				valid = true
 				break
 			}
 		}
 		if !valid {
-			return fmt.Errorf("invalid discovery_source: %q", *p.DiscoverySource)
+			return fmt.Errorf("invalid discovery_source: %q", ds)
 		}
 	}
 	if len(p.Tags) > 20 {

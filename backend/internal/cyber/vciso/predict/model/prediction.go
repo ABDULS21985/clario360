@@ -112,58 +112,91 @@ type AlertVolumeForecast struct {
 }
 
 type AssetRiskItem struct {
-	AssetID     uuid.UUID             `json:"asset_id"`
-	AssetName   string                `json:"asset_name"`
-	AssetType   string                `json:"asset_type"`
-	Probability float64               `json:"probability"`
-	Confidence  ConfidenceInterval    `json:"confidence_interval"`
-	CurrentRisk float64               `json:"current_risk"`
-	TopFeatures []FeatureContribution `json:"top_features"`
+	AssetID            uuid.UUID             `json:"asset_id"`
+	AssetName          string                `json:"asset_name"`
+	AssetType          string                `json:"asset_type"`
+	Probability        float64               `json:"probability"`
+	ConfidenceInterval ConfidenceInterval    `json:"confidence_interval"`
+	CurrentRisk        float64               `json:"current_risk"`
+	TopFeatures        []FeatureContribution `json:"top_features"`
 }
 
 type VulnerabilityPriorityItem struct {
-	VulnerabilityID uuid.UUID             `json:"vulnerability_id"`
-	AssetID         uuid.UUID             `json:"asset_id"`
-	AssetName       string                `json:"asset_name"`
-	CVEID           string                `json:"cve_id,omitempty"`
-	Severity        string                `json:"severity"`
-	Probability     float64               `json:"probability"`
-	Confidence      ConfidenceInterval    `json:"confidence_interval"`
-	TopFeatures     []FeatureContribution `json:"top_features"`
+	VulnerabilityID    uuid.UUID             `json:"vulnerability_id"`
+	AssetID            uuid.UUID             `json:"asset_id"`
+	AssetName          string                `json:"asset_name"`
+	CVEID              string                `json:"cve_id,omitempty"`
+	Severity           string                `json:"severity"`
+	Probability        float64               `json:"probability"`
+	ConfidenceInterval ConfidenceInterval    `json:"confidence_interval"`
+	TopFeatures        []FeatureContribution `json:"top_features"`
 }
 
 type TechniqueTrendItem struct {
 	TechniqueID   string                `json:"technique_id"`
-	TechniqueName string                `json:"technique_name,omitempty"`
+	TechniqueName string                `json:"technique_name"`
 	Trend         string                `json:"trend"`
 	GrowthRate    float64               `json:"growth_rate"`
 	Forecast      ConfidenceInterval    `json:"forecast"`
 	TopFeatures   []FeatureContribution `json:"top_features"`
 }
 
+// Normalize ensures all slice fields are non-nil so they serialize as [] not null.
+func (t *TechniqueTrendItem) Normalize() {
+	if t.TopFeatures == nil {
+		t.TopFeatures = []FeatureContribution{}
+	}
+}
+
 type InsiderThreatTrajectoryItem struct {
-	EntityID         string                `json:"entity_id"`
-	EntityName       string                `json:"entity_name,omitempty"`
-	CurrentRisk      float64               `json:"current_risk"`
-	ProjectedRisk    float64               `json:"projected_risk"`
-	Confidence       ConfidenceInterval    `json:"confidence_interval"`
-	DaysToThreshold  *int                  `json:"days_to_threshold,omitempty"`
-	Accelerating     bool                  `json:"accelerating"`
-	TopFeatures      []FeatureContribution `json:"top_features"`
-	VerificationStep string                `json:"verification_step,omitempty"`
+	EntityID           string                `json:"entity_id"`
+	EntityName         string                `json:"entity_name,omitempty"`
+	CurrentRisk        float64               `json:"current_risk"`
+	ProjectedRisk      float64               `json:"projected_risk"`
+	ConfidenceInterval ConfidenceInterval    `json:"confidence_interval"`
+	DaysToThreshold    *int                  `json:"days_to_threshold,omitempty"`
+	Accelerating       bool                  `json:"accelerating"`
+	TopFeatures        []FeatureContribution `json:"top_features"`
+	VerificationStep   string                `json:"verification_step,omitempty"`
 }
 
 type CampaignCluster struct {
-	ClusterID       string                `json:"cluster_id"`
-	AlertIDs        []uuid.UUID           `json:"alert_ids"`
-	AlertTitles     []string              `json:"alert_titles,omitempty"`
-	StartAt         time.Time             `json:"start_at"`
-	EndAt           time.Time             `json:"end_at"`
-	Stage           string                `json:"stage"`
-	MITRETechniques []string              `json:"mitre_techniques,omitempty"`
-	SharedIOCs      []string              `json:"shared_iocs,omitempty"`
-	Confidence      ConfidenceInterval    `json:"confidence_interval"`
-	TopFeatures     []FeatureContribution `json:"top_features"`
+	ClusterID          string                `json:"cluster_id"`
+	AlertIDs           []string              `json:"alert_ids"`
+	AlertTitles        []string              `json:"alert_titles"`
+	StartAt            time.Time             `json:"start_at"`
+	EndAt              time.Time             `json:"end_at"`
+	Stage              string                `json:"stage"`
+	MITRETechniques    []string              `json:"mitre_techniques"`
+	SharedIOCs         []string              `json:"shared_iocs"`
+	ConfidenceInterval ConfidenceInterval    `json:"confidence_interval"`
+	TopFeatures        []FeatureContribution `json:"top_features"`
+}
+
+// Normalize ensures all slice fields are non-nil so they serialize as [] not null.
+func (c *CampaignCluster) Normalize() {
+	if c.AlertIDs == nil {
+		c.AlertIDs = []string{}
+	}
+	if c.AlertTitles == nil {
+		c.AlertTitles = []string{}
+	}
+	if c.MITRETechniques == nil {
+		c.MITRETechniques = []string{}
+	}
+	if c.SharedIOCs == nil {
+		c.SharedIOCs = []string{}
+	}
+	if c.TopFeatures == nil {
+		c.TopFeatures = []FeatureContribution{}
+	}
+}
+
+// Normalize ensures Points is non-nil so it serializes as [] not null.
+func (f *AlertVolumeForecast) Normalize() {
+	if f.Points == nil {
+		f.Points = []ForecastPoint{}
+	}
 }
 
 type AccuracyDashboard struct {

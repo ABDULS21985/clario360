@@ -22,7 +22,7 @@ func TestAuthorize_ValidClient(t *testing.T) {
 	svc, _, user, redisSrv := newOAuthServiceForTest(t)
 	defer redisSrv.Close()
 
-	pair, err := svc.jwtMgr.GenerateTokenPair(user.ID, user.TenantID, user.Email, []string{"security-analyst"})
+	pair, err := svc.jwtMgr.GenerateTokenPair(user.ID, user.TenantID, user.Email, []string{"security-analyst"}, "")
 	if err != nil {
 		t.Fatalf("GenerateTokenPair failed: %v", err)
 	}
@@ -49,7 +49,7 @@ func TestAuthorize_ValidClient(t *testing.T) {
 func TestAuthorize_UnregisteredClient(t *testing.T) {
 	svc, _, user, redisSrv := newOAuthServiceForTest(t)
 	defer redisSrv.Close()
-	pair, _ := svc.jwtMgr.GenerateTokenPair(user.ID, user.TenantID, user.Email, []string{"security-analyst"})
+	pair, _ := svc.jwtMgr.GenerateTokenPair(user.ID, user.TenantID, user.Email, []string{"security-analyst"}, "")
 
 	req := validAuthorizeRequest()
 	req.ClientID = "unknown"
@@ -60,7 +60,7 @@ func TestAuthorize_UnregisteredClient(t *testing.T) {
 func TestAuthorize_InvalidRedirectURI(t *testing.T) {
 	svc, _, user, redisSrv := newOAuthServiceForTest(t)
 	defer redisSrv.Close()
-	pair, _ := svc.jwtMgr.GenerateTokenPair(user.ID, user.TenantID, user.Email, []string{"security-analyst"})
+	pair, _ := svc.jwtMgr.GenerateTokenPair(user.ID, user.TenantID, user.Email, []string{"security-analyst"}, "")
 
 	req := validAuthorizeRequest()
 	req.RedirectURI = "https://evil.example.com/callback"
@@ -71,7 +71,7 @@ func TestAuthorize_InvalidRedirectURI(t *testing.T) {
 func TestAuthorize_MissingPKCE(t *testing.T) {
 	svc, _, user, redisSrv := newOAuthServiceForTest(t)
 	defer redisSrv.Close()
-	pair, _ := svc.jwtMgr.GenerateTokenPair(user.ID, user.TenantID, user.Email, []string{"security-analyst"})
+	pair, _ := svc.jwtMgr.GenerateTokenPair(user.ID, user.TenantID, user.Email, []string{"security-analyst"}, "")
 
 	req := validAuthorizeRequest()
 	req.CodeChallenge = ""
@@ -82,7 +82,7 @@ func TestAuthorize_MissingPKCE(t *testing.T) {
 func TestTokenExchange_ValidCode(t *testing.T) {
 	svc, _, user, redisSrv := newOAuthServiceForTest(t)
 	defer redisSrv.Close()
-	pair, _ := svc.jwtMgr.GenerateTokenPair(user.ID, user.TenantID, user.Email, []string{"security-analyst"})
+	pair, _ := svc.jwtMgr.GenerateTokenPair(user.ID, user.TenantID, user.Email, []string{"security-analyst"}, "")
 
 	result, err := svc.Authorize(context.Background(), validAuthorizeRequest(), pair.AccessToken)
 	if err != nil {
@@ -111,7 +111,7 @@ func TestTokenExchange_ValidCode(t *testing.T) {
 func TestTokenExchange_ExpiredCode(t *testing.T) {
 	svc, _, user, redisSrv := newOAuthServiceForTest(t)
 	defer redisSrv.Close()
-	pair, _ := svc.jwtMgr.GenerateTokenPair(user.ID, user.TenantID, user.Email, []string{"security-analyst"})
+	pair, _ := svc.jwtMgr.GenerateTokenPair(user.ID, user.TenantID, user.Email, []string{"security-analyst"}, "")
 	result, _ := svc.Authorize(context.Background(), validAuthorizeRequest(), pair.AccessToken)
 	code := mustRedirectCode(t, result.RedirectURL)
 
@@ -129,7 +129,7 @@ func TestTokenExchange_ExpiredCode(t *testing.T) {
 func TestTokenExchange_UsedCode(t *testing.T) {
 	svc, _, user, redisSrv := newOAuthServiceForTest(t)
 	defer redisSrv.Close()
-	pair, _ := svc.jwtMgr.GenerateTokenPair(user.ID, user.TenantID, user.Email, []string{"security-analyst"})
+	pair, _ := svc.jwtMgr.GenerateTokenPair(user.ID, user.TenantID, user.Email, []string{"security-analyst"}, "")
 	result, _ := svc.Authorize(context.Background(), validAuthorizeRequest(), pair.AccessToken)
 	code := mustRedirectCode(t, result.RedirectURL)
 
@@ -155,7 +155,7 @@ func TestTokenExchange_UsedCode(t *testing.T) {
 func TestTokenExchange_InvalidPKCE(t *testing.T) {
 	svc, _, user, redisSrv := newOAuthServiceForTest(t)
 	defer redisSrv.Close()
-	pair, _ := svc.jwtMgr.GenerateTokenPair(user.ID, user.TenantID, user.Email, []string{"security-analyst"})
+	pair, _ := svc.jwtMgr.GenerateTokenPair(user.ID, user.TenantID, user.Email, []string{"security-analyst"}, "")
 	result, _ := svc.Authorize(context.Background(), validAuthorizeRequest(), pair.AccessToken)
 	code := mustRedirectCode(t, result.RedirectURL)
 
@@ -172,7 +172,7 @@ func TestTokenExchange_InvalidPKCE(t *testing.T) {
 func TestTokenExchange_InvalidRedirectURI(t *testing.T) {
 	svc, _, user, redisSrv := newOAuthServiceForTest(t)
 	defer redisSrv.Close()
-	pair, _ := svc.jwtMgr.GenerateTokenPair(user.ID, user.TenantID, user.Email, []string{"security-analyst"})
+	pair, _ := svc.jwtMgr.GenerateTokenPair(user.ID, user.TenantID, user.Email, []string{"security-analyst"}, "")
 	result, _ := svc.Authorize(context.Background(), validAuthorizeRequest(), pair.AccessToken)
 	code := mustRedirectCode(t, result.RedirectURL)
 
@@ -196,7 +196,7 @@ func TestTokenExchange_ValidClientSecret(t *testing.T) {
 		Scopes:       []string{"openid", "profile", "email", "roles"},
 		RequirePKCE:  true,
 	}
-	pair, _ := svc.jwtMgr.GenerateTokenPair(user.ID, user.TenantID, user.Email, []string{"security-analyst"})
+	pair, _ := svc.jwtMgr.GenerateTokenPair(user.ID, user.TenantID, user.Email, []string{"security-analyst"}, "")
 	result, _ := svc.Authorize(context.Background(), validAuthorizeRequest(), pair.AccessToken)
 	code := mustRedirectCode(t, result.RedirectURL)
 
@@ -226,7 +226,7 @@ func TestTokenExchange_InvalidClientSecret(t *testing.T) {
 		Scopes:       []string{"openid", "profile", "email", "roles"},
 		RequirePKCE:  true,
 	}
-	pair, _ := svc.jwtMgr.GenerateTokenPair(user.ID, user.TenantID, user.Email, []string{"security-analyst"})
+	pair, _ := svc.jwtMgr.GenerateTokenPair(user.ID, user.TenantID, user.Email, []string{"security-analyst"}, "")
 	result, _ := svc.Authorize(context.Background(), validAuthorizeRequest(), pair.AccessToken)
 	code := mustRedirectCode(t, result.RedirectURL)
 
@@ -244,7 +244,7 @@ func TestTokenExchange_InvalidClientSecret(t *testing.T) {
 func TestUserInfo_ValidToken(t *testing.T) {
 	svc, _, user, redisSrv := newOAuthServiceForTest(t)
 	defer redisSrv.Close()
-	pair, _ := svc.jwtMgr.GenerateTokenPair(user.ID, user.TenantID, user.Email, []string{"security-analyst"})
+	pair, _ := svc.jwtMgr.GenerateTokenPair(user.ID, user.TenantID, user.Email, []string{"security-analyst"}, "")
 
 	info, err := svc.UserInfo(context.Background(), pair.AccessToken)
 	if err != nil {
@@ -269,7 +269,7 @@ func TestUserInfo_ExpiredToken(t *testing.T) {
 	}
 	svc, _, user, redisSrv := newOAuthServiceForTest(t)
 	defer redisSrv.Close()
-	pair, _ := expiredMgr.GenerateTokenPair(user.ID, user.TenantID, user.Email, []string{"security-analyst"})
+	pair, _ := expiredMgr.GenerateTokenPair(user.ID, user.TenantID, user.Email, []string{"security-analyst"}, "")
 
 	_, err = svc.UserInfo(context.Background(), pair.AccessToken)
 	assertOAuthErrorCode(t, err, "INVALID_TOKEN")

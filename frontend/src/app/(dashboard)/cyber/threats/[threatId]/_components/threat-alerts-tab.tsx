@@ -13,6 +13,7 @@ import { EmptyState } from '@/components/common/empty-state';
 import { DataTable } from '@/components/shared/data-table/data-table';
 import { SeverityIndicator } from '@/components/shared/severity-indicator';
 import { StatusBadge } from '@/components/shared/status-badge';
+import { alertStatusConfig } from '@/lib/status-configs';
 import { AlertTriangle } from 'lucide-react';
 import type { CyberAlert } from '@/types/cyber';
 
@@ -50,7 +51,7 @@ export function ThreatAlertsTab({ threatId }: ThreatAlertsTabProps) {
       id: 'status',
       accessorKey: 'status',
       header: 'Status',
-      cell: ({ row }) => <StatusBadge status={row.original.status} />,
+      cell: ({ row }) => <StatusBadge status={row.original.status} config={alertStatusConfig} />,
     },
     {
       id: 'confidence_score',

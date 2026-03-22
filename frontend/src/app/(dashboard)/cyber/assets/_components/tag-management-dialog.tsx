@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -17,6 +17,11 @@ import { API_ENDPOINTS } from '@/lib/constants';
 import { X, Plus } from 'lucide-react';
 import type { CyberAsset } from '@/types/cyber';
 
+interface TagPatchPayload {
+  add?: string[];
+  remove?: string[];
+}
+
 interface TagManagementDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -28,9 +33,16 @@ export function TagManagementDialog({ open, onOpenChange, asset, onSuccess }: Ta
   const [tags, setTags] = useState<string[]>(asset.tags ?? []);
   const [input, setInput] = useState('');
 
-  const { mutate, isPending } = useApiMutation<CyberAsset, { tags: string[] }>(
-    'put',
-    `${API_ENDPOINTS.CYBER_ASSETS}/${asset.id}`,
+  // Reset tags when the dialog opens with a (possibly different) asset
+  useEffect(() => {
+    if (open) {
+      setTags(asset.tags ?? []);
+    }
+  }, [open, asset]);
+
+  const { mutate, isPending } = useApiMutation<CyberAsset, TagPatchPayload>(
+    'patch',
+    `${API_ENDPOINTS.CYBER_ASSETS}/${asset.id}/tags`,
     {
       successMessage: 'Tags updated',
       invalidateKeys: ['cyber-assets', `cyber-asset-${asset.id}`],
@@ -61,7 +73,23 @@ export function TagManagementDialog({ open, onOpenChange, asset, onSuccess }: Ta
   };
 
   const handleSave = () => {
-    mutate({ tags });
+    const originalTags = new Set(asset.tags ?? []);
+    const currentTags = new Set(tags);
+    const add = tags.filter((t) => !originalTags.has(t));
+    const remove = (asset.tags ?? []).filter((t) => !currentTags.has(t));
+
+    // Only send non-empty arrays
+    const payload: TagPatchPayload = {};
+    if (add.length > 0) payload.add = add;
+    if (remove.length > 0) payload.remove = remove;
+
+    // Nothing changed — close without a request
+    if (!payload.add && !payload.remove) {
+      onOpenChange(false);
+      return;
+    }
+
+    mutate(payload);
   };
 
   const handleClose = () => {

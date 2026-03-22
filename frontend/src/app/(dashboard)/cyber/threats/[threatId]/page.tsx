@@ -14,6 +14,7 @@ import { PermissionRedirect } from '@/components/common/permission-redirect';
 import { PermissionGate } from '@/components/auth/permission-gate';
 import { SeverityIndicator } from '@/components/shared/severity-indicator';
 import { StatusBadge } from '@/components/shared/status-badge';
+import { threatStatusConfig } from '@/lib/status-configs';
 import { ConfirmDialog } from '@/components/shared/confirm-dialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -61,9 +62,14 @@ export default function ThreatDetailPage({ params }: Props) {
     'put',
     API_ENDPOINTS.CYBER_THREAT_STATUS(threatId),
     {
-      invalidateKeys: ['cyber-threats', `cyber-threat-${threatId}`],
+      invalidateKeys: ['cyber-threats', `cyber-threat-${threatId}`, 'threat-timeline', 'cyber-threat-stats'],
       successMessage: 'Threat status updated',
       onSuccess: () => {
+        setPendingStatus(null);
+        void threatQuery.refetch();
+      },
+      onError: () => {
+        // Refetch to get latest status in case the transition was rejected due to stale state
         setPendingStatus(null);
         void threatQuery.refetch();
       },
@@ -109,7 +115,7 @@ export default function ThreatDetailPage({ params }: Props) {
               description={
                 <div className="flex flex-wrap items-center gap-3 pl-11">
                   <SeverityIndicator severity={threat.severity} showLabel />
-                  <StatusBadge status={threat.status} />
+                  <StatusBadge status={threat.status} config={threatStatusConfig} />
                   <Badge variant="outline" className="capitalize">{threat.type.replaceAll('_', ' ')}</Badge>
                   {threat.threat_actor && <Badge variant="secondary">{threat.threat_actor}</Badge>}
                   {threat.campaign && <Badge variant="secondary">{threat.campaign}</Badge>}

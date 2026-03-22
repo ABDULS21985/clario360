@@ -216,9 +216,15 @@ export function ApiKeysSection() {
 
   const handleRevoke = async () => {
     if (!revokeKey) return;
-    await apiDelete(`/api/v1/api-keys/${revokeKey.id}`);
-    toast.success('API key revoked.');
-    refetch();
+    try {
+      await apiDelete(`/api/v1/api-keys/${revokeKey.id}`);
+      toast.success('API key revoked.');
+      setRevokeKey(null);
+      refetch();
+    } catch (err) {
+      const msg = isApiError(err) ? err.message : 'Failed to revoke API key.';
+      toast.error(msg);
+    }
   };
 
   return (

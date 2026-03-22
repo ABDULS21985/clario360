@@ -1,13 +1,16 @@
 'use client';
 
 import { useQuery } from '@tanstack/react-query';
-import { ArrowUp } from 'lucide-react';
+import { AlertCircle, ArrowUp } from 'lucide-react';
 import { apiGet } from '@/lib/api';
 import { API_ENDPOINTS } from '@/lib/constants';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { LoadingSkeleton } from '@/components/common/loading-skeleton';
 import type { ThreatForecastItem } from '@/types/cyber';
+
+const HORIZON_DAYS = 7;
 
 // The /threat-forecast endpoint calls PredictTechniqueTrends with a short
 // 7-day horizon. We filter to increasing-only so this section is a distinct
@@ -18,11 +21,11 @@ interface ForecastResponse {
 }
 
 export function ThreatForecast() {
-  const { data, isLoading } = useQuery({
-    queryKey: ['cyber-analytics-threat-forecast', 7],
+  const { data, isLoading, isError, refetch } = useQuery({
+    queryKey: ['cyber-analytics-threat-forecast', HORIZON_DAYS],
     queryFn: () =>
       apiGet<{ data: ForecastResponse }>(API_ENDPOINTS.CYBER_ANALYTICS_THREAT_FORECAST, {
-        horizon_days: 7,
+        horizon_days: HORIZON_DAYS,
       }),
     refetchInterval: 300000,
   });
@@ -33,6 +36,23 @@ export function ThreatForecast() {
 
   if (isLoading) {
     return <LoadingSkeleton variant="card" />;
+  }
+
+  if (isError) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Emerging Threats — 7-Day Forecast</CardTitle>
+        </CardHeader>
+        <CardContent className="flex items-center gap-3">
+          <AlertCircle className="h-4 w-4 text-destructive" />
+          <span className="text-sm text-muted-foreground">Failed to load threat forecast.</span>
+          <Button variant="outline" size="sm" onClick={() => void refetch()}>
+            Retry
+          </Button>
+        </CardContent>
+      </Card>
+    );
   }
 
   return (

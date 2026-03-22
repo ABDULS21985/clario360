@@ -5,15 +5,15 @@ import (
 	"net/http"
 
 	"github.com/clario360/platform/internal/auth"
+	"github.com/clario360/platform/internal/cyber/dto"
 	"github.com/clario360/platform/internal/cyber/repository"
-	"github.com/clario360/platform/internal/cyber/service"
 )
 
 type RiskHandler struct {
-	svc *service.RiskService
+	svc riskService
 }
 
-func NewRiskHandler(svc *service.RiskService) *RiskHandler {
+func NewRiskHandler(svc riskService) *RiskHandler {
 	return &RiskHandler{svc: svc}
 }
 
@@ -72,7 +72,7 @@ func (h *RiskHandler) GetHeatmap(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "INTERNAL_ERROR", err.Error())
 		return
 	}
-	writeJSON(w, http.StatusOK, envelope{"data": heatmap})
+	writeJSON(w, http.StatusOK, envelope{"data": dto.HeatmapToResponse(heatmap)})
 }
 
 func (h *RiskHandler) GetTopRisks(w http.ResponseWriter, r *http.Request) {

@@ -113,6 +113,7 @@ func RegisterVCISOGovernanceRoutes(r chi.Router, h *VCISOGovernanceHandler) {
 	r.Get(p+"/integrations", h.ListIntegrations)
 	r.Post(p+"/integrations", h.CreateIntegration)
 	r.Put(p+"/integrations/{id}", h.UpdateIntegration)
+	r.Patch(p+"/integrations/{id}", h.PatchIntegration)
 	r.Delete(p+"/integrations/{id}", h.DeleteIntegration)
 	r.Post(p+"/integrations/{id}/sync", h.SyncIntegration)
 

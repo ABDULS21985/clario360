@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"encoding/json"
 	"errors"
 	"net/http"
 	"strconv"
@@ -59,7 +60,10 @@ func (h *DSPMHandler) TriggerScan(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	scan, err := h.svc.TriggerScan(r.Context(), tenantID, userID, actorFromRequest(r))
+	var req dto.DSPMScanTriggerRequest
+	// Body is optional — if empty or malformed, proceed with zero-value defaults.
+	_ = json.NewDecoder(r.Body).Decode(&req)
+	scan, err := h.svc.TriggerScan(r.Context(), tenantID, userID, actorFromRequest(r), &req)
 	if err != nil {
 		h.writeError(w, err)
 		return

@@ -654,10 +654,10 @@ VALUES
 
 INSERT INTO vciso_integrations (id, tenant_id, name, type, provider, status, sync_frequency, items_synced, config, health_status)
 VALUES
-('aaaaaaaa-0016-1501-0000-000000000001', 'aaaaaaaa-0000-0000-0000-000000000001', 'Splunk SIEM Integration', 'siem', 'Splunk', 'active', 'realtime', 15420, '{"endpoint":"https://splunk.example.com:8089","index":"security_events","token":"[REDACTED]"}', 'healthy'),
-('aaaaaaaa-0016-1501-0000-000000000002', 'aaaaaaaa-0000-0000-0000-000000000001', 'CrowdStrike EDR Feed', 'edr', 'CrowdStrike', 'active', 'every_5min', 8930, '{"api_url":"https://api.crowdstrike.com","client_id":"[REDACTED]"}', 'healthy'),
-('aaaaaaaa-0016-1501-0000-000000000003', 'aaaaaaaa-0000-0000-0000-000000000001', 'ServiceNow ITSM', 'itsm', 'ServiceNow', 'active', 'hourly', 3200, '{"instance":"dev12345.service-now.com","table":"incident"}', 'healthy'),
-('aaaaaaaa-0016-1501-0000-000000000004', 'aaaaaaaa-0000-0000-0000-000000000001', 'Qualys Vulnerability Scanner', 'vulnerability_scanner', 'Qualys', 'inactive', 'daily', 0, '{"api_url":"https://qualysapi.qualys.com","subscription":"[REDACTED]"}', 'degraded');
+('aaaaaaaa-0016-1501-0000-000000000001', 'aaaaaaaa-0000-0000-0000-000000000001', 'Splunk SIEM Integration', 'siem', 'Splunk', 'connected', 'every_5m', 15420, '{"endpoint":"https://splunk.example.com:8089","index":"security_events","token":"[REDACTED]"}', 'healthy'),
+('aaaaaaaa-0016-1501-0000-000000000002', 'aaaaaaaa-0000-0000-0000-000000000001', 'CrowdStrike EDR Feed', 'cloud_security', 'CrowdStrike', 'connected', 'every_5m', 8930, '{"api_url":"https://api.crowdstrike.com","client_id":"[REDACTED]"}', 'healthy'),
+('aaaaaaaa-0016-1501-0000-000000000003', 'aaaaaaaa-0000-0000-0000-000000000001', 'ServiceNow ITSM', 'ticketing', 'ServiceNow', 'connected', 'every_hour', 3200, '{"instance":"dev12345.service-now.com","table":"incident"}', 'healthy'),
+('aaaaaaaa-0016-1501-0000-000000000004', 'aaaaaaaa-0000-0000-0000-000000000001', 'Qualys Vulnerability Scanner', 'asset_management', 'Qualys', 'disconnected', 'daily', 0, '{"api_url":"https://qualysapi.qualys.com","subscription":"[REDACTED]"}', 'degraded');
 
 -- ─── 16. vciso_control_ownership seed ───────────────────────────────────────
 

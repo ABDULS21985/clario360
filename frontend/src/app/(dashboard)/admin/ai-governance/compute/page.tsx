@@ -254,7 +254,7 @@ export default function ComputePage() {
   );
 
   return (
-    <PermissionRedirect permission="users:read">
+    <PermissionRedirect permission="admin:read">
       <div className="space-y-6">
         <PageHeader
           title="Compute Infrastructure"

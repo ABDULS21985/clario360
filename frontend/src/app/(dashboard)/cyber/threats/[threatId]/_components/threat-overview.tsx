@@ -4,6 +4,7 @@ import ReactMarkdown from 'react-markdown';
 import { Badge } from '@/components/ui/badge';
 import { SeverityIndicator } from '@/components/shared/severity-indicator';
 import { StatusBadge } from '@/components/shared/status-badge';
+import { threatStatusConfig } from '@/lib/status-configs';
 import { formatDateTime } from '@/lib/utils';
 import { getThreatTypeLabel } from '@/lib/cyber-threats';
 import type { Threat } from '@/types/cyber';
@@ -22,7 +23,7 @@ export function ThreatOverview({ threat }: ThreatOverviewProps) {
           <div className="flex flex-wrap items-center gap-2">
             <Badge variant="outline">{getThreatTypeLabel(threat.type)}</Badge>
             <SeverityIndicator severity={threat.severity} showLabel />
-            <StatusBadge status={threat.status} />
+            <StatusBadge status={threat.status} config={threatStatusConfig} />
             {threat.threat_actor && <Badge variant="secondary">{threat.threat_actor}</Badge>}
             {threat.campaign && <Badge variant="secondary">{threat.campaign}</Badge>}
           </div>

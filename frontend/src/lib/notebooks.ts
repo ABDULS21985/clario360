@@ -50,7 +50,18 @@ export interface CopiedTemplate {
   open_url: string;
 }
 
+export interface NotebookHubStatus {
+  status: 'available' | 'unavailable';
+  error?: string;
+}
+
+export interface NotebookHealth {
+  status: 'ok' | 'degraded';
+  jupyterhub: NotebookHubStatus;
+}
+
 export const notebookApi = {
+  checkHealth: () => apiGet<NotebookHealth>('/api/v1/notebooks/health'),
   listProfiles: () => apiGet<NotebookProfile[]>('/api/v1/notebooks/profiles'),
   listTemplates: () => apiGet<NotebookTemplate[]>('/api/v1/notebooks/templates'),
   listServers: () => apiGet<NotebookServer[]>('/api/v1/notebooks/servers'),

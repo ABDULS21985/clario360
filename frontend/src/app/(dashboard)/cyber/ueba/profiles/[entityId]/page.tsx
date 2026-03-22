@@ -19,6 +19,8 @@ import { SourceIPList } from '../../_components/source-ip-list';
 import { BaselineComparisonCard } from '../../_components/baseline-comparison-card';
 import { SignalEvidenceViewer } from '../../_components/signal-evidence-viewer';
 import { RiskScoreHistory } from '../../_components/risk-score-history';
+import { ProfileActions } from '../../_components/profile-actions';
+import { AlertActions } from '../../_components/alert-actions';
 import type {
   UebaAlert,
   UebaHeatmapResponse,
@@ -95,12 +97,13 @@ export default function UebaProfileDetailPage() {
           title={profile.entity_name ?? profile.entity_id}
           description={`${profile.entity_type.replaceAll('_', ' ')} behavioral baseline`}
           actions={
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <Badge variant={badgeVariant(profile.risk_level)}>
                 Risk {profile.risk_score.toFixed(0)} · {profile.risk_level}
               </Badge>
               <Badge variant={badgeVariant(profile.profile_maturity)}>{profile.profile_maturity}</Badge>
               <Badge variant="outline">{profile.status}</Badge>
+              <ProfileActions profile={profile} />
             </div>
           }
         />
@@ -161,9 +164,12 @@ export default function UebaProfileDetailPage() {
                 <CardHeader>
                   <div className="flex items-center justify-between gap-3">
                     <CardTitle className="text-base">{alert.title}</CardTitle>
-                    <Badge variant={alert.severity === 'critical' ? 'destructive' : alert.severity === 'high' ? 'warning' : 'outline'}>
-                      {alert.severity}
-                    </Badge>
+                    <div className="flex items-center gap-2">
+                      <Badge variant={alert.severity === 'critical' ? 'destructive' : alert.severity === 'high' ? 'warning' : 'outline'}>
+                        {alert.severity}
+                      </Badge>
+                      <AlertActions alert={alert} />
+                    </div>
                   </div>
                 </CardHeader>
                 <CardContent>
@@ -207,8 +213,13 @@ export default function UebaProfileDetailPage() {
               />
               <BaselineComparisonCard
                 title="Failure Rate Comparison"
-                expected={failureComparison?.['expected_failure_rate_percent']}
-                actual={timelineQuery.data?.data.filter((event) => !event.success).length ?? 0}
+                expected={{
+                  failure_rate_percent: failureComparison?.['expected_failure_rate_percent'],
+                  daily_failure_count_mean: profile.baseline.failure_rate?.daily_failure_count_mean,
+                }}
+                actual={{
+                  current_failure_rate_percent: profile.baseline.failure_rate?.failure_rate_percent,
+                }}
               />
             </div>
           </TabsContent>

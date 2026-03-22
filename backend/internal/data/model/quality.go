@@ -135,6 +135,7 @@ type QualityScore struct {
 	Trend        string              `json:"trend"`
 	TrendDelta   float64             `json:"trend_delta"`
 	CalculatedAt time.Time           `json:"calculated_at"`
+	History      []float64           `json:"history,omitempty"`
 }
 
 type QualityTrendPoint struct {
