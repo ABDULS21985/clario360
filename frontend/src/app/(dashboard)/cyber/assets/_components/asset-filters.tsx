@@ -1,4 +1,23 @@
-import type { FilterConfig } from '@/types/table';
+import type { FetchParams, FilterConfig } from '@/types/table';
+
+export function flattenAssetFetchParams(params: FetchParams): Record<string, unknown> {
+  const flat: Record<string, unknown> = {
+    page: params.page,
+    per_page: params.per_page,
+    sort: params.sort,
+    order: params.order,
+    search: params.search,
+  };
+
+  for (const [key, value] of Object.entries(params.filters ?? {})) {
+    if (!value || (typeof value === 'string' && value.length === 0)) {
+      continue;
+    }
+    flat[key] = value;
+  }
+
+  return flat;
+}
 
 export const ASSET_FILTERS: FilterConfig[] = [
   {

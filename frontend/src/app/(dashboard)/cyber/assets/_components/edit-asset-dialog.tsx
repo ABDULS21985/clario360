@@ -89,7 +89,11 @@ export function EditAssetDialog({ open, onOpenChange, asset, onSuccess }: EditAs
   );
 
   const onSubmit = methods.handleSubmit((data) => {
-    mutate(data);
+    // Strip empty strings → undefined so backend *string fields stay nil
+    const cleaned = Object.fromEntries(
+      Object.entries(data).map(([k, v]) => [k, v === '' ? undefined : v]),
+    ) as FormValues;
+    mutate(cleaned);
   });
 
   return (

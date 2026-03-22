@@ -12,6 +12,18 @@ import (
 	"github.com/clario360/platform/internal/suiteapi"
 )
 
+// contractSortColumns maps frontend sort keys to safe SQL column expressions.
+var contractSortColumns = map[string]string{
+	"title":       "c.title",
+	"status":      "c.status",
+	"type":        "c.type",
+	"total_value": "c.total_value",
+	"expiry_date": "c.expiry_date",
+	"updated_at":  "c.updated_at",
+	"created_at":  "c.created_at",
+	"risk_score":  "c.risk_score",
+}
+
 type ContractHandler struct {
 	baseHandler
 	service         *service.ContractService
@@ -50,6 +62,7 @@ func (h *ContractHandler) List(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	page, perPage := suiteapi.ParsePagination(r)
+	sortCol, sortDir := suiteapi.ParseSort(r, contractSortColumns, "updated_at", "desc")
 	status := strings.TrimSpace(r.URL.Query().Get("status"))
 	contractType := strings.TrimSpace(r.URL.Query().Get("type"))
 	riskLevel := strings.TrimSpace(r.URL.Query().Get("risk_level"))
@@ -71,6 +84,8 @@ func (h *ContractHandler) List(w http.ResponseWriter, r *http.Request) {
 		Department:     strings.TrimSpace(r.URL.Query().Get("department")),
 		Tag:            strings.TrimSpace(r.URL.Query().Get("tag")),
 		ExpiringInDays: expiringInDays,
+		SortColumn:     sortCol,
+		SortDirection:  sortDir,
 	}
 	if status != "" {
 		value := model.ContractStatus(status)

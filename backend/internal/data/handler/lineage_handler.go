@@ -115,7 +115,7 @@ func (h *LineageHandler) Search(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	items, err := h.service.Search(r.Context(), tenantID, dto.SearchLineageParams{
-		Query: r.URL.Query().Get("q"),
+		Query: r.URL.Query().Get("query"),
 		Type:  r.URL.Query().Get("type"),
 		Limit: limit,
 	})

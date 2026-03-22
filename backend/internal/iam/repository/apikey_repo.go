@@ -143,13 +143,23 @@ func (r *apiKeyRepo) ListPaginated(ctx context.Context, tenantID string, page, p
 		argIdx++
 	}
 
-	switch status {
-	case "active":
-		where += " AND revoked_at IS NULL AND (expires_at IS NULL OR expires_at > NOW())"
-	case "revoked":
-		where += " AND revoked_at IS NOT NULL"
-	case "expired":
-		where += " AND revoked_at IS NULL AND expires_at IS NOT NULL AND expires_at <= NOW()"
+	// Support comma-separated multi-status: "active,revoked"
+	if status != "" {
+		statusValues := strings.Split(status, ",")
+		var statusConds []string
+		for _, sv := range statusValues {
+			switch strings.TrimSpace(sv) {
+			case "active":
+				statusConds = append(statusConds, "(revoked_at IS NULL AND (expires_at IS NULL OR expires_at > NOW()))")
+			case "revoked":
+				statusConds = append(statusConds, "revoked_at IS NOT NULL")
+			case "expired":
+				statusConds = append(statusConds, "(revoked_at IS NULL AND expires_at IS NOT NULL AND expires_at <= NOW())")
+			}
+		}
+		if len(statusConds) > 0 {
+			where += " AND (" + strings.Join(statusConds, " OR ") + ")"
+		}
 	}
 
 	var total int

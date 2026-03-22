@@ -42,6 +42,7 @@ const definitionFilters: FilterConfig[] = [
       { label: 'Draft', value: 'draft' },
       { label: 'Active', value: 'active' },
       { label: 'Archived', value: 'archived' },
+      { label: 'Deprecated', value: 'deprecated' },
     ],
   },
   {

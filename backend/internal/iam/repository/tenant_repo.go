@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -100,14 +101,38 @@ func (r *tenantRepo) List(ctx context.Context, page, perPage int, params TenantL
 		argIdx++
 	}
 	if params.Status != "" {
-		where += fmt.Sprintf(" AND status = $%d", argIdx)
-		args = append(args, params.Status)
-		argIdx++
+		// Support comma-separated multi-status: "active,suspended"
+		statusValues := strings.Split(params.Status, ",")
+		if len(statusValues) == 1 {
+			where += fmt.Sprintf(" AND status = $%d", argIdx)
+			args = append(args, strings.TrimSpace(statusValues[0]))
+			argIdx++
+		} else {
+			placeholders := make([]string, len(statusValues))
+			for i, sv := range statusValues {
+				placeholders[i] = fmt.Sprintf("$%d", argIdx)
+				args = append(args, strings.TrimSpace(sv))
+				argIdx++
+			}
+			where += fmt.Sprintf(" AND status IN (%s)", strings.Join(placeholders, ", "))
+		}
 	}
 	if params.SubscriptionTier != "" {
-		where += fmt.Sprintf(" AND subscription_tier = $%d", argIdx)
-		args = append(args, params.SubscriptionTier)
-		argIdx++
+		// Support comma-separated multi-tier: "free,enterprise"
+		tierValues := strings.Split(params.SubscriptionTier, ",")
+		if len(tierValues) == 1 {
+			where += fmt.Sprintf(" AND subscription_tier = $%d", argIdx)
+			args = append(args, strings.TrimSpace(tierValues[0]))
+			argIdx++
+		} else {
+			placeholders := make([]string, len(tierValues))
+			for i, tv := range tierValues {
+				placeholders[i] = fmt.Sprintf("$%d", argIdx)
+				args = append(args, strings.TrimSpace(tv))
+				argIdx++
+			}
+			where += fmt.Sprintf(" AND subscription_tier IN (%s)", strings.Join(placeholders, ", "))
+		}
 	}
 
 	// Count with filters.

@@ -34,6 +34,7 @@ const schema = z.object({
   type: z.enum(['patch', 'config_change', 'block_ip', 'isolate_asset', 'firewall_rule', 'access_revoke', 'certificate_renew', 'custom']),
   severity: z.enum(['critical', 'high', 'medium', 'low']),
   execution_mode: z.enum(['automated', 'manual', 'semi_automated']),
+  requires_approval_from: z.enum(['security_manager', 'ciso', 'tenant_admin']).default('security_manager'),
   steps: z.array(stepSchema).min(1, 'At least one step is required'),
   alert_id: z.string().optional().or(z.literal('')),
   vulnerability_id: z.string().optional().or(z.literal('')),
@@ -62,6 +63,7 @@ export function RemediationCreateDialog({
       type: 'patch',
       severity: 'medium',
       execution_mode: 'manual' as const,
+      requires_approval_from: 'security_manager' as const,
       alert_id: defaultAlertId ?? '',
       vulnerability_id: defaultVulnId ?? '',
       steps: [{ number: 1, action: '', description: '', target: '' }],
@@ -85,12 +87,14 @@ export function RemediationCreateDialog({
   );
 
   const onSubmit = methods.handleSubmit((data) => {
+    const { steps, ...rest } = data;
     const payload = {
-      ...data,
+      ...rest,
       alert_id: data.alert_id || undefined,
       vulnerability_id: data.vulnerability_id || undefined,
+      affected_asset_ids: [],
       plan: {
-        steps: data.steps.map((s, i) => ({ ...s, number: i + 1 })),
+        steps: steps.map((s, i) => ({ ...s, number: i + 1 })),
         reversible: data.execution_mode !== 'automated',
         risk_level: data.severity,
       },
@@ -150,6 +154,20 @@ export function RemediationCreateDialog({
                 </Select>
               </FormField>
             </div>
+
+            <FormField name="requires_approval_from" label="Requires Approval From">
+              <Select
+                value={methods.watch('requires_approval_from')}
+                onValueChange={(v) => methods.setValue('requires_approval_from', v as FormValues['requires_approval_from'])}
+              >
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="security_manager">Security Manager</SelectItem>
+                  <SelectItem value="ciso">CISO</SelectItem>
+                  <SelectItem value="tenant_admin">Tenant Admin</SelectItem>
+                </SelectContent>
+              </Select>
+            </FormField>
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <FormField name="alert_id" label="Linked Alert ID">

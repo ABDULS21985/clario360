@@ -72,6 +72,21 @@ type UpdateContractRequest struct {
 	Department        *string             `json:"department,omitempty"`
 	Tags              []string            `json:"tags,omitempty"`
 	Metadata          map[string]any      `json:"metadata,omitempty"`
+
+	// ClearedFields lists JSON field names the client wants explicitly set to NULL.
+	// This resolves the Go nil-pointer ambiguity for *time.Time and *float64 fields
+	// where null in JSON is indistinguishable from an absent key during unmarshaling.
+	ClearedFields []string `json:"cleared_fields,omitempty"`
+}
+
+// ShouldClear reports whether the given JSON field name was listed in ClearedFields.
+func (r *UpdateContractRequest) ShouldClear(field string) bool {
+	for _, f := range r.ClearedFields {
+		if f == field {
+			return true
+		}
+	}
+	return false
 }
 
 type UploadContractDocumentRequest struct {

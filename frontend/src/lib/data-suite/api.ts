@@ -237,7 +237,7 @@ export const dataSuiteApi = {
   getLineageImpact: (type: string, id: string) => fetchDataSuite<ImpactAnalysis>(DATA_SUITE_ENDPOINTS.lineageImpact(type, id)),
   getLineageStats: () => fetchDataSuite<LineageStatsSummary>(DATA_SUITE_ENDPOINTS.lineageStats),
   searchLineage: (query: string, type?: string, limit = 20) =>
-    fetchDataSuite<LineageSearchResult[]>(DATA_SUITE_ENDPOINTS.lineageSearch, { q: query, type, limit }),
+    fetchDataSuite<LineageSearchResult[]>(DATA_SUITE_ENDPOINTS.lineageSearch, { query, type, limit }),
   listDarkDataAssets: (params: FetchParams) => fetchDataSuitePaginated<DarkDataAsset>(DATA_SUITE_ENDPOINTS.darkData, params),
   getDarkDataAsset: (id: string) => fetchDataSuite<DarkDataAsset>(DATA_SUITE_ENDPOINTS.darkDataById(id)),
   updateDarkDataStatus: (id: string, payload: unknown) => apiPut<DataEnvelope<DarkDataAsset>>(DATA_SUITE_ENDPOINTS.darkDataStatus(id), payload).then((res) => res.data),

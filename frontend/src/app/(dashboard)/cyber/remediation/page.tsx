@@ -12,6 +12,7 @@ import { DataTable } from '@/components/shared/data-table/data-table';
 import { useDataTable } from '@/hooks/use-data-table';
 import { useRealtimeData } from '@/hooks/use-realtime-data';
 import { apiGet } from '@/lib/api';
+import { buildSuiteQueryParams } from '@/lib/suite-api';
 import { API_ENDPOINTS } from '@/lib/constants';
 import { getRemediationColumns } from './_components/remediation-columns';
 import { RemediationCreateDialog } from './_components/remediation-create-dialog';
@@ -40,7 +41,7 @@ export default function CyberRemediationPage() {
   const { tableProps, refetch } = useDataTable<RemediationAction>({
     queryKey: 'cyber-remediation',
     fetchFn: (params: FetchParams) =>
-      apiGet<PaginatedResponse<RemediationAction>>(API_ENDPOINTS.CYBER_REMEDIATION, params as unknown as Record<string, unknown>),
+      apiGet<PaginatedResponse<RemediationAction>>(API_ENDPOINTS.CYBER_REMEDIATION, buildSuiteQueryParams(params)),
     wsTopics: ['remediation.created', 'remediation.status_changed'],
     defaultSort: { column: 'created_at', direction: 'desc' },
   });

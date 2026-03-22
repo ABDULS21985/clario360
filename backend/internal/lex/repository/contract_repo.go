@@ -150,7 +150,30 @@ func (r *ContractRepository) List(ctx context.Context, tenantID uuid.UUID, filte
 	limitIdx := arg
 	offsetIdx := arg + 1
 	args = append(args, perPage, (page-1)*perPage)
-	query := contractJSONSelect(where) + fmt.Sprintf(" ORDER BY t.updated_at DESC LIMIT $%d OFFSET $%d", limitIdx, offsetIdx)
+	orderCol := "t.updated_at"
+	orderDir := "DESC"
+	if filters.SortColumn != "" {
+		// SortColumn is already validated/mapped by the handler via suiteapi.ParseSort,
+		// but the column prefix is "c." (the inner query alias). The outer alias is "t.",
+		// so we remap to the JSON field name which becomes a top-level key in row_to_json.
+		colMap := map[string]string{
+			"c.title":       "t.title",
+			"c.status":      "t.status",
+			"c.type":        "t.type",
+			"c.total_value": "t.total_value",
+			"c.expiry_date": "t.expiry_date",
+			"c.updated_at":  "t.updated_at",
+			"c.created_at":  "t.created_at",
+			"c.risk_score":  "t.risk_score",
+		}
+		if mapped, ok := colMap[filters.SortColumn]; ok {
+			orderCol = mapped
+		}
+	}
+	if filters.SortDirection == "asc" {
+		orderDir = "ASC"
+	}
+	query := contractJSONSelect(where) + fmt.Sprintf(" ORDER BY %s %s LIMIT $%d OFFSET $%d", orderCol, orderDir, limitIdx, offsetIdx)
 	items, err := queryListJSON[model.Contract](ctx, r.db, query, args...)
 	if err != nil {
 		return nil, 0, fmt.Errorf("list contracts: %w", err)

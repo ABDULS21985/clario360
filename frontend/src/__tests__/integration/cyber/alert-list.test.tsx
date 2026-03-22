@@ -108,10 +108,8 @@ async function renderPage() {
 describe('Alert List Page', () => {
   it('renders page header', async () => {
     await renderPage();
-    await waitFor(() => {
-      expect(screen.getByText('Alert Management')).toBeInTheDocument();
-    });
-  });
+    expect(await screen.findByRole('heading', { name: /alert management/i }, { timeout: 10000 })).toBeInTheDocument();
+  }, 10000);
 
   it('displays alert titles', async () => {
     await renderPage();

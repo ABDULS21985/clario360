@@ -44,6 +44,7 @@ import { useDataTable } from '@/hooks/use-data-table';
 import { useRealtimeData } from '@/hooks/use-realtime-data';
 import { useApiMutation } from '@/hooks/use-api-mutation';
 import { apiGet } from '@/lib/api';
+import { buildSuiteQueryParams } from '@/lib/suite-api';
 import { API_ENDPOINTS } from '@/lib/constants';
 import { evidenceStatusConfig } from '@/lib/status-configs';
 import { formatDate, formatBytes, titleCase } from '@/lib/format';
@@ -101,7 +102,7 @@ const EVIDENCE_FILTERS: FilterConfig[] = [
 function fetchEvidence(params: FetchParams): Promise<PaginatedResponse<VCISOEvidence>> {
   return apiGet<PaginatedResponse<VCISOEvidence>>(
     API_ENDPOINTS.CYBER_VCISO_EVIDENCE,
-    params as unknown as Record<string, unknown>,
+    buildSuiteQueryParams(params),
   );
 }
 

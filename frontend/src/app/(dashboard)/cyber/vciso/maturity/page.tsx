@@ -45,6 +45,7 @@ import { useDataTable } from '@/hooks/use-data-table';
 import { useRealtimeData } from '@/hooks/use-realtime-data';
 import { useApiMutation } from '@/hooks/use-api-mutation';
 import { apiGet } from '@/lib/api';
+import { buildSuiteQueryParams } from '@/lib/suite-api';
 import { API_ENDPOINTS } from '@/lib/constants';
 import {
   budgetItemStatusConfig,
@@ -305,7 +306,7 @@ export default function MaturityBudgetPage() {
     fetchFn: (params) =>
       apiGet<PaginatedResponse<VCISOBudgetItem>>(
         API_ENDPOINTS.CYBER_VCISO_BUDGET,
-        params as unknown as Record<string, unknown>,
+        buildSuiteQueryParams(params),
       ),
     queryKey: 'vciso-budget',
     defaultSort: { column: 'priority', direction: 'asc' },

@@ -16,7 +16,7 @@ import type { CyberAsset } from '@/types/cyber';
 
 import { AssetKpiCards } from './_components/asset-kpi-cards';
 import { getAssetColumns } from './_components/asset-columns';
-import { ASSET_FILTERS } from './_components/asset-filters';
+import { ASSET_FILTERS, flattenAssetFetchParams } from './_components/asset-filters';
 import { AssetGridView } from './_components/asset-grid-view';
 import { CreateAssetDialog } from './_components/create-asset-dialog';
 import { EditAssetDialog } from './_components/edit-asset-dialog';
@@ -28,7 +28,7 @@ import { BulkImportDialog } from './_components/bulk-import-dialog';
 type ViewMode = 'table' | 'grid';
 
 function fetchAssets(params: FetchParams): Promise<PaginatedResponse<CyberAsset>> {
-  return apiGet<PaginatedResponse<CyberAsset>>(API_ENDPOINTS.CYBER_ASSETS, params as unknown as Record<string, unknown>);
+  return apiGet<PaginatedResponse<CyberAsset>>(API_ENDPOINTS.CYBER_ASSETS, flattenAssetFetchParams(params));
 }
 
 export default function AssetsPage() {

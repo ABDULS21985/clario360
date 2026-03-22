@@ -36,6 +36,7 @@ import { useDataTable } from '@/hooks/use-data-table';
 import { useRealtimeData } from '@/hooks/use-realtime-data';
 import { useApiMutation } from '@/hooks/use-api-mutation';
 import { apiGet } from '@/lib/api';
+import { buildSuiteQueryParams } from '@/lib/suite-api';
 import { API_ENDPOINTS } from '@/lib/constants';
 import { formatDate } from '@/lib/format';
 import { cn } from '@/lib/utils';
@@ -333,7 +334,7 @@ export default function RiskRegisterPage() {
     fetchFn: (params) =>
       apiGet<PaginatedResponse<VCISORiskEntry>>(
         API_ENDPOINTS.CYBER_VCISO_RISKS,
-        params as unknown as Record<string, unknown>,
+        buildSuiteQueryParams(params),
       ),
     queryKey: 'vciso-risks',
     defaultSort: { column: 'residual_score', direction: 'desc' },
@@ -349,7 +350,7 @@ export default function RiskRegisterPage() {
       apiGet<PaginatedResponse<VCISORiskEntry>>(
         API_ENDPOINTS.CYBER_VCISO_RISKS,
         {
-          ...(params as unknown as Record<string, unknown>),
+          ...buildSuiteQueryParams(params),
           status: 'accepted',
         },
       ),

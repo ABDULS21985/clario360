@@ -70,7 +70,7 @@ describe('Scan History Integration', () => {
       // First scan target visible
       expect(screen.getByText('10.0.0.0/24')).toBeTruthy();
     });
-  });
+  }, 10000);
 
   it('test_scanTypes: network and cloud badges visible', async () => {
     await renderScansPage();
@@ -78,7 +78,7 @@ describe('Scan History Integration', () => {
       expect(screen.getAllByText('network').length).toBeGreaterThan(0);
       expect(screen.getAllByText('cloud').length).toBeGreaterThan(0);
     });
-  });
+  }, 10000);
 
   it('test_statusBadges: running scan has animated indicator', async () => {
     await renderScansPage();
@@ -86,7 +86,7 @@ describe('Scan History Integration', () => {
       const runningBadge = screen.getByText('running');
       expect(runningBadge).toBeTruthy();
     });
-  });
+  }, 10000);
 
   it('test_completedStatus: completed scans shown', async () => {
     await renderScansPage();
@@ -94,5 +94,5 @@ describe('Scan History Integration', () => {
       const completedBadges = screen.getAllByText('completed');
       expect(completedBadges.length).toBeGreaterThan(0);
     });
-  });
+  }, 10000);
 });

@@ -31,14 +31,9 @@ interface ScannedAsset {
 }
 
 const STATUS_CONFIG: Record<
-  AssetScan['status'],
+  string,
   { label: string; className: string; dot?: boolean }
 > = {
-  pending: {
-    label: 'Pending',
-    className:
-      'bg-secondary text-secondary-foreground hover:bg-secondary',
-  },
   running: {
     label: 'Running',
     className:

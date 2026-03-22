@@ -58,7 +58,12 @@ export function CreateAssetDialog({ open, onOpenChange, onSuccess }: CreateAsset
   );
 
   const onSubmit = methods.handleSubmit((data) => {
-    mutate(data);
+    // Strip empty strings → undefined so backend *string fields stay nil
+    // (Go validates `omitempty,ip` — a pointer to "" fails IP validation)
+    const cleaned = Object.fromEntries(
+      Object.entries(data).map(([k, v]) => [k, v === '' ? undefined : v]),
+    ) as FormValues;
+    mutate(cleaned);
   });
 
   return (

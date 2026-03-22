@@ -45,7 +45,15 @@ const MEETING_FREQUENCIES = [
 
 const COMMITTEE_STATUSES = ['active', 'inactive', 'dissolved'] as const;
 
+function findMember(committee: ActaCommittee, userId: string | null | undefined) {
+  if (!userId || !committee.members) return undefined;
+  return committee.members.find((m) => m.user_id === userId);
+}
+
 function committeeToFormValues(committee: ActaCommittee): CommitteeFormValues {
+  const chair = findMember(committee, committee.chair_user_id);
+  const viceChair = findMember(committee, committee.vice_chair_user_id);
+  const secretary = findMember(committee, committee.secretary_user_id);
   return {
     name: committee.name,
     type: committee.type as CommitteeFormValues['type'],
@@ -63,12 +71,12 @@ function committeeToFormValues(committee: ActaCommittee): CommitteeFormValues {
     dissolution_date: dateInputValue(committee.dissolution_date),
     tags: committee.tags ?? [],
     metadata: committee.metadata ?? {},
-    chair_name: committee.chair_name ?? '',
-    chair_email: committee.chair_email ?? '',
-    vice_chair_name: committee.vice_chair_name ?? '',
-    vice_chair_email: committee.vice_chair_email ?? '',
-    secretary_name: committee.secretary_name ?? '',
-    secretary_email: committee.secretary_email ?? '',
+    chair_name: chair?.user_name ?? '',
+    chair_email: chair?.user_email ?? '',
+    vice_chair_name: viceChair?.user_name ?? '',
+    vice_chair_email: viceChair?.user_email ?? '',
+    secretary_name: secretary?.user_name ?? '',
+    secretary_email: secretary?.user_email ?? '',
   };
 }
 

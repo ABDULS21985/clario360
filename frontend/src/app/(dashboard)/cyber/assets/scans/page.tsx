@@ -10,6 +10,7 @@ import { PermissionRedirect } from '@/components/common/permission-redirect';
 import { DataTable } from '@/components/shared/data-table/data-table';
 import { useDataTable } from '@/hooks/use-data-table';
 import { apiGet } from '@/lib/api';
+import { buildSuiteQueryParams } from '@/lib/suite-api';
 import { API_ENDPOINTS } from '@/lib/constants';
 import { formatDateTime, timeAgo } from '@/lib/utils';
 import type { PaginatedResponse } from '@/types/api';
@@ -23,14 +24,7 @@ const SCAN_TYPE_COLORS: Record<string, string> = {
   manual: 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300',
 };
 
-function ScanStatusBadge({ status }: { status: AssetScan['status'] }) {
-  if (status === 'pending') {
-    return (
-      <Badge variant="secondary" className="gap-1.5 text-xs capitalize">
-        {status}
-      </Badge>
-    );
-  }
+function ScanStatusBadge({ status }: { status: string }) {
   if (status === 'running') {
     return (
       <Badge
@@ -161,7 +155,7 @@ const SCAN_COLUMNS: ColumnDef<AssetScan>[] = [
 function fetchScans(params: FetchParams): Promise<PaginatedResponse<AssetScan>> {
   return apiGet<PaginatedResponse<AssetScan>>(
     API_ENDPOINTS.CYBER_ASSETS_SCANS,
-    params as unknown as Record<string, unknown>,
+    buildSuiteQueryParams(params),
   );
 }
 

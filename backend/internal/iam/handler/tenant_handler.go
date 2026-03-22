@@ -2,6 +2,7 @@ package handler
 
 import (
 	"net/http"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/rs/zerolog"
@@ -35,8 +36,12 @@ func (h *TenantHandler) Routes() chi.Router {
 func (h *TenantHandler) List(w http.ResponseWriter, r *http.Request) {
 	page, perPage := parsePagination(r)
 	search := r.URL.Query().Get("search")
-	status := r.URL.Query().Get("status")
-	tier := r.URL.Query().Get("subscription_tier")
+	// Support multi-value status: ?status=active&status=suspended
+	statuses := r.URL.Query()["status"]
+	status := strings.Join(statuses, ",")
+	// Support multi-value tier: ?subscription_tier=free&subscription_tier=enterprise
+	tiers := r.URL.Query()["subscription_tier"]
+	tier := strings.Join(tiers, ",")
 	sort := r.URL.Query().Get("sort")
 	order := r.URL.Query().Get("order")
 

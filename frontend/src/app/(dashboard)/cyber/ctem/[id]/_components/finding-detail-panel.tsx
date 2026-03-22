@@ -67,11 +67,11 @@ export function FindingDetailPanel({ finding, onClose }: FindingDetailPanelProps
           </div>
         )}
 
-        {(finding.attack_path?.length ?? 0) > 0 && (
+        {Array.isArray(finding.attack_path) && finding.attack_path.length > 0 && (
           <div>
             <p className="mb-2 text-xs font-semibold">Attack Path</p>
             <ol className="space-y-1">
-              {finding.attack_path!.map((step, i) => (
+              {(finding.attack_path as string[]).map((step, i) => (
                 <li key={i} className="flex items-start gap-2 text-xs">
                   <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-bold">
                     {i + 1}

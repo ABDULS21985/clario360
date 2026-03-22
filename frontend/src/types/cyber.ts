@@ -873,7 +873,7 @@ export interface CTEMFinding {
   status_changed_by?: string;
   status_changed_at?: string;
   status_notes?: string;
-  attack_path?: Record<string, unknown>;
+  attack_path?: string[] | Record<string, unknown>;
   attack_path_length?: number;
   metadata?: Record<string, unknown>;
   created_at: string;

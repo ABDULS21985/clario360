@@ -149,10 +149,11 @@ export function ContractFormDialog({
         documentPayload = toFileReference(uploaded, documentExtractedText, documentChangeSummary);
       }
 
-      const payload = buildContractPayload(values, documentPayload);
       if (isEdit && contract) {
+        const payload = buildUpdateContractPayload(values, contract);
         return enterpriseApi.lex.updateContract(contract.id, payload);
       }
+      const payload = buildCreateContractPayload(values, documentPayload);
       return enterpriseApi.lex.createContract(payload);
     },
     onSuccess: async (savedContract) => {
@@ -498,7 +499,11 @@ function buildFormDefaults(contract?: LexContractRecord | null): LexContractForm
   };
 }
 
-function buildContractPayload(
+/**
+ * Build contract payload for CREATE requests.
+ * Null optional fields are omitted so the backend treats them as "not provided".
+ */
+function buildCreateContractPayload(
   values: LexContractFormValues,
   documentPayload?: Record<string, unknown>,
 ): Record<string, unknown> {
@@ -528,6 +533,65 @@ function buildContractPayload(
     tags: values.tags,
     metadata: values.metadata ?? {},
     ...(documentPayload ? { document: documentPayload } : {}),
+  };
+}
+
+/**
+ * Build contract payload for UPDATE requests.
+ *
+ * For optional string fields, sends "" (empty string) instead of null when the
+ * user clears a field. The backend's normalizeOptionalString converts "" to nil,
+ * which correctly clears the DB column. Sending null would be indistinguishable
+ * from "field not provided" (both decode to *string nil in Go), causing the
+ * backend to silently skip the update.
+ *
+ * For the legal_reviewer_id UUID, sends the nil UUID sentinel when the user
+ * selects "Unassigned", so the backend can distinguish "clear reviewer" from
+ * "don't change reviewer".
+ */
+function buildUpdateContractPayload(
+  values: LexContractFormValues,
+  original: LexContractRecord,
+): Record<string, unknown> {
+  const NIL_UUID = '00000000-0000-0000-0000-000000000000';
+
+  // Detect fields that were previously set but are now cleared by the user.
+  // Go's *time.Time / *float64 unmarshaling can't distinguish JSON null from
+  // an absent key (both → nil), so we send an explicit cleared_fields array
+  // for these types.
+  const clearedFields: string[] = [];
+  if (original.effective_date && !values.effective_date) clearedFields.push('effective_date');
+  if (original.expiry_date && !values.expiry_date) clearedFields.push('expiry_date');
+  if (original.renewal_date && !values.renewal_date) clearedFields.push('renewal_date');
+  if (original.total_value != null && values.total_value == null) clearedFields.push('total_value');
+  if (original.signed_date && !values.effective_date) clearedFields.push('signed_date');
+
+  return {
+    title: values.title.trim(),
+    contract_number: values.contract_number?.trim() ?? '',
+    type: values.type,
+    description: values.description.trim(),
+    party_a_name: values.party_a_name.trim(),
+    party_a_entity: values.party_a_entity?.trim() ?? '',
+    party_b_name: values.party_b_name.trim(),
+    party_b_entity: values.party_b_entity?.trim() ?? '',
+    party_b_contact: values.party_b_contact?.trim() ?? '',
+    total_value: values.total_value ?? null,
+    currency: values.currency.trim().toUpperCase(),
+    payment_terms: values.payment_terms?.trim() ?? '',
+    effective_date: toOptionalDateTime(values.effective_date),
+    expiry_date: toOptionalDateTime(values.expiry_date),
+    renewal_date: toOptionalDateTime(values.renewal_date),
+    auto_renew: values.auto_renew,
+    renewal_notice_days: values.renewal_notice_days,
+    owner_user_id: values.owner_user_id,
+    owner_name: values.owner_name.trim(),
+    legal_reviewer_id: values.legal_reviewer_id || NIL_UUID,
+    legal_reviewer_name: values.legal_reviewer_name?.trim() ?? '',
+    department: values.department?.trim() ?? '',
+    tags: values.tags,
+    metadata: values.metadata ?? {},
+    ...(clearedFields.length > 0 ? { cleared_fields: clearedFields } : {}),
   };
 }
 

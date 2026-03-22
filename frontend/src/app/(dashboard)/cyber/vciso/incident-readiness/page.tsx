@@ -36,6 +36,7 @@ import {
 import { useDataTable } from '@/hooks/use-data-table';
 import { useApiMutation } from '@/hooks/use-api-mutation';
 import { apiGet, apiPost } from '@/lib/api';
+import { buildSuiteQueryParams } from '@/lib/suite-api';
 import { API_ENDPOINTS } from '@/lib/constants';
 import { formatDate, titleCase } from '@/lib/format';
 import { cn } from '@/lib/utils';
@@ -375,7 +376,7 @@ export default function IncidentReadinessPage() {
     fetchFn: (params) =>
       apiGet<PaginatedResponse<VCISOEscalationRule>>(
         API_ENDPOINTS.CYBER_VCISO_ESCALATION_RULES,
-        params as unknown as Record<string, unknown>,
+        buildSuiteQueryParams(params),
       ),
     queryKey: 'vciso-escalation-rules',
     defaultSort: { column: 'created_at', direction: 'desc' },
@@ -392,7 +393,7 @@ export default function IncidentReadinessPage() {
     fetchFn: (params) =>
       apiGet<PaginatedResponse<VCISOPlaybook>>(
         API_ENDPOINTS.CYBER_VCISO_PLAYBOOKS,
-        params as unknown as Record<string, unknown>,
+        buildSuiteQueryParams(params),
       ),
     queryKey: 'vciso-playbooks',
     defaultSort: { column: 'created_at', direction: 'desc' },

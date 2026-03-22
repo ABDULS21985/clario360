@@ -38,6 +38,7 @@ import { useDataTable } from '@/hooks/use-data-table';
 import { useRealtimeData } from '@/hooks/use-realtime-data';
 import { useApiMutation } from '@/hooks/use-api-mutation';
 import { apiGet } from '@/lib/api';
+import { buildSuiteQueryParams } from '@/lib/suite-api';
 import { API_ENDPOINTS } from '@/lib/constants';
 import { awarenessStatusConfig, iamFindingStatusConfig } from '@/lib/status-configs';
 import { formatDate, truncate, titleCase } from '@/lib/format';
@@ -386,7 +387,7 @@ export default function AwarenessIAMPage() {
     fetchFn: (params) =>
       apiGet<PaginatedResponse<VCISOAwarenessProgram>>(
         API_ENDPOINTS.CYBER_VCISO_AWARENESS,
-        params as unknown as Record<string, unknown>,
+        buildSuiteQueryParams(params),
       ),
     queryKey: 'vciso-awareness',
     defaultSort: { column: 'created_at', direction: 'desc' },
@@ -401,7 +402,7 @@ export default function AwarenessIAMPage() {
     fetchFn: (params) =>
       apiGet<PaginatedResponse<VCISOIAMFinding>>(
         API_ENDPOINTS.CYBER_VCISO_IAM_FINDINGS,
-        params as unknown as Record<string, unknown>,
+        buildSuiteQueryParams(params),
       ),
     queryKey: 'vciso-iam-findings',
     defaultSort: { column: 'discovered_at', direction: 'desc' },

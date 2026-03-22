@@ -29,6 +29,7 @@ import { useDataTable } from '@/hooks/use-data-table';
 import { useRealtimeData } from '@/hooks/use-realtime-data';
 import { useApiMutation } from '@/hooks/use-api-mutation';
 import { apiGet } from '@/lib/api';
+import { buildSuiteQueryParams } from '@/lib/suite-api';
 import { API_ENDPOINTS } from '@/lib/constants';
 import { formatDate, formatDateTime, titleCase } from '@/lib/format';
 import { cn } from '@/lib/utils';
@@ -413,7 +414,7 @@ export default function VCISOWorkflowsPage() {
     fetchFn: (params) =>
       apiGet<PaginatedResponse<VCISOControlOwnership>>(
         API_ENDPOINTS.CYBER_VCISO_CONTROL_OWNERSHIP,
-        params as unknown as Record<string, unknown>,
+        buildSuiteQueryParams(params),
       ),
     queryKey: 'vciso-control-ownership',
     defaultSort: { column: 'next_review_date', direction: 'asc' },
@@ -428,7 +429,7 @@ export default function VCISOWorkflowsPage() {
     fetchFn: (params) =>
       apiGet<PaginatedResponse<VCISOApprovalRequest>>(
         API_ENDPOINTS.CYBER_VCISO_APPROVALS,
-        params as unknown as Record<string, unknown>,
+        buildSuiteQueryParams(params),
       ),
     queryKey: 'vciso-approvals',
     defaultSort: { column: 'created_at', direction: 'desc' },

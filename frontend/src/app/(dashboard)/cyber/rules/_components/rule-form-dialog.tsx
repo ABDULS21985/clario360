@@ -147,6 +147,7 @@ export function RuleFormDialog({
   const onSubmit = methods.handleSubmit((data) => {
     const payload = {
       ...data,
+      description: data.description || undefined,
       rule_content: ruleContent,
       mitre_technique_ids: mitreIds,
     };

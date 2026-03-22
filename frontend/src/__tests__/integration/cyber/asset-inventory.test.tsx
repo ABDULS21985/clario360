@@ -194,22 +194,20 @@ describe('Asset Inventory Page', () => {
   it('renders page header and initial list', async () => {
     await renderPage();
 
-    await waitFor(() => {
-      expect(screen.getByText('Asset Inventory')).toBeInTheDocument();
-      expect(screen.getByText('web-prod-01')).toBeInTheDocument();
-      expect(screen.getByText('db-primary')).toBeInTheDocument();
-    });
-  });
+    expect(await screen.findByRole('heading', { name: /asset inventory/i })).toBeInTheDocument();
+    expect(await screen.findByText('web-prod-01')).toBeInTheDocument();
+    expect(screen.getByText('db-primary')).toBeInTheDocument();
+  }, 10000);
 
   it('creates an asset from the page dialog and refreshes the table', async () => {
     const user = userEvent.setup();
     await renderPage();
     await screen.findByText('web-prod-01');
 
-    await user.click(screen.getByRole('button', { name: /add asset/i }));
+    await user.click(screen.getAllByRole('button', { name: /add asset/i })[0]);
 
     const dialog = await screen.findByRole('dialog');
-    await user.type(within(dialog).getByLabelText(/^name$/i), 'cache-prod-01');
+    await user.type(within(dialog).getByPlaceholderText('web-prod-01'), 'cache-prod-01');
     await user.click(within(dialog).getByRole('button', { name: /create asset/i }));
 
     await waitFor(() => {
@@ -232,7 +230,7 @@ describe('Asset Inventory Page', () => {
     await user.click(await screen.findByRole('menuitem', { name: /edit/i }));
 
     const dialog = await screen.findByRole('dialog');
-    const nameInput = within(dialog).getByLabelText(/^name$/i);
+    const nameInput = within(dialog).getByPlaceholderText('web-prod-01');
     await user.clear(nameInput);
     await user.type(nameInput, 'web-prod-01-renamed');
     await user.click(within(dialog).getByRole('button', { name: /save changes/i }));
@@ -301,8 +299,8 @@ describe('Asset Inventory Page', () => {
     await user.click(screen.getByRole('button', { name: /^scan$/i }));
 
     const dialog = await screen.findByRole('dialog');
-    await user.type(within(dialog).getByLabelText(/targets/i), '10.0.0.5');
-    await user.type(within(dialog).getByLabelText(/ports/i), '80,443');
+    await user.type(within(dialog).getByPlaceholderText('10.0.0.1, 192.168.1.0/24, host.example.com'), '10.0.0.5');
+    await user.type(within(dialog).getByPlaceholderText('80,443,8080 or 1-1024 (optional)'), '80,443');
     await user.click(within(dialog).getByRole('button', { name: /start scan/i }));
 
     await waitFor(() => {

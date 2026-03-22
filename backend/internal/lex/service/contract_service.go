@@ -815,6 +815,8 @@ func applyContractUpdate(contract *model.Contract, req dto.UpdateContractRequest
 	}
 	if req.TotalValue != nil {
 		contract.TotalValue = req.TotalValue
+	} else if req.ShouldClear("total_value") {
+		contract.TotalValue = nil
 	}
 	if req.Currency != nil {
 		trimmed := strings.ToUpper(strings.TrimSpace(*req.Currency))
@@ -827,12 +829,18 @@ func applyContractUpdate(contract *model.Contract, req dto.UpdateContractRequest
 	}
 	if req.EffectiveDate != nil {
 		contract.EffectiveDate = req.EffectiveDate
+	} else if req.ShouldClear("effective_date") {
+		contract.EffectiveDate = nil
 	}
 	if req.ExpiryDate != nil {
 		contract.ExpiryDate = req.ExpiryDate
+	} else if req.ShouldClear("expiry_date") {
+		contract.ExpiryDate = nil
 	}
 	if req.RenewalDate != nil {
 		contract.RenewalDate = req.RenewalDate
+	} else if req.ShouldClear("renewal_date") {
+		contract.RenewalDate = nil
 	}
 	if req.AutoRenew != nil {
 		contract.AutoRenew = *req.AutoRenew
@@ -842,6 +850,8 @@ func applyContractUpdate(contract *model.Contract, req dto.UpdateContractRequest
 	}
 	if req.SignedDate != nil {
 		contract.SignedDate = req.SignedDate
+	} else if req.ShouldClear("signed_date") {
+		contract.SignedDate = nil
 	}
 	if req.OwnerUserID != nil {
 		contract.OwnerUserID = *req.OwnerUserID
@@ -850,7 +860,11 @@ func applyContractUpdate(contract *model.Contract, req dto.UpdateContractRequest
 		contract.OwnerName = strings.TrimSpace(*req.OwnerName)
 	}
 	if req.LegalReviewerID != nil {
-		contract.LegalReviewerID = req.LegalReviewerID
+		if *req.LegalReviewerID == uuid.Nil {
+			contract.LegalReviewerID = nil
+		} else {
+			contract.LegalReviewerID = req.LegalReviewerID
+		}
 	}
 	if req.LegalReviewerName != nil {
 		contract.LegalReviewerName = normalizeOptionalString(req.LegalReviewerName)

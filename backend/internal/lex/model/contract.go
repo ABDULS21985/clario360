@@ -113,17 +113,19 @@ type ContractVersion struct {
 }
 
 type ContractListFilters struct {
-	Page          int
-	PerPage       int
-	Search        string
-	Status        *ContractStatus
-	Statuses      []ContractStatus
-	Type          *ContractType
-	OwnerUserID   *uuid.UUID
-	RiskLevel     *RiskLevel
-	Department    string
-	Tag           string
+	Page           int
+	PerPage        int
+	Search         string
+	Status         *ContractStatus
+	Statuses       []ContractStatus
+	Type           *ContractType
+	OwnerUserID    *uuid.UUID
+	RiskLevel      *RiskLevel
+	Department     string
+	Tag            string
 	ExpiringInDays *int
+	SortColumn     string
+	SortDirection  string
 }
 
 type ContractDetail struct {
