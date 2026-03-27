@@ -166,10 +166,15 @@ export default function IntegrationsPage() {
   // ── Sync mutation (per-integration syncing tracked by syncingId) ─────────
   const { triggerSync, syncing, syncingId } = useSyncIntegration(() => void refetch());
 
-  // ── Disconnect mutation (soft: PATCH sets status=disconnected) ───────────
-  const { mutate: disconnectIntegration } = useApiMutation<unknown, { id: string }>(
-    'post',
-    (variables) => `${API_ENDPOINTS.CYBER_VCISO_INTEGRATIONS}/${variables.id}/disconnect`,
+  // ── Disconnect mutation (PATCH /integrations/{id} body:{status:"disconnected"}) ──
+  // `variables` carries both `id` (for URL) and `status` (for body). The backend
+  // PatchIntegrationRequest only reads `status`; the extra `id` field is ignored.
+  const { mutate: disconnectIntegration } = useApiMutation<
+    unknown,
+    { id: string; status: string }
+  >(
+    'patch',
+    (variables) => `${API_ENDPOINTS.CYBER_VCISO_INTEGRATIONS}/${variables.id}`,
     {
       successMessage: 'Integration disconnected',
       invalidateKeys: [API_ENDPOINTS.CYBER_VCISO_INTEGRATIONS],
@@ -181,6 +186,20 @@ export default function IntegrationsPage() {
         }
         setDisconnectTarget(null);
       },
+    },
+  );
+
+  // ── Reconnect mutation (PATCH /integrations/{id} body:{status:"pending"}) ───────
+  const { mutate: reconnectIntegration } = useApiMutation<
+    unknown,
+    { id: string; status: string }
+  >(
+    'patch',
+    (variables) => `${API_ENDPOINTS.CYBER_VCISO_INTEGRATIONS}/${variables.id}`,
+    {
+      successMessage: 'Integration reconnecting…',
+      invalidateKeys: [API_ENDPOINTS.CYBER_VCISO_INTEGRATIONS],
+      onSuccess: () => void refetch(),
     },
   );
 
@@ -280,9 +299,13 @@ export default function IntegrationsPage() {
     setRemoveOpen(true);
   }, []);
 
+  const handleReconnect = useCallback((integration: VCISOIntegration) => {
+    reconnectIntegration({ id: integration.id, status: 'pending' });
+  }, [reconnectIntegration]);
+
   const confirmDisconnect = useCallback(async () => {
     if (disconnectTarget) {
-      disconnectIntegration({ id: disconnectTarget.id });
+      disconnectIntegration({ id: disconnectTarget.id, status: 'disconnected' });
     }
   }, [disconnectTarget, disconnectIntegration]);
 
@@ -516,6 +539,7 @@ export default function IntegrationsPage() {
                 onConfigure={handleConfigure}
                 onSyncNow={triggerSync}
                 onDisconnect={handleDisconnect}
+                onReconnect={handleReconnect}
                 onRemove={handleRemove}
                 syncingId={syncingId}
               />
@@ -538,6 +562,7 @@ export default function IntegrationsPage() {
           onSyncNow={triggerSync}
           onConfigure={handleConfigure}
           onDisconnect={handleDisconnect}
+          onReconnect={handleReconnect}
           onRemove={handleRemove}
           syncingId={syncingId}
         />

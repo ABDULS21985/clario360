@@ -2311,13 +2311,19 @@ func (r *VCISOGovernanceRepository) DeleteIntegration(ctx context.Context, tenan
 	})
 }
 
-func (r *VCISOGovernanceRepository) SyncIntegration(ctx context.Context, tenantID, id uuid.UUID) error {
+func (r *VCISOGovernanceRepository) SyncIntegration(ctx context.Context, tenantID, id uuid.UUID, req *dto.SyncIntegrationRequest) error {
 	now := time.Now().UTC()
 	return runWithTenantWrite(ctx, r.db, tenantID, func(db dbtx) error {
+		// items_synced is replaced when caller provides a count; otherwise unchanged.
+		var itemsSynced *int
+		if req != nil {
+			itemsSynced = req.ItemsSynced
+		}
 		tag, err := db.Exec(ctx, `UPDATE vciso_integrations SET
-			last_sync_at=$3, health_status='healthy', error_message=NULL, updated_at=$3
+			last_sync_at=$3, health_status='healthy', error_message=NULL, updated_at=$3,
+			items_synced = COALESCE($4, items_synced)
 			WHERE id=$1 AND tenant_id=$2`,
-			id, tenantID, now,
+			id, tenantID, now, itemsSynced,
 		)
 		if err != nil {
 			return fmt.Errorf("sync integration: %w", err)
@@ -2329,16 +2335,36 @@ func (r *VCISOGovernanceRepository) SyncIntegration(ctx context.Context, tenantI
 	})
 }
 
-func (r *VCISOGovernanceRepository) DisconnectIntegration(ctx context.Context, tenantID, id uuid.UUID) error {
+func (r *VCISOGovernanceRepository) PatchIntegration(ctx context.Context, tenantID, id uuid.UUID, req *dto.PatchIntegrationRequest) error {
 	now := time.Now().UTC()
 	return runWithTenantWrite(ctx, r.db, tenantID, func(db dbtx) error {
-		tag, err := db.Exec(ctx, `UPDATE vciso_integrations SET
-			status='disconnected', health_status='unavailable', error_message=NULL, updated_at=$3
-			WHERE id=$1 AND tenant_id=$2`,
-			id, tenantID, now,
-		)
+		// health_status is derived from the new status to keep the two in sync.
+		var healthStatus string
+		switch {
+		case req.Status != nil && *req.Status == "disconnected":
+			healthStatus = "unavailable"
+		case req.Status != nil && (*req.Status == "connected" || *req.Status == "pending"):
+			healthStatus = "healthy"
+		default:
+			healthStatus = "" // will use COALESCE to keep existing
+		}
+		var tag interface{ RowsAffected() int64 }
+		var err error
+		if healthStatus != "" {
+			tag, err = db.Exec(ctx, `UPDATE vciso_integrations SET
+				status=COALESCE($3, status), health_status=$5, updated_at=$4
+				WHERE id=$1 AND tenant_id=$2`,
+				id, tenantID, req.Status, now, healthStatus,
+			)
+		} else {
+			tag, err = db.Exec(ctx, `UPDATE vciso_integrations SET
+				status=COALESCE($3, status), updated_at=$4
+				WHERE id=$1 AND tenant_id=$2`,
+				id, tenantID, req.Status, now,
+			)
+		}
 		if err != nil {
-			return fmt.Errorf("disconnect integration: %w", err)
+			return fmt.Errorf("patch integration: %w", err)
 		}
 		if tag.RowsAffected() == 0 {
 			return ErrNotFound
@@ -2570,6 +2596,24 @@ func (r *VCISOGovernanceRepository) DecideApproval(ctx context.Context, tenantID
 		)
 		if err != nil {
 			return fmt.Errorf("decide approval: %w", err)
+		}
+		return nil
+	})
+}
+
+func (r *VCISOGovernanceRepository) CreateApproval(ctx context.Context, tenantID uuid.UUID, item *model.VCISOApprovalRequest) error {
+	return runWithTenantWrite(ctx, r.db, tenantID, func(db dbtx) error {
+		_, err := db.Exec(ctx, `INSERT INTO vciso_approvals
+			(id, tenant_id, type, title, description, status,
+			 requested_by, requested_by_name, approver_id, approver_name, priority,
+			 deadline, linked_entity_type, linked_entity_id, created_at, updated_at)
+			VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$15)`,
+			item.ID, item.TenantID, item.Type, item.Title, item.Description, item.Status,
+			item.RequestedBy, item.RequestedByName, item.ApproverID, item.ApproverName, item.Priority,
+			item.Deadline, item.LinkedEntityType, item.LinkedEntityID, item.CreatedAt,
+		)
+		if err != nil {
+			return fmt.Errorf("create approval: %w", err)
 		}
 		return nil
 	})

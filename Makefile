@@ -15,12 +15,13 @@ BINARY_DIR  := backend/bin
 SERVICES    := api-gateway iam-service event-bus workflow-engine audit-service \
                notification-service file-service \
                cyber-service data-service acta-service lex-service visus-service
-TOOLS       := migrator data-seeder
+TOOLS       := migrator data-seeder system-seeder
 ALL_TARGETS := $(SERVICES) $(TOOLS)
 MIGRATE     := $(GO) run -C backend ./cmd/migrator
 DC          := docker compose
 DC_TEST     := docker compose -f docker-compose.test.yml
 HELM_CHART  := deploy/helm/clario360
+SEED_SCALE  ?= large
 
 # Service port mapping (used by run target)
 PORT_api-gateway          := 8080
@@ -183,8 +184,8 @@ migrate-status: ## Show migration status for all databases
 # ---------------------------------------------------------------------------
 # Seed
 # ---------------------------------------------------------------------------
-seed: ## Seed the database with development data
-	$(GO) run -C backend ./cmd/migrator -seed
+seed: ## Seed the database with development data (override with SEED_SCALE=small|large|massive)
+	$(GO) run -C backend ./cmd/system-seeder -scale $(SEED_SCALE)
 
 # ---------------------------------------------------------------------------
 # Code Generation

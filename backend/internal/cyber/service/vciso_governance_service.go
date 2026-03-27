@@ -867,6 +867,36 @@ func (s *VCISOGovernanceService) ListApprovals(ctx context.Context, tenantID uui
 	return dto.NewGovernanceListResponse(items, params.Page, params.PerPage, total), nil
 }
 
+func (s *VCISOGovernanceService) CreateApproval(ctx context.Context, tenantID, userID uuid.UUID, req *dto.CreateApprovalRequest, userName string) (*model.VCISOApprovalRequest, error) {
+	approverID, err := uuid.Parse(req.ApproverID)
+	if err != nil {
+		return nil, fmt.Errorf("invalid approver_id: %w", err)
+	}
+	now := time.Now().UTC()
+	item := &model.VCISOApprovalRequest{
+		ID:               uuid.New(),
+		TenantID:         tenantID,
+		Type:             req.Type,
+		Title:            req.Title,
+		Description:      req.Description,
+		Status:           "pending",
+		RequestedBy:      userID,
+		RequestedByName:  userName,
+		ApproverID:       approverID,
+		ApproverName:     req.ApproverName,
+		Priority:         req.Priority,
+		Deadline:         req.Deadline,
+		LinkedEntityType: req.LinkedEntityType,
+		LinkedEntityID:   req.LinkedEntityID,
+		CreatedAt:        now,
+		UpdatedAt:        now,
+	}
+	if err := s.repo.CreateApproval(ctx, tenantID, item); err != nil {
+		return nil, err
+	}
+	return item, nil
+}
+
 func (s *VCISOGovernanceService) DecideApproval(ctx context.Context, tenantID, id, userID uuid.UUID, req *dto.UpdateApprovalRequest) error {
 	return s.repo.DecideApproval(ctx, tenantID, id, userID, req)
 }

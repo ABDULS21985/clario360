@@ -125,5 +125,6 @@ func RegisterVCISOGovernanceRoutes(r chi.Router, h *VCISOGovernanceHandler) {
 
 	// ── Approvals ─────────────────────────────────────────
 	r.Get(p+"/approvals", h.ListApprovals)
+	r.Post(p+"/approvals", h.CreateApproval)
 	r.Put(p+"/approvals/{id}/decision", h.DecideApproval)
 }

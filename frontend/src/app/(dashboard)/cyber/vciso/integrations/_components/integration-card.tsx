@@ -6,6 +6,7 @@ import {
   Key,
   Monitor,
   MoreHorizontal,
+  PlugZap,
   RefreshCw,
   Settings,
   Shield,
@@ -66,6 +67,7 @@ interface IntegrationCardProps {
   onConfigure: (integration: VCISOIntegration) => void;
   onSyncNow: (integration: VCISOIntegration) => void;
   onDisconnect: (integration: VCISOIntegration) => void;
+  onReconnect: (integration: VCISOIntegration) => void;
   onRemove: (integration: VCISOIntegration) => void;
   /** ID of the integration currently being synced (null if none). */
   syncingId?: string | null;
@@ -79,6 +81,7 @@ export function IntegrationCard({
   onConfigure,
   onSyncNow,
   onDisconnect,
+  onReconnect,
   onRemove,
   syncingId = null,
 }: IntegrationCardProps) {
@@ -157,17 +160,29 @@ export function IntegrationCard({
               {isSyncing ? 'Syncing...' : 'Sync Now'}
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem
-              className="text-amber-600 dark:text-amber-400"
-              disabled={isDisconnected}
-              onClick={(e) => {
-                e.stopPropagation();
-                onDisconnect(integration);
-              }}
-            >
-              <Unplug className="mr-2 h-3.5 w-3.5" />
-              Disconnect
-            </DropdownMenuItem>
+            {isDisconnected ? (
+              <DropdownMenuItem
+                className="text-green-700 dark:text-green-400"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onReconnect(integration);
+                }}
+              >
+                <PlugZap className="mr-2 h-3.5 w-3.5" />
+                Reconnect
+              </DropdownMenuItem>
+            ) : (
+              <DropdownMenuItem
+                className="text-amber-600 dark:text-amber-400"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDisconnect(integration);
+                }}
+              >
+                <Unplug className="mr-2 h-3.5 w-3.5" />
+                Disconnect
+              </DropdownMenuItem>
+            )}
             <DropdownMenuItem
               className="text-destructive"
               onClick={(e) => {

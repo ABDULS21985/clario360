@@ -6,6 +6,7 @@ import {
   Clock,
   Database,
   Hash,
+  PlugZap,
   RefreshCw,
   Settings,
   Trash2,
@@ -33,6 +34,7 @@ interface IntegrationDetailPanelProps {
   onSyncNow?: (integration: VCISOIntegration) => void;
   onConfigure?: (integration: VCISOIntegration) => void;
   onDisconnect?: (integration: VCISOIntegration) => void;
+  onReconnect?: (integration: VCISOIntegration) => void;
   onRemove?: (integration: VCISOIntegration) => void;
   /** ID of the integration currently being synced (null if none). */
   syncingId?: string | null;
@@ -61,6 +63,7 @@ export function IntegrationDetailPanel({
   onSyncNow,
   onConfigure,
   onDisconnect,
+  onReconnect,
   onRemove,
   syncingId = null,
 }: IntegrationDetailPanelProps) {
@@ -235,15 +238,25 @@ export function IntegrationDetailPanel({
               <Settings className="mr-1.5 h-4 w-4" />
               Configure
             </Button>
-            <Button
-              variant="outline"
-              className="text-amber-600 hover:text-amber-600 dark:text-amber-400 dark:hover:text-amber-400"
-              disabled={isDisconnected}
-              onClick={() => onDisconnect?.(integration)}
-            >
-              <Unplug className="mr-1.5 h-4 w-4" />
-              Disconnect
-            </Button>
+            {isDisconnected ? (
+              <Button
+                variant="outline"
+                className="text-green-700 hover:text-green-700 dark:text-green-400 dark:hover:text-green-400"
+                onClick={() => onReconnect?.(integration)}
+              >
+                <PlugZap className="mr-1.5 h-4 w-4" />
+                Reconnect
+              </Button>
+            ) : (
+              <Button
+                variant="outline"
+                className="text-amber-600 hover:text-amber-600 dark:text-amber-400 dark:hover:text-amber-400"
+                onClick={() => onDisconnect?.(integration)}
+              >
+                <Unplug className="mr-1.5 h-4 w-4" />
+                Disconnect
+              </Button>
+            )}
             <Button
               variant="outline"
               className="text-destructive hover:text-destructive"
