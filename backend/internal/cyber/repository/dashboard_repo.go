@@ -20,11 +20,15 @@ func NewDashboardRepository(db *pgxpool.Pool, logger zerolog.Logger) *DashboardR
 	return &DashboardRepository{db: db, logger: logger}
 }
 
+func (r *DashboardRepository) q() dbtx {
+	return queryable(r.db)
+}
+
 func (r *DashboardRepository) RecentAlerts(ctx context.Context, tenantID uuid.UUID, limit int) ([]model.AlertSummary, error) {
 	if limit <= 0 {
 		limit = 10
 	}
-	rows, err := r.db.Query(ctx, `
+	rows, err := r.q().Query(ctx, `
 		SELECT a.id, a.title, a.severity::text, a.status::text, a.asset_id, asset.name, a.assigned_to,
 		       a.created_at, a.mitre_technique_id, a.mitre_technique_name
 		FROM alerts a
@@ -65,7 +69,7 @@ func (r *DashboardRepository) RecentAlerts(ctx context.Context, tenantID uuid.UU
 // (assigned_to or escalated_to).
 func (r *DashboardRepository) ActiveUsersToday(ctx context.Context, tenantID uuid.UUID) (int, error) {
 	var count int
-	err := r.db.QueryRow(ctx, `
+	err := r.q().QueryRow(ctx, `
 		SELECT COUNT(DISTINCT u)::int
 		FROM alerts a, LATERAL (
 			VALUES (a.assigned_to), (a.escalated_to)
@@ -85,7 +89,7 @@ func (r *DashboardRepository) ActiveUsersToday(ctx context.Context, tenantID uui
 // PendingReviews counts open alerts that await acknowledgement or investigation.
 func (r *DashboardRepository) PendingReviews(ctx context.Context, tenantID uuid.UUID) (int, error) {
 	var count int
-	err := r.db.QueryRow(ctx, `
+	err := r.q().QueryRow(ctx, `
 		SELECT COUNT(*)::int
 		FROM alerts
 		WHERE tenant_id = $1
@@ -103,7 +107,7 @@ func (r *DashboardRepository) PendingReviews(ctx context.Context, tenantID uuid.
 // ActiveIncidents counts open alerts with critical or high severity.
 func (r *DashboardRepository) ActiveIncidents(ctx context.Context, tenantID uuid.UUID) (int, error) {
 	var count int
-	err := r.db.QueryRow(ctx, `
+	err := r.q().QueryRow(ctx, `
 		SELECT COUNT(*)::int
 		FROM alerts
 		WHERE tenant_id = $1
@@ -122,7 +126,7 @@ func (r *DashboardRepository) TopAttackedAssets(ctx context.Context, tenantID uu
 	if limit <= 0 {
 		limit = 10
 	}
-	rows, err := r.db.Query(ctx, `
+	rows, err := r.q().Query(ctx, `
 		SELECT asset.id, asset.name, asset.type::text, asset.criticality::text,
 		       COUNT(*)::int AS alert_count,
 		       COUNT(*) FILTER (WHERE a.severity = 'critical' AND a.status IN ('new','acknowledged'))::int AS critical_open

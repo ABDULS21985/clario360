@@ -61,6 +61,8 @@ import (
 	dspmrempolicy "github.com/clario360/platform/internal/cyber/dspm/remediation/policy"
 	dspmremrepo "github.com/clario360/platform/internal/cyber/dspm/remediation/repository"
 	cybershadow "github.com/clario360/platform/internal/cyber/dspm/shadow"
+	"github.com/clario360/platform/internal/cyber/cti"
+	ctifeed "github.com/clario360/platform/internal/cyber/cti/feed"
 	"github.com/clario360/platform/internal/cyber/enrichment"
 	"github.com/clario360/platform/internal/cyber/handler"
 	"github.com/clario360/platform/internal/cyber/indicator"
@@ -933,6 +935,12 @@ func main() {
 	eventHandler := handler.NewEventHandler(ruleRepo, logger)
 	analyticsHandler := handler.NewAnalyticsHandler(vcisoPredictEngine, threatRepo, logger)
 
+	// CTI module
+	ctiRepo := cti.NewPgRepository(db, logger)
+	ctiSvc := cti.NewService(ctiRepo, producer, logger)
+	ctiHandler := cti.NewHandler(ctiSvc, logger)
+	ctiWSHub := cti.NewWSHub(logger)
+
 	handler.RegisterRoutes(
 		svc.Router,
 		assetHandler,
@@ -957,6 +965,7 @@ func main() {
 			accesshandler.RegisterRoutes(r, accessIntelHandler)
 			dspmremhandler.RegisterRoutes(r, dspmRemHandler)
 			intelhandler.RegisterRoutes(r, intelHTTPHandler)
+			cti.RegisterRoutes(r, ctiHandler, ctiWSHub)
 		},
 	)
 	svc.Router.Group(func(r chi.Router) {
@@ -1107,6 +1116,16 @@ func main() {
 			if aiRuntime != nil && aiRuntime.PredictionLogger != nil {
 				kafkaConsumer.Subscribe(events.Topics.AIEvents, aigovconsumer.NewCacheInvalidationConsumer(aiRuntime.PredictionLogger, logger))
 			}
+
+			// CTI consumers
+			ctiFeedIngester := ctifeed.NewIngester(ctiRepo, ctifeed.NewNormalizer(), ctifeed.NewEnricher(ctifeed.NewDevGeoResolver()), producer, logger)
+			kafkaConsumer.Subscribe(cti.TopicCTIFeedIngestion, events.EventHandlerFunc(ctiFeedIngester.HandleFeedEvent))
+			ctiAggConsumer := cti.NewAggregationTriggerConsumer(ctiRepo, logger)
+			kafkaConsumer.Subscribe(cti.TopicCTIAggregationTriggers, events.EventHandlerFunc(ctiAggConsumer.Handle))
+			ctiWSBroadcast := cti.NewWebSocketBroadcastConsumer(ctiWSHub, logger)
+			kafkaConsumer.Subscribe(cti.TopicCTIThreatEvents, events.EventHandlerFunc(ctiWSBroadcast.Handle))
+			kafkaConsumer.Subscribe(cti.TopicCTICampaigns, events.EventHandlerFunc(ctiWSBroadcast.Handle))
+			kafkaConsumer.Subscribe(cti.TopicCTIBrandAbuse, events.EventHandlerFunc(ctiWSBroadcast.Handle))
 		}
 	}
 

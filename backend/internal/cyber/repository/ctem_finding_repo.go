@@ -36,6 +36,19 @@ func (r *CTEMFindingRepository) BulkInsert(ctx context.Context, findings []*mode
 		return nil
 	}
 
+	// Deduplicate findings by match key (type|asset|cve|title).
+	seen := make(map[string]struct{}, len(findings))
+	deduped := make([]*model.CTEMFinding, 0, len(findings))
+	for _, f := range findings {
+		key := findingMatchKey(f)
+		if _, exists := seen[key]; exists {
+			continue
+		}
+		seen[key] = struct{}{}
+		deduped = append(deduped, f)
+	}
+	findings = deduped
+
 	rows := make([][]any, 0, len(findings))
 	for _, finding := range findings {
 		affectedAssetIDs := ensureUUIDSlice(finding.AffectedAssetIDs)

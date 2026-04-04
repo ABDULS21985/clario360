@@ -38,7 +38,7 @@ escrow-<version>/
 │       ├── api-gateway-*.tar
 │       ├── iam-service-*.tar
 │       ├── ... (all services)
-│       ├── golang-1.22-alpine.tar    (base images)
+│       ├── golang-1.25*-alpine.tar   (base images)
 │       ├── node-20-alpine.tar
 │       └── postgres-16-alpine.tar
 │
@@ -61,7 +61,7 @@ escrow-<version>/
 │
 ├── docs/                      Documentation
 │   ├── ESCROW_README.md       This file
-│   ├── api/                   API specifications (OpenAPI 3.1)
+│   ├── api/                   API placeholder or generated references
 │   ├── architecture/          Architecture decision records
 │   └── runbooks/              Operational runbooks (~35 procedures)
 │       ├── deployment/        Release and deployment procedures
@@ -75,7 +75,7 @@ escrow-<version>/
 │   └── verify-build.sh        Verifies buildability from source
 │
 ├── tools/                     CLI tools for offline environments
-│   ├── go1.22.0.tar.gz        Go compiler
+│   ├── go1.25*.tar.gz         Go compiler
 │   ├── node-v20.11.0.tar.xz   Node.js runtime
 │   ├── kubectl                Kubernetes CLI
 │   ├── helm                   Helm chart manager
@@ -115,7 +115,7 @@ Read `build/BUILD_INSTRUCTIONS.md` for complete build procedures covering:
 
 ```bash
 # Install tools (if in air-gapped environment)
-tar xzf tools/go1.22.0.tar.gz -C /usr/local
+tar xzf tools/go1.25*.tar.gz -C /usr/local
 export PATH=$PATH:/usr/local/go/bin
 
 # Build backend
@@ -150,12 +150,13 @@ Choose your deployment target:
 
 | Document | Location | Purpose |
 |----------|----------|---------|
-| Architecture Overview | `docs/architecture/11_ARCHITECTURE_OVERVIEW.md` | System design and component interactions |
-| API Specification | `docs/api/openapi.yaml` | Complete REST API reference (~300 endpoints) |
+| Architecture References | `docs/architecture/` | Current architecture notes, solution design, and capability matrices |
+| Gateway Route Map | `source/backend/internal/gateway/config/routes.go` | Checked-in gateway route ownership and service routing |
+| Backend Service Entry Points | `source/backend/cmd/` | Service handlers and live API entrypoints |
 | Helm Chart Values | `deploy/helm/clario360/values.yaml` | All configurable deployment parameters |
 | Terraform Modules | `deploy/terraform/modules/` | Infrastructure provisioning (GCP) |
 | Operational Runbooks | `docs/runbooks/` | ~35 procedures for platform operations |
-| AI Governance | `docs/architecture/15_AI_GOVERNANCE_AND_MLOPS.md` | AI model management and explainability |
+| AI Governance | `docs/architecture/AI_CAPABILITIES_MATRIX.md` | Implemented AI capabilities and governance coverage |
 
 ---
 

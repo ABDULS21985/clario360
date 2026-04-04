@@ -7,7 +7,7 @@ from source code, both with and without internet access.
 
 | Tool       | Version | Included in `tools/` | Purpose                    |
 |------------|---------|----------------------|----------------------------|
-| Go         | 1.22+   | Yes                  | Backend service compilation |
+| Go         | 1.25+   | Yes                  | Backend service compilation |
 | Node.js    | 20 LTS  | Yes                  | Frontend build              |
 | Docker     | 24+     | No (host install)    | Container image builds      |
 | Make       | any     | No (system package)  | Build automation            |
@@ -18,8 +18,8 @@ from source code, both with and without internet access.
 ## Installing Included Tools (Air-Gapped)
 
 ```bash
-# Go compiler
-tar xzf tools/go1.22.0.tar.gz -C /usr/local
+# Go compiler (use the packaged Go archive that matches source/backend/go.mod)
+tar xzf tools/go1.25*.tar.gz -C /usr/local
 export PATH=$PATH:/usr/local/go/bin
 export GOPATH=$HOME/go
 
@@ -31,7 +31,7 @@ cp tools/kubectl tools/helm tools/terraform /usr/local/bin/
 chmod +x /usr/local/bin/{kubectl,helm,terraform}
 
 # Verify installations
-go version        # go1.22.0
+go version        # should report Go 1.25+
 node --version    # v20.11.0
 kubectl version --client
 helm version
@@ -137,7 +137,7 @@ docker images | grep clario360
 
 ```bash
 # First, load base images
-docker load -i dependencies/images/golang-1.22-alpine.tar
+docker load -i dependencies/images/golang-1.25*-alpine.tar
 docker load -i dependencies/images/node-20-alpine.tar
 docker load -i dependencies/images/gcr.io-distroless-static-debian12-nonroot.tar
 
@@ -302,6 +302,7 @@ Both scripts exit with code 0 on success.
 For understanding the system architecture, service interactions, and design
 decisions, refer to `docs/architecture/` — particularly:
 
-- `11_ARCHITECTURE_OVERVIEW.md` — System architecture and component diagram
-- `15_AI_GOVERNANCE_AND_MLOPS.md` — AI model management
-- API endpoints are documented in `docs/api/openapi.yaml`
+- `docs/architecture/FRONTEND_BACKEND_FEATURE_PARITY.md` — Cross-layer feature map and service/frontend parity notes
+- `docs/architecture/AI_CAPABILITIES_MATRIX.md` — AI implementation and governance coverage
+- `docs/runbooks/README.md` — Operational runbook index
+- This repo snapshot does not include `docs/api/openapi.yaml`; use `source/backend/internal/gateway/config/routes.go` and `source/backend/cmd/` as the checked-in API surface reference
