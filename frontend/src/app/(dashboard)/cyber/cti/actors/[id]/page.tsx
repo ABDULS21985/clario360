@@ -13,6 +13,7 @@ import { PermissionRedirect } from '@/components/common/permission-redirect';
 import { PermissionGate } from '@/components/auth/permission-gate';
 import { ActorFormDialog } from '@/components/cyber/cti/actor-form-dialog';
 import { IOCValueDisplay } from '@/components/cyber/cti/ioc-value-display';
+import { CTIKPIStatCard } from '@/components/cyber/cti/kpi-stat-card';
 import { MitreTechniqueBadges } from '@/components/cyber/cti/mitre-technique-badges';
 import { CTISeverityBadge } from '@/components/cyber/cti/severity-badge';
 import { ConfirmDialog } from '@/components/shared/confirm-dialog';

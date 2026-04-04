@@ -137,8 +137,9 @@ function aggregateByCountry(
           .sort((left, right) => right[1] - left[1])
           .slice(0, 5),
         trendPercentage,
-        trendDirection:
-          trendPercentage > 5 ? 'increasing' : trendPercentage < -5 ? 'decreasing' : 'stable',
+        trendDirection: (
+          trendPercentage > 5 ? 'increasing' : trendPercentage < -5 ? 'decreasing' : 'stable'
+        ) as CountryAggregate['trendDirection'],
       };
     })
     .sort((left, right) => right.totalCount - left.totalCount);
