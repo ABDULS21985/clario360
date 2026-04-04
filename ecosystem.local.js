@@ -138,6 +138,7 @@ module.exports = {
       AUDIT_MINIO_BUCKET: "audit-exports",
     }),
     serviceApp("notification-service", {
+      DATABASE_NAME: "notification_db",
       NOTIF_HTTP_PORT: "8090",
       NOTIF_DB_MIN_CONNS: "1",
       NOTIF_DB_MAX_CONNS: "4",

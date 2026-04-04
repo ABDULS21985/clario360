@@ -232,11 +232,44 @@ CREATE INDEX IF NOT EXISTS idx_ticket_links_external ON external_ticket_links (e
 CREATE INDEX IF NOT EXISTS idx_ticket_links_integration ON external_ticket_links (integration_id);
 `
 
+// schemaMigrations contains ALTER TABLE statements for columns added after
+// the initial CREATE TABLE IF NOT EXISTS DDL. These are idempotent (IF NOT
+// EXISTS) and run after the base schemaSQL so that existing deployments pick
+// up new columns without a manual migration step.
+const schemaMigrations = `
+-- 000003: webhook enhancements
+ALTER TABLE notification_webhooks
+    ADD COLUMN IF NOT EXISTS headers           JSONB NOT NULL DEFAULT '{}',
+    ADD COLUMN IF NOT EXISTS retry_policy      JSONB NOT NULL DEFAULT '{"max_retries": 3, "backoff_type": "exponential", "initial_delay_seconds": 10}',
+    ADD COLUMN IF NOT EXISTS last_triggered_at TIMESTAMPTZ,
+    ADD COLUMN IF NOT EXISTS success_count     BIGINT NOT NULL DEFAULT 0,
+    ADD COLUMN IF NOT EXISTS failure_count     BIGINT NOT NULL DEFAULT 0;
+
+ALTER TABLE notification_delivery_log
+    ADD COLUMN IF NOT EXISTS webhook_id       UUID,
+    ADD COLUMN IF NOT EXISTS event_type       TEXT,
+    ADD COLUMN IF NOT EXISTS request_url      TEXT,
+    ADD COLUMN IF NOT EXISTS request_body     JSONB,
+    ADD COLUMN IF NOT EXISTS response_status  INT,
+    ADD COLUMN IF NOT EXISTS response_body    TEXT,
+    ADD COLUMN IF NOT EXISTS duration_ms      INT,
+    ADD COLUMN IF NOT EXISTS next_retry_at    TIMESTAMPTZ;
+
+CREATE INDEX IF NOT EXISTS idx_delivery_webhook ON notification_delivery_log (webhook_id, created_at DESC)
+    WHERE webhook_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_delivery_tenant_date ON notification_delivery_log
+    USING btree (created_at);
+`
+
 // RunMigration executes the notification schema DDL against the database.
 func RunMigration(ctx context.Context, db *pgxpool.Pool) error {
 	_, err := db.Exec(ctx, schemaSQL)
 	if err != nil {
 		return fmt.Errorf("notification schema migration: %w", err)
+	}
+	_, err = db.Exec(ctx, schemaMigrations)
+	if err != nil {
+		return fmt.Errorf("notification schema post-migration: %w", err)
 	}
 	return nil
 }

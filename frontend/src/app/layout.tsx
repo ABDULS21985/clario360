@@ -49,8 +49,15 @@ const ibmPlexMono = localFont({
 });
 
 export const metadata: Metadata = {
-  title: 'Clario 360 — Enterprise AI Platform',
+  title: 'Boa360 — Enterprise AI Platform',
   description: 'Saudi-owned, Kubernetes-native, multi-suite enterprise AI platform',
+  icons: {
+    icon: [
+      { url: '/favicon.ico', sizes: '32x32' },
+      { url: '/icon.svg', type: 'image/svg+xml' },
+    ],
+    apple: '/apple-icon.svg',
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

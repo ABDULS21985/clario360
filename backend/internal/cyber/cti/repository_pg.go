@@ -1066,8 +1066,8 @@ func (r *PgRepository) GetBrandAbuseIncident(ctx context.Context, tenantID, inci
 	var d BrandAbuseDetail
 	err := r.withTenantRead(ctx, tenantID, func(db dbtx) error {
 		return db.QueryRow(ctx, `SELECT i.id,i.tenant_id,i.brand_id,i.malicious_domain,i.abuse_type,i.risk_level,
-			i.region_id,i.detection_count,i.source_id,i.whois_registrant,i.whois_created_date,
-			i.ssl_issuer,i.hosting_ip,i.hosting_asn,i.screenshot_file_id,
+			i.region_id,i.detection_count,i.source_id,i.whois_registrant,i.whois_created_date::text,
+			i.ssl_issuer,i.hosting_ip::text,i.hosting_asn,i.screenshot_file_id,
 			i.takedown_status,i.takedown_requested_at,i.taken_down_at,
 			i.first_detected_at,i.last_detected_at,i.created_at,i.updated_at,i.created_by,i.updated_by,i.deleted_at,
 			COALESCE(b.brand_name,'') AS brand_name,
@@ -1096,8 +1096,8 @@ func (r *PgRepository) ListBrandAbuseIncidents(ctx context.Context, tenantID uui
 	var items []BrandAbuseDetail
 	var total int
 	baseSQL := `SELECT i.id,i.tenant_id,i.brand_id,i.malicious_domain,i.abuse_type,i.risk_level,
-		i.region_id,i.detection_count,i.source_id,i.whois_registrant,i.whois_created_date,
-		i.ssl_issuer,i.hosting_ip,i.hosting_asn,i.screenshot_file_id,
+		i.region_id,i.detection_count,i.source_id,i.whois_registrant,i.whois_created_date::text,
+		i.ssl_issuer,i.hosting_ip::text,i.hosting_asn,i.screenshot_file_id,
 		i.takedown_status,i.takedown_requested_at,i.taken_down_at,
 		i.first_detected_at,i.last_detected_at,i.created_at,i.updated_at,i.created_by,i.updated_by,i.deleted_at,
 		COALESCE(b.brand_name,'') AS brand_name,

@@ -735,6 +735,7 @@ start_service() {
   local log="${LOG_DIR}/${name}.log"
   local pidfile
   pidfile="$(pid_file "$name")"
+  local previous_database_name="${DATABASE_NAME:-}"
 
   if [ ! -f "${bin}" ]; then
     warn "Binary not found: ${bin} — skipping ${name}"
@@ -751,8 +752,15 @@ start_service() {
     fi
   fi
 
+  if [ "${name}" = "notification-service" ]; then
+    export DATABASE_NAME="notification_db"
+  else
+    export DATABASE_NAME="${DB_NAME}"
+  fi
+
   nohup "${bin}" > "${log}" 2>&1 &
   local pid=$!
+  export DATABASE_NAME="${previous_database_name}"
   save_pid "${name}" "${pid}"
   ok "Started ${name} (PID ${pid}) → ${log}"
 }

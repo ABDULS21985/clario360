@@ -41,7 +41,7 @@ func (r *NotificationRepository) InsertWithDedup(ctx context.Context, n *model.N
 	query := `
 		INSERT INTO notifications (tenant_id, user_id, type, category, priority, title, body, data, action_url, source_event_id)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-		ON CONFLICT ON CONSTRAINT idx_notif_dedup DO NOTHING
+		ON CONFLICT (tenant_id, user_id, source_event_id) WHERE source_event_id IS NOT NULL DO NOTHING
 		RETURNING id`
 
 	var id string

@@ -9,6 +9,7 @@ BASE_URL="${CTI_BASE_URL:-http://localhost:8080/api/v1/cyber/cti}"
 IAM_URL="${IAM_URL:-http://localhost:8081}"
 EMAIL="${CLARIO360_SMOKE_EMAIL:-admin@clario.dev}"
 PASSWORD="${CLARIO360_SMOKE_PASSWORD:-Cl@rio360Dev!}"
+RUN_ID="${CLARIO360_SMOKE_RUN_ID:-$(date +%s)}"
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -143,7 +144,7 @@ echo -e "${YELLOW}--- Threat Events ---${NC}"
 
 IFS='|' read -r status body <<< "$(api_post "$BASE_URL/events" '{
   "event_type": "attack_attempt",
-  "title": "Smoke test: SSH brute force from 10.99.1.1",
+  "title": "Smoke test: SSH brute force from 10.99.1.1 '${RUN_ID}'",
   "severity_code": "high",
   "confidence_score": 0.85,
   "origin_country_code": "ru",
@@ -189,7 +190,7 @@ echo ""
 echo -e "${YELLOW}--- Threat Actors ---${NC}"
 
 IFS='|' read -r status body <<< "$(api_post "$BASE_URL/actors" '{
-  "name": "SMOKE TEST APT",
+  "name": "SMOKE TEST APT '${RUN_ID}'",
   "actor_type": "state_sponsored",
   "sophistication_level": "advanced",
   "primary_motivation": "espionage",
@@ -220,8 +221,8 @@ echo ""
 echo -e "${YELLOW}--- Campaigns ---${NC}"
 
 IFS='|' read -r status body <<< "$(api_post "$BASE_URL/campaigns" '{
-  "campaign_code": "C-TEST-0001",
-  "name": "SMOKE TEST CAMPAIGN",
+  "campaign_code": "C-TEST-'${RUN_ID}'",
+  "name": "SMOKE TEST CAMPAIGN '${RUN_ID}'",
   "status": "active",
   "severity_code": "high",
   "first_seen_at": "2026-04-01T00:00:00Z"
@@ -245,7 +246,7 @@ if [ -n "$CAMPAIGN_ID" ]; then
   # Campaign IOCs
   IFS='|' read -r status body <<< "$(api_post "$BASE_URL/campaigns/$CAMPAIGN_ID/iocs" '{
     "ioc_type": "domain",
-    "ioc_value": "smoke-test.example.net",
+    "ioc_value": "smoke-test-'${RUN_ID}'.example.net",
     "confidence_score": 0.90
   }')"
   check "Create campaign IOC" "201" "$status" "$body"
