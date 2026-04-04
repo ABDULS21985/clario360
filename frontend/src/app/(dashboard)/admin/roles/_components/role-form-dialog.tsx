@@ -332,6 +332,7 @@ export function RoleFormDialog({ role, open, onOpenChange, onSuccess }: RoleForm
                                 <Label
                                   htmlFor={`perm-${perm.value}`}
                                   className="text-sm cursor-pointer flex-1"
+                                  onClick={(e) => e.stopPropagation()}
                                 >
                                   {perm.label}
                                 </Label>

@@ -1,6 +1,5 @@
 'use client';
 
-import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { toast } from 'sonner';
@@ -12,13 +11,11 @@ import { Label } from '@/components/ui/label';
 import { Spinner } from '@/components/ui/spinner';
 import { UserAvatar } from '@/components/shared/user-avatar';
 import { profileFormSchema, type ProfileFormData } from '@/lib/validators/settings-validators';
-import { apiPut } from '@/lib/api';
 import { isApiError } from '@/types/api';
 import { useAuth } from '@/hooks/use-auth';
 
 export function ProfileForm() {
-  const { user, updateProfile } = useAuth();
-  const [loading, setLoading] = useState(false);
+  const { user, updateProfile, isLoading } = useAuth();
 
   const {
     register,
@@ -34,17 +31,15 @@ export function ProfileForm() {
 
   if (!user) return null;
 
+  // updateProfile calls PUT /api/v1/users/me and updates the Zustand user state.
+  // Do NOT call apiPut separately — that would be a double write.
   const onSubmit = async (data: ProfileFormData) => {
-    setLoading(true);
     try {
-      await apiPut('/api/v1/users/me', data);
       await updateProfile(data);
       toast.success('Profile updated.');
     } catch (err) {
       const msg = isApiError(err) ? err.message : 'Failed to update profile.';
       toast.error(msg);
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -67,14 +62,14 @@ export function ProfileForm() {
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="first_name">First Name</Label>
-              <Input id="first_name" {...register('first_name')} disabled={loading} />
+              <Input id="first_name" {...register('first_name')} disabled={isLoading} />
               {errors.first_name && (
                 <p className="text-sm text-destructive">{errors.first_name.message}</p>
               )}
             </div>
             <div className="space-y-2">
               <Label htmlFor="last_name">Last Name</Label>
-              <Input id="last_name" {...register('last_name')} disabled={loading} />
+              <Input id="last_name" {...register('last_name')} disabled={isLoading} />
               {errors.last_name && (
                 <p className="text-sm text-destructive">{errors.last_name.message}</p>
               )}
@@ -93,8 +88,8 @@ export function ProfileForm() {
           </div>
 
           <div className="flex justify-end">
-            <Button type="submit" size="sm" disabled={loading || !isDirty}>
-              {loading ? <><Spinner className="mr-2 h-4 w-4" />Saving...</> : 'Save Changes'}
+            <Button type="submit" size="sm" disabled={isLoading || !isDirty}>
+              {isLoading ? <><Spinner className="mr-2 h-4 w-4" />Saving...</> : 'Save Changes'}
             </Button>
           </div>
         </form>

@@ -27,22 +27,35 @@ type DisableMFARequest struct {
 	Code string `json:"code" validate:"required,len=6"`
 }
 
+// AdminCreateUserRequest is used by admins to create users within their tenant.
+// Unlike the public Register endpoint, this allows setting initial status,
+// role assignments, and optionally sending a welcome email.
+type AdminCreateUserRequest struct {
+	Email            string   `json:"email" validate:"required,email"`
+	Password         string   `json:"password" validate:"required,min=12"`
+	FirstName        string   `json:"first_name" validate:"required,min=1,max=100"`
+	LastName         string   `json:"last_name" validate:"required,min=1,max=100"`
+	Status           string   `json:"status,omitempty" validate:"omitempty,oneof=active inactive suspended"`
+	RoleIDs          []string `json:"role_ids,omitempty"`
+	SendWelcomeEmail bool     `json:"send_welcome_email,omitempty"`
+}
+
 // ---------- Responses ----------
 
 type UserResponse struct {
-	ID        string         `json:"id"`
-	TenantID  string         `json:"tenant_id"`
-	Email     string         `json:"email"`
-	FirstName string         `json:"first_name"`
-	LastName  string         `json:"last_name"`
-	FullName  string         `json:"full_name"`
-	AvatarURL *string        `json:"avatar_url,omitempty"`
-	Status    string         `json:"status"`
-	MFAEnabled bool          `json:"mfa_enabled"`
-	LastLoginAt *time.Time   `json:"last_login_at,omitempty"`
-	CreatedAt time.Time      `json:"created_at"`
-	UpdatedAt time.Time      `json:"updated_at"`
-	Roles     []RoleResponse `json:"roles,omitempty"`
+	ID          string         `json:"id"`
+	TenantID    string         `json:"tenant_id"`
+	Email       string         `json:"email"`
+	FirstName   string         `json:"first_name"`
+	LastName    string         `json:"last_name"`
+	FullName    string         `json:"full_name"`
+	AvatarURL   *string        `json:"avatar_url,omitempty"`
+	Status      string         `json:"status"`
+	MFAEnabled  bool           `json:"mfa_enabled"`
+	LastLoginAt *time.Time     `json:"last_login_at,omitempty"`
+	CreatedAt   time.Time      `json:"created_at"`
+	UpdatedAt   time.Time      `json:"updated_at"`
+	Roles       []RoleResponse `json:"roles"`
 }
 
 type MFASetupResponse struct {
@@ -52,15 +65,24 @@ type MFASetupResponse struct {
 }
 
 type PaginatedResponse struct {
-	Data       any        `json:"data"`
-	Pagination Pagination `json:"pagination"`
+	Data any            `json:"data"`
+	Meta PaginationMeta `json:"meta"`
 }
 
-type Pagination struct {
-	Page     int `json:"page"`
-	PerPage  int `json:"per_page"`
-	Total    int `json:"total"`
-	LastPage int `json:"last_page"`
+type PaginationMeta struct {
+	Page       int `json:"page"`
+	PerPage    int `json:"per_page"`
+	Total      int `json:"total"`
+	TotalPages int `json:"total_pages"`
+}
+
+type SessionResponse struct {
+	ID           string    `json:"id"`
+	UserAgent    string    `json:"user_agent"`
+	IPAddress    string    `json:"ip_address"`
+	CreatedAt    time.Time `json:"created_at"`
+	LastActiveAt time.Time `json:"last_active_at"`
+	IsCurrent    bool      `json:"is_current"`
 }
 
 func UserToResponse(u *model.User) UserResponse {
@@ -78,11 +100,9 @@ func UserToResponse(u *model.User) UserResponse {
 		CreatedAt:   u.CreatedAt,
 		UpdatedAt:   u.UpdatedAt,
 	}
-	if len(u.Roles) > 0 {
-		resp.Roles = make([]RoleResponse, len(u.Roles))
-		for i, r := range u.Roles {
-			resp.Roles[i] = RoleToResponse(&r)
-		}
+	resp.Roles = make([]RoleResponse, len(u.Roles))
+	for i, r := range u.Roles {
+		resp.Roles[i] = RoleToResponse(&r)
 	}
 	return resp
 }
@@ -91,6 +111,45 @@ func UsersToResponse(users []model.User) []UserResponse {
 	resp := make([]UserResponse, len(users))
 	for i := range users {
 		resp[i] = UserToResponse(&users[i])
+	}
+	return resp
+}
+
+// SessionsToResponse converts session models to API responses.
+// currentSessionID comes from the caller's JWT "sid" claim and is used to mark
+// the active session accurately. When empty (old tokens without the claim),
+// the function falls back to treating the most-recently-active session as current.
+func SessionsToResponse(sessions []model.Session, currentSessionID string) []SessionResponse {
+	// Determine which session is "current".
+	currentID := currentSessionID
+	if currentID == "" && len(sessions) > 0 {
+		// Fallback for tokens issued before the "sid" claim was introduced:
+		// sessions are ordered by last_active_at DESC so the first entry is current.
+		currentID = sessions[0].ID
+	}
+
+	resp := make([]SessionResponse, 0, len(sessions))
+	for _, session := range sessions {
+		userAgent := ""
+		if session.UserAgent != nil {
+			userAgent = *session.UserAgent
+		}
+		ipAddress := ""
+		if session.IPAddress != nil {
+			ipAddress = *session.IPAddress
+		}
+		lastActive := session.LastActiveAt
+		if lastActive.IsZero() {
+			lastActive = session.CreatedAt
+		}
+		resp = append(resp, SessionResponse{
+			ID:           session.ID,
+			UserAgent:    userAgent,
+			IPAddress:    ipAddress,
+			CreatedAt:    session.CreatedAt,
+			LastActiveAt: lastActive,
+			IsCurrent:    session.ID == currentID,
+		})
 	}
 	return resp
 }

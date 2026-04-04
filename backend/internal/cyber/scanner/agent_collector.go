@@ -93,6 +93,7 @@ func (c *AgentCollector) ProcessPayload(ctx context.Context, tenantID uuid.UUID,
 		Banners:         map[int]string{},
 		ExtraMetadata:   extraMeta,
 		DiscoverySource: "agent",
+		ScanID:          ScanIDFromCtx(ctx),
 	}
 
 	assetID, isNew, err := c.repo.UpsertFromScan(ctx, tenantID, d)

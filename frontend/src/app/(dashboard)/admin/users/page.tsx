@@ -41,7 +41,6 @@ async function fetchUsers(params: {
       order: params.order,
       search: params.search || undefined,
       status: params.filters?.status,
-      role: params.filters?.role,
     },
   });
   return data;
@@ -71,7 +70,7 @@ export default function UserManagementPage() {
       options: [
         { label: "Active", value: "active" },
         { label: "Suspended", value: "suspended" },
-        { label: "Deactivated", value: "deactivated" },
+        { label: "Inactive", value: "inactive" },
         { label: "Pending", value: "pending_verification" },
       ],
     },
@@ -142,11 +141,11 @@ export default function UserManagementPage() {
       header: "Roles",
       enableSorting: false,
       cell: ({ row }) => (
-        <div className="flex flex-wrap gap-1 max-w-[200px]">
-          {row.original.roles.length === 0 ? (
+        <div className="flex flex-wrap gap-1 max-w-[120px] sm:max-w-[200px]">
+          {(row.original.roles ?? []).length === 0 ? (
             <span className="text-xs text-muted-foreground">No roles</span>
           ) : (
-            row.original.roles.slice(0, 2).map((role) => (
+            (row.original.roles ?? []).slice(0, 2).map((role) => (
               <span
                 key={role.id}
                 className="inline-flex items-center rounded-full bg-secondary text-secondary-foreground px-2 py-0.5 text-xs font-medium"
@@ -155,9 +154,9 @@ export default function UserManagementPage() {
               </span>
             ))
           )}
-          {row.original.roles.length > 2 && (
+          {(row.original.roles ?? []).length > 2 && (
             <span className="text-xs text-muted-foreground">
-              +{row.original.roles.length - 2}
+              +{(row.original.roles ?? []).length - 2}
             </span>
           )}
         </div>

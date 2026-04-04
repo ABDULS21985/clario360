@@ -14,6 +14,7 @@ import (
 	"github.com/rs/zerolog"
 	"golang.org/x/sync/errgroup"
 
+	aigovmiddleware "github.com/clario360/platform/internal/aigovernance/middleware"
 	"github.com/clario360/platform/internal/cyber/metrics"
 	"github.com/clario360/platform/internal/cyber/model"
 	"github.com/clario360/platform/internal/cyber/repository"
@@ -28,14 +29,15 @@ type RiskComponent interface {
 }
 
 type RiskScorer struct {
-	components  []RiskComponent
-	contribs    *ContributorAnalyzer
-	recommends  *RecommendationEngine
-	historyRepo *repository.RiskHistoryRepository
-	cache       *redis.Client
-	db          *pgxpool.Pool
-	logger      zerolog.Logger
-	metrics     *metrics.Metrics
+	components       []RiskComponent
+	contribs         *ContributorAnalyzer
+	recommends       *RecommendationEngine
+	historyRepo      *repository.RiskHistoryRepository
+	cache            *redis.Client
+	db               *pgxpool.Pool
+	logger           zerolog.Logger
+	metrics          *metrics.Metrics
+	predictionLogger *aigovmiddleware.PredictionLogger
 }
 
 func NewRiskScorer(
@@ -201,8 +203,13 @@ func (rs *RiskScorer) calculate(ctx context.Context, tenantID uuid.UUID, force b
 			rs.metrics.RiskComponentScore.WithLabelValues(tenantID.String(), "compliance").Set(score.Components.ComplianceGapRisk.Score)
 		}
 	}
+	rs.recordPrediction(ctx, tenantID, score)
 
 	return score, nil
+}
+
+func (rs *RiskScorer) SetPredictionLogger(predictionLogger *aigovmiddleware.PredictionLogger) {
+	rs.predictionLogger = predictionLogger
 }
 
 func (rs *RiskScorer) loadContext(ctx context.Context, tenantID uuid.UUID) (model.RiskContext, error) {

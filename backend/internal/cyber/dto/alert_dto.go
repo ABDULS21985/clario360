@@ -12,23 +12,26 @@ import (
 
 // AlertListParams captures all filters supported by GET /cyber/alerts.
 type AlertListParams struct {
-	Search           *string    `form:"search"`
-	Severities       []string   `form:"severity"`
-	Statuses         []string   `form:"status"`
-	AssignedTo       *uuid.UUID `form:"assigned_to"`
-	Unassigned       *bool      `form:"unassigned"`
-	AssetID          *uuid.UUID `form:"asset_id"`
-	RuleID           *uuid.UUID `form:"rule_id"`
-	MITRETechniqueID *string    `form:"mitre_technique_id"`
-	MITRETacticID    *string    `form:"mitre_tactic_id"`
-	MinConfidence    *float64   `form:"min_confidence"`
-	Tags             []string   `form:"tag"`
-	DateFrom         *time.Time `form:"date_from"`
-	DateTo           *time.Time `form:"date_to"`
-	Sort             string     `form:"sort"`
-	Order            string     `form:"order"`
-	Page             int        `form:"page"`
-	PerPage          int        `form:"per_page"`
+	Search           *string     `form:"search"`
+	Severities       []string    `form:"severity"`
+	Statuses         []string    `form:"status"`
+	AlertIDs         []uuid.UUID `form:"alert_ids"`
+	AssignedTo       *uuid.UUID  `form:"assigned_to"`
+	Unassigned       *bool       `form:"unassigned"`
+	AssetID          *uuid.UUID  `form:"asset_id"`
+	RuleID           *uuid.UUID  `form:"rule_id"`
+	RuleType         *string     `form:"rule_type"`
+	MITRETechniqueID *string     `form:"mitre_technique_id"`
+	MITRETacticID    *string     `form:"mitre_tactic_id"`
+	MinConfidence    *float64    `form:"min_confidence"`
+	MaxConfidence    *float64    `form:"max_confidence"`
+	Tags             []string    `form:"tag"`
+	DateFrom         *time.Time  `form:"date_from"`
+	DateTo           *time.Time  `form:"date_to"`
+	Sort             string      `form:"sort"`
+	Order            string      `form:"order"`
+	Page             int         `form:"page"`
+	PerPage          int         `form:"per_page"`
 }
 
 // SetDefaults applies defaults to list parameters.
@@ -49,6 +52,9 @@ func (p *AlertListParams) SetDefaults() {
 
 // Validate validates filter parameters.
 func (p *AlertListParams) Validate() error {
+	if len(p.AlertIDs) > 100 {
+		return fmt.Errorf("alert_ids: maximum 100 IDs allowed, got %d", len(p.AlertIDs))
+	}
 	for _, sev := range p.Severities {
 		if !model.Severity(sev).IsValid() {
 			return fmt.Errorf("invalid severity: %q", sev)
@@ -62,8 +68,17 @@ func (p *AlertListParams) Validate() error {
 	if p.MinConfidence != nil && (*p.MinConfidence < 0 || *p.MinConfidence > 1) {
 		return fmt.Errorf("min_confidence must be between 0 and 1")
 	}
+	if p.MaxConfidence != nil && (*p.MaxConfidence < 0 || *p.MaxConfidence > 1) {
+		return fmt.Errorf("max_confidence must be between 0 and 1")
+	}
+	if p.MinConfidence != nil && p.MaxConfidence != nil && *p.MinConfidence > *p.MaxConfidence {
+		return fmt.Errorf("min_confidence must be less than or equal to max_confidence")
+	}
+	if p.RuleType != nil && !model.DetectionRuleType(*p.RuleType).IsValid() {
+		return fmt.Errorf("invalid rule_type: %q", *p.RuleType)
+	}
 	switch p.Sort {
-	case "", "severity", "confidence_score", "created_at", "event_count", "status":
+	case "", "severity", "confidence_score", "created_at", "event_count", "status", "title":
 	default:
 		return fmt.Errorf("invalid sort: %q", p.Sort)
 	}
@@ -77,11 +92,34 @@ func (p *AlertListParams) Validate() error {
 
 // AlertListResponse is the paginated response for GET /cyber/alerts.
 type AlertListResponse struct {
-	Data       []*model.Alert `json:"data"`
-	Total      int            `json:"total"`
-	Page       int            `json:"page"`
-	PerPage    int            `json:"per_page"`
-	TotalPages int            `json:"total_pages"`
+	Data []*model.Alert `json:"data"`
+	Meta PaginationMeta `json:"meta"`
+}
+
+// PaginationMeta is the canonical pagination envelope for cyber list endpoints.
+type PaginationMeta struct {
+	Page       int `json:"page"`
+	PerPage    int `json:"per_page"`
+	Total      int `json:"total"`
+	TotalPages int `json:"total_pages"`
+}
+
+// NewPaginationMeta builds pagination metadata from the current request values.
+func NewPaginationMeta(page, perPage, total int) PaginationMeta {
+	totalPages := total / perPage
+	if total%perPage != 0 {
+		totalPages++
+	}
+	if totalPages < 1 {
+		totalPages = 1
+	}
+
+	return PaginationMeta{
+		Page:       page,
+		PerPage:    perPage,
+		Total:      total,
+		TotalPages: totalPages,
+	}
 }
 
 // AlertStatusUpdateRequest updates the status of an alert.
@@ -102,6 +140,11 @@ type AlertEscalateRequest struct {
 	Reason      string    `json:"reason" validate:"required,min=3,max=1000"`
 }
 
+// AlertFalsePositiveRequest marks an alert as false positive with a reason.
+type AlertFalsePositiveRequest struct {
+	Reason string `json:"reason" validate:"required,min=3,max=1000"`
+}
+
 // AlertCommentRequest adds an investigation comment.
 type AlertCommentRequest struct {
 	Content  string          `json:"content" validate:"required,min=1,max=4000"`
@@ -113,7 +156,43 @@ type AlertMergeRequest struct {
 	MergeIDs []uuid.UUID `json:"merge_ids" validate:"required,min=1,max=25,dive,required"`
 }
 
-// AlertCountResponse returns a simple count for KPI cards.
+// AlertCountResponse returns a count with optional trend/history for KPI cards.
 type AlertCountResponse struct {
-	Count int `json:"count"`
+	Count   int   `json:"count"`
+	Trend   *int  `json:"trend,omitempty"`
+	History []int `json:"history,omitempty"`
+}
+
+// BulkAlertStatusRequest updates the status of multiple alerts.
+type BulkAlertStatusRequest struct {
+	AlertIDs []uuid.UUID       `json:"alert_ids" validate:"required,min=1,max=100,dive,required"`
+	Status   model.AlertStatus `json:"status" validate:"required"`
+	Notes    *string           `json:"notes,omitempty" validate:"omitempty,max=4000"`
+	Reason   *string           `json:"reason,omitempty" validate:"omitempty,max=1000"`
+}
+
+// BulkAlertAssignRequest assigns multiple alerts to an analyst.
+type BulkAlertAssignRequest struct {
+	AlertIDs   []uuid.UUID `json:"alert_ids" validate:"required,min=1,max=100,dive,required"`
+	AssignedTo uuid.UUID   `json:"assigned_to" validate:"required"`
+}
+
+// BulkAlertFalsePositiveRequest marks multiple alerts as false positive.
+type BulkAlertFalsePositiveRequest struct {
+	AlertIDs []uuid.UUID `json:"alert_ids" validate:"required,min=1,max=100,dive,required"`
+	Reason   string      `json:"reason" validate:"required,min=3,max=1000"`
+}
+
+// BulkOperationResult is the response for bulk alert operations.
+type BulkOperationResult struct {
+	Processed  int         `json:"processed"`
+	Successful int         `json:"successful"`
+	Failed     int         `json:"failed"`
+	Errors     []BulkError `json:"errors,omitempty"`
+}
+
+// BulkError describes a single failure within a bulk operation.
+type BulkError struct {
+	AlertID string `json:"alert_id"`
+	Error   string `json:"error"`
 }

@@ -81,7 +81,7 @@ func (s *BlockStrategy) DryRun(ctx context.Context, action *model.RemediationAct
 		_ = s.db.QueryRow(ctx, `
 			SELECT COUNT(*) FROM security_events
 			WHERE tenant_id=$1 AND (source_ip=$2 OR destination_ip=$2)
-			AND occurred_at > now() - interval '24 hours'`,
+			AND timestamp > now() - interval '24 hours'`,
 			action.TenantID, target,
 		).Scan(&recentEvents)
 		if recentEvents > 0 {
@@ -129,7 +129,7 @@ func (s *BlockStrategy) Execute(ctx context.Context, action *model.RemediationAc
 				id, tenant_id, threat_id, type, value, confidence, active,
 				description, source, created_at, updated_at
 			)
-			SELECT gen_random_uuid(), $1, NULL, 'ip', $2, 90, true,
+			SELECT gen_random_uuid(), $1, NULL, 'ip', $2, 0.90, true,
 			       'Blocked by remediation action', 'remediation', now(), now()
 			WHERE NOT EXISTS (
 				SELECT 1 FROM threat_indicators WHERE tenant_id=$1 AND value=$2 AND type='ip'
@@ -179,7 +179,7 @@ func (s *BlockStrategy) Verify(ctx context.Context, action *model.RemediationAct
 		_ = s.db.QueryRow(ctx, `
 			SELECT COUNT(*) FROM security_events
 			WHERE tenant_id=$1 AND (source_ip=$2 OR destination_ip=$2)
-			AND occurred_at > now() - interval '1 hour'`,
+			AND timestamp > now() - interval '1 hour'`,
 			action.TenantID, target,
 		).Scan(&recentEvents)
 
@@ -205,13 +205,37 @@ func (s *BlockStrategy) Verify(ctx context.Context, action *model.RemediationAct
 }
 
 func (s *BlockStrategy) Rollback(ctx context.Context, action *model.RemediationAction) error {
-	for _, target := range action.Plan.BlockTargets {
-		_, err := s.db.Exec(ctx,
-			"UPDATE threat_indicators SET active=false, updated_at=now() WHERE tenant_id=$1 AND value=$2 AND type='ip'",
-			action.TenantID, target,
-		)
-		if err != nil {
-			return fmt.Errorf("deactivate block indicator for %s: %w", target, err)
+	type indicatorState struct {
+		IP     string `json:"ip"`
+		Active bool   `json:"active"`
+		Exists bool   `json:"exists"`
+	}
+	var state struct {
+		Indicators []indicatorState `json:"indicators"`
+	}
+	if len(action.PreExecutionState) > 0 {
+		_ = json.Unmarshal(action.PreExecutionState, &state)
+	}
+	if len(state.Indicators) == 0 {
+		for _, target := range action.Plan.BlockTargets {
+			state.Indicators = append(state.Indicators, indicatorState{IP: target, Active: false, Exists: false})
+		}
+	}
+	for _, targetState := range state.Indicators {
+		if !targetState.Exists {
+			if _, err := s.db.Exec(ctx,
+				"DELETE FROM threat_indicators WHERE tenant_id=$1 AND value=$2 AND type='ip' AND source='remediation'",
+				action.TenantID, targetState.IP,
+			); err != nil {
+				return fmt.Errorf("remove remediation block indicator for %s: %w", targetState.IP, err)
+			}
+			continue
+		}
+		if _, err := s.db.Exec(ctx,
+			"UPDATE threat_indicators SET active=$3, updated_at=now() WHERE tenant_id=$1 AND value=$2 AND type='ip'",
+			action.TenantID, targetState.IP, targetState.Active,
+		); err != nil {
+			return fmt.Errorf("restore block indicator for %s: %w", targetState.IP, err)
 		}
 	}
 	return nil

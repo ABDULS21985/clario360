@@ -1,0 +1,38 @@
+{{/*
+Shared ConfigMap — non-sensitive configuration consumed by ALL services via envFrom.
+*/}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "clario360.fullname" . }}-shared
+  namespace: {{ include "clario360.namespace" . }}
+  labels:
+    {{- include "clario360.labels" . | nindent 4 }}
+    app.kubernetes.io/component: shared-config
+data:
+  # ── Environment ────────────────────────────────────────────────────
+  ENVIRONMENT: {{ .Values.global.environment | quote }}
+  LOG_LEVEL: {{ .Values.global.logLevel | quote }}
+  LOG_FORMAT: {{ .Values.global.logFormat | quote }}
+
+  # ── Kafka ──────────────────────────────────────────────────────────
+  KAFKA_BROKERS: {{ .Values.global.kafka.brokers | quote }}
+  KAFKA_SECURITY_PROTOCOL: {{ .Values.global.kafka.securityProtocol | quote }}
+  KAFKA_SASL_MECHANISM: {{ .Values.global.kafka.saslMechanism | quote }}
+
+  # ── OpenTelemetry ──────────────────────────────────────────────────
+  OTEL_EXPORTER_OTLP_ENDPOINT: {{ .Values.global.otel.otlpEndpoint | quote }}
+
+  # ── PostgreSQL ─────────────────────────────────────────────────────
+  DATABASE_HOST: {{ .Values.global.database.host | quote }}
+  DATABASE_PORT: {{ .Values.global.database.port | quote }}
+  DATABASE_SSL_MODE: {{ .Values.global.database.sslMode | quote }}
+
+  # ── Redis ──────────────────────────────────────────────────────────
+  REDIS_HOST: {{ .Values.global.redis.host | quote }}
+  REDIS_PORT: {{ .Values.global.redis.port | quote }}
+  REDIS_DB: {{ .Values.global.redis.db | quote }}
+
+  # ── MinIO / Object Storage ────────────────────────────────────────
+  MINIO_ENDPOINT: {{ .Values.global.minio.endpoint | quote }}
+  MINIO_USE_SSL: {{ .Values.global.minio.useSsl | quote }}

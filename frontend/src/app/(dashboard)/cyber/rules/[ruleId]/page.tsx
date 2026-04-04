@@ -1,0 +1,205 @@
+'use client';
+
+import { useEffect, useMemo, useState } from 'react';
+import { useParams, useRouter } from 'next/navigation';
+import { useQuery } from '@tanstack/react-query';
+import { Pencil, Power, ShieldCheck, Trash2 } from 'lucide-react';
+
+import { ErrorState } from '@/components/common/error-state';
+import { LoadingSkeleton } from '@/components/common/loading-skeleton';
+import { PageHeader } from '@/components/common/page-header';
+import { PermissionRedirect } from '@/components/common/permission-redirect';
+import { ConfirmDialog } from '@/components/shared/confirm-dialog';
+import { SeverityIndicator } from '@/components/shared/severity-indicator';
+import { Button } from '@/components/ui/button';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { useApiMutation } from '@/hooks/use-api-mutation';
+import { apiGet } from '@/lib/api';
+import { normalizeRule } from '@/lib/cyber-rules';
+import { API_ENDPOINTS } from '@/lib/constants';
+import { useRealtimeStore } from '@/stores/realtime-store';
+import type { DetectionRule, DetectionRulePerformance } from '@/types/cyber';
+
+import { RuleAlertsTab } from './_components/rule-alerts-tab';
+import { RuleLogic } from './_components/rule-logic';
+import { RuleOverview } from './_components/rule-overview';
+import { RulePerformance } from './_components/rule-performance';
+import { RuleTestDialog } from '../_components/rule-test-dialog';
+import { RuleWizard } from '../_components/rule-wizard';
+
+export default function DetectionRuleDetailPage() {
+  const params = useParams<{ ruleId: string }>();
+  const ruleId = params?.ruleId ?? '';
+  const router = useRouter();
+  const [editing, setEditing] = useState(false);
+  const [testing, setTesting] = useState(false);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+
+  const { data: ruleEnvelope, isLoading, error, refetch } = useQuery({
+    queryKey: ['cyber-rule-detail', ruleId],
+    queryFn: () => apiGet<{ data: DetectionRule }>(API_ENDPOINTS.CYBER_RULE_DETAIL(ruleId)),
+    enabled: Boolean(ruleId),
+  });
+
+  const { data: performanceEnvelope, isLoading: performanceLoading } = useQuery({
+    queryKey: ['cyber-rule-performance', ruleId],
+    queryFn: () => apiGet<{ data: DetectionRulePerformance }>(API_ENDPOINTS.CYBER_RULE_PERFORMANCE(ruleId)),
+    enabled: Boolean(ruleId),
+  });
+
+  const rule = ruleEnvelope?.data ? normalizeRule(ruleEnvelope.data) : null;
+
+  // WebSocket-driven cache invalidation
+  const WS_TOPICS = useMemo(
+    () => ['cyber.rule.updated', 'cyber.rule.toggled', 'cyber.rule.deleted'],
+    [],
+  );
+  const realtimeKey = `cyber-rule-detail:${ruleId}`;
+  const { register, unregister } = useRealtimeStore();
+  const queryEvent = useRealtimeStore((s) => s.queryEvents[realtimeKey]);
+
+  useEffect(() => {
+    for (const topic of WS_TOPICS) {
+      register(topic, realtimeKey);
+    }
+    return () => {
+      for (const topic of WS_TOPICS) {
+        unregister(topic, realtimeKey);
+      }
+    };
+  }, [register, unregister, realtimeKey, WS_TOPICS]);
+
+  useEffect(() => {
+    if (queryEvent) {
+      refetch();
+    }
+  }, [queryEvent, refetch]);
+
+  const toggleMutation = useApiMutation<DetectionRule, Record<string, unknown>>(
+    'put',
+    () => API_ENDPOINTS.CYBER_RULE_TOGGLE(ruleId),
+    {
+      successMessage: 'Rule status updated',
+      invalidateKeys: ['cyber-rule-detail', 'cyber-rules', 'cyber-rules-stats', 'cyber-mitre-coverage'],
+      onSuccess: () => refetch(),
+    },
+  );
+
+  const deleteMutation = useApiMutation<void, { id: string }>('delete', () => API_ENDPOINTS.CYBER_RULE_DETAIL(ruleId), {
+    successMessage: 'Detection rule deleted',
+    invalidateKeys: ['cyber-rules', 'cyber-rules-stats', 'cyber-mitre-coverage'],
+    onSuccess: () => router.push('/cyber/detection-rules'),
+  });
+
+  if (isLoading) {
+    return (
+      <div className="space-y-4">
+        <LoadingSkeleton variant="card" />
+        <LoadingSkeleton variant="card" />
+      </div>
+    );
+  }
+
+  if (error || !rule) {
+    return <ErrorState message="Unable to load detection rule." onRetry={() => void refetch()} />;
+  }
+
+  return (
+    <PermissionRedirect permission="cyber:read">
+      <div className="space-y-6">
+        <PageHeader
+          title={
+            <div className="space-y-3">
+              <div className="flex flex-wrap items-center gap-3">
+                <span>{rule.name}</span>
+                <SeverityIndicator severity={rule.severity} showLabel />
+              </div>
+              <div className="flex flex-wrap items-center gap-2 text-sm text-slate-600">
+                <span>{rule.rule_type}</span>
+                <span>•</span>
+                <span>{rule.enabled ? 'Enabled' : 'Disabled'}</span>
+                <span>•</span>
+                <span>{rule.mitre_technique_ids.length} ATT&CK techniques</span>
+              </div>
+            </div>
+          }
+          description="Inspect detection logic, operational performance, and the alerts generated by this rule."
+          actions={
+            <div className="flex flex-wrap gap-2">
+              <Button variant="outline" onClick={() => setEditing(true)}>
+                <Pencil className="mr-2 h-4 w-4" />
+                Edit Rule
+              </Button>
+              <Button variant="outline" onClick={() => setTesting(true)}>
+                <ShieldCheck className="mr-2 h-4 w-4" />
+                Test Rule
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() =>
+                  toggleMutation.mutate({
+                    enabled: !rule.enabled,
+                  })
+                }
+              >
+                <Power className="mr-2 h-4 w-4" />
+                {rule.enabled ? 'Disable' : 'Enable'}
+              </Button>
+              <Button variant="outline" className="text-red-600" onClick={() => setDeleteConfirmOpen(true)}>
+                <Trash2 className="mr-2 h-4 w-4" />
+                Delete
+              </Button>
+            </div>
+          }
+        />
+
+        <Tabs defaultValue="overview">
+          <TabsList>
+            <TabsTrigger value="overview">Overview</TabsTrigger>
+            <TabsTrigger value="logic">Detection Logic</TabsTrigger>
+            <TabsTrigger value="performance">Performance</TabsTrigger>
+            <TabsTrigger value="alerts">Recent Alerts</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="overview">
+            <RuleOverview rule={rule} />
+          </TabsContent>
+
+          <TabsContent value="logic">
+            <RuleLogic rule={rule} />
+          </TabsContent>
+
+          <TabsContent value="performance">
+            <RulePerformance rule={rule} performance={performanceEnvelope?.data} loading={performanceLoading} />
+          </TabsContent>
+
+          <TabsContent value="alerts">
+            <RuleAlertsTab ruleId={rule.id} />
+          </TabsContent>
+        </Tabs>
+      </div>
+
+      <RuleWizard
+        open={editing}
+        onOpenChange={setEditing}
+        rule={rule}
+        onSuccess={() => {
+          setEditing(false);
+          refetch();
+        }}
+      />
+
+      <RuleTestDialog open={testing} onOpenChange={setTesting} rule={rule} />
+
+      <ConfirmDialog
+        open={deleteConfirmOpen}
+        onOpenChange={setDeleteConfirmOpen}
+        title="Delete detection rule"
+        description={`Delete "${rule.name}"? The rule will be soft-deleted and no longer available in the detection engine.`}
+        confirmLabel="Delete"
+        variant="destructive"
+        onConfirm={() => deleteMutation.mutate({ id: rule.id })}
+      />
+    </PermissionRedirect>
+  );
+}

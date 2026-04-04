@@ -5,10 +5,14 @@ package events
 var Topics = struct {
 	// Platform
 	IAMEvents          string
+	OnboardingEvents   string
 	AuditEvents        string
 	NotificationEvents string
+	IntegrationEvents  string
 	WorkflowEvents     string
 	FileEvents         string
+	AIEvents           string
+	NotebookEvents     string
 
 	// Cybersecurity
 	AssetEvents         string
@@ -19,9 +23,14 @@ var Topics = struct {
 	CtemEvents          string
 	RiskEvents          string
 	RemediationEvents   string
+	DSPMEvents          string
+	VCISOEvents         string
+	UEBAEvents          string
 
 	// Data
 	DataSourceEvents    string
+	DataAccessEvents    string
+	DarkDataEvents      string
 	PipelineEvents      string
 	QualityEvents       string
 	ContradictionEvents string
@@ -37,10 +46,14 @@ var Topics = struct {
 }{
 	// Platform
 	IAMEvents:          "platform.iam.events",
+	OnboardingEvents:   "platform.onboarding.events",
 	AuditEvents:        "platform.audit.events",
 	NotificationEvents: "platform.notification.events",
+	IntegrationEvents:  "platform.integration.events",
 	WorkflowEvents:     "platform.workflow.events",
 	FileEvents:         "platform.file.events",
+	AIEvents:           "platform.ai.events",
+	NotebookEvents:     "platform.notebook.events",
 
 	// Cybersecurity
 	AssetEvents:         "cyber.asset.events",
@@ -51,9 +64,14 @@ var Topics = struct {
 	CtemEvents:          "cyber.ctem.events",
 	RiskEvents:          "cyber.risk.events",
 	RemediationEvents:   "cyber.remediation.events",
+	DSPMEvents:          "cyber.dspm.events",
+	VCISOEvents:         "cyber.vciso.events",
+	UEBAEvents:          "cyber.ueba.events",
 
 	// Data
 	DataSourceEvents:    "data.source.events",
+	DataAccessEvents:    "data.access_events",
+	DarkDataEvents:      "data.darkdata.events",
 	PipelineEvents:      "data.pipeline.events",
 	QualityEvents:       "data.quality.events",
 	ContradictionEvents: "data.contradiction.events",
@@ -89,10 +107,14 @@ const (
 func AllTopics() []string {
 	return []string{
 		Topics.IAMEvents,
+		Topics.OnboardingEvents,
 		Topics.AuditEvents,
 		Topics.NotificationEvents,
+		Topics.IntegrationEvents,
 		Topics.WorkflowEvents,
 		Topics.FileEvents,
+		Topics.AIEvents,
+		Topics.NotebookEvents,
 		Topics.AssetEvents,
 		Topics.VulnerabilityEvents,
 		Topics.ThreatEvents,
@@ -101,7 +123,12 @@ func AllTopics() []string {
 		Topics.CtemEvents,
 		Topics.RiskEvents,
 		Topics.RemediationEvents,
+		Topics.DSPMEvents,
+		Topics.VCISOEvents,
+		Topics.UEBAEvents,
 		Topics.DataSourceEvents,
+		Topics.DataAccessEvents,
+		Topics.DarkDataEvents,
 		Topics.PipelineEvents,
 		Topics.QualityEvents,
 		Topics.ContradictionEvents,

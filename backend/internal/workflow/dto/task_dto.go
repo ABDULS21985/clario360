@@ -31,6 +31,7 @@ type CompleteTaskRequest struct {
 // DelegateTaskRequest is the payload for delegating a task to another user.
 type DelegateTaskRequest struct {
 	DelegateTo string `json:"delegate_to" validate:"required"`
+	Reason     string `json:"reason"`
 }
 
 // RejectTaskRequest is the payload for rejecting a human task.
@@ -47,12 +48,15 @@ type TaskResponse struct {
 	InstanceID     string                 `json:"instance_id"`
 	StepID         string                 `json:"step_id"`
 	StepExecID     string                 `json:"step_exec_id"`
+	DefinitionName string                 `json:"definition_name,omitempty"`
+	WorkflowName   string                 `json:"workflow_name,omitempty"`
 	Name           string                 `json:"name"`
 	Description    string                 `json:"description"`
 	Status         string                 `json:"status"`
 	AssigneeID     *string                `json:"assignee_id,omitempty"`
 	AssigneeRole   *string                `json:"assignee_role,omitempty"`
 	ClaimedBy      *string                `json:"claimed_by,omitempty"`
+	ClaimedByName  *string                `json:"claimed_by_name,omitempty"`
 	ClaimedAt      *time.Time             `json:"claimed_at,omitempty"`
 	FormSchema     []model.FormField      `json:"form_schema"`
 	FormData       map[string]interface{} `json:"form_data,omitempty"`
@@ -69,20 +73,28 @@ type TaskResponse struct {
 	UpdatedAt      time.Time              `json:"updated_at"`
 }
 
+// TaskPaginationMeta holds pagination metadata for task list responses.
+type TaskPaginationMeta struct {
+	Page       int `json:"page"`
+	PerPage    int `json:"per_page"`
+	Total      int `json:"total"`
+	TotalPages int `json:"total_pages"`
+}
+
 // ListTasksResponse is the paginated response for listing tasks.
 type ListTasksResponse struct {
-	Tasks    []TaskResponse `json:"tasks"`
-	Total    int            `json:"total"`
-	Page     int            `json:"page"`
-	PageSize int            `json:"page_size"`
+	Data []TaskResponse     `json:"data"`
+	Meta TaskPaginationMeta `json:"meta"`
 }
 
 // TaskCountResponse provides counts of tasks bucketed by status for a user dashboard.
 type TaskCountResponse struct {
-	Pending     int `json:"pending"`
-	ClaimedByMe int `json:"claimed_by_me"`
-	Overdue     int `json:"overdue"`
-	Escalated   int `json:"escalated"`
+	Pending     int   `json:"pending"`
+	ClaimedByMe int   `json:"claimed_by_me"`
+	Completed   int   `json:"completed"`
+	Overdue     int   `json:"overdue"`
+	Escalated   int   `json:"escalated"`
+	History     []int `json:"history,omitempty"`
 }
 
 // ---------- Converters ----------

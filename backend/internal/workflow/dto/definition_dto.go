@@ -10,20 +10,22 @@ import (
 
 // CreateDefinitionRequest is the payload for creating a new workflow definition.
 type CreateDefinitionRequest struct {
-	Name          string                        `json:"name" validate:"required,min=1,max=255"`
-	Description   string                        `json:"description" validate:"max=2000"`
-	TriggerConfig model.TriggerConfig           `json:"trigger_config" validate:"required"`
-	Variables     map[string]model.VariableDef  `json:"variables"`
-	Steps         []model.StepDefinition        `json:"steps" validate:"required,min=1"`
+	Name          string                       `json:"name" validate:"required,min=1,max=255"`
+	Description   string                       `json:"description" validate:"max=2000"`
+	Category      string                       `json:"category,omitempty"`
+	TriggerConfig model.TriggerConfig          `json:"trigger_config" validate:"required"`
+	Variables     map[string]model.VariableDef `json:"variables"`
+	Steps         []model.StepDefinition       `json:"steps" validate:"required,min=1"`
 }
 
 // UpdateDefinitionRequest is the payload for updating an existing workflow definition.
 type UpdateDefinitionRequest struct {
-	Name          *string                       `json:"name,omitempty" validate:"omitempty,min=1,max=255"`
-	Description   *string                       `json:"description,omitempty" validate:"omitempty,max=2000"`
-	TriggerConfig *model.TriggerConfig          `json:"trigger_config,omitempty"`
-	Variables     map[string]model.VariableDef  `json:"variables,omitempty"`
-	Steps         []model.StepDefinition        `json:"steps,omitempty" validate:"omitempty,min=1"`
+	Name          *string                      `json:"name,omitempty" validate:"omitempty,min=1,max=255"`
+	Description   *string                      `json:"description,omitempty" validate:"omitempty,max=2000"`
+	Category      *string                      `json:"category,omitempty"`
+	TriggerConfig *model.TriggerConfig         `json:"trigger_config,omitempty"`
+	Variables     map[string]model.VariableDef `json:"variables,omitempty"`
+	Steps         []model.StepDefinition       `json:"steps,omitempty" validate:"omitempty,min=1"`
 }
 
 // ListDefinitionsRequest holds query parameters for listing workflow definitions.
@@ -39,28 +41,29 @@ type ListDefinitionsRequest struct {
 
 // DefinitionResponse wraps a WorkflowDefinition with computed fields for API responses.
 type DefinitionResponse struct {
-	ID            string                        `json:"id"`
-	TenantID      string                        `json:"tenant_id"`
-	Name          string                        `json:"name"`
-	Description   string                        `json:"description"`
-	Version       int                           `json:"version"`
-	Status        string                        `json:"status"`
-	TriggerConfig model.TriggerConfig           `json:"trigger_config"`
-	Variables     map[string]model.VariableDef  `json:"variables"`
-	Steps         []model.StepDefinition        `json:"steps"`
-	StepCount     int                           `json:"step_count"`
-	CreatedBy     string                        `json:"created_by"`
-	UpdatedBy     string                        `json:"updated_by,omitempty"`
-	CreatedAt     time.Time                     `json:"created_at"`
-	UpdatedAt     time.Time                     `json:"updated_at"`
+	ID            string                       `json:"id"`
+	TenantID      string                       `json:"tenant_id"`
+	Name          string                       `json:"name"`
+	Description   string                       `json:"description"`
+	Category      string                       `json:"category,omitempty"`
+	Version       int                          `json:"version"`
+	Status        string                       `json:"status"`
+	TriggerConfig model.TriggerConfig          `json:"trigger_config"`
+	Variables     map[string]model.VariableDef `json:"variables"`
+	Steps         []model.StepDefinition       `json:"steps"`
+	StepCount     int                          `json:"step_count"`
+	InstanceCount int                          `json:"instance_count"`
+	CreatedBy     string                       `json:"created_by"`
+	UpdatedBy     string                       `json:"updated_by,omitempty"`
+	CreatedAt     time.Time                    `json:"created_at"`
+	UpdatedAt     time.Time                    `json:"updated_at"`
+	PublishedAt   *time.Time                   `json:"published_at,omitempty"`
 }
 
 // ListDefinitionsResponse is the paginated response for listing definitions.
 type ListDefinitionsResponse struct {
-	Definitions []DefinitionResponse `json:"definitions"`
-	Total       int                  `json:"total"`
-	Page        int                  `json:"page"`
-	PageSize    int                  `json:"page_size"`
+	Data []DefinitionResponse `json:"data"`
+	Meta PaginationMeta       `json:"meta"`
 }
 
 // ValidationError describes a single validation problem, optionally scoped to a step.
@@ -87,16 +90,19 @@ func DefinitionToResponse(d *model.WorkflowDefinition) DefinitionResponse {
 		TenantID:      d.TenantID,
 		Name:          d.Name,
 		Description:   d.Description,
+		Category:      d.Category,
 		Version:       d.Version,
 		Status:        d.Status,
 		TriggerConfig: d.TriggerConfig,
 		Variables:     vars,
 		Steps:         steps,
 		StepCount:     len(steps),
+		InstanceCount: d.InstanceCount,
 		CreatedBy:     d.CreatedBy,
 		UpdatedBy:     d.UpdatedBy,
 		CreatedAt:     d.CreatedAt,
 		UpdatedAt:     d.UpdatedAt,
+		PublishedAt:   d.PublishedAt,
 	}
 }
 
@@ -161,16 +167,16 @@ func (r *CreateDefinitionRequest) Validate() []ValidationError {
 	for _, step := range r.Steps {
 		if step.ID == "" {
 			errs = append(errs, ValidationError{
-				Field:  "steps.id",
-				StepID: step.ID,
+				Field:   "steps.id",
+				StepID:  step.ID,
 				Message: "step id is required",
 			})
 			continue
 		}
 		if stepIDs[step.ID] {
 			errs = append(errs, ValidationError{
-				Field:  "steps.id",
-				StepID: step.ID,
+				Field:   "steps.id",
+				StepID:  step.ID,
 				Message: "duplicate step id",
 			})
 		}

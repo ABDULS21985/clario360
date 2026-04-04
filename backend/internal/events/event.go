@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 )
 
@@ -48,9 +49,9 @@ func NewEvent(eventType, source, tenantID string, data any) (*Event, error) {
 	now := time.Now().UTC()
 	return &Event{
 		ID:              GenerateUUID(),
-		Source:          fmt.Sprintf("clario360/%s", source),
+		Source:          normalizeSource(source),
 		SpecVersion:     "1.0",
-		Type:            fmt.Sprintf("com.clario360.%s", eventType),
+		Type:            normalizeType(eventType),
 		DataContentType: "application/json",
 		Time:            now,
 		Timestamp:       now,
@@ -76,9 +77,9 @@ func NewEventRaw(eventType, source, tenantID string, data json.RawMessage) *Even
 	now := time.Now().UTC()
 	return &Event{
 		ID:              GenerateUUID(),
-		Source:          fmt.Sprintf("clario360/%s", source),
+		Source:          normalizeSource(source),
 		SpecVersion:     "1.0",
-		Type:            fmt.Sprintf("com.clario360.%s", eventType),
+		Type:            normalizeType(eventType),
 		DataContentType: "application/json",
 		Time:            now,
 		Timestamp:       now,
@@ -86,6 +87,20 @@ func NewEventRaw(eventType, source, tenantID string, data json.RawMessage) *Even
 		CorrelationID:   GenerateUUID(),
 		Data:            data,
 	}
+}
+
+func normalizeSource(source string) string {
+	if strings.HasPrefix(source, "clario360/") {
+		return source
+	}
+	return fmt.Sprintf("clario360/%s", source)
+}
+
+func normalizeType(eventType string) string {
+	if strings.HasPrefix(eventType, "com.clario360.") {
+		return eventType
+	}
+	return fmt.Sprintf("com.clario360.%s", eventType)
 }
 
 // Unmarshal decodes the event data payload into the given target.

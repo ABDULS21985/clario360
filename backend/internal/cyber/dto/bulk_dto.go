@@ -6,8 +6,12 @@ import (
 
 // BulkCreateResult is returned after a successful bulk asset import.
 type BulkCreateResult struct {
-	Count int         `json:"count"`
-	IDs   []uuid.UUID `json:"ids"`
+	Count   int         `json:"count"`
+	Created int         `json:"created"`
+	Updated int         `json:"updated"`
+	Failed  int         `json:"failed"`
+	Errors  []string    `json:"errors,omitempty"`
+	IDs     []uuid.UUID `json:"ids"`
 }
 
 // BulkValidationError is returned when one or more rows fail validation.

@@ -42,12 +42,14 @@ describe('loginSchema', () => {
 
 describe('registerSchema', () => {
   const validInput = {
+    organization_name: 'Acme Corp',
+    industry: 'financial',
+    country: 'SA',
     first_name: 'John',
     last_name: 'Doe',
     email: 'john@example.com',
     password: 'Str0ng!Pass#word',
     confirm_password: 'Str0ng!Pass#word',
-    tenant_name: 'Acme Corp',
   };
 
   it('test_registerSchema_validInput: all fields valid → passes', () => {
@@ -80,24 +82,22 @@ describe('registerSchema', () => {
     }
   });
 
-  it('test_registerSchema_noTenantOrInvite: neither provided → fails', () => {
+  it('test_registerSchema_missingOrganization: organization name missing → fails', () => {
     const result = registerSchema.safeParse({
       ...validInput,
-      tenant_name: undefined,
-      invite_code: undefined,
+      organization_name: '',
     });
     expect(result.success).toBe(false);
     if (!result.success) {
       const errors = result.error.flatten().fieldErrors;
-      expect(errors['tenant_name']).toBeDefined();
+      expect(errors['organization_name']).toBeDefined();
     }
   });
 
-  it('accepts invite_code instead of tenant_name', () => {
+  it('accepts a valid 2-letter country code', () => {
     const result = registerSchema.safeParse({
       ...validInput,
-      tenant_name: undefined,
-      invite_code: 'INV-12345',
+      country: 'NG',
     });
     expect(result.success).toBe(true);
   });

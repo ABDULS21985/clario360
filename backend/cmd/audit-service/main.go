@@ -2,9 +2,11 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 	"time"
 
@@ -67,7 +69,14 @@ func main() {
 	}
 	defer db.Close()
 
-	// 5. Connect Redis
+	// 5. Run audit_db migrations.
+	auditDSN := buildAuditDSN(cfg)
+	if err := runAuditMigrations(auditDSN); err != nil {
+		logger.Fatal().Err(err).Msg("failed to run audit_db migrations")
+	}
+	logger.Info().Msg("audit_db migrations applied")
+
+	// 7. Connect Redis
 	rdb := redis.NewClient(&redis.Options{
 		Addr:     cfg.Redis.Addr(),
 		Password: cfg.Redis.Password,
@@ -145,7 +154,9 @@ func main() {
 		// Admin endpoints
 		r.Post("/verify", adminHandler.VerifyChain)
 		r.Get("/partitions", adminHandler.ListPartitions)
-		r.Post("/partitions/create", adminHandler.CreatePartition)
+		r.Post("/partitions", adminHandler.CreatePartition)
+		r.Post("/partitions/{name}/archive", adminHandler.ArchivePartition)
+		r.Delete("/partitions/{name}", adminHandler.DeletePartition)
 	})
 
 	// 14. Initialize Kafka consumer
@@ -225,6 +236,28 @@ func main() {
 	}
 
 	logger.Info().Msg("audit-service stopped")
+}
+
+// buildAuditDSN constructs the DSN for audit_db, preferring the AUDIT_DB_URL
+// env var and falling back to the standard database config.
+func buildAuditDSN(cfg *config.Config) string {
+	if v := os.Getenv("AUDIT_DB_URL"); v != "" {
+		return v
+	}
+	return fmt.Sprintf("postgres://%s:%s@%s:%d/audit_db?sslmode=%s",
+		cfg.Database.User, cfg.Database.Password,
+		cfg.Database.Host, cfg.Database.Port,
+		cfg.Database.SSLMode,
+	)
+}
+
+// runAuditMigrations applies all pending audit_db file-based migrations.
+func runAuditMigrations(dsn string) error {
+	migrationsPath := "migrations/audit_db"
+	if _, err := os.Stat(migrationsPath); err != nil {
+		migrationsPath = filepath.Join("backend", "migrations", "audit_db")
+	}
+	return database.RunMigrations(dsn, migrationsPath)
 }
 
 // runPartitionTicker runs daily partition maintenance.

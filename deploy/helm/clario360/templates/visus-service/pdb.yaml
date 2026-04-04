@@ -1,0 +1,22 @@
+{{- if .Values.visusService.enabled }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "clario360.componentName" (dict "root" . "component" "visus-service") }}
+  namespace: {{ include "clario360.namespace" . }}
+  labels:
+    {{- include "clario360.componentLabels" (dict "root" . "component" "visus-service") | nindent 4 }}
+spec:
+  {{- if .Values.visusService.pdb }}
+  {{- if .Values.visusService.pdb.minAvailable }}
+  minAvailable: {{ .Values.visusService.pdb.minAvailable }}
+  {{- else }}
+  maxUnavailable: {{ .Values.visusService.pdb.maxUnavailable | default 1 }}
+  {{- end }}
+  {{- else }}
+  maxUnavailable: 1
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "clario360.componentSelectorLabels" (dict "root" . "component" "visus-service") | nindent 6 }}
+{{- end }}

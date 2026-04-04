@@ -21,7 +21,7 @@ type instanceRepo interface {
 	Create(ctx context.Context, inst *model.WorkflowInstance) error
 	GetByID(ctx context.Context, tenantID, id string) (*model.WorkflowInstance, error)
 	UpdateWithLock(ctx context.Context, inst *model.WorkflowInstance) error
-	List(ctx context.Context, tenantID, status, definitionID, startedBy string, dateFrom, dateTo *time.Time, limit, offset int) ([]*model.WorkflowInstance, int, error)
+	List(ctx context.Context, tenantID, status, definitionID, startedBy string, dateFrom, dateTo *time.Time, sortBy, sortOrder string, limit, offset int) ([]*model.WorkflowInstance, int, error)
 	ListRunning(ctx context.Context, limit, offset int) ([]*model.WorkflowInstance, error)
 	CreateStepExecution(ctx context.Context, exec *model.StepExecution) error
 	UpdateStepExecution(ctx context.Context, exec *model.StepExecution) error
@@ -33,16 +33,18 @@ type instanceRepo interface {
 type taskRepo interface {
 	Create(ctx context.Context, task *model.HumanTask) error
 	GetByID(ctx context.Context, tenantID, id string) (*model.HumanTask, error)
-	ListForUser(ctx context.Context, tenantID, userID string, roles []string, status string, limit, offset int) ([]*model.HumanTask, int, error)
+	ListForUser(ctx context.Context, tenantID, userID string, roles []string, statuses []string, sortBy, sortOrder string, limit, offset int) ([]*model.HumanTask, int, error)
 	ClaimTask(ctx context.Context, tenantID, taskID, userID string) error
 	CompleteTask(ctx context.Context, tenantID, taskID string, formData map[string]interface{}) error
-	DelegateTask(ctx context.Context, tenantID, taskID, fromUserID, toUserID string) error
+	DelegateTask(ctx context.Context, tenantID, taskID, fromUserID, toUserID, reason string) error
 	RejectTask(ctx context.Context, tenantID, taskID, userID, reason string) error
 	CountByStatus(ctx context.Context, tenantID, userID string, roles []string) (map[string]int, error)
 	GetOverdueTasks(ctx context.Context, limit int) ([]*model.HumanTask, error)
 	MarkSLABreached(ctx context.Context, taskID string) error
 	EscalateTask(ctx context.Context, taskID, escalationRole string) error
 	CancelByInstance(ctx context.Context, instanceID string) error
+	UpdateMetadata(ctx context.Context, tenantID, taskID string, metadata map[string]interface{}) error
+	DailyCreatedCounts(ctx context.Context, tenantID string, days int) ([]int, error)
 }
 
 // executorRegistry dispatches step execution to the appropriate executor.
@@ -621,7 +623,7 @@ func (s *EngineService) GetHistory(ctx context.Context, tenantID, instanceID str
 }
 
 // ListInstances returns a paginated list of workflow instances for a tenant.
-func (s *EngineService) ListInstances(ctx context.Context, tenantID, status, definitionID, startedBy string, dateFrom, dateTo *time.Time, page, pageSize int) ([]*model.WorkflowInstance, int, error) {
+func (s *EngineService) ListInstances(ctx context.Context, tenantID, status, definitionID, startedBy string, dateFrom, dateTo *time.Time, sortBy, sortOrder string, page, pageSize int) ([]*model.WorkflowInstance, int, error) {
 	if page < 1 {
 		page = 1
 	}
@@ -635,7 +637,7 @@ func (s *EngineService) ListInstances(ctx context.Context, tenantID, status, def
 	limit := pageSize
 	offset := (page - 1) * pageSize
 
-	return s.instanceRepo.List(ctx, tenantID, status, definitionID, startedBy, dateFrom, dateTo, limit, offset)
+	return s.instanceRepo.List(ctx, tenantID, status, definitionID, startedBy, dateFrom, dateTo, sortBy, sortOrder, limit, offset)
 }
 
 // GetInstance retrieves a single workflow instance.
@@ -687,6 +689,7 @@ func (s *EngineService) completeInstance(ctx context.Context, inst *model.Workfl
 	s.publishEvent(ctx, "workflow.instance.completed", inst.TenantID, map[string]interface{}{
 		"instance_id":   inst.ID,
 		"definition_id": inst.DefinitionID,
+		"initiator_id":  inst.StartedBy,
 	})
 
 	return nil
@@ -711,8 +714,9 @@ func (s *EngineService) failInstance(ctx context.Context, inst *model.WorkflowIn
 		Msg("workflow instance failed")
 
 	s.publishEvent(ctx, "workflow.instance.failed", inst.TenantID, map[string]interface{}{
-		"instance_id": inst.ID,
-		"error":       errMsg,
+		"instance_id":  inst.ID,
+		"error":        errMsg,
+		"initiator_id": inst.StartedBy,
 	})
 
 	return nil

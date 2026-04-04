@@ -18,7 +18,7 @@ export function SessionExpiredDialog() {
   const router = useRouter();
 
   const handleSignIn = () => {
-    const redirect = encodeURIComponent(pathname);
+    const redirect = encodeURIComponent(pathname ?? '/dashboard');
     router.push(`/login?redirect=${redirect}`);
   };
 

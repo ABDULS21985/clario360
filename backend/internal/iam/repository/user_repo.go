@@ -15,14 +15,28 @@ import (
 type UserFilter struct {
 	Status  *string
 	Search  *string
+	Sort    string
+	SortDir string
 	Page    int
 	PerPage int
+}
+
+// validUserSortColumns is an allowlist of columns that can be used for sorting.
+var validUserSortColumns = map[string]string{
+	"email":         "u.email",
+	"first_name":    "u.first_name",
+	"last_name":     "u.last_name",
+	"created_at":    "u.created_at",
+	"last_login_at": "u.last_login_at",
+	"status":        "u.status",
+	"name":          "u.first_name",
 }
 
 type UserRepository interface {
 	Create(ctx context.Context, user *model.User) error
 	GetByID(ctx context.Context, id string) (*model.User, error)
 	GetByEmail(ctx context.Context, tenantID, email string) (*model.User, error)
+	GetByEmailGlobal(ctx context.Context, email string) (*model.User, error)
 	List(ctx context.Context, tenantID string, filter UserFilter) ([]model.User, int, error)
 	Update(ctx context.Context, user *model.User) error
 	SoftDelete(ctx context.Context, id, deletedBy string) error
@@ -116,6 +130,38 @@ func (r *userRepo) GetByEmail(ctx context.Context, tenantID, email string) (*mod
 	return user, nil
 }
 
+func (r *userRepo) GetByEmailGlobal(ctx context.Context, email string) (*model.User, error) {
+	query := `
+		SELECT u.id, u.tenant_id, u.email, u.password_hash, u.first_name, u.last_name,
+		       u.avatar_url, u.status, u.mfa_enabled, u.mfa_secret, u.last_login_at,
+		       u.created_at, u.updated_at, u.created_by, u.updated_by, u.deleted_at
+		FROM users u
+		WHERE u.email = $1 AND u.deleted_at IS NULL
+		LIMIT 1`
+
+	user := &model.User{}
+	err := r.pool.QueryRow(ctx, query, email).Scan(
+		&user.ID, &user.TenantID, &user.Email, &user.PasswordHash,
+		&user.FirstName, &user.LastName, &user.AvatarURL, &user.Status,
+		&user.MFAEnabled, &user.MFASecret, &user.LastLoginAt,
+		&user.CreatedAt, &user.UpdatedAt, &user.CreatedBy, &user.UpdatedBy, &user.DeletedAt,
+	)
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			return nil, fmt.Errorf("user with email %s: %w", email, model.ErrNotFound)
+		}
+		return nil, fmt.Errorf("querying user by email: %w", err)
+	}
+
+	roles, err := r.getUserRoles(ctx, user.ID)
+	if err != nil {
+		return nil, err
+	}
+	user.Roles = roles
+
+	return user, nil
+}
+
 func (r *userRepo) List(ctx context.Context, tenantID string, filter UserFilter) ([]model.User, int, error) {
 	var conditions []string
 	var args []any
@@ -128,9 +174,21 @@ func (r *userRepo) List(ctx context.Context, tenantID string, filter UserFilter)
 	conditions = append(conditions, "u.deleted_at IS NULL")
 
 	if filter.Status != nil && *filter.Status != "" {
-		conditions = append(conditions, fmt.Sprintf("u.status = $%d", argIdx))
-		args = append(args, *filter.Status)
-		argIdx++
+		// Support comma-separated multi-status: "active,suspended"
+		statusValues := strings.Split(*filter.Status, ",")
+		if len(statusValues) == 1 {
+			conditions = append(conditions, fmt.Sprintf("u.status = $%d", argIdx))
+			args = append(args, statusValues[0])
+			argIdx++
+		} else {
+			placeholders := make([]string, len(statusValues))
+			for i, sv := range statusValues {
+				placeholders[i] = fmt.Sprintf("$%d", argIdx)
+				args = append(args, strings.TrimSpace(sv))
+				argIdx++
+			}
+			conditions = append(conditions, fmt.Sprintf("u.status IN (%s)", strings.Join(placeholders, ", ")))
+		}
 	}
 	if filter.Search != nil && *filter.Search != "" {
 		search := "%" + *filter.Search + "%"
@@ -148,6 +206,16 @@ func (r *userRepo) List(ctx context.Context, tenantID string, filter UserFilter)
 		return nil, 0, fmt.Errorf("counting users: %w", err)
 	}
 
+	// Determine sort column and direction from allowlist
+	orderCol := "u.created_at"
+	if col, ok := validUserSortColumns[filter.Sort]; ok {
+		orderCol = col
+	}
+	orderDir := "DESC"
+	if strings.EqualFold(filter.SortDir, "asc") {
+		orderDir = "ASC"
+	}
+
 	// Fetch page
 	offset := (filter.Page - 1) * filter.PerPage
 	dataQuery := fmt.Sprintf(`
@@ -156,8 +224,8 @@ func (r *userRepo) List(ctx context.Context, tenantID string, filter UserFilter)
 		       u.created_at, u.updated_at, u.created_by, u.updated_by, u.deleted_at
 		FROM users u
 		WHERE %s
-		ORDER BY u.created_at DESC
-		LIMIT $%d OFFSET $%d`, where, argIdx, argIdx+1)
+		ORDER BY %s %s
+		LIMIT $%d OFFSET $%d`, where, orderCol, orderDir, argIdx, argIdx+1)
 	args = append(args, filter.PerPage, offset)
 
 	rows, err := r.pool.Query(ctx, dataQuery, args...)

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -28,7 +29,7 @@ func NewRemediationRepository(db *pgxpool.Pool, logger zerolog.Logger) *Remediat
 }
 
 // Create inserts a new remediation action.
-func (r *RemediationRepository) Create(ctx context.Context, tenantID, createdBy uuid.UUID, req *dto.CreateRemediationRequest) (*model.RemediationAction, error) {
+func (r *RemediationRepository) Create(ctx context.Context, tenantID, createdBy uuid.UUID, createdByName string, req *dto.CreateRemediationRequest) (*model.RemediationAction, error) {
 	id := uuid.New()
 	now := time.Now().UTC()
 
@@ -64,17 +65,21 @@ func (r *RemediationRepository) Create(ctx context.Context, tenantID, createdBy 
 	}
 	metaJSON, _ := json.Marshal(metadata)
 
+	var namePtr *string
+	if createdByName != "" {
+		namePtr = &createdByName
+	}
 	_, err = r.db.Exec(ctx, `
 		INSERT INTO remediation_actions (
 			id, tenant_id, alert_id, vulnerability_id, assessment_id, ctem_finding_id, remediation_group_id,
 			type, severity, title, description, plan, affected_asset_ids, affected_asset_count,
-			execution_mode, status, requires_approval_from, tags, metadata, created_by, created_at, updated_at
+			execution_mode, status, requires_approval_from, tags, metadata, created_by, created_by_name, created_at, updated_at
 		) VALUES (
-			$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,'draft',$16,$17,$18,$19,$20,$20
+			$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,'draft',$16,$17,$18,$19,$20,$21,$21
 		)`,
 		id, tenantID, req.AlertID, req.VulnerabilityID, req.AssessmentID, req.CTEMFindingID, req.RemediationGroupID,
 		req.Type, severity, req.Title, req.Description, planJSON, assetIDs, len(assetIDs),
-		executionMode, requiresApprovalFrom, tags, metaJSON, createdBy, now,
+		executionMode, requiresApprovalFrom, tags, metaJSON, createdBy, namePtr, now,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("insert remediation: %w", err)
@@ -93,7 +98,7 @@ func (r *RemediationRepository) GetByID(ctx context.Context, tenantID, id uuid.U
 		       execution_result, executed_by, execution_started_at, execution_completed_at, execution_duration_ms,
 		       verification_result, verified_by, verified_at,
 		       rollback_result, rollback_reason, rollback_approved_by, rolled_back_at, rollback_deadline,
-		       workflow_instance_id, tags, metadata, created_by, created_at, updated_at
+		       workflow_instance_id, tags, metadata, created_by, created_by_name, created_at, updated_at
 		FROM remediation_actions
 		WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL`,
 		id, tenantID,
@@ -156,10 +161,52 @@ func (r *RemediationRepository) UpdateStatus(ctx context.Context, tenantID, id u
 	fields["status"] = string(status)
 	fields["updated_at"] = time.Now().UTC()
 
+	allowedColumns := map[string]bool{
+		"status":                 true,
+		"updated_at":             true,
+		"submitted_by":           true,
+		"submitted_at":           true,
+		"approved_by":            true,
+		"approved_at":            true,
+		"approval_notes":         true,
+		"rejected_by":            true,
+		"rejected_at":            true,
+		"rejection_reason":       true,
+		"dry_run_result":         true,
+		"dry_run_at":             true,
+		"dry_run_duration_ms":    true,
+		"pre_execution_state":    true,
+		"execution_result":       true,
+		"executed_by":            true,
+		"execution_started_at":   true,
+		"execution_completed_at": true,
+		"execution_duration_ms":  true,
+		"verification_result":    true,
+		"verified_by":            true,
+		"verified_at":            true,
+		"rollback_result":        true,
+		"rollback_reason":        true,
+		"rollback_approved_by":   true,
+		"rolled_back_at":         true,
+		"rollback_deadline":      true,
+		"workflow_instance_id":   true,
+		"metadata":               true,
+		"tags":                   true,
+	}
+
 	setClauses := make([]string, 0, len(fields))
 	args := make([]interface{}, 0, len(fields)+2)
 	i := 1
-	for k, v := range fields {
+	keys := make([]string, 0, len(fields))
+	for k := range fields {
+		keys = append(keys, k)
+	}
+	slices.Sort(keys)
+	for _, k := range keys {
+		if !allowedColumns[k] {
+			return fmt.Errorf("update remediation status: disallowed column %q", k)
+		}
+		v := fields[k]
 		setClauses = append(setClauses, fmt.Sprintf("%s=$%d", k, i))
 		args = append(args, v)
 		i++
@@ -231,6 +278,11 @@ func (r *RemediationRepository) List(ctx context.Context, tenantID uuid.UUID, pa
 		args = append(args, *params.VulnID)
 		i++
 	}
+	if len(params.Tags) > 0 {
+		conds = append(conds, fmt.Sprintf("tags @> $%d", i))
+		args = append(args, params.Tags)
+		i++
+	}
 	if params.Search != nil && *params.Search != "" {
 		conds = append(conds, fmt.Sprintf("(title ILIKE $%d OR description ILIKE $%d)", i, i))
 		args = append(args, "%"+*params.Search+"%")
@@ -246,8 +298,16 @@ func (r *RemediationRepository) List(ctx context.Context, tenantID uuid.UUID, pa
 	}
 
 	order := "created_at"
-	if params.Sort != "" {
-		order = params.Sort
+	allowedSorts := map[string]string{
+		"created_at": "created_at",
+		"updated_at": "updated_at",
+		"status":     "status",
+		"severity":   "severity",
+		"type":       "type",
+		"title":      "title",
+	}
+	if mapped, ok := allowedSorts[params.Sort]; ok {
+		order = mapped
 	}
 	dir := "DESC"
 	if strings.ToLower(params.Order) == "asc" {
@@ -354,6 +414,54 @@ func (r *RemediationRepository) Stats(ctx context.Context, tenantID uuid.UUID) (
 	return stats, nil
 }
 
+// FindActiveByAlertID returns an existing non-terminal remediation for the alert if present.
+func (r *RemediationRepository) FindActiveByAlertID(ctx context.Context, tenantID, alertID uuid.UUID) (*model.RemediationAction, error) {
+	row := r.db.QueryRow(ctx, `
+		SELECT id, tenant_id, alert_id, vulnerability_id, assessment_id, ctem_finding_id, remediation_group_id,
+		       type, severity, title, description, plan, affected_asset_ids, affected_asset_count,
+		       execution_mode, status, submitted_by, submitted_at, approved_by, approved_at,
+		       rejected_by, rejected_at, rejection_reason, approval_notes, requires_approval_from,
+		       dry_run_result, dry_run_at, dry_run_duration_ms, pre_execution_state,
+		       execution_result, executed_by, execution_started_at, execution_completed_at, execution_duration_ms,
+		       verification_result, verified_by, verified_at,
+		       rollback_result, rollback_reason, rollback_approved_by, rolled_back_at, rollback_deadline,
+		       workflow_instance_id, tags, metadata, created_by, created_by_name, created_at, updated_at
+		FROM remediation_actions
+		WHERE tenant_id = $1
+		  AND alert_id = $2
+		  AND deleted_at IS NULL
+		  AND status NOT IN ('closed', 'rejected')
+		ORDER BY created_at DESC
+		LIMIT 1`,
+		tenantID, alertID,
+	)
+	return scanRemediation(row)
+}
+
+// FindActiveByRemediationGroupID returns an existing non-terminal remediation for the CTEM remediation group if present.
+func (r *RemediationRepository) FindActiveByRemediationGroupID(ctx context.Context, tenantID, groupID uuid.UUID) (*model.RemediationAction, error) {
+	row := r.db.QueryRow(ctx, `
+		SELECT id, tenant_id, alert_id, vulnerability_id, assessment_id, ctem_finding_id, remediation_group_id,
+		       type, severity, title, description, plan, affected_asset_ids, affected_asset_count,
+		       execution_mode, status, submitted_by, submitted_at, approved_by, approved_at,
+		       rejected_by, rejected_at, rejection_reason, approval_notes, requires_approval_from,
+		       dry_run_result, dry_run_at, dry_run_duration_ms, pre_execution_state,
+		       execution_result, executed_by, execution_started_at, execution_completed_at, execution_duration_ms,
+		       verification_result, verified_by, verified_at,
+		       rollback_result, rollback_reason, rollback_approved_by, rolled_back_at, rollback_deadline,
+		       workflow_instance_id, tags, metadata, created_by, created_by_name, created_at, updated_at
+		FROM remediation_actions
+		WHERE tenant_id = $1
+		  AND remediation_group_id = $2
+		  AND deleted_at IS NULL
+		  AND status NOT IN ('closed', 'rejected')
+		ORDER BY created_at DESC
+		LIMIT 1`,
+		tenantID, groupID,
+	)
+	return scanRemediation(row)
+}
+
 // scanRemediation scans a single row into a RemediationAction.
 func scanRemediation(row interface {
 	Scan(...interface{}) error
@@ -373,7 +481,7 @@ func scanRemediation(row interface {
 		&execResultJSON, &a.ExecutedBy, &a.ExecutionStartedAt, &a.ExecutionCompletedAt, &a.ExecutionDurationMs,
 		&verResultJSON, &a.VerifiedBy, &a.VerifiedAt,
 		&rollbackResultJSON, &a.RollbackReason, &a.RollbackApprovedBy, &a.RolledBackAt, &a.RollbackDeadline,
-		&a.WorkflowInstanceID, &tags, &metaJSON, &a.CreatedBy, &a.CreatedAt, &a.UpdatedAt,
+		&a.WorkflowInstanceID, &tags, &metaJSON, &a.CreatedBy, &a.CreatedByName, &a.CreatedAt, &a.UpdatedAt,
 	)
 	if err != nil {
 		if err == pgx.ErrNoRows {
@@ -411,6 +519,9 @@ func scanRemediation(row interface {
 	a.Tags = tags
 	if a.Tags == nil {
 		a.Tags = []string{}
+	}
+	if a.Metadata == nil {
+		a.Metadata = map[string]interface{}{}
 	}
 	return &a, nil
 }

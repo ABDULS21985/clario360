@@ -84,17 +84,17 @@ describe('workflow-utils', () => {
   });
 
   it('formatSLAStatus handles soon deadlines', () => {
+    // Use 2.5 hours to avoid truncation edge case in differenceInHours
     const task = {
       ...baseTask,
-      sla_deadline: new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString(),
+      sla_deadline: new Date(Date.now() + 2.5 * 60 * 60 * 1000).toISOString(),
       sla_breached: false,
     };
 
-    expect(formatSLAStatus(task)).toEqual({
-      text: '2h left',
-      color: 'text-orange-600',
-      urgent: true,
-    });
+    const result = formatSLAStatus(task);
+    expect(result.text).toBe('2h left');
+    expect(result.color).toBe('text-orange-600');
+    expect(result.urgent).toBe(true);
   });
 
   it('formatSLAStatus handles no deadline', () => {

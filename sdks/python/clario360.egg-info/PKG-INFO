@@ -1,0 +1,157 @@
+Metadata-Version: 2.4
+Name: clario360
+Version: 1.0.0
+Summary: Official Python SDK for the Clario 360 Enterprise AI Platform
+Author-email: Clario 360 <sdk@clario360.sa>
+License-Expression: LicenseRef-Proprietary
+Keywords: cybersecurity,siem,ueba,data-security,grc,ai-governance
+Classifier: Development Status :: 5 - Production/Stable
+Classifier: Intended Audience :: Developers
+Classifier: Intended Audience :: Information Technology
+Classifier: Intended Audience :: System Administrators
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Typing :: Typed
+Requires-Python: >=3.9
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: requests<3.0,>=2.28
+Requires-Dist: pydantic<3.0,>=2.0
+Provides-Extra: async
+Requires-Dist: httpx<1.0,>=0.27; extra == "async"
+Requires-Dist: anyio<5.0,>=4.0; extra == "async"
+Provides-Extra: cli
+Requires-Dist: click<9.0,>=8.1; extra == "cli"
+Requires-Dist: tabulate<1.0,>=0.9; extra == "cli"
+Requires-Dist: pyyaml<7.0,>=6.0; extra == "cli"
+Provides-Extra: notebooks
+Requires-Dist: pandas>=2.0; extra == "notebooks"
+Requires-Dist: plotly>=5.15; extra == "notebooks"
+Requires-Dist: ipywidgets>=8.0; extra == "notebooks"
+Provides-Extra: dev
+Requires-Dist: pytest>=7.4; extra == "dev"
+Requires-Dist: pytest-cov>=4.1; extra == "dev"
+Requires-Dist: pytest-asyncio>=0.23; extra == "dev"
+Requires-Dist: mypy>=1.8; extra == "dev"
+Requires-Dist: ruff>=0.2; extra == "dev"
+Requires-Dist: responses>=0.24; extra == "dev"
+Provides-Extra: all
+Requires-Dist: httpx<1.0,>=0.27; extra == "all"
+Requires-Dist: anyio<5.0,>=4.0; extra == "all"
+Requires-Dist: click<9.0,>=8.1; extra == "all"
+Requires-Dist: tabulate<1.0,>=0.9; extra == "all"
+Requires-Dist: pyyaml<7.0,>=6.0; extra == "all"
+Requires-Dist: pandas>=2.0; extra == "all"
+Requires-Dist: plotly>=5.15; extra == "all"
+Requires-Dist: ipywidgets>=8.0; extra == "all"
+Requires-Dist: pytest>=7.4; extra == "all"
+Requires-Dist: pytest-cov>=4.1; extra == "all"
+Requires-Dist: pytest-asyncio>=0.23; extra == "all"
+Requires-Dist: mypy>=1.8; extra == "all"
+Requires-Dist: ruff>=0.2; extra == "all"
+Requires-Dist: responses>=0.24; extra == "all"
+Dynamic: license-file
+
+# Clario 360 Python SDK
+
+The official Python SDK for the Clario 360 Enterprise AI Platform.
+
+## Install
+
+```bash
+pip install clario360
+```
+
+Optional extras:
+
+```bash
+pip install "clario360[async]"
+pip install "clario360[cli]"
+pip install "clario360[notebooks]"
+```
+
+## Quickstart
+
+```python
+from clario360 import Clario360
+
+client = Clario360(
+    api_url="http://localhost:8080",
+    email="admin@clario.dev",
+    password="Cl@rio360Dev!",
+)
+
+alerts = client.cyber.alerts.list(severity="critical", per_page=10)
+for alert in alerts:
+    print(alert.title, alert.status, alert.confidence_score)
+
+risk = client.cyber.risk.score()
+print(risk.overall_score, risk.grade)
+```
+
+## Authentication
+
+The SDK supports:
+
+- API key authentication via `api_key=...`
+- Username/password authentication via `email=...` and `password=...`
+- Pre-issued bearer tokens via `access_token=...`
+- Environment discovery via:
+  - `CLARIO360_API_URL`
+  - `CLARIO360_API_KEY`
+  - `CLARIO360_ACCESS_TOKEN`
+  - `CLARIO360_REFRESH_TOKEN`
+  - `CLARIO360_EMAIL`
+  - `CLARIO360_PASSWORD`
+
+## Highlights
+
+- Fully typed request and response models with Pydantic
+- Sync and async request paths
+- Automatic retry for `429` and `5xx`
+- Automatic refresh-token retry flow for JWT sessions
+- Pagination helpers with `list()` and `list_all()`
+- Jupyter-friendly `.to_dataframe()` helpers
+- Click-based CLI for common SOC and data operations
+
+## Implemented namespaces
+
+- `client.auth`
+- `client.cyber.assets`
+- `client.cyber.alerts`
+- `client.cyber.rules`
+- `client.cyber.threats`
+- `client.cyber.ctem`
+- `client.cyber.remediation`
+- `client.cyber.dspm`
+- `client.cyber.ueba`
+- `client.cyber.vciso`
+- `client.cyber.mitre`
+- `client.cyber.risk`
+- `client.cyber.dashboard`
+- `client.data.sources`
+- `client.data.pipelines`
+- `client.data.quality`
+- `client.data.contradictions`
+- `client.data.lineage`
+- `client.data.dark_data`
+- `client.data.analytics`
+- `client.acta.committees`
+- `client.acta.meetings`
+- `client.acta.action_items`
+- `client.lex.contracts`
+- `client.lex.compliance`
+- `client.visus.dashboards`
+- `client.visus.kpis`
+- `client.visus.reports`
+- `client.ai.models`
+- `client.ai.predictions`
+- `client.ai.lifecycle`
+
+## Notes
+
+The repository does not currently ship the OpenAPI file referenced elsewhere in project
+documentation, so this SDK is implemented directly against the live handler and gateway route
+surface in the platform source tree.

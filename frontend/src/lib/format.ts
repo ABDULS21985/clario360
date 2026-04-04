@@ -107,6 +107,24 @@ function isApiError(error: unknown): error is ApiError {
 }
 
 export function parseApiError(error: unknown): string {
+  // Handle AxiosError: extract message from response body
+  if (error && typeof error === "object" && "response" in error) {
+    const resp = (error as { response?: { data?: unknown } }).response?.data;
+    if (resp && typeof resp === "object") {
+      // Backend wraps errors as { error: { code, message } }
+      const nested = (resp as Record<string, unknown>).error;
+      if (typeof nested === "string") {
+        return nested;
+      }
+      if (nested && typeof nested === "object" && "message" in nested) {
+        return (nested as { message: string }).message;
+      }
+      // Flat error shape: { code, message }
+      if ("message" in resp) {
+        return (resp as { message: string }).message;
+      }
+    }
+  }
   if (isApiError(error)) {
     return error.message;
   }

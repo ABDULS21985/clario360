@@ -23,7 +23,7 @@ export function FormField({
   className,
 }: FormFieldProps) {
   const { formState: { errors } } = useFormContext();
-  const error = errors[name];
+  const error = resolveNestedError(errors, name);
   const errorMessage = typeof error?.message === "string" ? error.message : undefined;
 
   return (
@@ -35,7 +35,7 @@ export function FormField({
         {label}
         {required && <span className="text-destructive ml-0.5" aria-hidden>*</span>}
       </Label>
-      <div id={name} aria-describedby={description ? `${name}-desc` : undefined} aria-invalid={!!error} aria-required={required}>
+      <div aria-describedby={description ? `${name}-desc` : undefined} aria-invalid={!!error} aria-required={required}>
         {children}
       </div>
       {description && (
@@ -46,4 +46,18 @@ export function FormField({
       )}
     </div>
   );
+}
+
+function resolveNestedError(
+  errors: Record<string, unknown>,
+  path: string,
+): { message?: string } | undefined {
+  return path
+    .split(".")
+    .reduce<unknown>((current, segment) => {
+      if (!current || typeof current !== "object") {
+        return undefined;
+      }
+      return (current as Record<string, unknown>)[segment];
+    }, errors) as { message?: string } | undefined;
 }

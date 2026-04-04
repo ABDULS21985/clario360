@@ -4,9 +4,13 @@ import type { LucideIcon } from "lucide-react";
 export interface FilterConfig {
   key: string;
   label: string;
-  type: "text" | "select" | "multi-select" | "date-range" | "boolean";
+  type: "text" | "select" | "multi-select" | "date-range" | "boolean" | "range";
   options?: Array<{ label: string; value: string }>;
   placeholder?: string;
+  min?: number;
+  max?: number;
+  step?: number;
+  valueSuffix?: string;
 }
 
 export interface BulkAction {

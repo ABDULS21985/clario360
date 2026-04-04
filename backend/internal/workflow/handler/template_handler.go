@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
@@ -16,7 +17,7 @@ import (
 type templateService interface {
 	ListTemplates(ctx context.Context, category string) ([]*model.WorkflowTemplate, error)
 	GetTemplate(ctx context.Context, id string) (*model.WorkflowTemplate, error)
-	InstantiateTemplate(ctx context.Context, tenantID, userID, templateID string) (*model.WorkflowDefinition, error)
+	InstantiateTemplate(ctx context.Context, tenantID, userID, templateID, name, description string) (*model.WorkflowDefinition, error)
 }
 
 // TemplateHandler handles HTTP requests for workflow template operations.
@@ -115,7 +116,16 @@ func (h *TemplateHandler) InstantiateTemplate(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	def, err := h.service.InstantiateTemplate(r.Context(), user.TenantID, user.ID, id)
+	// Parse optional name/description overrides from request body.
+	var overrides struct {
+		Name        string `json:"name"`
+		Description string `json:"description"`
+	}
+	if r.Body != nil && r.ContentLength > 0 {
+		_ = json.NewDecoder(r.Body).Decode(&overrides)
+	}
+
+	def, err := h.service.InstantiateTemplate(r.Context(), user.TenantID, user.ID, id, overrides.Name, overrides.Description)
 	if err != nil {
 		h.logger.Error().Err(err).
 			Str("tenant_id", user.TenantID).
@@ -138,22 +148,52 @@ func (h *TemplateHandler) InstantiateTemplate(w http.ResponseWriter, r *http.Req
 
 // templateResponse is the API response shape for a workflow template.
 type templateResponse struct {
-	ID          string `json:"id"`
-	Name        string `json:"name"`
-	Description string `json:"description"`
-	Category    string `json:"category"`
-	Icon        string `json:"icon"`
-	CreatedAt   string `json:"created_at"`
+	ID              string                       `json:"id"`
+	Name            string                       `json:"name"`
+	Description     string                       `json:"description"`
+	Category        string                       `json:"category"`
+	Icon            string                       `json:"icon"`
+	PreviewImageURL *string                      `json:"preview_image_url"`
+	Steps           []model.StepDefinition       `json:"steps"`
+	Variables       map[string]model.VariableDef `json:"variables"`
+	Tags            []string                     `json:"tags"`
+	UsageCount      int                          `json:"usage_count"`
+	CreatedAt       string                       `json:"created_at"`
 }
 
 // toTemplateResponse converts a WorkflowTemplate model to its API response form.
 func toTemplateResponse(t *model.WorkflowTemplate) templateResponse {
-	return templateResponse{
-		ID:          t.ID,
-		Name:        t.Name,
-		Description: t.Description,
-		Category:    t.Category,
-		Icon:        t.Icon,
-		CreatedAt:   t.CreatedAt.UTC().Format("2006-01-02T15:04:05Z"),
+	resp := templateResponse{
+		ID:              t.ID,
+		Name:            t.Name,
+		Description:     t.Description,
+		Category:        t.Category,
+		Icon:            t.Icon,
+		PreviewImageURL: t.PreviewImageURL,
+		Tags:            t.Tags,
+		UsageCount:      t.UsageCount,
+		CreatedAt:       t.CreatedAt.UTC().Format("2006-01-02T15:04:05Z"),
 	}
+
+	// Parse definition JSON to extract steps and variables for the response.
+	if len(t.DefinitionJSON) > 0 {
+		var content model.TemplateDefinitionContent
+		if err := json.Unmarshal(t.DefinitionJSON, &content); err == nil {
+			resp.Steps = content.Steps
+			resp.Variables = content.Variables
+		}
+	}
+
+	// Ensure non-nil slices/maps for JSON serialization.
+	if resp.Steps == nil {
+		resp.Steps = []model.StepDefinition{}
+	}
+	if resp.Variables == nil {
+		resp.Variables = make(map[string]model.VariableDef)
+	}
+	if resp.Tags == nil {
+		resp.Tags = []string{}
+	}
+
+	return resp
 }

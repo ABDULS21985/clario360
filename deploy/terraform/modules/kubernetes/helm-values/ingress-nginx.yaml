@@ -1,0 +1,54 @@
+controller:
+  replicaCount: ${replica_count}
+
+  nodeSelector:
+    pool: system
+
+  tolerations:
+    - key: dedicated
+      value: system
+      effect: NoSchedule
+
+  service:
+    annotations:
+      cloud.google.com/neg: '{"ingress": true}'
+
+  config:
+    proxy-body-size: "50m"
+    proxy-read-timeout: "300"
+    proxy-send-timeout: "300"
+    use-forwarded-headers: "true"
+    compute-full-forwarded-for: "true"
+    use-proxy-protocol: "false"
+    server-tokens: "false"
+    ssl-redirect: "true"
+    hsts: "true"
+    hsts-max-age: "31536000"
+    hsts-include-subdomains: "true"
+
+  metrics:
+    enabled: true
+    serviceMonitor:
+      enabled: true
+
+  podDisruptionBudget:
+    enabled: true
+    minAvailable: ${min_available}
+
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      memory: 256Mi
+
+  admissionWebhooks:
+    enabled: true
+
+%{ if environment == "production" }
+  autoscaling:
+    enabled: true
+    minReplicas: 3
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 70
+%{ endif }

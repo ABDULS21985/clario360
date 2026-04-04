@@ -11,9 +11,10 @@
 *.out
 coverage.html
 coverage.txt
-
+.next.prev.1773501525/
 # Go
 /vendor/
+backend/vendor/
 
 # Environment
 .env
@@ -25,8 +26,9 @@ coverage.txt
 .vscode/
 *.swp
 *.swo
+.tar.gz
 *~
-
+.cache/
 # OS
 .DS_Store
 Thumbs.db
@@ -80,3 +82,17 @@ build/
 *.bak
 debug
 __debug_bin*
+
+# Local test/escrow artifacts
+escrow-0.1.0-test/
+
+# Enterprise dev runtime artifacts (start.sh / stop.sh / status.sh)
+.dev-secrets/
+.dev-bin/
+.dev-logs/
+.dev-pids/
+
+# Playwright
+frontend/e2e/.auth/
+frontend/test-results/
+frontend/playwright-report/

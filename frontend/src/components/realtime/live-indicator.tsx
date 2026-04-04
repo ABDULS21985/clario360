@@ -32,16 +32,16 @@ export function LiveIndicator({ status, attempt, onReconnect }: LiveIndicatorPro
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <button
+        <span
           onClick={handleClick}
-          disabled={!isClickable}
+          role={isClickable ? 'button' : undefined}
+          tabIndex={isClickable ? 0 : undefined}
           aria-label={tooltipText[status]}
           className={cn(
             'relative flex h-2.5 w-2.5 shrink-0 items-center justify-center rounded-full',
             isClickable && 'cursor-pointer',
             !isClickable && 'cursor-default',
           )}
-          type="button"
         >
           <span
             className={cn(
@@ -63,7 +63,7 @@ export function LiveIndicator({ status, attempt, onReconnect }: LiveIndicatorPro
           {status === 'failed' && (
             <X className="absolute h-2 w-2 text-white" />
           )}
-        </button>
+        </span>
       </TooltipTrigger>
       <TooltipContent side="bottom">
         <p className="text-xs">{tooltipText[status]}</p>

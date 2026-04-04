@@ -1,0 +1,26 @@
+{{- if .Values.iamService.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "clario360.componentName" (dict "root" . "component" "iam-service") }}
+  namespace: {{ include "clario360.namespace" . }}
+  labels:
+    {{- include "clario360.componentLabels" (dict "root" . "component" "iam-service") | nindent 4 }}
+  {{- with ((.Values.iamService).service).annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  type: {{ dig "service" "type" "ClusterIP" .Values.iamService }}
+  ports:
+    - name: http
+      port: 8081
+      targetPort: http
+      protocol: TCP
+    - name: metrics
+      port: 9081
+      targetPort: admin
+      protocol: TCP
+  selector:
+    {{- include "clario360.componentSelectorLabels" (dict "root" . "component" "iam-service") | nindent 4 }}
+{{- end }}

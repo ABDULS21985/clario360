@@ -33,7 +33,7 @@ interface MeetingSummary {
   id: string;
   title: string;
   scheduled_at: string;
-  attendees?: unknown[];
+  attendance?: unknown[];
 }
 
 interface RelatedEntityContext {
@@ -284,7 +284,7 @@ function EntitySummary({
       <p className="font-medium">{meeting.title}</p>
       <p className="text-muted-foreground">Scheduled: {formatDateTime(meeting.scheduled_at)}</p>
       <p className="text-muted-foreground">
-        Attendees: {Array.isArray(meeting.attendees) ? meeting.attendees.length : 0}
+        Attendees: {Array.isArray(meeting.attendance) ? meeting.attendance.length : 0}
       </p>
       <EntityLink entity={entity} />
     </div>

@@ -12,6 +12,7 @@ type WorkflowDefinition struct {
 	TenantID      string                 `json:"tenant_id" db:"tenant_id"`
 	Name          string                 `json:"name" db:"name"`
 	Description   string                 `json:"description" db:"description"`
+	Category      string                 `json:"category,omitempty" db:"category"` // approval, onboarding, review, escalation, notification, data_pipeline, compliance, custom
 	Version       int                    `json:"version" db:"version"`
 	Status        string                 `json:"status" db:"status"` // draft, active, deprecated, archived
 	TriggerConfig TriggerConfig          `json:"trigger_config" db:"trigger_config"`
@@ -21,7 +22,33 @@ type WorkflowDefinition struct {
 	UpdatedBy     string                 `json:"updated_by,omitempty" db:"updated_by"`
 	CreatedAt     time.Time              `json:"created_at" db:"created_at"`
 	UpdatedAt     time.Time              `json:"updated_at" db:"updated_at"`
+	PublishedAt   *time.Time             `json:"published_at,omitempty" db:"published_at"`
 	DeletedAt     *time.Time             `json:"deleted_at,omitempty" db:"deleted_at"`
+	InstanceCount int                    `json:"instance_count" db:"-"` // computed, not persisted
+}
+
+// Valid workflow definition categories.
+const (
+	CategoryApproval      = "approval"
+	CategoryOnboarding    = "onboarding"
+	CategoryReview        = "review"
+	CategoryEscalation    = "escalation"
+	CategoryNotification  = "notification"
+	CategoryDataPipeline  = "data_pipeline"
+	CategoryCompliance    = "compliance"
+	CategoryCustom        = "custom"
+)
+
+// ValidCategories is the set of allowed category values.
+var ValidCategories = map[string]bool{
+	CategoryApproval:     true,
+	CategoryOnboarding:   true,
+	CategoryReview:       true,
+	CategoryEscalation:   true,
+	CategoryNotification: true,
+	CategoryDataPipeline: true,
+	CategoryCompliance:   true,
+	CategoryCustom:       true,
 }
 
 // TriggerConfig describes how a workflow is initiated.

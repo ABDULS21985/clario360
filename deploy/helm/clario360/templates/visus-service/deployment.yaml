@@ -1,0 +1,132 @@
+{{- if .Values.visusService.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "clario360.componentName" (dict "root" . "component" "visus-service") }}
+  namespace: {{ include "clario360.namespace" . }}
+  labels:
+    {{- include "clario360.componentLabels" (dict "root" . "component" "visus-service") | nindent 4 }}
+spec:
+  replicas: {{ .Values.visusService.replicaCount | default 2 }}
+  revisionHistoryLimit: {{ .Values.visusService.revisionHistoryLimit | default 5 }}
+  selector:
+    matchLabels:
+      {{- include "clario360.componentSelectorLabels" (dict "root" . "component" "visus-service") | nindent 6 }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/visus-service/configmap.yaml") . | sha256sum }}
+        {{- include "clario360.prometheusAnnotations" (dict "metricsPort" "9088") | nindent 8 }}
+        {{- with .Values.visusService.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      labels:
+        {{- include "clario360.componentSelectorLabels" (dict "root" . "component" "visus-service") | nindent 8 }}
+        {{- with .Values.visusService.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- with .Values.global.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "clario360.serviceAccountName" (dict "root" . "component" "visus-service" "svcConfig" .Values.visusService) }}
+      securityContext:
+        {{- include "clario360.podSecurityContext" . | nindent 8 }}
+      terminationGracePeriodSeconds: {{ .Values.visusService.terminationGracePeriodSeconds | default 30 }}
+      containers:
+        - name: visus-service
+          image: {{ include "clario360.image" (dict "imageConfig" .Values.visusService.image "root" . "defaultRepo" "clario360/visus-service") }}
+          imagePullPolicy: {{ .Values.visusService.image.pullPolicy | default "IfNotPresent" }}
+          securityContext:
+            {{- include "clario360.containerSecurityContext" . | nindent 12 }}
+          ports:
+            - name: http
+              containerPort: 8088
+              protocol: TCP
+            - name: admin
+              containerPort: 9088
+              protocol: TCP
+          envFrom:
+            - configMapRef:
+                name: {{ include "clario360.fullname" . }}-shared-config
+            - configMapRef:
+                name: {{ include "clario360.componentName" (dict "root" . "component" "visus-service") }}-config
+          env:
+            - name: VISUS_DB_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "clario360.fullname" . }}-database-credentials
+                  key: VISUS_DB_URL
+            - name: VISUS_REDIS_ADDR
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ include "clario360.fullname" . }}-shared-config
+                  key: REDIS_ADDR
+            - name: VISUS_REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "clario360.fullname" . }}-redis-credentials
+                  key: REDIS_PASSWORD
+            - name: VISUS_KAFKA_BROKERS
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ include "clario360.fullname" . }}-shared-config
+                  key: KAFKA_BROKERS
+            - name: AUTH_RSA_PUBLIC_KEY_PEM
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "clario360.fullname" . }}-jwt-keys
+                  key: jwt-public-key.pem
+            - name: AUTH_RSA_PRIVATE_KEY_PEM
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "clario360.fullname" . }}-jwt-keys
+                  key: jwt-private-key.pem
+            - name: VISUS_SUITE_CYBER_URL
+              value: "http://{{ include "clario360.componentName" (dict "root" . "component" "cyber-service") }}:8090"
+            - name: VISUS_SUITE_DATA_URL
+              value: "http://{{ include "clario360.componentName" (dict "root" . "component" "data-service") }}:8091"
+            - name: VISUS_SUITE_ACTA_URL
+              value: "http://{{ include "clario360.componentName" (dict "root" . "component" "acta-service") }}:8086"
+            - name: VISUS_SUITE_LEX_URL
+              value: "http://{{ include "clario360.componentName" (dict "root" . "component" "lex-service") }}:8087"
+            - name: OTEL_SERVICE_NAME
+              value: "visus-service"
+            {{- with .Values.visusService.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- include "clario360.healthProbes" (dict "portName" "http" "healthPath" "/healthz" "readyPath" "/readyz") | nindent 10 }}
+          resources:
+            {{- toYaml .Values.visusService.resources | nindent 12 }}
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              {{- include "clario360.componentSelectorLabels" (dict "root" . "component" "visus-service") | nindent 14 }}
+      {{- with .Values.visusService.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.visusService.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.visusService.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}

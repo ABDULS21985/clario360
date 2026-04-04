@@ -64,9 +64,14 @@ export function SessionsSection() {
   };
 
   const handleRevokeAll = async () => {
-    await apiDelete('/api/v1/users/me/sessions?exclude_current=true');
-    toast.success('All other sessions have been revoked.');
-    refetch();
+    try {
+      await apiDelete('/api/v1/users/me/sessions?exclude_current=true');
+      toast.success('All other sessions have been revoked.');
+      refetch();
+    } catch (err) {
+      const msg = isApiError(err) ? err.message : 'Failed to revoke sessions.';
+      toast.error(msg);
+    }
   };
 
   return (

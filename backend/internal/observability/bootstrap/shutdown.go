@@ -54,6 +54,7 @@ func (s *Service) Run(ctx context.Context) error {
 	// Wait for shutdown signal.
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	defer signal.Stop(quit)
 
 	select {
 	case sig := <-quit:
@@ -100,10 +101,9 @@ func (s *Service) Run(ctx context.Context) error {
 
 	s.Logger.Info().Msg("shutdown complete")
 
-	// Wait for errgroup to finish (servers should have returned by now).
-	_ = g.Wait()
-
-	return nil
+	// Wait for errgroup to finish (servers should have returned by now) and
+	// surface startup/runtime server failures to callers.
+	return g.Wait()
 }
 
 // shutdownStep runs a single shutdown step with a timeout.

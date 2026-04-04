@@ -1,0 +1,1060 @@
+{{/*
+=======================================================================
+Clario360 Platform — Grafana Dashboard ConfigMaps
+=======================================================================
+Five ConfigMaps, each containing a full Grafana dashboard JSON.
+The label grafana_dashboard: "1" enables auto-discovery by the
+Grafana sidecar.
+*/}}
+{{- if .Values.observability.grafana.dashboards.enabled }}
+{{- $fullName := include "clario360.fullname" . }}
+{{- $namespace := include "clario360.namespace" . }}
+{{- $labels := include "clario360.labels" . }}
+{{- $dashboardLabels := .Values.observability.grafana.dashboards.labels }}
+{{- $dashboardNamespace := .Values.observability.grafana.dashboards.namespace }}
+{{- $ns := .Release.Namespace }}
+
+# =========================================================================
+# Dashboard 1: Platform Overview
+# =========================================================================
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $fullName }}-dashboard-platform-overview
+  {{- if $dashboardNamespace }}
+  namespace: {{ $dashboardNamespace }}
+  {{- else }}
+  namespace: {{ $namespace }}
+  {{- end }}
+  labels:
+    {{- $labels | nindent 4 }}
+    {{- with $dashboardLabels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+data:
+  platform-overview.json: |-
+    {
+      "annotations": {
+        "list": []
+      },
+      "editable": true,
+      "fiscalYearStartMonth": 0,
+      "graphTooltip": 1,
+      "id": null,
+      "links": [],
+      "liveNow": false,
+      "panels": [
+        {
+          "title": "Service Health Status",
+          "type": "stat",
+          "gridPos": { "h": 4, "w": 24, "x": 0, "y": 0 },
+          "id": 1,
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "mappings": [
+                { "options": { "0": { "color": "red", "text": "DOWN" }, "1": { "color": "green", "text": "UP" } }, "type": "value" }
+              ],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "red", "value": null },
+                  { "color": "green", "value": 1 }
+                ]
+              },
+              "color": { "mode": "thresholds" }
+            },
+            "overrides": []
+          },
+          "options": {
+            "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+            "orientation": "auto",
+            "textMode": "auto",
+            "colorMode": "background",
+            "graphMode": "none",
+            "justifyMode": "auto"
+          },
+          "targets": [
+            {
+              "expr": "up{namespace=\"{{ $ns }}\", app_kubernetes_io_part_of=\"clario360\"}",
+              "legendFormat": "{{`{{`}}job{{`}}`}}",
+              "refId": "A"
+            }
+          ]
+        },
+        {
+          "title": "Total Request Rate",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 8, "x": 0, "y": 4 },
+          "id": 2,
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "drawStyle": "line",
+                "lineInterpolation": "smooth",
+                "fillOpacity": 20,
+                "gradientMode": "scheme",
+                "spanNulls": false,
+                "lineWidth": 2,
+                "pointSize": 5,
+                "showPoints": "never",
+                "axisPlacement": "auto"
+              },
+              "unit": "reqps",
+              "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] }
+            },
+            "overrides": []
+          },
+          "options": { "tooltip": { "mode": "multi", "sort": "desc" }, "legend": { "displayMode": "list", "placement": "bottom" } },
+          "targets": [
+            {
+              "expr": "sum(rate(http_requests_total{namespace=\"{{ $ns }}\"}[5m]))",
+              "legendFormat": "Total Requests/s",
+              "refId": "A"
+            },
+            {
+              "expr": "sum(rate(http_requests_total{namespace=\"{{ $ns }}\"}[5m])) by (job)",
+              "legendFormat": "{{`{{`}}job{{`}}`}}",
+              "refId": "B"
+            }
+          ]
+        },
+        {
+          "title": "Error Rate (5xx)",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 8, "x": 8, "y": 4 },
+          "id": 3,
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "drawStyle": "line",
+                "lineInterpolation": "smooth",
+                "fillOpacity": 30,
+                "gradientMode": "scheme",
+                "lineWidth": 2,
+                "showPoints": "never"
+              },
+              "unit": "reqps",
+              "color": { "mode": "fixed", "fixedColor": "red" },
+              "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "red", "value": 0.1 }] }
+            },
+            "overrides": []
+          },
+          "options": { "tooltip": { "mode": "multi", "sort": "desc" }, "legend": { "displayMode": "list", "placement": "bottom" } },
+          "targets": [
+            {
+              "expr": "sum(rate(http_requests_total{namespace=\"{{ $ns }}\", code=~\"5..\"}[5m]))",
+              "legendFormat": "5xx Total",
+              "refId": "A"
+            },
+            {
+              "expr": "sum(rate(http_requests_total{namespace=\"{{ $ns }}\", code=~\"5..\"}[5m])) by (job)",
+              "legendFormat": "{{`{{`}}job{{`}}`}} 5xx",
+              "refId": "B"
+            }
+          ]
+        },
+        {
+          "title": "Request Latency (p50 / p95 / p99)",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 8, "x": 16, "y": 4 },
+          "id": 4,
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "drawStyle": "line",
+                "lineInterpolation": "smooth",
+                "fillOpacity": 10,
+                "lineWidth": 2,
+                "showPoints": "never"
+              },
+              "unit": "s",
+              "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 1 }, { "color": "red", "value": 5 }] }
+            },
+            "overrides": []
+          },
+          "options": { "tooltip": { "mode": "multi", "sort": "desc" }, "legend": { "displayMode": "list", "placement": "bottom" } },
+          "targets": [
+            {
+              "expr": "histogram_quantile(0.50, sum(rate(http_request_duration_seconds_bucket{namespace=\"{{ $ns }}\"}[5m])) by (le))",
+              "legendFormat": "p50",
+              "refId": "A"
+            },
+            {
+              "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{namespace=\"{{ $ns }}\"}[5m])) by (le))",
+              "legendFormat": "p95",
+              "refId": "B"
+            },
+            {
+              "expr": "histogram_quantile(0.99, sum(rate(http_request_duration_seconds_bucket{namespace=\"{{ $ns }}\"}[5m])) by (le))",
+              "legendFormat": "p99",
+              "refId": "C"
+            }
+          ]
+        },
+        {
+          "title": "Active Connections",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 12 },
+          "id": 5,
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "drawStyle": "line",
+                "lineInterpolation": "smooth",
+                "fillOpacity": 15,
+                "lineWidth": 2,
+                "showPoints": "never"
+              },
+              "unit": "short",
+              "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] }
+            },
+            "overrides": []
+          },
+          "options": { "tooltip": { "mode": "multi", "sort": "desc" }, "legend": { "displayMode": "list", "placement": "bottom" } },
+          "targets": [
+            {
+              "expr": "sum(http_active_connections{namespace=\"{{ $ns }}\"}) by (job)",
+              "legendFormat": "{{`{{`}}job{{`}}`}}",
+              "refId": "A"
+            }
+          ]
+        },
+        {
+          "title": "Pod Restart Count",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 12 },
+          "id": 6,
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "drawStyle": "bars",
+                "fillOpacity": 80,
+                "lineWidth": 1,
+                "showPoints": "never"
+              },
+              "unit": "short",
+              "color": { "mode": "palette-classic" },
+              "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "red", "value": 3 }] }
+            },
+            "overrides": []
+          },
+          "options": { "tooltip": { "mode": "multi", "sort": "desc" }, "legend": { "displayMode": "list", "placement": "bottom" } },
+          "targets": [
+            {
+              "expr": "increase(kube_pod_container_status_restarts_total{namespace=\"{{ $ns }}\"}[1h])",
+              "legendFormat": "{{`{{`}}pod{{`}}`}}",
+              "refId": "A"
+            }
+          ]
+        }
+      ],
+      "refresh": "30s",
+      "schemaVersion": 39,
+      "tags": ["clario360", "platform", "overview"],
+      "templating": { "list": [] },
+      "time": { "from": "now-1h", "to": "now" },
+      "timepicker": {},
+      "timezone": "browser",
+      "title": "Clario360 - Platform Overview",
+      "uid": "clario360-platform-overview",
+      "version": 1
+    }
+---
+# =========================================================================
+# Dashboard 2: Cybersecurity Metrics
+# =========================================================================
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $fullName }}-dashboard-cybersecurity
+  {{- if $dashboardNamespace }}
+  namespace: {{ $dashboardNamespace }}
+  {{- else }}
+  namespace: {{ $namespace }}
+  {{- end }}
+  labels:
+    {{- $labels | nindent 4 }}
+    {{- with $dashboardLabels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+data:
+  cybersecurity-metrics.json: |-
+    {
+      "annotations": { "list": [] },
+      "editable": true,
+      "fiscalYearStartMonth": 0,
+      "graphTooltip": 1,
+      "id": null,
+      "links": [],
+      "liveNow": false,
+      "panels": [
+        {
+          "title": "Active Alerts by Severity",
+          "type": "piechart",
+          "gridPos": { "h": 8, "w": 8, "x": 0, "y": 0 },
+          "id": 1,
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "color": { "mode": "palette-classic" },
+              "custom": { "hideFrom": { "legend": false, "tooltip": false, "viz": false } }
+            },
+            "overrides": [
+              { "matcher": { "id": "byName", "options": "critical" }, "properties": [{ "id": "color", "value": { "fixedColor": "red", "mode": "fixed" } }] },
+              { "matcher": { "id": "byName", "options": "high" }, "properties": [{ "id": "color", "value": { "fixedColor": "orange", "mode": "fixed" } }] },
+              { "matcher": { "id": "byName", "options": "medium" }, "properties": [{ "id": "color", "value": { "fixedColor": "yellow", "mode": "fixed" } }] },
+              { "matcher": { "id": "byName", "options": "low" }, "properties": [{ "id": "color", "value": { "fixedColor": "green", "mode": "fixed" } }] }
+            ]
+          },
+          "options": {
+            "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+            "pieType": "donut",
+            "tooltip": { "mode": "multi", "sort": "desc" },
+            "legend": { "displayMode": "table", "placement": "right", "values": ["value", "percent"] }
+          },
+          "targets": [
+            {
+              "expr": "sum(cyber_active_alerts{namespace=\"{{ $ns }}\"}) by (severity)",
+              "legendFormat": "{{`{{`}}severity{{`}}`}}",
+              "refId": "A"
+            }
+          ]
+        },
+        {
+          "title": "Risk Score Trend",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 8, "x": 8, "y": 0 },
+          "id": 2,
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "drawStyle": "line",
+                "lineInterpolation": "smooth",
+                "fillOpacity": 20,
+                "gradientMode": "scheme",
+                "lineWidth": 2,
+                "showPoints": "never"
+              },
+              "unit": "short",
+              "min": 0,
+              "max": 100,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "green", "value": null },
+                  { "color": "yellow", "value": 40 },
+                  { "color": "orange", "value": 60 },
+                  { "color": "red", "value": 80 }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "options": { "tooltip": { "mode": "multi", "sort": "desc" }, "legend": { "displayMode": "list", "placement": "bottom" } },
+          "targets": [
+            {
+              "expr": "cyber_risk_score{namespace=\"{{ $ns }}\"}",
+              "legendFormat": "{{`{{`}}tenant{{`}}`}} Risk Score",
+              "refId": "A"
+            }
+          ]
+        },
+        {
+          "title": "Mean Time to Resolve (MTTR)",
+          "type": "stat",
+          "gridPos": { "h": 8, "w": 8, "x": 16, "y": 0 },
+          "id": 3,
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "s",
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "green", "value": null },
+                  { "color": "yellow", "value": 3600 },
+                  { "color": "orange", "value": 14400 },
+                  { "color": "red", "value": 86400 }
+                ]
+              },
+              "color": { "mode": "thresholds" }
+            },
+            "overrides": []
+          },
+          "options": {
+            "reduceOptions": { "calcs": ["mean"], "fields": "", "values": false },
+            "orientation": "auto",
+            "textMode": "value_and_name",
+            "colorMode": "background",
+            "graphMode": "area",
+            "justifyMode": "auto"
+          },
+          "targets": [
+            {
+              "expr": "avg(cyber_alert_resolution_duration_seconds{namespace=\"{{ $ns }}\"}) by (severity)",
+              "legendFormat": "{{`{{`}}severity{{`}}`}} MTTR",
+              "refId": "A"
+            }
+          ]
+        },
+        {
+          "title": "Asset Discovery Rate",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+          "id": 4,
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "drawStyle": "line",
+                "lineInterpolation": "smooth",
+                "fillOpacity": 15,
+                "lineWidth": 2,
+                "showPoints": "never"
+              },
+              "unit": "short",
+              "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] }
+            },
+            "overrides": []
+          },
+          "options": { "tooltip": { "mode": "multi", "sort": "desc" }, "legend": { "displayMode": "list", "placement": "bottom" } },
+          "targets": [
+            {
+              "expr": "sum(increase(cyber_assets_discovered_total{namespace=\"{{ $ns }}\"}[1h]))",
+              "legendFormat": "Assets Discovered/h",
+              "refId": "A"
+            },
+            {
+              "expr": "sum(cyber_assets_total{namespace=\"{{ $ns }}\"}) by (asset_type)",
+              "legendFormat": "{{`{{`}}asset_type{{`}}`}} Total",
+              "refId": "B"
+            }
+          ]
+        },
+        {
+          "title": "Vulnerability Counts",
+          "type": "bargauge",
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+          "id": 5,
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short",
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "green", "value": null },
+                  { "color": "yellow", "value": 50 },
+                  { "color": "orange", "value": 200 },
+                  { "color": "red", "value": 500 }
+                ]
+              },
+              "color": { "mode": "thresholds" }
+            },
+            "overrides": []
+          },
+          "options": {
+            "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+            "orientation": "horizontal",
+            "displayMode": "gradient",
+            "showUnfilled": true,
+            "minVizWidth": 8,
+            "minVizHeight": 16
+          },
+          "targets": [
+            {
+              "expr": "sum(cyber_vulnerabilities_total{namespace=\"{{ $ns }}\"}) by (severity)",
+              "legendFormat": "{{`{{`}}severity{{`}}`}}",
+              "refId": "A"
+            }
+          ]
+        }
+      ],
+      "refresh": "30s",
+      "schemaVersion": 39,
+      "tags": ["clario360", "cybersecurity"],
+      "templating": { "list": [] },
+      "time": { "from": "now-1h", "to": "now" },
+      "timepicker": {},
+      "timezone": "browser",
+      "title": "Clario360 - Cybersecurity Metrics",
+      "uid": "clario360-cybersecurity",
+      "version": 1
+    }
+---
+# =========================================================================
+# Dashboard 3: Data Pipeline Metrics
+# =========================================================================
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $fullName }}-dashboard-data-pipeline
+  {{- if $dashboardNamespace }}
+  namespace: {{ $dashboardNamespace }}
+  {{- else }}
+  namespace: {{ $namespace }}
+  {{- end }}
+  labels:
+    {{- $labels | nindent 4 }}
+    {{- with $dashboardLabels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+data:
+  data-pipeline-metrics.json: |-
+    {
+      "annotations": { "list": [] },
+      "editable": true,
+      "fiscalYearStartMonth": 0,
+      "graphTooltip": 1,
+      "id": null,
+      "links": [],
+      "liveNow": false,
+      "panels": [
+        {
+          "title": "Pipeline Execution Success / Failure Rate",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+          "id": 1,
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "drawStyle": "line",
+                "lineInterpolation": "smooth",
+                "fillOpacity": 20,
+                "lineWidth": 2,
+                "showPoints": "never",
+                "stacking": { "mode": "none", "group": "A" }
+              },
+              "unit": "ops",
+              "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] }
+            },
+            "overrides": [
+              {
+                "matcher": { "id": "byName", "options": "Failed" },
+                "properties": [{ "id": "color", "value": { "fixedColor": "red", "mode": "fixed" } }]
+              },
+              {
+                "matcher": { "id": "byName", "options": "Succeeded" },
+                "properties": [{ "id": "color", "value": { "fixedColor": "green", "mode": "fixed" } }]
+              }
+            ]
+          },
+          "options": { "tooltip": { "mode": "multi", "sort": "desc" }, "legend": { "displayMode": "list", "placement": "bottom" } },
+          "targets": [
+            {
+              "expr": "sum(rate(data_pipeline_executions_total{namespace=\"{{ $ns }}\", status=\"success\"}[5m]))",
+              "legendFormat": "Succeeded",
+              "refId": "A"
+            },
+            {
+              "expr": "sum(rate(data_pipeline_executions_total{namespace=\"{{ $ns }}\", status=\"failure\"}[5m]))",
+              "legendFormat": "Failed",
+              "refId": "B"
+            }
+          ]
+        },
+        {
+          "title": "Data Quality Scores",
+          "type": "gauge",
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+          "id": 2,
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "percentunit",
+              "min": 0,
+              "max": 1,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "red", "value": null },
+                  { "color": "orange", "value": 0.7 },
+                  { "color": "yellow", "value": 0.85 },
+                  { "color": "green", "value": 0.95 }
+                ]
+              },
+              "color": { "mode": "thresholds" }
+            },
+            "overrides": []
+          },
+          "options": {
+            "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+            "showThresholdLabels": false,
+            "showThresholdMarkers": true,
+            "orientation": "auto"
+          },
+          "targets": [
+            {
+              "expr": "data_quality_score{namespace=\"{{ $ns }}\"}",
+              "legendFormat": "{{`{{`}}pipeline{{`}}`}}",
+              "refId": "A"
+            }
+          ]
+        },
+        {
+          "title": "Connector Health",
+          "type": "stat",
+          "gridPos": { "h": 6, "w": 12, "x": 0, "y": 8 },
+          "id": 3,
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "mappings": [
+                { "options": { "0": { "color": "red", "text": "DOWN" }, "1": { "color": "green", "text": "UP" } }, "type": "value" }
+              ],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "red", "value": null },
+                  { "color": "green", "value": 1 }
+                ]
+              },
+              "color": { "mode": "thresholds" }
+            },
+            "overrides": []
+          },
+          "options": {
+            "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+            "orientation": "auto",
+            "textMode": "value_and_name",
+            "colorMode": "background",
+            "graphMode": "none",
+            "justifyMode": "auto"
+          },
+          "targets": [
+            {
+              "expr": "data_connector_up{namespace=\"{{ $ns }}\"}",
+              "legendFormat": "{{`{{`}}connector_name{{`}}`}}",
+              "refId": "A"
+            }
+          ]
+        },
+        {
+          "title": "Records Processed Rate",
+          "type": "timeseries",
+          "gridPos": { "h": 6, "w": 12, "x": 12, "y": 8 },
+          "id": 4,
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "drawStyle": "line",
+                "lineInterpolation": "smooth",
+                "fillOpacity": 20,
+                "gradientMode": "scheme",
+                "lineWidth": 2,
+                "showPoints": "never"
+              },
+              "unit": "rowsps",
+              "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] }
+            },
+            "overrides": []
+          },
+          "options": { "tooltip": { "mode": "multi", "sort": "desc" }, "legend": { "displayMode": "list", "placement": "bottom" } },
+          "targets": [
+            {
+              "expr": "sum(rate(data_records_processed_total{namespace=\"{{ $ns }}\"}[5m])) by (pipeline)",
+              "legendFormat": "{{`{{`}}pipeline{{`}}`}}",
+              "refId": "A"
+            }
+          ]
+        }
+      ],
+      "refresh": "30s",
+      "schemaVersion": 39,
+      "tags": ["clario360", "data-pipeline"],
+      "templating": { "list": [] },
+      "time": { "from": "now-1h", "to": "now" },
+      "timepicker": {},
+      "timezone": "browser",
+      "title": "Clario360 - Data Pipeline Metrics",
+      "uid": "clario360-data-pipeline",
+      "version": 1
+    }
+---
+# =========================================================================
+# Dashboard 4: Kafka Consumer Lag
+# =========================================================================
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $fullName }}-dashboard-kafka
+  {{- if $dashboardNamespace }}
+  namespace: {{ $dashboardNamespace }}
+  {{- else }}
+  namespace: {{ $namespace }}
+  {{- end }}
+  labels:
+    {{- $labels | nindent 4 }}
+    {{- with $dashboardLabels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+data:
+  kafka-consumer-lag.json: |-
+    {
+      "annotations": { "list": [] },
+      "editable": true,
+      "fiscalYearStartMonth": 0,
+      "graphTooltip": 1,
+      "id": null,
+      "links": [],
+      "liveNow": false,
+      "panels": [
+        {
+          "title": "Consumer Lag per Group",
+          "type": "timeseries",
+          "gridPos": { "h": 10, "w": 24, "x": 0, "y": 0 },
+          "id": 1,
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "drawStyle": "line",
+                "lineInterpolation": "smooth",
+                "fillOpacity": 15,
+                "gradientMode": "scheme",
+                "lineWidth": 2,
+                "showPoints": "never",
+                "axisPlacement": "auto"
+              },
+              "unit": "short",
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "green", "value": null },
+                  { "color": "yellow", "value": 1000 },
+                  { "color": "orange", "value": 5000 },
+                  { "color": "red", "value": 10000 }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "options": { "tooltip": { "mode": "multi", "sort": "desc" }, "legend": { "displayMode": "table", "placement": "right", "calcs": ["lastNotNull", "max"] } },
+          "targets": [
+            {
+              "expr": "sum(kafka_consumer_group_lag{namespace=\"{{ $ns }}\"}) by (consumergroup)",
+              "legendFormat": "{{`{{`}}consumergroup{{`}}`}}",
+              "refId": "A"
+            }
+          ]
+        },
+        {
+          "title": "Messages Produced Rate",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 10 },
+          "id": 2,
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "drawStyle": "line",
+                "lineInterpolation": "smooth",
+                "fillOpacity": 20,
+                "lineWidth": 2,
+                "showPoints": "never"
+              },
+              "unit": "ops",
+              "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] }
+            },
+            "overrides": []
+          },
+          "options": { "tooltip": { "mode": "multi", "sort": "desc" }, "legend": { "displayMode": "list", "placement": "bottom" } },
+          "targets": [
+            {
+              "expr": "sum(rate(kafka_messages_produced_total{namespace=\"{{ $ns }}\"}[5m])) by (topic)",
+              "legendFormat": "{{`{{`}}topic{{`}}`}} produced",
+              "refId": "A"
+            }
+          ]
+        },
+        {
+          "title": "Messages Consumed Rate",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 10 },
+          "id": 3,
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "drawStyle": "line",
+                "lineInterpolation": "smooth",
+                "fillOpacity": 20,
+                "lineWidth": 2,
+                "showPoints": "never"
+              },
+              "unit": "ops",
+              "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] }
+            },
+            "overrides": []
+          },
+          "options": { "tooltip": { "mode": "multi", "sort": "desc" }, "legend": { "displayMode": "list", "placement": "bottom" } },
+          "targets": [
+            {
+              "expr": "sum(rate(kafka_messages_consumed_total{namespace=\"{{ $ns }}\"}[5m])) by (consumergroup)",
+              "legendFormat": "{{`{{`}}consumergroup{{`}}`}} consumed",
+              "refId": "A"
+            }
+          ]
+        },
+        {
+          "title": "Partition Distribution",
+          "type": "bargauge",
+          "gridPos": { "h": 8, "w": 24, "x": 0, "y": 18 },
+          "id": 4,
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short",
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "blue", "value": null }
+                ]
+              },
+              "color": { "mode": "thresholds" }
+            },
+            "overrides": []
+          },
+          "options": {
+            "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+            "orientation": "horizontal",
+            "displayMode": "gradient",
+            "showUnfilled": true,
+            "minVizWidth": 8,
+            "minVizHeight": 16
+          },
+          "targets": [
+            {
+              "expr": "count(kafka_consumer_group_lag{namespace=\"{{ $ns }}\"}) by (topic)",
+              "legendFormat": "{{`{{`}}topic{{`}}`}} partitions",
+              "refId": "A"
+            }
+          ]
+        }
+      ],
+      "refresh": "30s",
+      "schemaVersion": 39,
+      "tags": ["clario360", "kafka"],
+      "templating": { "list": [] },
+      "time": { "from": "now-1h", "to": "now" },
+      "timepicker": {},
+      "timezone": "browser",
+      "title": "Clario360 - Kafka Consumer Lag",
+      "uid": "clario360-kafka-lag",
+      "version": 1
+    }
+---
+# =========================================================================
+# Dashboard 5: Database Performance
+# =========================================================================
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $fullName }}-dashboard-database
+  {{- if $dashboardNamespace }}
+  namespace: {{ $dashboardNamespace }}
+  {{- else }}
+  namespace: {{ $namespace }}
+  {{- end }}
+  labels:
+    {{- $labels | nindent 4 }}
+    {{- with $dashboardLabels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+data:
+  database-performance.json: |-
+    {
+      "annotations": { "list": [] },
+      "editable": true,
+      "fiscalYearStartMonth": 0,
+      "graphTooltip": 1,
+      "id": null,
+      "links": [],
+      "liveNow": false,
+      "panels": [
+        {
+          "title": "Query Latency Histogram (p50 / p95 / p99)",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 24, "x": 0, "y": 0 },
+          "id": 1,
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "drawStyle": "line",
+                "lineInterpolation": "smooth",
+                "fillOpacity": 10,
+                "lineWidth": 2,
+                "showPoints": "never"
+              },
+              "unit": "s",
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "green", "value": null },
+                  { "color": "yellow", "value": 0.1 },
+                  { "color": "red", "value": 1 }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "options": { "tooltip": { "mode": "multi", "sort": "desc" }, "legend": { "displayMode": "table", "placement": "right", "calcs": ["mean", "max"] } },
+          "targets": [
+            {
+              "expr": "histogram_quantile(0.50, sum(rate(db_query_duration_seconds_bucket{namespace=\"{{ $ns }}\"}[5m])) by (job, le))",
+              "legendFormat": "{{`{{`}}job{{`}}`}} p50",
+              "refId": "A"
+            },
+            {
+              "expr": "histogram_quantile(0.95, sum(rate(db_query_duration_seconds_bucket{namespace=\"{{ $ns }}\"}[5m])) by (job, le))",
+              "legendFormat": "{{`{{`}}job{{`}}`}} p95",
+              "refId": "B"
+            },
+            {
+              "expr": "histogram_quantile(0.99, sum(rate(db_query_duration_seconds_bucket{namespace=\"{{ $ns }}\"}[5m])) by (job, le))",
+              "legendFormat": "{{`{{`}}job{{`}}`}} p99",
+              "refId": "C"
+            }
+          ]
+        },
+        {
+          "title": "Connection Pool Utilization",
+          "type": "gauge",
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+          "id": 2,
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "percentunit",
+              "min": 0,
+              "max": 1,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "green", "value": null },
+                  { "color": "yellow", "value": 0.7 },
+                  { "color": "orange", "value": 0.85 },
+                  { "color": "red", "value": 0.95 }
+                ]
+              },
+              "color": { "mode": "thresholds" }
+            },
+            "overrides": []
+          },
+          "options": {
+            "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+            "showThresholdLabels": false,
+            "showThresholdMarkers": true,
+            "orientation": "auto"
+          },
+          "targets": [
+            {
+              "expr": "1 - (db_pool_available_connections{namespace=\"{{ $ns }}\"} / db_pool_max_connections{namespace=\"{{ $ns }}\"})",
+              "legendFormat": "{{`{{`}}job{{`}}`}}",
+              "refId": "A"
+            }
+          ]
+        },
+        {
+          "title": "Active Connections per Service",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+          "id": 3,
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "drawStyle": "line",
+                "lineInterpolation": "smooth",
+                "fillOpacity": 20,
+                "gradientMode": "scheme",
+                "lineWidth": 2,
+                "showPoints": "never"
+              },
+              "unit": "short",
+              "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] }
+            },
+            "overrides": []
+          },
+          "options": { "tooltip": { "mode": "multi", "sort": "desc" }, "legend": { "displayMode": "table", "placement": "right", "calcs": ["lastNotNull", "max"] } },
+          "targets": [
+            {
+              "expr": "db_pool_active_connections{namespace=\"{{ $ns }}\"}",
+              "legendFormat": "{{`{{`}}job{{`}}`}} active",
+              "refId": "A"
+            },
+            {
+              "expr": "db_pool_max_connections{namespace=\"{{ $ns }}\"}",
+              "legendFormat": "{{`{{`}}job{{`}}`}} max",
+              "refId": "B"
+            }
+          ]
+        },
+        {
+          "title": "Transaction Rates",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 24, "x": 0, "y": 16 },
+          "id": 4,
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "drawStyle": "line",
+                "lineInterpolation": "smooth",
+                "fillOpacity": 15,
+                "gradientMode": "scheme",
+                "lineWidth": 2,
+                "showPoints": "never",
+                "stacking": { "mode": "none", "group": "A" }
+              },
+              "unit": "ops",
+              "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] }
+            },
+            "overrides": [
+              {
+                "matcher": { "id": "byRegexp", "options": ".*commit.*" },
+                "properties": [{ "id": "color", "value": { "fixedColor": "green", "mode": "fixed" } }]
+              },
+              {
+                "matcher": { "id": "byRegexp", "options": ".*rollback.*" },
+                "properties": [{ "id": "color", "value": { "fixedColor": "red", "mode": "fixed" } }]
+              }
+            ]
+          },
+          "options": { "tooltip": { "mode": "multi", "sort": "desc" }, "legend": { "displayMode": "table", "placement": "right", "calcs": ["mean", "max"] } },
+          "targets": [
+            {
+              "expr": "sum(rate(db_transactions_total{namespace=\"{{ $ns }}\", type=\"commit\"}[5m])) by (job)",
+              "legendFormat": "{{`{{`}}job{{`}}`}} commit",
+              "refId": "A"
+            },
+            {
+              "expr": "sum(rate(db_transactions_total{namespace=\"{{ $ns }}\", type=\"rollback\"}[5m])) by (job)",
+              "legendFormat": "{{`{{`}}job{{`}}`}} rollback",
+              "refId": "B"
+            }
+          ]
+        }
+      ],
+      "refresh": "30s",
+      "schemaVersion": 39,
+      "tags": ["clario360", "database", "postgresql"],
+      "templating": { "list": [] },
+      "time": { "from": "now-1h", "to": "now" },
+      "timepicker": {},
+      "timezone": "browser",
+      "title": "Clario360 - Database Performance",
+      "uid": "clario360-database-perf",
+      "version": 1
+    }
+{{- end }}

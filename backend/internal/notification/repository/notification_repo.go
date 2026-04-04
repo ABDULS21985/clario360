@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -14,6 +15,9 @@ import (
 	"github.com/clario360/platform/internal/notification/dto"
 	"github.com/clario360/platform/internal/notification/model"
 )
+
+// ErrNotFound is returned when a notification record cannot be found.
+var ErrNotFound = errors.New("notification not found")
 
 // NotificationRepository handles notification CRUD operations.
 type NotificationRepository struct {
@@ -121,7 +125,7 @@ func (r *NotificationRepository) Query(ctx context.Context, params *dto.QueryPar
 	}
 	defer rows.Close()
 
-	var results []model.Notification
+	results := make([]model.Notification, 0)
 	for rows.Next() {
 		n, err := r.scanNotificationFromRow(rows)
 		if err != nil {
@@ -142,19 +146,35 @@ func (r *NotificationRepository) UnreadCount(ctx context.Context, tenantID, user
 	return count, err
 }
 
-// MarkRead marks a single notification as read.
+// MarkRead marks a single notification as read. The operation is idempotent:
+// if the notification is already read, nil is returned. ErrNotFound is returned
+// only when the notification genuinely does not belong to the user/tenant.
+//
+// A single CTE resolves both the UPDATE and the existence check in one round-trip,
+// replacing the prior two-query approach.
 func (r *NotificationRepository) MarkRead(ctx context.Context, tenantID, userID, id string) error {
-	now := time.Now().UTC()
-	tag, err := r.db.Exec(ctx,
-		"UPDATE notifications SET read_at = $1 WHERE id = $2 AND tenant_id = $3 AND user_id = $4 AND read_at IS NULL",
-		now, id, tenantID, userID,
-	)
-	if err != nil {
+	const query = `
+		WITH update_attempt AS (
+			UPDATE notifications SET read_at = $1
+			WHERE id = $2 AND tenant_id = $3 AND user_id = $4 AND read_at IS NULL
+			RETURNING id
+		),
+		row_exists AS (
+			SELECT id FROM notifications WHERE id = $2 AND tenant_id = $3 AND user_id = $4
+		)
+		SELECT
+			(SELECT COUNT(*) FROM update_attempt) AS rows_updated,
+			(SELECT COUNT(*) FROM row_exists)     AS rows_found`
+
+	var rowsUpdated, rowsFound int
+	if err := r.db.QueryRow(ctx, query, time.Now().UTC(), id, tenantID, userID).
+		Scan(&rowsUpdated, &rowsFound); err != nil {
 		return fmt.Errorf("mark read: %w", err)
 	}
-	if tag.RowsAffected() == 0 {
-		return fmt.Errorf("notification not found or already read")
+	if rowsFound == 0 {
+		return fmt.Errorf("%w", ErrNotFound)
 	}
+	// rowsUpdated == 0 && rowsFound > 0 → already read, idempotent success.
 	return nil
 }
 
@@ -181,9 +201,25 @@ func (r *NotificationRepository) Delete(ctx context.Context, tenantID, userID, i
 		return fmt.Errorf("delete notification: %w", err)
 	}
 	if tag.RowsAffected() == 0 {
-		return fmt.Errorf("notification not found")
+		return fmt.Errorf("%w", ErrNotFound)
 	}
 	return nil
+}
+
+// BulkDelete deletes multiple notifications by ID, scoped to tenant and user.
+func (r *NotificationRepository) BulkDelete(ctx context.Context, tenantID, userID string, ids []string) (int64, error) {
+	if len(ids) == 0 {
+		return 0, nil
+	}
+	// Build parameterized query with ANY($3)
+	tag, err := r.db.Exec(ctx,
+		"DELETE FROM notifications WHERE tenant_id = $1 AND user_id = $2 AND id = ANY($3)",
+		tenantID, userID, ids,
+	)
+	if err != nil {
+		return 0, fmt.Errorf("bulk delete notifications: %w", err)
+	}
+	return tag.RowsAffected(), nil
 }
 
 // GetUnreadForDigest returns unread notifications created since a cutoff for a list of users.
@@ -200,7 +236,7 @@ func (r *NotificationRepository) GetUnreadForDigest(ctx context.Context, tenantI
 	}
 	defer rows.Close()
 
-	var results []model.Notification
+	results := make([]model.Notification, 0)
 	for rows.Next() {
 		n, err := r.scanNotificationFromRow(rows)
 		if err != nil {
@@ -209,6 +245,45 @@ func (r *NotificationRepository) GetUnreadForDigest(ctx context.Context, tenantI
 		results = append(results, *n)
 	}
 	return results, rows.Err()
+}
+
+// CountsResult holds per-category notification totals and the overall unread count.
+type CountsResult struct {
+	Unread     int `json:"unread"`
+	All        int `json:"all"`
+	Security   int `json:"security"`
+	Data       int `json:"data"`
+	Workflow   int `json:"workflow"`
+	Governance int `json:"governance"`
+	Legal      int `json:"legal"`
+	System     int `json:"system"`
+}
+
+// GetCounts returns per-category notification counts and the total unread count for a
+// user in a single query, replacing the seven round-trips previously made by the frontend.
+func (r *NotificationRepository) GetCounts(ctx context.Context, tenantID, userID string) (*CountsResult, error) {
+	const query = `
+		SELECT
+			COUNT(*) FILTER (WHERE read_at IS NULL)           AS unread,
+			COUNT(*)                                           AS all,
+			COUNT(*) FILTER (WHERE category = 'security')     AS security,
+			COUNT(*) FILTER (WHERE category = 'data')         AS data,
+			COUNT(*) FILTER (WHERE category = 'workflow')     AS workflow,
+			COUNT(*) FILTER (WHERE category = 'governance')   AS governance,
+			COUNT(*) FILTER (WHERE category = 'legal')        AS legal,
+			COUNT(*) FILTER (WHERE category = 'system')       AS system
+		FROM notifications
+		WHERE tenant_id = $1 AND user_id = $2`
+
+	var res CountsResult
+	if err := r.db.QueryRow(ctx, query, tenantID, userID).Scan(
+		&res.Unread, &res.All,
+		&res.Security, &res.Data, &res.Workflow,
+		&res.Governance, &res.Legal, &res.System,
+	); err != nil {
+		return nil, fmt.Errorf("get counts: %w", err)
+	}
+	return &res, nil
 }
 
 func (r *NotificationRepository) buildWhere(params *dto.QueryParams) (string, []interface{}) {
@@ -277,6 +352,7 @@ func (r *NotificationRepository) scanNotification(row pgx.Row) (*model.Notificat
 	if err != nil {
 		return nil, fmt.Errorf("scan notification: %w", err)
 	}
+	n.ComputeRead()
 	return &n, nil
 }
 
@@ -289,5 +365,6 @@ func (r *NotificationRepository) scanNotificationFromRow(rows pgx.Rows) (*model.
 	if err != nil {
 		return nil, fmt.Errorf("scan notification row: %w", err)
 	}
+	n.ComputeRead()
 	return &n, nil
 }

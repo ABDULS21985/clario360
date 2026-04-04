@@ -49,27 +49,27 @@ export function UserMenu() {
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <button
-          className="flex items-center gap-2 rounded-md px-2 py-1.5 hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="flex items-center gap-2 rounded-2xl border border-border/70 bg-white/80 px-2.5 py-1.5 shadow-sm transition-all hover:border-primary/20 hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           aria-label="Open user menu"
         >
           <div
             className={cn(
-              'flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-semibold text-white',
+              'flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-semibold text-white shadow-sm',
               avatarColor,
             )}
           >
             {initials}
           </div>
           <div className="hidden md:block text-left">
-            <p className="text-sm font-medium leading-tight">{fullName}</p>
+            <p className="text-sm font-semibold leading-tight tracking-[-0.01em]">{fullName}</p>
             <p className="text-xs text-muted-foreground leading-tight">{primaryRole}</p>
           </div>
         </button>
       </DropdownMenuTrigger>
 
-      <DropdownMenuContent align="end" className="w-56">
+      <DropdownMenuContent align="end" className="w-64">
         <DropdownMenuLabel className="font-normal">
-          <p className="text-sm font-medium">{fullName}</p>
+          <p className="text-sm font-semibold">{fullName}</p>
           <p className="text-xs text-muted-foreground truncate">{user.email}</p>
           <p className="text-xs text-muted-foreground">{primaryRole}</p>
         </DropdownMenuLabel>

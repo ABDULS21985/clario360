@@ -39,25 +39,15 @@ func (h *AdminHandler) ListQuarantined(w http.ResponseWriter, r *http.Request) {
 		perPage = v
 	}
 
-	entries, total, err := h.fileSvc.ListQuarantined(r.Context(), page, perPage)
+	tenantID := auth.TenantFromContext(r.Context())
+	entries, total, err := h.fileSvc.ListQuarantined(r.Context(), tenantID, page, perPage)
 	if err != nil {
 		h.logger.Error().Err(err).Msg("failed to list quarantined files")
 		writeError(w, http.StatusInternalServerError, "INTERNAL_ERROR", "failed to list quarantined files", r)
 		return
 	}
 
-	totalPages := total / perPage
-	if total%perPage > 0 {
-		totalPages++
-	}
-
-	writeJSON(w, http.StatusOK, dto.ListResponse{
-		Data:       entries,
-		Total:      total,
-		Page:       page,
-		PerPage:    perPage,
-		TotalPages: totalPages,
-	})
+	writeJSON(w, http.StatusOK, dto.NewListResponse(entries, total, page, perPage))
 }
 
 // ResolveQuarantine handles POST /api/v1/files/quarantine/:id/resolve
@@ -83,8 +73,9 @@ func (h *AdminHandler) ResolveQuarantine(w http.ResponseWriter, r *http.Request)
 	}
 
 	user := auth.UserFromContext(r.Context())
+	tenantID := auth.TenantFromContext(r.Context())
 
-	if err := h.fileSvc.ResolveQuarantine(r.Context(), quarantineID, user.ID, req.Action); err != nil {
+	if err := h.fileSvc.ResolveQuarantine(r.Context(), tenantID, quarantineID, user.ID, req.Action); err != nil {
 		handleServiceError(w, r, err, h.logger)
 		return
 	}
@@ -103,7 +94,8 @@ func (h *AdminHandler) GetStats(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	stats, err := h.fileSvc.GetStorageStats(r.Context())
+	tenantID := auth.TenantFromContext(r.Context())
+	stats, err := h.fileSvc.GetStorageStats(r.Context(), tenantID)
 	if err != nil {
 		h.logger.Error().Err(err).Msg("failed to get storage stats")
 		writeError(w, http.StatusInternalServerError, "INTERNAL_ERROR", "failed to get storage stats", r)
@@ -127,7 +119,8 @@ func (h *AdminHandler) Rescan(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.fileSvc.RescanFile(r.Context(), fileID); err != nil {
+	tenantID := auth.TenantFromContext(r.Context())
+	if err := h.fileSvc.RescanFile(r.Context(), tenantID, fileID); err != nil {
 		handleServiceError(w, r, err, h.logger)
 		return
 	}

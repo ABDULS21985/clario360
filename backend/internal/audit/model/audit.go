@@ -44,36 +44,106 @@ var ValidSeverities = map[string]bool{
 	SeverityCritical: true,
 }
 
-// AuditStats holds aggregated statistics for audit queries.
-type AuditStats struct {
-	TotalRecords   int64            `json:"total_records"`
-	ActionCounts   map[string]int64 `json:"action_counts"`
-	SeverityCounts map[string]int64 `json:"severity_counts"`
-	TopUsers       []UserActivity   `json:"top_users"`
-	DailyVolume    []DailyCount     `json:"daily_volume"`
+// ──────────────────────────────────────────────────────────────────────────────
+// Statistics types — field names match frontend AuditLogStats interface exactly
+// ──────────────────────────────────────────────────────────────────────────────
+
+// AuditGroupStat holds an aggregated count for a single group key.
+type AuditGroupStat struct {
+	Key        string  `json:"key"`
+	Count      int64   `json:"count"`
+	Percentage float64 `json:"percentage"`
 }
 
-// UserActivity represents a user's audit activity count.
-type UserActivity struct {
-	UserID    string `json:"user_id"`
-	UserEmail string `json:"user_email"`
+// AuditTimeseriesStat holds an event count for a time bucket.
+type AuditTimeseriesStat struct {
+	Timestamp string `json:"timestamp"`
 	Count     int64  `json:"count"`
 }
 
-// DailyCount represents the count of audit entries for a specific day.
-type DailyCount struct {
-	Date  string `json:"date"`
-	Count int64  `json:"count"`
+// AuditUserStat holds top-user activity metrics.
+type AuditUserStat struct {
+	UserID      string `json:"user_id"`
+	UserName    string `json:"user_name"`
+	UserEmail   string `json:"user_email"`
+	EventCount  int64  `json:"event_count"`
+	LastEventAt string `json:"last_event_at"`
 }
 
-// PartitionInfo holds metadata about a database partition.
-type PartitionInfo struct {
-	Name        string    `json:"name"`
-	RangeStart  time.Time `json:"range_start"`
-	RangeEnd    time.Time `json:"range_end"`
-	RecordCount int64     `json:"record_count"`
-	SizeBytes   int64     `json:"size_bytes"`
+// AuditResourceStat holds top-resource activity metrics.
+type AuditResourceStat struct {
+	ResourceType string `json:"resource_type"`
+	ResourceID   string `json:"resource_id"`
+	ResourceName string `json:"resource_name"`
+	EventCount   int64  `json:"event_count"`
 }
+
+// AuditStats holds aggregated statistics for the audit dashboard.
+// Field names match the frontend AuditLogStats interface exactly.
+type AuditStats struct {
+	TotalEvents     int64                 `json:"total_events"`
+	EventsToday     int64                 `json:"events_today"`
+	EventsThisWeek  int64                 `json:"events_this_week"`
+	EventsThisMonth int64                 `json:"events_this_month"`
+	UniqueUsers     int64                 `json:"unique_users"`
+	UniqueServices  int64                 `json:"unique_services"`
+	ByService       []AuditGroupStat      `json:"by_service"`
+	ByAction        []AuditGroupStat      `json:"by_action"`
+	BySeverity      []AuditGroupStat      `json:"by_severity"`
+	ByHour          []AuditTimeseriesStat `json:"by_hour"`
+	ByDay           []AuditTimeseriesStat `json:"by_day"`
+	TopUsers        []AuditUserStat       `json:"top_users"`
+	TopResources    []AuditResourceStat   `json:"top_resources"`
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Timeline types — field names match frontend AuditTimeline interface exactly
+// ──────────────────────────────────────────────────────────────────────────────
+
+// AuditChangeRecord represents a single field-level change within an audit event.
+type AuditChangeRecord struct {
+	Field    string      `json:"field"`
+	OldValue interface{} `json:"old_value"`
+	NewValue interface{} `json:"new_value"`
+}
+
+// AuditTimelineEvent is a single event in a resource's activity timeline.
+type AuditTimelineEvent struct {
+	ID        string              `json:"id"`
+	Action    string              `json:"action"`
+	UserName  string              `json:"user_name"`
+	Timestamp string              `json:"timestamp"`
+	Changes   []AuditChangeRecord `json:"changes"`
+	Summary   string              `json:"summary"`
+}
+
+// AuditTimeline is the full timeline response for a resource.
+type AuditTimeline struct {
+	ResourceID   string               `json:"resource_id"`
+	ResourceType string               `json:"resource_type"`
+	ResourceName string               `json:"resource_name"`
+	Events       []AuditTimelineEvent `json:"events"`
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Partition types — field names match frontend AuditPartition interface exactly
+// ──────────────────────────────────────────────────────────────────────────────
+
+// PartitionInfo holds metadata about a database partition, including derived fields.
+type PartitionInfo struct {
+	ID             string    `json:"id"`               // partition table name used as stable ID
+	Name           string    `json:"name"`             // human-readable name (same as table name)
+	DateRangeStart time.Time `json:"date_range_start"` // inclusive lower bound
+	DateRangeEnd   time.Time `json:"date_range_end"`   // exclusive upper bound
+	RecordCount    int64     `json:"record_count"`
+	SizeBytes      int64     `json:"size_bytes"`
+	Status         string    `json:"status"`     // "active" | "archived" | "pending"
+	CreatedAt      time.Time `json:"created_at"` // derived from date_range_start
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Chain state types (internal — not serialized to client)
+// ──────────────────────────────────────────────────────────────────────────────
 
 // ChainState holds the last known hash chain state for a tenant.
 type ChainState struct {
@@ -85,11 +155,21 @@ type ChainState struct {
 }
 
 // ChainVerificationResult holds the result of a hash chain verification.
+// Field names match the frontend AuditVerificationResult interface exactly.
 type ChainVerificationResult struct {
-	OK       bool    `json:"ok"`
-	BrokenAt *string `json:"broken_at,omitempty"`
-	Checked  int64   `json:"checked"`
+	Verified         bool    `json:"verified"`
+	TotalRecords     int64   `json:"total_records"`
+	VerifiedRecords  int64   `json:"verified_records"`
+	BrokenChainAt    *string `json:"broken_chain_at"`
+	FirstRecord      string  `json:"first_record"`
+	LastRecord       string  `json:"last_record"`
+	VerificationHash string  `json:"verification_hash"`
+	VerifiedAt       string  `json:"verified_at"`
 }
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Export job types
+// ──────────────────────────────────────────────────────────────────────────────
 
 // ExportJob tracks the status of an async export.
 type ExportJob struct {

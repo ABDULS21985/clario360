@@ -104,8 +104,10 @@ func (s *CloudScanner) Scan(ctx context.Context, cfg *model.ScanConfig) (*model.
 		allAssets = append(allAssets, discovered...)
 	}
 
+	scanID := ScanIDFromCtx(ctx)
 	assetsNew, assetsUpdated := 0, 0
 	for _, d := range allAssets {
+		d.ScanID = scanID
 		assetID, isNew, err := s.repo.UpsertFromScan(ctx, tenantID, d)
 		if err != nil {
 			scanErrors = append(scanErrors, fmt.Sprintf("upsert %s: %v", d.IPAddress, err))

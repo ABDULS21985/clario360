@@ -1,0 +1,17 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "clario360-sdk"
+version = "1.0.0"
+description = "Clario 360 Python SDK for the secure notebook workspace."
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+  "requests>=2.31,<2.32",
+  "pandas>=2.1,<2.3",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]

@@ -29,7 +29,7 @@ export function PermissionGate({
 
   // Role-based check
   if (requireRole) {
-    const hasRole = user.roles.some((r) => r.slug === requireRole);
+    const hasRole = (user.roles ?? []).some((r) => r.slug === requireRole);
     return hasRole ? <>{children}</> : <>{fallback}</>;
   }
 

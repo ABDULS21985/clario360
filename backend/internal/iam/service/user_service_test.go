@@ -229,7 +229,7 @@ func TestUserService_List(t *testing.T) {
 	svc, _, _ := newTestUserService(t)
 
 	// Empty tenant should return empty list
-	users, total, err := svc.List(context.Background(), "tenant-1", 1, 20, "", "")
+	users, total, err := svc.List(context.Background(), "tenant-1", 1, 20, "", "", "", "")
 	if err != nil {
 		t.Fatalf("List failed: %v", err)
 	}
@@ -245,7 +245,7 @@ func TestUserService_List_WithFilters(t *testing.T) {
 	svc, _, _ := newTestUserService(t)
 
 	// List with search and status filters (empty results expected, but exercises the code path)
-	users, total, err := svc.List(context.Background(), "tenant-1", 1, 10, "test", "active")
+	users, total, err := svc.List(context.Background(), "tenant-1", 1, 10, "test", "active", "", "")
 	if err != nil {
 		t.Fatalf("List with filters failed: %v", err)
 	}

@@ -1,0 +1,36 @@
+ARG BASE_SPARK_IMAGE=jupyter/pyspark-notebook:2023-10-20
+FROM ${BASE_SPARK_IMAGE}
+
+ARG CLICKHOUSE_JDBC_VERSION=0.9.7
+ARG CLICKHOUSE_JDBC_SHA256=a42bf6faef56cdfce8901bb4a099b375adfa627a0d4a86e3c69fe3ea9a765635
+
+USER root
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libpq-dev gcc g++ krb5-user libkrb5-dev libldap2-dev libsasl2-dev \
+    libsnappy-dev liblz4-dev curl wget jq vim-tiny openjdk-17-jre-headless \
+    && rm -rf /var/lib/apt/lists/*
+
+USER ${NB_UID}
+ENV PIP_DEFAULT_TIMEOUT=300 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    PIP_RETRIES=10
+COPY deploy/jupyter/docker/requirements.txt /tmp/requirements.txt
+RUN pip install --no-cache-dir --prefer-binary -r /tmp/requirements.txt
+
+COPY --chown=${NB_UID}:users deploy/jupyter/sdk/clario360_sdk /tmp/clario360_sdk
+RUN pip install --no-cache-dir /tmp/clario360_sdk && rm -rf /tmp/clario360_sdk
+
+COPY --chown=${NB_UID}:users deploy/jupyter/docker/jupyter_lab_config.py /home/jovyan/.jupyter/jupyter_lab_config.py
+COPY --chown=${NB_UID}:users deploy/jupyter/notebooks /home/jovyan/examples
+
+USER root
+RUN mkdir -p /opt/clario360/jars && \
+    curl -fsSL "https://repo1.maven.org/maven2/com/clickhouse/clickhouse-jdbc/${CLICKHOUSE_JDBC_VERSION}/clickhouse-jdbc-${CLICKHOUSE_JDBC_VERSION}-all.jar" \
+      -o "/opt/clario360/jars/clickhouse-jdbc-${CLICKHOUSE_JDBC_VERSION}-all.jar" && \
+    echo "${CLICKHOUSE_JDBC_SHA256}  /opt/clario360/jars/clickhouse-jdbc-${CLICKHOUSE_JDBC_VERSION}-all.jar" | sha256sum -c -
+RUN chown -R ${NB_UID}:users /opt/clario360
+
+USER ${NB_UID}
+ENV SPARK_HOME=/usr/local/spark
+ENV CLICKHOUSE_JDBC_JAR=/opt/clario360/jars/clickhouse-jdbc-${CLICKHOUSE_JDBC_VERSION}-all.jar
+WORKDIR /home/jovyan

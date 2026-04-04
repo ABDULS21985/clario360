@@ -1,0 +1,15 @@
+{{- if .Values.onboardingService.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "clario360.componentName" (dict "root" . "component" "onboarding-service") }}-config
+  namespace: {{ include "clario360.namespace" . }}
+  labels:
+    {{- include "clario360.componentLabels" (dict "root" . "component" "onboarding-service") | nindent 4 }}
+data:
+  HTTP_PORT: "8095"
+  METRICS_PORT: "9095"
+  {{- with .Values.onboardingService.config }}
+  {{- toYaml . | nindent 2 }}
+  {{- end }}
+{{- end }}

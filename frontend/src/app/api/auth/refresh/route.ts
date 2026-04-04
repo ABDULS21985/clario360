@@ -23,8 +23,8 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     if (!backendResp.ok) {
       // Refresh rejected — clear cookies
       const response = NextResponse.json({ error: 'refresh failed' }, { status: 401 });
-      response.cookies.set(COOKIES.ACCESS, '', { maxAge: 0, path: '/' });
-      response.cookies.set(COOKIES.REFRESH, '', { maxAge: 0, path: '/api/auth' });
+      response.cookies.set(COOKIES.ACCESS, '', { maxAge: 0, domain: SESSION.COOKIE_DOMAIN, path: '/' });
+      response.cookies.set(COOKIES.REFRESH, '', { maxAge: 0, domain: SESSION.COOKIE_DOMAIN, path: '/api/auth' });
       return response;
     }
 
@@ -42,6 +42,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       httpOnly: true,
       secure: cookieSecure,
       sameSite: cookieSameSite,
+      domain: SESSION.COOKIE_DOMAIN,
       path: '/',
       maxAge: SESSION.ACCESS_TOKEN_MAX_AGE,
     });
@@ -50,6 +51,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       httpOnly: true,
       secure: cookieSecure,
       sameSite: cookieSameSite,
+      domain: SESSION.COOKIE_DOMAIN,
       path: '/api/auth',
       maxAge: SESSION.REFRESH_TOKEN_MAX_AGE,
     });

@@ -7,6 +7,7 @@ import (
 	"github.com/clario360/platform/internal/auth"
 	cyberhealth "github.com/clario360/platform/internal/cyber/health"
 	cybermw "github.com/clario360/platform/internal/cyber/middleware"
+	uebahandler "github.com/clario360/platform/internal/cyber/ueba/handler"
 	"github.com/clario360/platform/internal/middleware"
 )
 
@@ -18,14 +19,21 @@ func RegisterRoutes(
 	alertHandler *AlertHandler,
 	ruleHandler *RuleHandler,
 	threatHandler *ThreatHandler,
+	threatFeedHandler *ThreatFeedHandler,
 	mitreHandler *MITREHandler,
 	ctemHandler *CTEMHandler,
 	ctemReportHandler *CTEMReportHandler,
 	riskHandler *RiskHandler,
 	dashboardHandler *DashboardHandler,
 	vulnerabilityHandler *VulnerabilityHandler,
+	remediationHandler *RemediationHandler,
+	dspmHandler *DSPMHandler,
+	uebaHandler *uebahandler.UEBAHandler,
+	eventHandler *EventHandler,
+	analyticsHandler *AnalyticsHandler,
 	jwtMgr *auth.JWTManager,
 	rdb *redis.Client,
+	extraRoutes ...func(chi.Router),
 ) {
 	cyberhealth.Register(r)
 
@@ -57,6 +65,9 @@ func RegisterRoutes(
 		r.Delete("/assets/{id}", assetHandler.DeleteAsset)
 		r.Patch("/assets/{id}/tags", assetHandler.PatchTags)
 
+		// ---- Activity ----
+		r.Get("/assets/{id}/activity", assetHandler.ListActivity)
+
 		// ---- Relationships ----
 		r.Get("/assets/{id}/relationships", assetHandler.ListRelationships)
 		r.Post("/assets/{id}/relationships", assetHandler.CreateRelationship)
@@ -68,6 +79,9 @@ func RegisterRoutes(
 		r.Put("/assets/{id}/vulnerabilities/{vid}", assetHandler.UpdateVulnerability)
 
 		// ---- Alerts ----
+		r.Put("/alerts/bulk/status", alertHandler.BulkUpdateStatus)
+		r.Put("/alerts/bulk/assign", alertHandler.BulkAssign)
+		r.Put("/alerts/bulk/false-positive", alertHandler.BulkMarkFalsePositive)
 		r.Get("/alerts/stats", alertHandler.Stats)
 		r.Get("/alerts/count", alertHandler.Count)
 		r.Get("/alerts/{id}/comments", alertHandler.ListComments)
@@ -76,13 +90,17 @@ func RegisterRoutes(
 		r.Get("/alerts/{id}", alertHandler.GetAlert)
 		r.Get("/alerts", alertHandler.ListAlerts)
 		r.Put("/alerts/{id}/status", alertHandler.UpdateStatus)
+		r.Put("/alerts/{id}/false-positive", alertHandler.MarkFalsePositive)
 		r.Put("/alerts/{id}/assign", alertHandler.Assign)
 		r.Post("/alerts/{id}/escalate", alertHandler.Escalate)
 		r.Post("/alerts/{id}/comment", alertHandler.AddComment)
+		r.Post("/alerts/{id}/comments", alertHandler.AddComment)
 		r.Post("/alerts/{id}/merge", alertHandler.Merge)
 
 		// ---- Detection Rules ----
+		r.Get("/rules/stats", ruleHandler.Stats)
 		r.Get("/rules/templates", ruleHandler.ListTemplates)
+		r.Get("/rules/{id}/performance", ruleHandler.Performance)
 		r.Get("/rules/{id}", ruleHandler.GetRule)
 		r.Get("/rules", ruleHandler.ListRules)
 		r.Post("/rules", ruleHandler.CreateRule)
@@ -94,20 +112,47 @@ func RegisterRoutes(
 
 		// ---- Threats & Indicators ----
 		r.Get("/threats/stats", threatHandler.Stats)
+		r.Get("/threats/stats/trend", threatHandler.Trend)
+		r.Post("/threats", threatHandler.CreateThreat)
 		r.Get("/threats/{id}/indicators", threatHandler.ListIndicatorsForThreat)
 		r.Post("/threats/{id}/indicators", threatHandler.AddIndicatorToThreat)
+		r.Put("/indicators/{indicatorId}/status", threatHandler.UpdateIndicatorStatus)
+		r.Get("/threats/{id}/alerts", threatHandler.RelatedAlerts)
+		r.Get("/threats/{id}/timeline", threatHandler.Timeline)
 		r.Get("/threats/{id}", threatHandler.GetThreat)
+		r.Put("/threats/{id}", threatHandler.UpdateThreat)
+		r.Delete("/threats/{id}", threatHandler.DeleteThreat)
 		r.Get("/threats", threatHandler.ListThreats)
 		r.Put("/threats/{id}/status", threatHandler.UpdateStatus)
 		r.Post("/indicators/check", threatHandler.CheckIndicators)
 		r.Post("/indicators/bulk", threatHandler.BulkImportIndicators)
+		r.Post("/indicators/batch", threatHandler.BatchCreateIndicators)
+		r.Get("/indicators/stats", threatHandler.IndicatorStats)
+		r.Post("/indicators", threatHandler.CreateIndicator)
 		r.Get("/indicators", threatHandler.ListIndicators)
+		r.Get("/indicators/{indicatorId}", threatHandler.GetIndicator)
+		r.Put("/indicators/{indicatorId}", threatHandler.UpdateIndicator)
+		r.Delete("/indicators/{indicatorId}", threatHandler.DeleteIndicator)
+		r.Get("/indicators/{indicatorId}/enrichment", threatHandler.IndicatorEnrichment)
+		r.Get("/indicators/{indicatorId}/matches", threatHandler.IndicatorMatches)
+
+		// ---- Threat Feeds ----
+		if threatFeedHandler != nil {
+			r.Get("/threat-feeds", threatFeedHandler.List)
+			r.Post("/threat-feeds", threatFeedHandler.Create)
+			r.Get("/threat-feeds/{feedId}", threatFeedHandler.Get)
+			r.Put("/threat-feeds/{feedId}", threatFeedHandler.Update)
+			r.Delete("/threat-feeds/{feedId}", threatFeedHandler.Delete)
+			r.Post("/threat-feeds/{feedId}/sync", threatFeedHandler.Sync)
+			r.Get("/threat-feeds/{feedId}/history", threatFeedHandler.History)
+		}
 
 		// ---- MITRE ATT&CK ----
 		r.Get("/mitre/tactics", mitreHandler.ListTactics)
 		r.Get("/mitre/techniques/{id}", mitreHandler.GetTechnique)
 		r.Get("/mitre/techniques", mitreHandler.ListTechniques)
 		r.Get("/mitre/coverage", mitreHandler.Coverage)
+		r.Get("/mitre/framework-meta", mitreHandler.FrameworkMeta)
 
 		if vulnerabilityHandler != nil {
 			r.Get("/vulnerabilities/stats", vulnerabilityHandler.Stats)
@@ -130,6 +175,7 @@ func RegisterRoutes(
 		if dashboardHandler != nil {
 			r.Get("/dashboard", dashboardHandler.GetDashboard)
 			r.Get("/dashboard/kpis", dashboardHandler.GetKPIs)
+			r.Get("/dashboard/metrics", dashboardHandler.GetMetrics)
 			r.Get("/dashboard/alerts-timeline", dashboardHandler.GetAlertsTimeline)
 			r.Get("/dashboard/severity-distribution", dashboardHandler.GetSeverityDistribution)
 			r.Get("/dashboard/mttr", dashboardHandler.GetMTTR)
@@ -137,6 +183,59 @@ func RegisterRoutes(
 			r.Get("/dashboard/top-attacked-assets", dashboardHandler.GetTopAttackedAssets)
 			r.Get("/dashboard/mitre-heatmap", dashboardHandler.GetMITREHeatmap)
 			r.Get("/dashboard/trends", dashboardHandler.GetTrends)
+		}
+
+		if remediationHandler != nil {
+			r.Get("/remediation/stats", remediationHandler.Stats)
+			r.Post("/remediation", remediationHandler.Create)
+			r.Get("/remediation", remediationHandler.List)
+			r.Get("/remediation/{id}", remediationHandler.Get)
+			r.Put("/remediation/{id}", remediationHandler.Update)
+			r.Delete("/remediation/{id}", remediationHandler.Delete)
+			r.Post("/remediation/{id}/submit", remediationHandler.Submit)
+			r.Post("/remediation/{id}/approve", remediationHandler.Approve)
+			r.Post("/remediation/{id}/reject", remediationHandler.Reject)
+			r.Post("/remediation/{id}/request-revision", remediationHandler.RequestRevision)
+			r.Post("/remediation/{id}/dry-run", remediationHandler.DryRun)
+			r.Get("/remediation/{id}/dry-run", remediationHandler.GetDryRun)
+			r.Post("/remediation/{id}/execute", remediationHandler.Execute)
+			r.Post("/remediation/{id}/verify", remediationHandler.Verify)
+			r.Post("/remediation/{id}/rollback", remediationHandler.Rollback)
+			r.Post("/remediation/{id}/close", remediationHandler.Close)
+			r.Get("/remediation/{id}/audit-trail", remediationHandler.AuditTrail)
+		}
+
+		if dspmHandler != nil {
+			r.Get("/dspm/data-assets", dspmHandler.ListDataAssets)
+			r.Get("/dspm/data-assets/{id}", dspmHandler.GetDataAsset)
+			r.Post("/dspm/scan", dspmHandler.TriggerScan)
+			r.Get("/dspm/scans", dspmHandler.ListScans)
+			r.Get("/dspm/scans/{id}", dspmHandler.GetScan)
+			r.Get("/dspm/classification", dspmHandler.Classification)
+			r.Get("/dspm/exposure", dspmHandler.Exposure)
+			r.Get("/dspm/dependencies", dspmHandler.Dependencies)
+			r.Get("/dspm/dashboard", dspmHandler.Dashboard)
+			r.Get("/dspm/shadow-copies", dspmHandler.DetectShadowCopies)
+		}
+
+		uebahandler.RegisterRoutes(r, uebaHandler)
+
+		// ---- Security Events ----
+		if eventHandler != nil {
+			r.Get("/events/stats", eventHandler.GetEventStats)
+			r.Get("/events/export", eventHandler.ExportEvents)
+			r.Get("/events/{id}", eventHandler.GetEvent)
+			r.Get("/events", eventHandler.ListEvents)
+			r.Post("/events", eventHandler.IngestEvents)
+		}
+
+		// ---- Analytics ----
+		if analyticsHandler != nil {
+			r.Get("/analytics/threat-forecast", analyticsHandler.ThreatForecast)
+			r.Get("/analytics/alert-forecast", analyticsHandler.AlertForecast)
+			r.Get("/analytics/technique-trends", analyticsHandler.TechniqueTrends)
+			r.Get("/analytics/campaigns", analyticsHandler.Campaigns)
+			r.Get("/analytics/landscape", analyticsHandler.Landscape)
 		}
 
 		if ctemHandler != nil && ctemReportHandler != nil {
@@ -175,6 +274,11 @@ func RegisterRoutes(
 				r.Post("/assessments/{id}/report/export", ctemReportHandler.ExportReport)
 				r.Get("/assessments/{id}/compare/{otherId}", ctemHandler.CompareAssessments)
 			})
+		}
+
+		// ---- Extra sub-module routes (DSPM intelligence, access, remediation) ----
+		for _, fn := range extraRoutes {
+			fn(r)
 		}
 	})
 }

@@ -39,6 +39,8 @@ export function useRealtimeData<T>(
 
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const onNewItemRef = useRef(onNewItem);
+  onNewItemRef.current = onNewItem;
   const topicSignature = wsTopics.join('|');
   const stableTopics = useMemo(
     () => (topicSignature ? topicSignature.split('|') : []),
@@ -52,12 +54,13 @@ export function useRealtimeData<T>(
     queryKey,
     queryFn: () => apiGet<T>(url, params),
     refetchInterval: pollInterval > 0 ? pollInterval : undefined,
-    refetchOnWindowFocus: options.refreshOnFocus !== false,
+    refetchOnWindowFocus: options.refreshOnFocus === true, // opt-in, not opt-out
     enabled,
   });
 
   const { register, unregister } = useRealtimeStore();
   const queryEvent = useRealtimeStore((state) => state.queryEvents[queryKeyString]);
+  const { refetch } = query;
 
   useEffect(() => {
     if (!enabled || stableTopics.length === 0) return;
@@ -83,10 +86,10 @@ export function useRealtimeData<T>(
     }
 
     debounceTimerRef.current = setTimeout(() => {
-      void query.refetch();
+      void refetch();
       setLastUpdate(new Date(queryEvent.timestamp));
-      if (onNewItem && isNotificationPayload(queryEvent.payload)) {
-        onNewItem(queryEvent.payload);
+      if (onNewItemRef.current && isNotificationPayload(queryEvent.payload)) {
+        onNewItemRef.current(queryEvent.payload);
       }
     }, 500);
 
@@ -95,12 +98,12 @@ export function useRealtimeData<T>(
         clearTimeout(debounceTimerRef.current);
       }
     };
-  }, [enabled, onNewItem, query, queryEvent]);
+  }, [enabled, refetch, queryEvent]);
 
   const mutate = useCallback(async () => {
-    await query.refetch();
+    await refetch();
     setLastUpdate(new Date());
-  }, [query]);
+  }, [refetch]);
 
   return {
     data: query.data,

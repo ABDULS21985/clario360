@@ -172,7 +172,7 @@ func setDefaults(v *viper.Viper) {
 	// Observability
 	v.SetDefault("observability.log_level", "debug")
 	v.SetDefault("observability.log_format", "json")
-	v.SetDefault("observability.otlp_endpoint", "http://localhost:4317")
+	v.SetDefault("observability.otlp_endpoint", "")
 	v.SetDefault("observability.service_name", "clario360")
 	v.SetDefault("observability.metrics_port", 9090)
 

@@ -20,7 +20,6 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { Spinner } from '@/components/ui/spinner';
 import { apiGet, apiPost, apiDelete } from '@/lib/api';
 import { isApiError } from '@/types/api';
-import type { PaginatedResponse } from '@/types/api';
 import type { User, Role } from '@/types/models';
 
 interface UserRoleAssignDialogProps {
@@ -37,18 +36,20 @@ export function UserRoleAssignDialog({
   onSuccess,
 }: UserRoleAssignDialogProps) {
   const [loading, setLoading] = useState(false);
+  const userRoles = user.roles ?? [];
   const [selected, setSelected] = useState<Set<string>>(
-    new Set(user.roles.map((r) => r.id))
+    new Set(userRoles.map((r) => r.id))
   );
 
+  // Backend GET /api/v1/roles returns a plain Role[] array (not paginated)
   const { data: rolesData, isLoading: rolesLoading } = useQuery({
     queryKey: ['roles', 'all'],
-    queryFn: () => apiGet<PaginatedResponse<Role>>('/api/v1/roles', { per_page: 100 }),
+    queryFn: () => apiGet<Role[]>('/api/v1/roles'),
     enabled: open,
   });
 
-  const allRoles = rolesData?.data ?? [];
-  const initialIds = useMemo(() => new Set(user.roles.map((r) => r.id)), [user.roles]);
+  const allRoles = rolesData ?? [];
+  const initialIds = useMemo(() => new Set(userRoles.map((r) => r.id)), [userRoles]);
 
   const toggle = (roleId: string) => {
     setSelected((prev) => {

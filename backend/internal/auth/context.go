@@ -12,10 +12,11 @@ const (
 
 // ContextUser holds authenticated user information extracted from the JWT.
 type ContextUser struct {
-	ID       string
-	TenantID string
-	Email    string
-	Roles    []string
+	ID        string
+	TenantID  string
+	Email     string
+	Roles     []string
+	SessionID string // database session row ID from the "sid" JWT claim
 }
 
 // WithUser stores the authenticated user in the context.

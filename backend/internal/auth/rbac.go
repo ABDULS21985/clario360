@@ -4,25 +4,29 @@ import "strings"
 
 // Permission constants follow the pattern "resource:action".
 const (
-	PermUserRead    = "user:read"
-	PermUserWrite   = "user:write"
-	PermUserDelete  = "user:delete"
-	PermRoleRead    = "role:read"
-	PermRoleWrite   = "role:write"
-	PermTenantRead  = "tenant:read"
-	PermTenantWrite = "tenant:write"
-	PermAuditRead   = "audit:read"
-	PermCyberRead   = "cyber:read"
-	PermCyberWrite  = "cyber:write"
-	PermDataRead    = "data:read"
-	PermDataWrite   = "data:write"
-	PermActaRead    = "acta:read"
-	PermActaWrite   = "acta:write"
-	PermLexRead     = "lex:read"
-	PermLexWrite    = "lex:write"
-	PermVisusRead   = "visus:read"
-	PermVisusWrite  = "visus:write"
-	PermAdminAll    = "admin:*"
+	PermUserRead         = "user:read"
+	PermUserWrite        = "user:write"
+	PermUserDelete       = "user:delete"
+	PermRoleRead         = "role:read"
+	PermRoleWrite        = "role:write"
+	PermTenantRead       = "tenant:read"
+	PermTenantWrite      = "tenant:write"
+	PermAuditRead        = "audit:read"
+	PermCyberRead        = "cyber:read"
+	PermCyberWrite       = "cyber:write"
+	PermDataRead         = "data:read"
+	PermDataWrite        = "data:write"
+	PermDataPII          = "data:pii"
+	PermDataConfidential = "data:confidential"
+	PermDataRestricted   = "data:restricted"
+	PermActaRead         = "acta:read"
+	PermActaWrite        = "acta:write"
+	PermLexRead          = "lex:read"
+	PermLexWrite         = "lex:write"
+	PermVisusRead        = "visus:read"
+	PermVisusWrite       = "visus:write"
+	PermVCISOLLMAdmin    = "vciso:llm:admin"
+	PermAdminAll         = "admin:*"
 )
 
 // RolePermissions maps built-in roles to their permissions.
@@ -34,10 +38,11 @@ var RolePermissions = map[string][]string{
 		PermTenantRead, PermTenantWrite,
 		PermAuditRead,
 		PermCyberRead, PermCyberWrite,
-		PermDataRead, PermDataWrite,
+		PermDataRead, PermDataWrite, PermDataPII, PermDataConfidential, PermDataRestricted,
 		PermActaRead, PermActaWrite,
 		PermLexRead, PermLexWrite,
 		PermVisusRead, PermVisusWrite,
+		PermVCISOLLMAdmin,
 	},
 	"analyst": {
 		PermCyberRead, PermDataRead, PermActaRead, PermLexRead, PermVisusRead,
@@ -51,7 +56,8 @@ var RolePermissions = map[string][]string{
 // HasPermission checks if any of the user's roles grant the required permission.
 func HasPermission(roles []string, required string) bool {
 	for _, role := range roles {
-		perms, ok := RolePermissions[role]
+		normalizedRole := strings.ReplaceAll(role, "-", "_")
+		perms, ok := RolePermissions[normalizedRole]
 		if !ok {
 			continue
 		}

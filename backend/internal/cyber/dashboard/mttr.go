@@ -92,17 +92,17 @@ func (c *MTTRCalculator) Calculate(ctx context.Context, tenantID uuid.UUID) (*mo
 	var overallResolve *float64
 	if err := c.db.QueryRow(ctx, `
 		SELECT
-			AVG(EXTRACT(EPOCH FROM (COALESCE(acknowledged_at, resolved_at, now()) - created_at)) / 3600)::float8,
-			PERCENTILE_CONT(0.5) WITHIN GROUP (
+			COALESCE(AVG(EXTRACT(EPOCH FROM (COALESCE(acknowledged_at, resolved_at, now()) - created_at)) / 3600), 0)::float8,
+			COALESCE(PERCENTILE_CONT(0.5) WITHIN GROUP (
 				ORDER BY EXTRACT(EPOCH FROM (COALESCE(acknowledged_at, resolved_at, now()) - created_at)) / 3600
-			)::float8,
-			PERCENTILE_CONT(0.95) WITHIN GROUP (
+			), 0)::float8,
+			COALESCE(PERCENTILE_CONT(0.95) WITHIN GROUP (
 				ORDER BY EXTRACT(EPOCH FROM (COALESCE(acknowledged_at, resolved_at, now()) - created_at)) / 3600
-			)::float8,
+			), 0)::float8,
 			AVG(EXTRACT(EPOCH FROM (resolved_at - created_at)) / 3600)
 				FILTER (WHERE resolved_at IS NOT NULL)::float8,
 			COUNT(*)::int,
-			100.0 * AVG(
+			COALESCE(100.0 * AVG(
 				CASE
 					WHEN severity = 'critical' AND EXTRACT(EPOCH FROM (COALESCE(acknowledged_at, resolved_at, now()) - created_at)) / 3600 <= 4 THEN 1
 					WHEN severity = 'high' AND EXTRACT(EPOCH FROM (COALESCE(acknowledged_at, resolved_at, now()) - created_at)) / 3600 <= 8 THEN 1
@@ -110,7 +110,7 @@ func (c *MTTRCalculator) Calculate(ctx context.Context, tenantID uuid.UUID) (*mo
 					WHEN severity = 'low' AND EXTRACT(EPOCH FROM (COALESCE(acknowledged_at, resolved_at, now()) - created_at)) / 3600 <= 72 THEN 1
 					ELSE 0
 				END
-			)::float8
+			), 0)::float8
 		FROM alerts
 		WHERE tenant_id = $1
 		  AND created_at > now() - interval '30 days'

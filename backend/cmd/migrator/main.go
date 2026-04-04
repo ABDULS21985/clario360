@@ -20,6 +20,8 @@ var allDatabases = []string{
 	"acta_db",
 	"lex_db",
 	"visus_db",
+	"audit_db",
+	"notification_db",
 }
 
 func main() {

@@ -28,7 +28,7 @@ func NewTaskService(taskRepo taskRepo, engine *EngineService, logger zerolog.Log
 
 // ListTasks returns a paginated list of tasks visible to the specified user,
 // filtered by role assignments and optional status filter.
-func (s *TaskService) ListTasks(ctx context.Context, tenantID, userID string, roles []string, status string, page, pageSize int) ([]*model.HumanTask, int, error) {
+func (s *TaskService) ListTasks(ctx context.Context, tenantID, userID string, roles []string, statuses []string, sortBy, sortOrder string, page, pageSize int) ([]*model.HumanTask, int, error) {
 	if page < 1 {
 		page = 1
 	}
@@ -42,7 +42,7 @@ func (s *TaskService) ListTasks(ctx context.Context, tenantID, userID string, ro
 	limit := pageSize
 	offset := (page - 1) * pageSize
 
-	tasks, total, err := s.taskRepo.ListForUser(ctx, tenantID, userID, roles, status, limit, offset)
+	tasks, total, err := s.taskRepo.ListForUser(ctx, tenantID, userID, roles, statuses, sortBy, sortOrder, limit, offset)
 	if err != nil {
 		return nil, 0, fmt.Errorf("listing tasks: %w", err)
 	}
@@ -145,7 +145,7 @@ func (s *TaskService) CompleteTask(ctx context.Context, tenantID, taskID, userID
 }
 
 // DelegateTask transfers a task from one user to another.
-func (s *TaskService) DelegateTask(ctx context.Context, tenantID, taskID, fromUserID, toUserID string) error {
+func (s *TaskService) DelegateTask(ctx context.Context, tenantID, taskID, fromUserID, toUserID, reason string) error {
 	// Validate the task exists and the delegating user owns it.
 	task, err := s.taskRepo.GetByID(ctx, tenantID, taskID)
 	if err != nil {
@@ -168,7 +168,7 @@ func (s *TaskService) DelegateTask(ctx context.Context, tenantID, taskID, fromUs
 		return fmt.Errorf("cannot delegate task to the same user")
 	}
 
-	if err := s.taskRepo.DelegateTask(ctx, tenantID, taskID, fromUserID, toUserID); err != nil {
+	if err := s.taskRepo.DelegateTask(ctx, tenantID, taskID, fromUserID, toUserID, reason); err != nil {
 		return fmt.Errorf("delegating task: %w", err)
 	}
 
@@ -215,6 +215,14 @@ func (s *TaskService) RejectTask(ctx context.Context, tenantID, taskID, userID, 
 	return nil
 }
 
+// UpdateMetadata persists updated metadata for a task.
+func (s *TaskService) UpdateMetadata(ctx context.Context, tenantID, taskID string, metadata map[string]interface{}) error {
+	if err := s.taskRepo.UpdateMetadata(ctx, tenantID, taskID, metadata); err != nil {
+		return fmt.Errorf("updating task metadata: %w", err)
+	}
+	return nil
+}
+
 // CountTasks returns task counts bucketed by status for the user's dashboard.
 func (s *TaskService) CountTasks(ctx context.Context, tenantID, userID string, roles []string) (map[string]int, error) {
 	counts, err := s.taskRepo.CountByStatus(ctx, tenantID, userID, roles)
@@ -222,6 +230,12 @@ func (s *TaskService) CountTasks(ctx context.Context, tenantID, userID string, r
 		return nil, fmt.Errorf("counting tasks by status: %w", err)
 	}
 	return counts, nil
+}
+
+// DailyCreatedCounts returns a zero-filled daily count of tasks created over
+// the last N days, suitable for KPI sparklines.
+func (s *TaskService) DailyCreatedCounts(ctx context.Context, tenantID string, days int) ([]int, error) {
+	return s.taskRepo.DailyCreatedCounts(ctx, tenantID, days)
 }
 
 // validateFormData validates the submitted form data against the task's form schema.

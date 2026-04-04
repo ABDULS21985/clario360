@@ -31,7 +31,8 @@ func (c *ScanConsumer) Handle(ctx context.Context, event *events.Event) error {
 	}
 
 	var payload struct {
-		FileID string `json:"file_id"`
+		FileID   string `json:"file_id"`
+		TenantID string `json:"tenant_id"`
 	}
 	if err := json.Unmarshal(event.Data, &payload); err != nil {
 		c.logger.Error().Err(err).Str("event_id", event.ID).Msg("failed to unmarshal file.uploaded event")
@@ -45,7 +46,7 @@ func (c *ScanConsumer) Handle(ctx context.Context, event *events.Event) error {
 
 	c.logger.Info().Str("file_id", payload.FileID).Msg("processing virus scan")
 
-	if err := c.scanSvc.ScanFile(ctx, payload.FileID); err != nil {
+	if err := c.scanSvc.ScanFile(ctx, payload.TenantID, payload.FileID); err != nil {
 		c.logger.Error().Err(err).Str("file_id", payload.FileID).Msg("virus scan failed")
 		return err // return error to trigger retry
 	}

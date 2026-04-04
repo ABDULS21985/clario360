@@ -1,0 +1,122 @@
+{{- if .Values.inference.llamacpp.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "clario360.componentName" (dict "root" . "component" "llamacpp") }}
+  namespace: {{ include "clario360.namespace" . }}
+  labels:
+    {{- include "clario360.componentLabels" (dict "root" . "component" "llamacpp") | nindent 4 }}
+spec:
+  replicas: {{ .Values.inference.llamacpp.replicaCount | default 1 }}
+  revisionHistoryLimit: 5
+  selector:
+    matchLabels:
+      {{- include "clario360.componentSelectorLabels" (dict "root" . "component" "llamacpp") | nindent 6 }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      annotations:
+        {{- include "clario360.prometheusAnnotations" (dict "metricsPort" "8080") | nindent 8 }}
+      labels:
+        {{- include "clario360.componentSelectorLabels" (dict "root" . "component" "llamacpp") | nindent 8 }}
+    spec:
+      {{- with .Values.inference.llamacpp.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.inference.llamacpp.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.inference.llamacpp.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "clario360.serviceAccountName" . }}
+      securityContext:
+        runAsNonRoot: true
+        fsGroup: 1000
+
+      # Init container to download the model from a URL or S3 bucket
+      {{- if .Values.inference.llamacpp.model.downloadUrl }}
+      initContainers:
+        - name: model-download
+          image: curlimages/curl:8.5.0
+          command:
+            - sh
+            - -c
+            - |
+              if [ ! -f /models/model.gguf ]; then
+                echo "Downloading model from {{ .Values.inference.llamacpp.model.downloadUrl }}"
+                curl -fSL -o /models/model.gguf "{{ .Values.inference.llamacpp.model.downloadUrl }}"
+              else
+                echo "Model already exists, skipping download"
+              fi
+          volumeMounts:
+            - name: model-storage
+              mountPath: /models
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "100m"
+      {{- end }}
+
+      containers:
+        - name: llamacpp
+          image: "{{ .Values.inference.llamacpp.image.repository }}:{{ .Values.inference.llamacpp.image.tag }}"
+          imagePullPolicy: {{ .Values.inference.llamacpp.image.pullPolicy | default "IfNotPresent" }}
+          args:
+            - "--model"
+            - "/models/model.gguf"
+            - "--host"
+            - "0.0.0.0"
+            - "--port"
+            - "8080"
+            - "--ctx-size"
+            - "{{ .Values.inference.llamacpp.contextSize | default 4096 }}"
+            - "--threads"
+            - "{{ .Values.inference.llamacpp.threads | default 4 }}"
+            - "--parallel"
+            - "{{ .Values.inference.llamacpp.parallel | default 4 }}"
+            - "--batch-size"
+            - "{{ .Values.inference.llamacpp.batchSize | default 512 }}"
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+          resources:
+            {{- toYaml .Values.inference.llamacpp.resources | nindent 12 }}
+          volumeMounts:
+            - name: model-storage
+              mountPath: /models
+              readOnly: true
+
+      volumes:
+        - name: model-storage
+          {{- if .Values.inference.llamacpp.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ include "clario360.componentName" (dict "root" . "component" "llamacpp") }}-models
+          {{- else }}
+          emptyDir:
+            sizeLimit: {{ .Values.inference.llamacpp.persistence.sizeLimit | default "10Gi" }}
+          {{- end }}
+{{- end }}

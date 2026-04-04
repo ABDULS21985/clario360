@@ -1,0 +1,14 @@
+{{- if .Values.frontend.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "clario360.componentName" (dict "root" . "component" "frontend") }}-config
+  namespace: {{ include "clario360.namespace" . }}
+  labels:
+    {{- include "clario360.componentLabels" (dict "root" . "component" "frontend") | nindent 4 }}
+data:
+  NEXT_PUBLIC_API_URL: {{ .Values.frontend.apiUrl | default (printf "http://%s-api-gateway:8080" (include "clario360.fullname" .)) | quote }}
+  {{- with .Values.frontend.config }}
+  {{- toYaml . | nindent 2 }}
+  {{- end }}
+{{- end }}

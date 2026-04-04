@@ -1,0 +1,95 @@
+{{- if .Values.cronjobs.kpiSnapshot.enabled }}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "clario360.fullname" . }}-kpi-snapshot
+  namespace: {{ include "clario360.namespace" . }}
+  labels:
+    {{- include "clario360.labels" . | nindent 4 }}
+    app.kubernetes.io/component: cronjob-kpi-snapshot
+spec:
+  schedule: {{ .Values.cronjobs.kpiSnapshot.schedule | quote }}
+  concurrencyPolicy: Forbid
+  failedJobsHistoryLimit: 3
+  successfulJobsHistoryLimit: 3
+  startingDeadlineSeconds: 300
+  jobTemplate:
+    spec:
+      activeDeadlineSeconds: {{ .Values.cronjobs.kpiSnapshot.activeDeadlineSeconds | default 600 }}
+      backoffLimit: {{ .Values.cronjobs.kpiSnapshot.backoffLimit | default 2 }}
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/component: cronjob-kpi-snapshot
+            app.kubernetes.io/part-of: clario360
+        spec:
+          restartPolicy: OnFailure
+          {{- with .Values.global.imagePullSecrets }}
+          imagePullSecrets:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65534
+            runAsGroup: 65534
+            fsGroup: 65534
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: kpi-snapshot
+              {{- if .Values.cronjobs.kpiSnapshot.image }}
+              image: "{{ .Values.global.imageRegistry }}/{{ .Values.cronjobs.kpiSnapshot.image.repository }}:{{ .Values.cronjobs.kpiSnapshot.image.tag | default .Chart.AppVersion }}"
+              {{- else }}
+              image: "{{ .Values.global.imageRegistry }}/{{ .Values.visusService.image.repository }}:{{ .Values.visusService.image.tag | default .Chart.AppVersion }}"
+              {{- end }}
+              imagePullPolicy: {{ .Values.global.imagePullPolicy | default "IfNotPresent" }}
+              command: ["/app"]
+              args: ["--job=kpi-snapshot"]
+              env:
+                - name: VISUS_DB_URL
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ include "clario360.fullname" . }}-database-credentials
+                      key: VISUS_DB_URL
+                - name: VISUS_REDIS_ADDR
+                  valueFrom:
+                    configMapKeyRef:
+                      name: {{ include "clario360.fullname" . }}-shared
+                      key: REDIS_HOST
+                - name: REDIS_PASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ .Values.redis.existingSecret }}
+                      key: REDIS_PASSWORD
+                - name: VISUS_KAFKA_BROKERS
+                  valueFrom:
+                    configMapKeyRef:
+                      name: {{ include "clario360.fullname" . }}-shared
+                      key: KAFKA_BROKERS
+                - name: CYBER_SERVICE_URL
+                  value: "http://{{ include "clario360.fullname" . }}-cyber-service:{{ .Values.cyberService.port }}"
+                - name: DATA_SERVICE_URL
+                  value: "http://{{ include "clario360.fullname" . }}-data-service:{{ .Values.dataService.port }}"
+                - name: ACTA_SERVICE_URL
+                  value: "http://{{ include "clario360.fullname" . }}-acta-service:{{ .Values.actaService.port }}"
+                - name: LEX_SERVICE_URL
+                  value: "http://{{ include "clario360.fullname" . }}-lex-service:{{ .Values.lexService.port }}"
+                - name: IAM_SERVICE_URL
+                  value: "http://{{ include "clario360.fullname" . }}-iam-service:{{ .Values.iamService.port }}"
+                - name: OTEL_SERVICE_NAME
+                  value: "kpi-snapshot"
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop:
+                    - ALL
+              resources:
+                {{- toYaml .Values.cronjobs.kpiSnapshot.resources | nindent 16 }}
+              volumeMounts:
+                - name: tmp
+                  mountPath: /tmp
+          volumes:
+            - name: tmp
+              emptyDir: {}
+{{- end }}

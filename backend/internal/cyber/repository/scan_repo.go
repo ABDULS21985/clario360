@@ -97,8 +97,8 @@ func (r *ScanRepository) List(ctx context.Context, tenantID uuid.UUID, params *d
 		       assets_discovered, assets_new, assets_updated, error_count,
 		       errors, started_at, completed_at, duration_ms, created_by, created_at
 		FROM scan_history %s
-		ORDER BY created_at DESC
-		LIMIT $%d OFFSET $%d`, whereClause, idx, idx+1)
+		ORDER BY %s %s
+		LIMIT $%d OFFSET $%d`, whereClause, params.SortColumn(), params.SortDirection(), idx, idx+1)
 
 	rows, err := r.db.Query(ctx, listSQL, args...)
 	if err != nil {
@@ -178,6 +178,7 @@ func scanScanHistory(row interface{ Scan(dest ...any) error }) (*model.ScanHisto
 	if s.Config == nil {
 		s.Config = json.RawMessage("{}")
 	}
+	s.ComputeDerived()
 	return &s, nil
 }
 

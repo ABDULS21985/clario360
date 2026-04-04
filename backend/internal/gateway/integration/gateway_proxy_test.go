@@ -103,7 +103,7 @@ func buildTestGateway(t *testing.T, backendURLs map[string]string) (*chi.Mux, *a
 
 func makeToken(t *testing.T, mgr *auth.JWTManager, tenantID string) string {
 	t.Helper()
-	pair, err := mgr.GenerateTokenPair("user-1", tenantID, "user@test.com", []string{"viewer"})
+	pair, err := mgr.GenerateTokenPair("user-1", tenantID, "user@test.com", []string{"viewer"}, "")
 	if err != nil {
 		t.Fatalf("GenerateTokenPair: %v", err)
 	}

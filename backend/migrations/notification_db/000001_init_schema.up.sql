@@ -90,11 +90,11 @@ CREATE INDEX idx_webhook_tenant ON notification_webhooks (tenant_id, active)
 
 CREATE TABLE IF NOT EXISTS notification_templates (
     id              TEXT            NOT NULL,
-    tenant_id       UUID,
+    tenant_id       UUID            NOT NULL DEFAULT '00000000-0000-0000-0000-000000000000',
     channel         TEXT            NOT NULL CHECK (channel IN ('email', 'in_app', 'websocket')),
     subject_tmpl    TEXT            NOT NULL DEFAULT '',
     body_tmpl       TEXT            NOT NULL,
     created_at      TIMESTAMPTZ     NOT NULL DEFAULT now(),
     updated_at      TIMESTAMPTZ     NOT NULL DEFAULT now(),
-    PRIMARY KEY (id, channel, COALESCE(tenant_id, '00000000-0000-0000-0000-000000000000'::UUID))
+    PRIMARY KEY (id, channel, tenant_id)
 );

@@ -1,0 +1,39 @@
+# =============================================================================
+# Clario 360 — Data Seeder Docker Build
+# Build: docker build -f deploy/docker/Dockerfile.seeder -t clario360-seeder .
+# =============================================================================
+
+# --- Stage 1: Build ---
+FROM golang:1.22-alpine AS builder
+
+ARG BUILD_VERSION=dev
+ARG BUILD_DATE=unknown
+
+RUN apk add --no-cache git ca-certificates tzdata
+
+WORKDIR /build
+
+# Copy dependency files first (cache layer)
+COPY backend/go.mod backend/go.sum ./
+RUN go mod download
+
+# Copy source
+COPY backend/ .
+
+# Build the seeder
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
+    -ldflags="-w -s -X main.version=${BUILD_VERSION} -X main.buildDate=${BUILD_DATE}" \
+    -o /app/seeder \
+    ./cmd/seeder
+
+# --- Stage 2: Runtime ---
+FROM gcr.io/distroless/static-debian12:nonroot
+
+COPY --from=builder /usr/share/zoneinfo /usr/share/zoneinfo
+COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
+COPY --from=builder /app/seeder /seeder
+COPY --from=builder /build/seeds /seeds
+
+USER 65534:65534
+
+ENTRYPOINT ["/seeder"]

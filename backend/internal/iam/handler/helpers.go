@@ -27,7 +27,10 @@ func writeJSON(w http.ResponseWriter, status int, data any) {
 func writeError(w http.ResponseWriter, status int, message string) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(map[string]string{"error": message})
+	_ = json.NewEncoder(w).Encode(map[string]string{
+		"code":    inferErrorCode(status, message),
+		"message": message,
+	})
 }
 
 func parseBody(r *http.Request, dst any) error {
@@ -87,11 +90,11 @@ func paginatedResponse(data any, total, page, perPage int) dto.PaginatedResponse
 	}
 	return dto.PaginatedResponse{
 		Data: data,
-		Pagination: dto.Pagination{
-			Page:     page,
-			PerPage:  perPage,
-			Total:    total,
-			LastPage: lastPage,
+		Meta: dto.PaginationMeta{
+			Page:       page,
+			PerPage:    perPage,
+			Total:      total,
+			TotalPages: lastPage,
 		},
 	}
 }
@@ -135,5 +138,37 @@ func handleServiceError(w http.ResponseWriter, err error) {
 		writeError(w, http.StatusForbidden, err.Error())
 	default:
 		writeError(w, http.StatusInternalServerError, "internal server error")
+	}
+}
+
+func inferErrorCode(status int, message string) string {
+	lower := strings.ToLower(message)
+	switch {
+	case status == http.StatusBadRequest:
+		return "VALIDATION_ERROR"
+	case status == http.StatusUnauthorized && strings.Contains(lower, "invalid credentials"):
+		return "INVALID_CREDENTIALS"
+	case status == http.StatusUnauthorized && strings.Contains(lower, "invalid mfa"):
+		return "MFA_INVALID"
+	case status == http.StatusUnauthorized && strings.Contains(lower, "token"):
+		return "TOKEN_EXPIRED"
+	case status == http.StatusForbidden && strings.Contains(lower, "mfa"):
+		return "MFA_REQUIRED"
+	case status == http.StatusForbidden && strings.Contains(lower, "suspend"):
+		return "ACCOUNT_SUSPENDED"
+	case status == http.StatusTooManyRequests && strings.Contains(lower, "locked"):
+		return "ACCOUNT_LOCKED"
+	case status == http.StatusConflict && strings.Contains(lower, "email"):
+		return "EMAIL_TAKEN"
+	case status == http.StatusUnauthorized:
+		return "UNAUTHORIZED"
+	case status == http.StatusForbidden:
+		return "FORBIDDEN"
+	case status == http.StatusNotFound:
+		return "NOT_FOUND"
+	case status == http.StatusConflict:
+		return "CONFLICT"
+	default:
+		return "INTERNAL_ERROR"
 	}
 }

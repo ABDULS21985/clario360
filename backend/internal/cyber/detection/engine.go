@@ -13,6 +13,7 @@ import (
 	"github.com/redis/go-redis/v9"
 	"github.com/rs/zerolog"
 
+	aigovmiddleware "github.com/clario360/platform/internal/aigovernance/middleware"
 	"github.com/clario360/platform/internal/cyber/explanation"
 	"github.com/clario360/platform/internal/cyber/indicator"
 	"github.com/clario360/platform/internal/cyber/mitre"
@@ -49,15 +50,16 @@ type DetectionEngine struct {
 
 	evaluators map[model.DetectionRuleType]RuleEvaluator
 
-	ruleRepo   *repository.RuleRepository
-	assetRepo  *repository.AssetRepository
-	threatRepo *repository.ThreatRepository
-	alerts     AlertWriter
-	indicators *indicator.Matcher
-	redis      *redis.Client
-	producer   *events.Producer
-	logger     zerolog.Logger
-	reloadCh   chan uuid.UUID
+	ruleRepo         *repository.RuleRepository
+	assetRepo        *repository.AssetRepository
+	threatRepo       *repository.ThreatRepository
+	alerts           AlertWriter
+	indicators       *indicator.Matcher
+	redis            *redis.Client
+	producer         *events.Producer
+	logger           zerolog.Logger
+	reloadCh         chan uuid.UUID
+	predictionLogger *aigovmiddleware.PredictionLogger
 }
 
 // NewDetectionEngine creates a new detection engine.
@@ -192,6 +194,7 @@ func (e *DetectionEngine) ProcessEvents(ctx context.Context, tenantID uuid.UUID,
 
 	for _, loadedRule := range tenantRules {
 		matches := loadedRule.Evaluator.Evaluate(loadedRule.Compiled, normalizedEvents)
+		e.recordGovernedRuleEvaluation(ctx, tenantID, loadedRule, normalizedEvents, matches)
 		for _, match := range matches {
 			match.RuleID = loadedRule.Rule.ID
 			for _, event := range match.Events {
@@ -250,9 +253,6 @@ func (e *DetectionEngine) ProcessEvents(ctx context.Context, tenantID uuid.UUID,
 
 func (e *DetectionEngine) processRuleMatch(ctx context.Context, tenantID uuid.UUID, rule *model.DetectionRule, match model.RuleMatch) (*model.Alert, error) {
 	asset, assetIDs := e.primaryAssetForMatch(ctx, tenantID, match)
-	if e.isSuppressed(ctx, tenantID, rule.ID, asset) {
-		return nil, nil
-	}
 	technique, tactic := mitre.MapRuleToPrimaryTechnique(rule)
 	expl := explanation.BuildExplanation(rule, match, assetSlice(asset), nil)
 	confidence := confidenceScore(expl)
@@ -288,9 +288,7 @@ func (e *DetectionEngine) processRuleMatch(ctx context.Context, tenantID uuid.UU
 	if err != nil {
 		return nil, err
 	}
-	if isNew {
-		e.setRecentKey(ctx, tenantID, rule.ID, alert.AssetID, cooldownForRule(rule))
-	}
+	_ = isNew
 	return created, nil
 }
 
@@ -332,7 +330,7 @@ func (e *DetectionEngine) processIndicatorMatch(ctx context.Context, tenantID uu
 	if match.Indicator.ThreatID != nil {
 		_ = e.threatRepo.RecordObservation(ctx, tenantID, *match.Indicator.ThreatID, assetIDs)
 	} else if e.threatRepo != nil {
-		threat, err := e.threatRepo.UpsertSyntheticThreat(ctx, tenantID, "Observed malicious indicator activity", model.ThreatTypeOther, match.Indicator.Severity, []string{"indicator_match"})
+		threat, err := e.threatRepo.UpsertSyntheticThreat(ctx, tenantID, "Observed malicious indicator activity", "Indicator match observed during event evaluation", model.ThreatTypeOther, match.Indicator.Severity, []string{"indicator_match"})
 		if err == nil {
 			_ = e.threatRepo.RecordObservation(ctx, tenantID, threat.ID, assetIDs)
 		}
@@ -372,49 +370,6 @@ func (e *DetectionEngine) lookupAsset(ctx context.Context, tenantID uuid.UUID, a
 	return asset
 }
 
-func (e *DetectionEngine) isSuppressed(ctx context.Context, tenantID, ruleID uuid.UUID, asset *model.Asset) bool {
-	if e.redis == nil || asset == nil {
-		return false
-	}
-	key := dedupKey(tenantID, ruleID, &asset.ID)
-	exists, err := e.redis.Exists(ctx, key).Result()
-	if err != nil {
-		return false
-	}
-	return exists > 0
-}
-
-func (e *DetectionEngine) setRecentKey(ctx context.Context, tenantID, ruleID uuid.UUID, assetID *uuid.UUID, ttl time.Duration) {
-	if e.redis == nil || assetID == nil {
-		return
-	}
-	if ttl <= 0 {
-		ttl = 5 * time.Minute
-	}
-	key := dedupKey(tenantID, ruleID, assetID)
-	_ = e.redis.Set(ctx, key, "1", ttl).Err()
-}
-
-func dedupKey(tenantID, ruleID uuid.UUID, assetID *uuid.UUID) string {
-	if assetID == nil {
-		return fmt.Sprintf("detect:recent:%s:%s:global", tenantID, ruleID)
-	}
-	return fmt.Sprintf("detect:recent:%s:%s:%s", tenantID, ruleID, assetID.String())
-}
-
-func cooldownForRule(rule *model.DetectionRule) time.Duration {
-	var payload map[string]interface{}
-	if err := json.Unmarshal(rule.RuleContent, &payload); err != nil {
-		return 5 * time.Minute
-	}
-	if rawCooldown, ok := payload["cooldown"].(string); ok {
-		if duration, err := time.ParseDuration(rawCooldown); err == nil && duration > 0 {
-			return duration
-		}
-	}
-	return 5 * time.Minute
-}
-
 func matchWindow(events []model.SecurityEvent) (time.Time, time.Time) {
 	if len(events) == 0 {
 		now := time.Now().UTC()
@@ -449,6 +404,9 @@ func normalizeEvents(tenantID uuid.UUID, input []model.SecurityEvent) []model.Se
 		}
 		if len(event.RawEvent) == 0 {
 			event.RawEvent = json.RawMessage("{}")
+		}
+		if event.MatchedRules == nil {
+			event.MatchedRules = []uuid.UUID{}
 		}
 		events = append(events, event)
 	}
@@ -563,4 +521,8 @@ func (e *DetectionEngine) snapshotKnownTenants() []uuid.UUID {
 		out = append(out, tenantID)
 	}
 	return out
+}
+
+func (e *DetectionEngine) SetPredictionLogger(predictionLogger *aigovmiddleware.PredictionLogger) {
+	e.predictionLogger = predictionLogger
 }

@@ -36,6 +36,15 @@ var internalResponseHeaders = []string{
 	"X-User-Email",
 	"X-User-Roles",
 	"X-User-Permissions",
+	// Strip upstream CORS headers — the gateway's own CORS middleware is the
+	// single authoritative source. Letting upstream CORS headers pass through
+	// causes duplicate Access-Control-Allow-Origin values which browsers reject.
+	"Access-Control-Allow-Origin",
+	"Access-Control-Allow-Methods",
+	"Access-Control-Allow-Headers",
+	"Access-Control-Allow-Credentials",
+	"Access-Control-Expose-Headers",
+	"Access-Control-Max-Age",
 }
 
 // ReverseProxy wraps httputil.ReverseProxy with circuit breaker support.
@@ -154,8 +163,8 @@ func NewReverseProxy(serviceName string, target *url.URL, timeout time.Duration,
 
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(status)
-			_ = json.NewEncoder(w).Encode(gatewayError{
-				Error: errorDetail{
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"error": gatewayError{
 					Code:      code,
 					Message:   message,
 					RequestID: reqID,
@@ -180,8 +189,8 @@ func (rp *ReverseProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.Header().Set("Retry-After", "30")
 		w.WriteHeader(http.StatusServiceUnavailable)
-		_ = json.NewEncoder(w).Encode(gatewayError{
-			Error: errorDetail{
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"error": gatewayError{
 				Code:      "SERVICE_UNAVAILABLE",
 				Message:   "service is temporarily unavailable, please retry later",
 				RequestID: reqID,
@@ -203,12 +212,7 @@ func (rp *ReverseProxy) CircuitState() CircuitState {
 	return rp.breaker.State()
 }
 
-// gatewayError is the standard error envelope for all gateway error responses.
 type gatewayError struct {
-	Error errorDetail `json:"error"`
-}
-
-type errorDetail struct {
 	Code      string `json:"code"`
 	Message   string `json:"message"`
 	RequestID string `json:"request_id,omitempty"`
@@ -258,8 +262,8 @@ func extractClientIP(r *http.Request) string {
 func WriteGatewayError(w http.ResponseWriter, status int, code, message, requestID string) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(gatewayError{
-		Error: errorDetail{
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"error": gatewayError{
 			Code:      code,
 			Message:   message,
 			RequestID: requestID,

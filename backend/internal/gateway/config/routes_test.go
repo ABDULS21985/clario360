@@ -6,6 +6,7 @@ func TestDefaultRoutes_ContainsAllServices(t *testing.T) {
 	routes := DefaultRoutes()
 
 	expectedPrefixes := map[string]bool{
+		"/.well-known":     false,
 		"/api/v1/auth":      false,
 		"/api/v1/users":     false,
 		"/api/v1/roles":     false,
@@ -52,7 +53,7 @@ func TestDefaultRoutes_AuthIsPublic(t *testing.T) {
 func TestDefaultRoutes_ProtectedRoutesNotPublic(t *testing.T) {
 	routes := DefaultRoutes()
 	for _, route := range routes {
-		if route.Prefix != "/api/v1/auth" && route.Public {
+		if route.Prefix != "/api/v1/auth" && route.Prefix != "/.well-known" && route.Public {
 			t.Errorf("expected route %s to not be public", route.Prefix)
 		}
 	}

@@ -21,6 +21,10 @@ type Claims struct {
 	Email       string   `json:"email"`
 	Roles       []string `json:"roles"`
 	Permissions []string `json:"perms,omitempty"`
+	// SessionID is the database session row ID that backs this access token.
+	// It lets the server reliably identify the caller's active session without
+	// relying on ordering heuristics.
+	SessionID string `json:"sid,omitempty"`
 }
 
 // TokenPair holds an access token and a refresh token.
@@ -84,7 +88,9 @@ func NewJWTManager(cfg config.AuthConfig) (*JWTManager, error) {
 }
 
 // GenerateTokenPair creates a new access/refresh token pair signed with RS256.
-func (m *JWTManager) GenerateTokenPair(userID, tenantID, email string, roles []string) (*TokenPair, error) {
+// sessionID is the database session row ID and is embedded in the access token
+// so downstream handlers can identify the caller's session without ordering heuristics.
+func (m *JWTManager) GenerateTokenPair(userID, tenantID, email string, roles []string, sessionID string) (*TokenPair, error) {
 	if m.privateKey == nil {
 		return nil, fmt.Errorf("JWT manager is configured for validation only")
 	}
@@ -99,10 +105,11 @@ func (m *JWTManager) GenerateTokenPair(userID, tenantID, email string, roles []s
 			IssuedAt:  jwt.NewNumericDate(now),
 			NotBefore: jwt.NewNumericDate(now),
 		},
-		UserID:   userID,
-		TenantID: tenantID,
-		Email:    email,
-		Roles:    roles,
+		UserID:    userID,
+		TenantID:  tenantID,
+		Email:     email,
+		Roles:     roles,
+		SessionID: sessionID,
 	}
 
 	accessToken := jwt.NewWithClaims(jwt.SigningMethodRS256, accessClaims)
@@ -129,6 +136,22 @@ func (m *JWTManager) GenerateTokenPair(userID, tenantID, email string, roles []s
 		RefreshToken: refreshStr,
 		ExpiresAt:    accessExp,
 	}, nil
+}
+
+// SignClaims signs arbitrary JWT claims with the manager's private key.
+// This is used for standards-based tokens such as OIDC ID tokens while
+// keeping all platform signing centralized in one place.
+func (m *JWTManager) SignClaims(claims jwt.Claims) (string, error) {
+	if m.privateKey == nil {
+		return "", fmt.Errorf("JWT manager is configured for validation only")
+	}
+
+	token := jwt.NewWithClaims(jwt.SigningMethodRS256, claims)
+	signed, err := token.SignedString(m.privateKey)
+	if err != nil {
+		return "", fmt.Errorf("signing token: %w", err)
+	}
+	return signed, nil
 }
 
 // ValidateAccessToken parses and validates an access token, returning the claims.
@@ -169,6 +192,26 @@ func (m *JWTManager) ValidateRefreshToken(tokenStr string) (string, error) {
 	}
 
 	return claims.Subject, nil
+}
+
+// PublicKey returns the public verification key.
+func (m *JWTManager) PublicKey() *rsa.PublicKey {
+	return m.publicKey
+}
+
+// Issuer returns the configured JWT issuer.
+func (m *JWTManager) Issuer() string {
+	return m.issuer
+}
+
+// AccessTokenTTL returns the configured access-token TTL.
+func (m *JWTManager) AccessTokenTTL() time.Duration {
+	return m.accessTokenTTL
+}
+
+// RefreshTokenTTL returns the configured refresh-token TTL.
+func (m *JWTManager) RefreshTokenTTL() time.Duration {
+	return m.refreshTTL
 }
 
 func parseRSAPrivateKey(pemData []byte) (*rsa.PrivateKey, error) {

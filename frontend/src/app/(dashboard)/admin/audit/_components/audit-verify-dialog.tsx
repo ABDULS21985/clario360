@@ -17,13 +17,8 @@ import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
 import { apiPost } from '@/lib/api';
 import { isApiError } from '@/types/api';
-
-interface VerifyResult {
-  success: boolean;
-  records_checked: number;
-  broken_entry_id?: string;
-  message: string;
-}
+import { formatNumber } from '@/lib/format';
+import type { AuditVerificationResult } from '@/types/audit';
 
 interface AuditVerifyDialogProps {
   open: boolean;
@@ -37,24 +32,21 @@ export function AuditVerifyDialog({ open, onOpenChange }: AuditVerifyDialogProps
   const [dateFrom, setDateFrom] = useState(thirtyDaysAgo);
   const [dateTo, setDateTo] = useState(today);
   const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState<VerifyResult | null>(null);
+  const [result, setResult] = useState<AuditVerificationResult | null>(null);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const handleVerify = async () => {
     setLoading(true);
     setResult(null);
+    setErrorMsg(null);
     try {
-      const res = await apiPost<VerifyResult>('/api/v1/audit/verify', {
+      const res = await apiPost<AuditVerificationResult>('/api/v1/audit/verify', {
         date_from: new Date(dateFrom).toISOString(),
         date_to: new Date(dateTo + 'T23:59:59').toISOString(),
       });
       setResult(res);
     } catch (err) {
-      const msg = isApiError(err) ? err.message : 'Verification failed.';
-      setResult({
-        success: false,
-        records_checked: 0,
-        message: msg,
-      });
+      setErrorMsg(isApiError(err) ? err.message : 'Verification failed.');
     } finally {
       setLoading(false);
     }
@@ -63,6 +55,7 @@ export function AuditVerifyDialog({ open, onOpenChange }: AuditVerifyDialogProps
   const handleClose = (open: boolean) => {
     if (!open) {
       setResult(null);
+      setErrorMsg(null);
       setDateFrom(thirtyDaysAgo);
       setDateTo(today);
     }
@@ -87,8 +80,8 @@ export function AuditVerifyDialog({ open, onOpenChange }: AuditVerifyDialogProps
         </DialogHeader>
 
         <div className="space-y-4">
-          {!loading && !result && (
-            <div className="grid grid-cols-2 gap-4">
+          {!loading && !result && !errorMsg && (
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="date-from">From</Label>
                 <Input
@@ -122,16 +115,26 @@ export function AuditVerifyDialog({ open, onOpenChange }: AuditVerifyDialogProps
             </div>
           )}
 
+          {errorMsg && (
+            <div className="rounded-lg border border-destructive/50 p-4">
+              <div className="flex items-center gap-2 text-destructive">
+                <XCircle className="h-5 w-5" />
+                <span className="font-medium">Verification Error</span>
+              </div>
+              <p className="mt-1 text-sm text-muted-foreground">{errorMsg}</p>
+            </div>
+          )}
+
           {result && (
             <div className="rounded-lg border p-4">
-              {result.success ? (
+              {result.verified ? (
                 <div className="space-y-2">
-                  <div className="flex items-center gap-2 text-green-600">
+                  <div className="flex items-center gap-2 text-green-600 dark:text-green-400">
                     <CheckCircle className="h-5 w-5" />
                     <span className="font-medium">Integrity Verified</span>
                   </div>
                   <p className="text-sm text-muted-foreground">
-                    Chain integrity verified. {result.records_checked} records checked.
+                    {formatNumber(result.verified_records)} of {formatNumber(result.total_records)} records verified.
                   </p>
                 </div>
               ) : (
@@ -141,13 +144,13 @@ export function AuditVerifyDialog({ open, onOpenChange }: AuditVerifyDialogProps
                     <span className="font-medium">Integrity Violation Detected</span>
                   </div>
                   <p className="text-sm text-muted-foreground">
-                    {result.records_checked > 0
-                      ? `${result.records_checked} records verified before the break was detected.`
-                      : result.message}
+                    {result.verified_records > 0
+                      ? `${formatNumber(result.verified_records)} records verified before the break was detected.`
+                      : 'Chain integrity check failed.'}
                   </p>
-                  {result.broken_entry_id && (
+                  {result.broken_chain_at && (
                     <p className="text-xs font-mono text-destructive">
-                      Broken entry: {result.broken_entry_id}
+                      Broken at entry: {result.broken_chain_at}
                     </p>
                   )}
                 </div>
@@ -160,13 +163,13 @@ export function AuditVerifyDialog({ open, onOpenChange }: AuditVerifyDialogProps
           <Button variant="outline" onClick={() => handleClose(false)}>
             Close
           </Button>
-          {!result && (
+          {!result && !errorMsg && (
             <Button onClick={handleVerify} disabled={loading || !dateFrom || !dateTo}>
               {loading ? 'Verifying...' : 'Start Verification'}
             </Button>
           )}
-          {result && (
-            <Button variant="outline" onClick={() => setResult(null)}>
+          {(result || errorMsg) && (
+            <Button variant="outline" onClick={() => { setResult(null); setErrorMsg(null); }}>
               Verify Again
             </Button>
           )}

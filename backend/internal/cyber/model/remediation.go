@@ -128,6 +128,7 @@ type RemediationAction struct {
 	Tags               []string   `json:"tags"`
 	Metadata           map[string]interface{} `json:"metadata"`
 	CreatedBy          uuid.UUID  `json:"created_by"`
+	CreatedByName      *string    `json:"created_by_name,omitempty"`
 	CreatedAt          time.Time  `json:"created_at"`
 	UpdatedAt          time.Time  `json:"updated_at"`
 

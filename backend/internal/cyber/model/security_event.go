@@ -78,3 +78,51 @@ func StringField(v *string) string {
 	}
 	return strings.TrimSpace(*v)
 }
+
+// EventQueryParams defines filter, sort, and pagination parameters for security event queries.
+type EventQueryParams struct {
+	// Filters
+	From        *time.Time `json:"from"`
+	To          *time.Time `json:"to"`
+	Source      string     `json:"source"`
+	Type        string     `json:"type"`
+	Severities  []string   `json:"severities"`
+	SourceIP    string     `json:"source_ip"`
+	DestIP      string     `json:"dest_ip"`
+	Protocols   []string   `json:"protocols"`
+	Username    string     `json:"username"`
+	Process     string     `json:"process"`
+	CmdContains string     `json:"cmd_contains"` // ILIKE on command_line
+	FileHash    string     `json:"file_hash"`
+	Search      string     `json:"search"` // free-text search on raw_event JSONB
+	MatchedRule string     `json:"matched_rule"`
+	// Sort & Pagination
+	Sort    string `json:"sort"`
+	Order   string `json:"order"`
+	Page    int    `json:"page"`
+	PerPage int    `json:"per_page"`
+}
+
+// SetDefaults applies default values for pagination and sort.
+func (p *EventQueryParams) SetDefaults() {
+	if p.Page < 1 {
+		p.Page = 1
+	}
+	if p.PerPage <= 0 || p.PerPage > 200 {
+		p.PerPage = 50
+	}
+	if p.Sort == "" {
+		p.Sort = "timestamp"
+	}
+	if p.Order == "" {
+		p.Order = "desc"
+	}
+}
+
+// EventStats contains aggregate counts for security events grouped by dimension.
+type EventStats struct {
+	Total      int          `json:"total"`
+	BySource   []NamedCount `json:"by_source"`
+	ByType     []NamedCount `json:"by_type"`
+	BySeverity []NamedCount `json:"by_severity"`
+}

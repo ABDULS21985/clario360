@@ -106,7 +106,7 @@ func (r *TaskRepository) GetByID(ctx context.Context, tenantID, id string) (*mod
 // assigned (assignee_id = userID), or claimable by the user's roles
 // (assignee_role IN roles AND status = 'pending'). An optional status filter
 // can further restrict results. Returns the matching tasks and the total count.
-func (r *TaskRepository) ListForUser(ctx context.Context, tenantID, userID string, roles []string, status string, limit, offset int) ([]*model.HumanTask, int, error) {
+func (r *TaskRepository) ListForUser(ctx context.Context, tenantID, userID string, roles []string, statuses []string, sortBy, sortOrder string, limit, offset int) ([]*model.HumanTask, int, error) {
 	var conditions []string
 	var args []any
 	argIdx := 1
@@ -137,9 +137,9 @@ func (r *TaskRepository) ListForUser(ctx context.Context, tenantID, userID strin
 
 	conditions = append(conditions, "("+strings.Join(visibilityParts, " OR ")+")")
 
-	if status != "" {
-		conditions = append(conditions, fmt.Sprintf("status = $%d", argIdx))
-		args = append(args, status)
+	if len(statuses) > 0 {
+		conditions = append(conditions, fmt.Sprintf("status = ANY($%d)", argIdx))
+		args = append(args, statuses)
 		argIdx++
 	}
 
@@ -156,6 +156,25 @@ func (r *TaskRepository) ListForUser(ctx context.Context, tenantID, userID strin
 		return []*model.HumanTask{}, 0, nil
 	}
 
+	// Build ORDER BY clause from allowlisted columns.
+	taskSortAllowlist := map[string]string{
+		"priority":     "priority",
+		"created_at":   "created_at",
+		"sla_deadline": "sla_deadline",
+		"updated_at":   "updated_at",
+		"status":       "status",
+	}
+	var orderBy string
+	if col, ok := taskSortAllowlist[sortBy]; ok {
+		dir := "ASC"
+		if sortOrder == "desc" {
+			dir = "DESC"
+		}
+		orderBy = col + " " + dir
+	} else {
+		orderBy = "priority DESC, created_at ASC"
+	}
+
 	// Paginated data.
 	dataQuery := fmt.Sprintf(`
 		SELECT id, tenant_id, instance_id, step_id, step_exec_id,
@@ -169,8 +188,8 @@ func (r *TaskRepository) ListForUser(ctx context.Context, tenantID, userID strin
 		       completed_at, created_at, updated_at
 		FROM workflow_tasks
 		WHERE %s
-		ORDER BY priority DESC, created_at ASC
-		LIMIT $%d OFFSET $%d`, where, argIdx, argIdx+1)
+		ORDER BY %s
+		LIMIT $%d OFFSET $%d`, where, orderBy, argIdx, argIdx+1)
 	args = append(args, limit, offset)
 
 	rows, err := r.pool.Query(ctx, dataQuery, args...)
@@ -252,10 +271,10 @@ func (r *TaskRepository) CompleteTask(ctx context.Context, tenantID, taskID stri
 	return nil
 }
 
-// DelegateTask transfers a claimed task from one user to another. The current
-// assignee becomes delegated_by, and the task goes back to 'pending' with the
-// new assignee.
-func (r *TaskRepository) DelegateTask(ctx context.Context, tenantID, taskID, fromUserID, toUserID string) error {
+// DelegateTask transfers a pending or claimed task from one user to another.
+// The delegating user becomes delegated_by, and the task goes to 'pending' with
+// the new assignee. An optional reason is stored in the metadata JSONB.
+func (r *TaskRepository) DelegateTask(ctx context.Context, tenantID, taskID, fromUserID, toUserID, reason string) error {
 	query := `
 		UPDATE workflow_tasks
 		SET assignee_id = $3,
@@ -264,10 +283,17 @@ func (r *TaskRepository) DelegateTask(ctx context.Context, tenantID, taskID, fro
 		    claimed_at = NULL,
 		    delegated_by = $4,
 		    delegated_at = now(),
+		    metadata = CASE WHEN $5::text = '' THEN metadata
+		                    ELSE metadata || jsonb_build_object('delegation_reason', $5::text)
+		               END,
 		    updated_at = now()
-		WHERE id = $1 AND tenant_id = $2 AND status = 'claimed' AND claimed_by = $4`
+		WHERE id = $1 AND tenant_id = $2
+		  AND (
+		    (status = 'claimed' AND claimed_by = $4)
+		    OR status = 'pending'
+		  )`
 
-	ct, err := r.pool.Exec(ctx, query, taskID, tenantID, toUserID, fromUserID)
+	ct, err := r.pool.Exec(ctx, query, taskID, tenantID, toUserID, fromUserID, reason)
 	if err != nil {
 		return fmt.Errorf("delegating task: %w", err)
 	}
@@ -358,6 +384,48 @@ func (r *TaskRepository) CountByStatus(ctx context.Context, tenantID, userID str
 	return counts, nil
 }
 
+// DailyCreatedCounts returns the number of tasks created per day for the last
+// N days for the given tenant. Used for dashboard KPI sparklines.
+func (r *TaskRepository) DailyCreatedCounts(ctx context.Context, tenantID string, days int) ([]int, error) {
+	if days <= 0 {
+		days = 12
+	}
+	rows, err := r.pool.Query(ctx, `
+		WITH days AS (
+			SELECT generate_series(
+				DATE_TRUNC('day', NOW()) - ($2::int - 1) * INTERVAL '1 day',
+				DATE_TRUNC('day', NOW()),
+				INTERVAL '1 day'
+			) AS day
+		)
+		SELECT COALESCE(a.cnt, 0)::int
+		FROM days d
+		LEFT JOIN (
+			SELECT DATE_TRUNC('day', created_at) AS day, COUNT(*) AS cnt
+			FROM workflow_tasks
+			WHERE tenant_id = $1
+			  AND created_at >= NOW() - ($2::int * INTERVAL '1 day')
+			GROUP BY DATE_TRUNC('day', created_at)
+		) a ON a.day = d.day
+		ORDER BY d.day ASC`,
+		tenantID, days,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("query daily task counts: %w", err)
+	}
+	defer rows.Close()
+
+	counts := make([]int, 0, days)
+	for rows.Next() {
+		var c int
+		if err := rows.Scan(&c); err != nil {
+			return nil, fmt.Errorf("scan daily task count: %w", err)
+		}
+		counts = append(counts, c)
+	}
+	return counts, rows.Err()
+}
+
 // GetOverdueTasks returns tasks that have passed their SLA deadline but have
 // not yet been marked as breached. Only pending and claimed tasks are
 // considered.
@@ -419,6 +487,29 @@ func (r *TaskRepository) EscalateTask(ctx context.Context, taskID, escalationRol
 	ct, err := r.pool.Exec(ctx, query, taskID, escalationRole)
 	if err != nil {
 		return fmt.Errorf("escalating task: %w", err)
+	}
+	if ct.RowsAffected() == 0 {
+		return fmt.Errorf("task %s: %w", taskID, model.ErrNotFound)
+	}
+	return nil
+}
+
+// UpdateMetadata replaces the metadata JSONB column for a task. Used to persist
+// comment additions and other metadata changes.
+func (r *TaskRepository) UpdateMetadata(ctx context.Context, tenantID, taskID string, metadata map[string]interface{}) error {
+	metadataJSON, err := json.Marshal(metadata)
+	if err != nil {
+		return fmt.Errorf("marshaling task metadata: %w", err)
+	}
+
+	query := `
+		UPDATE workflow_tasks
+		SET metadata = $3, updated_at = now()
+		WHERE id = $1 AND tenant_id = $2`
+
+	ct, err := r.pool.Exec(ctx, query, taskID, tenantID, metadataJSON)
+	if err != nil {
+		return fmt.Errorf("updating task metadata: %w", err)
 	}
 	if ct.RowsAffected() == 0 {
 		return fmt.Errorf("task %s: %w", taskID, model.ErrNotFound)

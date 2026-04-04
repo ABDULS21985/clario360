@@ -1,0 +1,60 @@
+{{/*
+=======================================================================
+Clario360 Platform — Helm Test: Kafka Broker Connectivity
+=======================================================================
+Verifies that the first Kafka broker is reachable via TCP.
+*/}}
+apiVersion: v1
+kind: Pod
+metadata:
+  name: {{ include "clario360.fullname" . }}-test-kafka
+  namespace: {{ include "clario360.namespace" . }}
+  labels:
+    {{- include "clario360.labels" . | nindent 4 }}
+    app.kubernetes.io/component: test-kafka
+  annotations:
+    "helm.sh/hook": test
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+spec:
+  restartPolicy: Never
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 65534
+    runAsGroup: 65534
+    fsGroup: 65534
+    seccompProfile:
+      type: RuntimeDefault
+  containers:
+    - name: test-kafka
+      image: busybox:1.36
+      imagePullPolicy: IfNotPresent
+      command: ['sh', '-c']
+      args:
+        - |
+          echo "=== Clario360 Kafka Connectivity Test ==="
+          echo ""
+
+          {{- $firstBroker := index .Values.kafka.brokers 0 }}
+          BROKER="{{ $firstBroker }}"
+          KAFKA_HOST=$(echo "$BROKER" | cut -d':' -f1)
+          KAFKA_PORT=$(echo "$BROKER" | cut -d':' -f2)
+
+          echo "  Testing Kafka broker at $KAFKA_HOST:$KAFKA_PORT ..."
+
+          if nc -z -w 5 "$KAFKA_HOST" "$KAFKA_PORT"; then
+            echo "  Kafka broker is reachable!"
+          else
+            echo "  FAILED: Kafka broker is unreachable at $KAFKA_HOST:$KAFKA_PORT"
+            exit 1
+          fi
+
+          echo ""
+          echo "Kafka reachable!"
+      securityContext:
+        allowPrivilegeEscalation: false
+        readOnlyRootFilesystem: true
+        runAsNonRoot: true
+        runAsUser: 65534
+        capabilities:
+          drop:
+            - ALL

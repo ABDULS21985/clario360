@@ -129,12 +129,14 @@ func (s *NetworkScanner) Scan(ctx context.Context, cfg *model.ScanConfig) (*mode
 	// Collect results — we need a tenantID which comes from the scan record,
 	// but we don't have it here. The service layer passes it in via ctx value.
 	tenantID := tenantIDFromCtx(ctx)
+	scanID := ScanIDFromCtx(ctx)
 
 	var newCount, updatedCount int
 	for d := range discovered {
 		if tenantID == uuid.Nil {
 			continue
 		}
+		d.ScanID = scanID
 		assetID, isNew, err := s.repo.UpsertFromScan(ctx, tenantID, d)
 		if err != nil {
 			errsMu.Lock()
@@ -421,6 +423,22 @@ func WithTenantID(ctx context.Context, tenantID uuid.UUID) context.Context {
 
 func tenantIDFromCtx(ctx context.Context) uuid.UUID {
 	if id, ok := ctx.Value(ctxTenantIDKey{}).(uuid.UUID); ok {
+		return id
+	}
+	return uuid.Nil
+}
+
+// ctxScanIDKey is the context key for scan ID passed to the scanner.
+type ctxScanIDKey struct{}
+
+// WithScanID stores scanID in ctx for the scanner to retrieve.
+func WithScanID(ctx context.Context, scanID uuid.UUID) context.Context {
+	return context.WithValue(ctx, ctxScanIDKey{}, scanID)
+}
+
+// ScanIDFromCtx extracts the scan ID from context.
+func ScanIDFromCtx(ctx context.Context) uuid.UUID {
+	if id, ok := ctx.Value(ctxScanIDKey{}).(uuid.UUID); ok {
 		return id
 	}
 	return uuid.Nil

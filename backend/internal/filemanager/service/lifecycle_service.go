@@ -123,7 +123,7 @@ func (s *LifecycleService) purgeSoftDeleted(ctx context.Context) {
 			_ = s.store.Delete(ctx, f.Bucket, f.StorageKey)
 
 			// Hard-delete from DB
-			if err := s.repo.HardDelete(ctx, f.ID); err != nil {
+			if err := s.repo.HardDelete(ctx, f.TenantID, f.ID); err != nil {
 				s.logger.Error().Err(err).Str("file_id", f.ID).Msg("failed to hard-delete file")
 				continue
 			}
@@ -155,7 +155,7 @@ func (s *LifecycleService) cleanQuarantine(ctx context.Context) {
 		_ = s.store.Delete(ctx, q.QuarantineBucket, q.QuarantineKey)
 
 		// Mark as resolved
-		if err := s.repo.ResolveQuarantine(ctx, q.ID, "system", "deleted"); err != nil {
+		if err := s.repo.ResolveQuarantine(ctx, q.TenantID, q.ID, "system", "deleted"); err != nil {
 			s.logger.Error().Err(err).Str("quarantine_id", q.ID).Msg("failed to resolve old quarantine")
 		}
 

@@ -111,7 +111,7 @@ func main() {
 	// 11. Initialize executor registry
 	execRegistry := executor.NewExecutorRegistry()
 	execRegistry.Register("service_task", executor.NewServiceTaskExecutor(wfCfg.ServiceURLs, logger))
-	execRegistry.Register("human_task", executor.NewHumanTaskExecutor(taskRepo, logger))
+	execRegistry.Register("human_task", executor.NewHumanTaskExecutor(taskRepo, producer, logger))
 	execRegistry.Register("event_task", executor.NewEventTaskExecutor(producer, rdb, logger))
 	execRegistry.Register("condition", executor.NewConditionExecutor())
 	execRegistry.Register("timer", executor.NewTimerTaskExecutor(rdb, taskRepo, logger))
@@ -128,8 +128,9 @@ func main() {
 
 	// 13. Initialize handlers
 	defHandler := handler.NewDefinitionHandler(defSvc, logger)
-	instHandler := handler.NewInstanceHandler(engineSvc, instRepo, logger)
-	taskHandler := handler.NewTaskHandler(taskSvc, logger)
+	defHandler.SetTemplateService(templateSvc)
+	instHandler := handler.NewInstanceHandler(engineSvc, instRepo, defRepo, logger)
+	taskHandler := handler.NewTaskHandler(taskSvc, instRepo, defRepo, logger)
 	templateHandler := handler.NewTemplateHandler(templateSvc, logger)
 
 	// 14. Initialize health checker

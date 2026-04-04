@@ -11,15 +11,22 @@ interface RelativeTimeProps {
 
 export function RelativeTime({ date, className }: RelativeTimeProps) {
   const dateObj = typeof date === "string" ? new Date(date) : date;
+  const isValid = dateObj instanceof Date && !isNaN(dateObj.getTime());
+
   const [relative, setRelative] = useState(() =>
-    formatDistanceToNow(dateObj, { addSuffix: true })
+    isValid ? formatDistanceToNow(dateObj, { addSuffix: true }) : "—"
   );
 
   useEffect(() => {
+    if (!isValid) return;
     const update = () => setRelative(formatDistanceToNow(dateObj, { addSuffix: true }));
     const interval = setInterval(update, 60_000);
     return () => clearInterval(interval);
-  }, [dateObj]);
+  }, [dateObj, isValid]);
+
+  if (!isValid) {
+    return <span className={cn("text-sm text-muted-foreground", className)}>—</span>;
+  }
 
   const fullDate = format(dateObj, "MMM d, yyyy 'at' HH:mm:ss 'UTC'");
 

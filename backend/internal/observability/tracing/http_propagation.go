@@ -1,7 +1,9 @@
 package tracing
 
 import (
+	"bufio"
 	"fmt"
+	"net"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
@@ -122,6 +124,28 @@ func (w *tracingResponseWriter) Write(b []byte) (int, error) {
 	n, err := w.ResponseWriter.Write(b)
 	w.bytesWritten += n
 	return n, err
+}
+
+func (w *tracingResponseWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+	hijacker, ok := w.ResponseWriter.(http.Hijacker)
+	if !ok {
+		return nil, nil, fmt.Errorf("response writer does not implement http.Hijacker")
+	}
+	return hijacker.Hijack()
+}
+
+func (w *tracingResponseWriter) Flush() {
+	if flusher, ok := w.ResponseWriter.(http.Flusher); ok {
+		flusher.Flush()
+	}
+}
+
+func (w *tracingResponseWriter) Push(target string, opts *http.PushOptions) error {
+	pusher, ok := w.ResponseWriter.(http.Pusher)
+	if !ok {
+		return http.ErrNotSupported
+	}
+	return pusher.Push(target, opts)
 }
 
 func (w *tracingResponseWriter) Unwrap() http.ResponseWriter {

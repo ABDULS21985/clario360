@@ -1,0 +1,51 @@
+repos:
+  # Go formatting and checks
+  - repo: https://github.com/dnephin/pre-commit-golang
+    rev: v0.5.1
+    hooks:
+      - id: go-fmt
+        args: ["-w"]
+      - id: go-imports
+        args: ["-w", "-local", "github.com/clario360"]
+      - id: go-vet
+        args: ["./backend/..."]
+
+  # General file hygiene and secret detection
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.5.0
+    hooks:
+      - id: detect-private-key
+      - id: detect-aws-credentials
+        args: ["--allow-missing-credentials"]
+      - id: check-added-large-files
+        args: ["--maxkb=1024"]
+      - id: trailing-whitespace
+        exclude: "\\.(md|snap)$"
+      - id: end-of-file-fixer
+        exclude: "\\.(md|snap)$"
+      - id: check-yaml
+        args: ["--allow-multiple-documents"]
+      - id: check-json
+      - id: no-commit-to-branch
+        args: ["--branch", "main", "--branch", "production"]
+
+  # Frontend linting
+  - repo: local
+    hooks:
+      - id: eslint
+        name: ESLint
+        entry: bash -c 'cd frontend && npx eslint --fix'
+        language: system
+        types_or: [javascript, tsx, typescript]
+        pass_filenames: false
+        files: ^frontend/
+
+  # Helm chart linting
+  - repo: local
+    hooks:
+      - id: helm-lint
+        name: Helm Lint
+        entry: helm lint deploy/helm/clario360
+        language: system
+        pass_filenames: false
+        files: ^deploy/helm/

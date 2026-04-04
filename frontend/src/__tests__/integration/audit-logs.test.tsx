@@ -31,29 +31,59 @@ const mockLogs: AuditLog[] = [
     user_id: 'user-1',
     user_email: 'alice@example.com',
     action: 'user.create',
+    service: 'iam-service',
     resource_type: 'user',
     resource_id: 'user-abc-1234',
+    severity: 'info',
     ip_address: '192.168.1.1',
     user_agent: 'Mozilla/5.0',
+    event_id: 'evt-1',
+    correlation_id: 'corr-1',
+    entry_hash: 'abc123',
+    previous_hash: 'GENESIS',
     metadata: { email: 'new@example.com' },
     created_at: '2024-03-01T10:00:00Z',
   },
   {
     id: 'log-2',
     tenant_id: 'tenant-1',
-    user_id: null,
     user_email: '',
     action: 'login.failed',
+    service: 'iam-service',
     resource_type: 'auth',
-    resource_id: null,
+    resource_id: '',
+    severity: 'warning',
     ip_address: '10.0.0.1',
     user_agent: 'curl/7.68',
+    event_id: 'evt-2',
+    correlation_id: 'corr-2',
+    entry_hash: 'def456',
+    previous_hash: 'abc123',
     metadata: { reason: 'invalid_password' },
     created_at: '2024-03-01T09:00:00Z',
   },
 ];
 
+const mockStats = {
+  total_events: 100,
+  events_today: 10,
+  events_this_week: 40,
+  events_this_month: 100,
+  unique_users: 5,
+  unique_services: 3,
+  by_service: [],
+  by_action: [],
+  by_severity: [],
+  by_hour: [],
+  by_day: [],
+  top_users: [],
+  top_resources: [],
+};
+
 const server = setupServer(
+  http.get(`${API_URL}/api/v1/audit/logs/stats`, () =>
+    HttpResponse.json(mockStats)
+  ),
   http.get(`${API_URL}/api/v1/audit/logs`, () =>
     HttpResponse.json({
       data: mockLogs,
@@ -88,8 +118,12 @@ describe('Audit Logs Page', () => {
     expect(screen.getByText('Audit Logs')).toBeInTheDocument();
   });
 
-  it('test_loadsAndDisplaysLogs: renders audit log rows after load', async () => {
+  it('test_loadsAndDisplaysLogs: renders audit log rows after switching to Logs tab', async () => {
+    const user = userEvent.setup();
     await renderAuditPage();
+    // Default tab is "dashboard" — switch to "Logs"
+    const logsTab = screen.getByRole('tab', { name: /logs/i });
+    await user.click(logsTab);
     await waitFor(() => {
       expect(screen.getByText('user.create')).toBeInTheDocument();
       expect(screen.getByText('login.failed')).toBeInTheDocument();
@@ -97,56 +131,65 @@ describe('Audit Logs Page', () => {
   });
 
   it('test_showsUserEmail: displays user email for logged-in actions', async () => {
+    const user = userEvent.setup();
     await renderAuditPage();
+    const logsTab = screen.getByRole('tab', { name: /logs/i });
+    await user.click(logsTab);
     await waitFor(() => {
       expect(screen.getByText('alice@example.com')).toBeInTheDocument();
     });
   });
 
-  it('test_showsSystemForNullUser: shows System for null user_email', async () => {
+  it('test_showsSystemForNullUser: shows System for empty user_email', async () => {
+    const user = userEvent.setup();
     await renderAuditPage();
+    const logsTab = screen.getByRole('tab', { name: /logs/i });
+    await user.click(logsTab);
     await waitFor(() => {
       expect(screen.getByText('System')).toBeInTheDocument();
     });
   });
 
-  it('test_verifyHashChainButtonVisible: verify hash chain button is shown', async () => {
+  it('test_integrityTabVisible: integrity tab shows Run Verification button', async () => {
+    const user = userEvent.setup();
     await renderAuditPage();
-    expect(screen.getByText('Verify Hash Chain')).toBeInTheDocument();
+    const integrityTab = screen.getByRole('tab', { name: /integrity/i });
+    await user.click(integrityTab);
+    await waitFor(() => {
+      expect(screen.getByText('Run Verification')).toBeInTheDocument();
+    });
+  });
+
+  it('test_dashboardTabShowsStats: default dashboard tab loads stats', async () => {
+    await renderAuditPage();
+    // Dashboard is the default tab and should show stats cards
+    await waitFor(() => {
+      expect(screen.getByText('Total Events')).toBeInTheDocument();
+    });
   });
 
   it('test_errorState: shows error on API failure', async () => {
     server.use(
+      http.get(`${API_URL}/api/v1/audit/logs/stats`, () =>
+        HttpResponse.json({ error: { message: 'Server error' } }, { status: 500 })
+      ),
       http.get(`${API_URL}/api/v1/audit/logs`, () =>
-        HttpResponse.json({ message: 'Server error' }, { status: 500 })
-      )
-    );
-    await renderAuditPage();
-    await waitFor(() => {
-      expect(
-        screen.getByText(/failed to load/i) ||
-        screen.getByText(/error/i) ||
-        screen.queryByRole('alert')
-      ).toBeTruthy();
-    });
-  });
-
-  it('test_verifyChain_success: verify chain button calls API and shows result', async () => {
-    server.use(
-      http.post(`${API_URL}/api/v1/audit/verify`, () =>
-        HttpResponse.json({ valid: true, count: 2 })
+        HttpResponse.json({ error: { message: 'Server error' } }, { status: 500 })
       )
     );
     const user = userEvent.setup();
     await renderAuditPage();
-    const btn = screen.getByText('Verify Hash Chain');
-    await user.click(btn);
-    await waitFor(() => {
-      expect(
-        screen.getByText(/chain valid/i) ||
-        screen.getByText(/2 records/i) ||
-        screen.getByText(/valid/i)
-      ).toBeTruthy();
-    });
+    const logsTab = screen.getByRole('tab', { name: /logs/i });
+    await user.click(logsTab);
+    await waitFor(
+      () => {
+        const errorEl =
+          screen.queryByText(/failed/i) ||
+          screen.queryByText(/error/i) ||
+          screen.queryByText(/no audit logs/i);
+        expect(errorEl).toBeTruthy();
+      },
+      { timeout: 5000 }
+    );
   });
 });

@@ -1,0 +1,78 @@
+# =============================================================================
+# Clario 360 — llama.cpp Inference Server (CPU-optimised)
+# Build: docker build -f deploy/docker/Dockerfile.llamacpp -t clario360-llamacpp .
+#
+# Serves GGUF models via OpenAI-compatible /v1/chat/completions endpoint.
+# Supports both standard quantised models (Q4_0, Q5_K_M, etc.) and
+# BitNet 1-bit ternary models via llama.cpp's unified server.
+# =============================================================================
+
+# --- Stage 1: Build llama.cpp from source ---
+FROM ubuntu:24.04 AS builder
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    cmake \
+    git \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+ARG LLAMACPP_VERSION=master
+
+RUN git clone --depth 1 --branch ${LLAMACPP_VERSION} \
+    https://github.com/ggerganov/llama.cpp.git /src/llama.cpp
+
+WORKDIR /src/llama.cpp
+
+# Build with CPU-only optimisations (AVX2, F16C, FMA for modern CPUs).
+# For BitNet 1-bit models, the kernel uses integer addition — no BLAS needed.
+RUN cmake -B build \
+    -DGGML_NATIVE=OFF \
+    -DGGML_AVX2=ON \
+    -DGGML_F16C=ON \
+    -DGGML_FMA=ON \
+    -DLLAMA_SERVER=ON \
+    -DCMAKE_BUILD_TYPE=Release \
+    && cmake --build build --config Release --target llama-server -j$(nproc)
+
+# --- Stage 2: Runtime ---
+FROM ubuntu:24.04
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create non-root user
+RUN groupadd -r llama && useradd -r -g llama -d /opt/llama llama
+
+COPY --from=builder /src/llama.cpp/build/bin/llama-server /usr/local/bin/llama-server
+
+# Model storage directory (mount a volume or init container writes here)
+RUN mkdir -p /models && chown llama:llama /models
+
+USER llama
+WORKDIR /opt/llama
+
+# Default environment variables (overridable at runtime)
+ENV MODEL_PATH=/models/model.gguf
+ENV HOST=0.0.0.0
+ENV PORT=8080
+ENV CTX_SIZE=4096
+ENV THREADS=4
+ENV PARALLEL=4
+ENV BATCH_SIZE=512
+
+EXPOSE 8080
+
+HEALTHCHECK --interval=15s --timeout=5s --retries=3 \
+    CMD curl -sf http://localhost:${PORT}/health || exit 1
+
+ENTRYPOINT ["llama-server"]
+CMD ["--model", "/models/model.gguf", \
+     "--host", "0.0.0.0", \
+     "--port", "8080", \
+     "--ctx-size", "4096", \
+     "--threads", "4", \
+     "--parallel", "4", \
+     "--batch-size", "512"]

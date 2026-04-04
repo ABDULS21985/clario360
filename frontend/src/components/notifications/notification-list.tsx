@@ -20,6 +20,9 @@ interface NotificationListProps {
   sentinelRef: (el: HTMLDivElement | null) => void;
   newIds?: string[];
   category?: string;
+  isSelecting?: boolean;
+  selectedIds?: Set<string>;
+  onSelect?: (id: string) => void;
 }
 
 function NotificationSkeleton() {
@@ -50,6 +53,9 @@ export function NotificationList({
   sentinelRef,
   newIds = [],
   category = 'all',
+  isSelecting = false,
+  selectedIds = new Set(),
+  onSelect,
 }: NotificationListProps) {
   if (isLoading) {
     return (
@@ -93,6 +99,9 @@ export function NotificationList({
                 onDelete={onDelete}
                 onNavigate={onNavigate}
                 isNew={newIds.includes(notif.id)}
+                isSelecting={isSelecting}
+                isSelected={selectedIds.has(notif.id)}
+                onSelect={onSelect}
               />
             ))}
           </div>

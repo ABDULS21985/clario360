@@ -1,0 +1,70 @@
+{{/*
+=======================================================================
+Clario360 Platform — Prometheus ServiceMonitor CRDs
+=======================================================================
+Creates one ServiceMonitor per backend service for the Prometheus
+Operator to auto-discover scrape targets.
+*/}}
+{{- if .Values.observability.prometheus.serviceMonitor.enabled }}
+{{- $fullName := include "clario360.fullname" . }}
+{{- $namespace := include "clario360.namespace" . }}
+{{- $labels := include "clario360.labels" . }}
+{{- $interval := .Values.observability.prometheus.serviceMonitor.interval | default "30s" }}
+{{- $scrapeTimeout := .Values.observability.prometheus.serviceMonitor.scrapeTimeout | default "10s" }}
+{{- $smNamespace := .Values.observability.prometheus.serviceMonitor.namespace }}
+{{- $extraLabels := .Values.observability.prometheus.serviceMonitor.labels }}
+
+{{- $services := list
+  (dict "name" "api-gateway"           "portName" "metrics"  "valuesKey" "apiGateway")
+  (dict "name" "iam-service"           "portName" "metrics"  "valuesKey" "iamService")
+  (dict "name" "audit-service"         "portName" "metrics"  "valuesKey" "auditService")
+  (dict "name" "workflow-engine"       "portName" "metrics"  "valuesKey" "workflowEngine")
+  (dict "name" "notification-service"  "portName" "metrics"  "valuesKey" "notificationService")
+  (dict "name" "file-service"          "portName" "metrics"  "valuesKey" "fileService")
+  (dict "name" "cyber-service"         "portName" "metrics"  "valuesKey" "cyberService")
+  (dict "name" "data-service"          "portName" "metrics"  "valuesKey" "dataService")
+  (dict "name" "acta-service"          "portName" "admin"    "valuesKey" "actaService")
+  (dict "name" "lex-service"           "portName" "admin"    "valuesKey" "lexService")
+  (dict "name" "visus-service"         "portName" "admin"    "valuesKey" "visusService")
+  (dict "name" "onboarding-service"    "portName" "metrics"  "valuesKey" "onboardingService")
+}}
+
+{{- range $idx, $svc := $services }}
+{{- $svcEnabled := index $.Values (get $svc "valuesKey") }}
+{{- if $svcEnabled.enabled }}
+{{- if $idx }}
+---
+{{- end }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ $fullName }}-{{ $svc.name }}
+  {{- if $smNamespace }}
+  namespace: {{ $smNamespace }}
+  {{- else }}
+  namespace: {{ $namespace }}
+  {{- end }}
+  labels:
+    {{- $labels | nindent 4 }}
+    app.kubernetes.io/component: {{ $svc.name }}
+    {{- with $extraLabels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  jobLabel: app.kubernetes.io/component
+  namespaceSelector:
+    matchNames:
+      - {{ $namespace }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: {{ $svc.name }}
+      app.kubernetes.io/part-of: clario360
+  endpoints:
+    - port: {{ $svc.portName }}
+      path: /metrics
+      interval: {{ $interval }}
+      scrapeTimeout: {{ $scrapeTimeout }}
+      honorLabels: true
+{{- end }}
+{{- end }}
+{{- end }}

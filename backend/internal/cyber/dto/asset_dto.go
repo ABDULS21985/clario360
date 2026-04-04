@@ -63,10 +63,11 @@ type AssetListParams struct {
 	Owner                 *string    `form:"owner"`
 	Location              *string    `form:"location"`
 	Tags                  []string   `form:"tag"`
-	DiscoverySource       *string    `form:"discovery_source"`
+	DiscoverySources      []string   `form:"discovery_source"`
 	DiscoveredAfter       *time.Time `form:"discovered_after"`
 	DiscoveredBefore      *time.Time `form:"discovered_before"`
 	LastSeenAfter         *time.Time `form:"last_seen_after"`
+	ScanID                *string    `form:"scan_id"`
 	HasVulnerabilities    *bool      `form:"has_vulnerabilities"`
 	VulnerabilitySeverity *string    `form:"vulnerability_severity"`
 	MinVulnCount          *int       `form:"min_vuln_count"`
@@ -132,16 +133,16 @@ func (p *AssetListParams) Validate() error {
 			return fmt.Errorf("invalid status: %q", s)
 		}
 	}
-	if p.DiscoverySource != nil {
+	for _, ds := range p.DiscoverySources {
 		valid := false
 		for _, source := range model.ValidDiscoverySources {
-			if *p.DiscoverySource == source {
+			if ds == source {
 				valid = true
 				break
 			}
 		}
 		if !valid {
-			return fmt.Errorf("invalid discovery_source: %q", *p.DiscoverySource)
+			return fmt.Errorf("invalid discovery_source: %q", ds)
 		}
 	}
 	if len(p.Tags) > 20 {
@@ -163,11 +164,8 @@ func (p *AssetListParams) Validate() error {
 
 // AssetListResponse is the paginated response for the asset list endpoint.
 type AssetListResponse struct {
-	Data       []*model.Asset `json:"data"`
-	Total      int            `json:"total"`
-	Page       int            `json:"page"`
-	PerPage    int            `json:"per_page"`
-	TotalPages int            `json:"total_pages"`
+	Data []*model.Asset `json:"data"`
+	Meta PaginationMeta `json:"meta"`
 }
 
 // CreateVulnerabilityRequest is the body for POST /api/v1/cyber/assets/:id/vulnerabilities.

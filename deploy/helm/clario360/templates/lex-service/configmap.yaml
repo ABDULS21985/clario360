@@ -1,0 +1,15 @@
+{{- if .Values.lexService.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "clario360.componentName" (dict "root" . "component" "lex-service") }}-config
+  namespace: {{ include "clario360.namespace" . }}
+  labels:
+    {{- include "clario360.componentLabels" (dict "root" . "component" "lex-service") | nindent 4 }}
+data:
+  LEX_HTTP_PORT: "8087"
+  LEX_ADMIN_PORT: "9087"
+  {{- with .Values.lexService.config }}
+  {{- toYaml . | nindent 2 }}
+  {{- end }}
+{{- end }}

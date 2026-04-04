@@ -1,307 +1,270 @@
--- =============================================================================
--- Clario 360 — Lex Suite Database Schema
--- Database: lex_db
--- Contains: contracts, clauses, legal documents, compliance rules,
---           compliance alerts, legal workflows
--- =============================================================================
-
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
-CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
--- =============================================================================
--- ENUM TYPES
--- =============================================================================
-
-CREATE TYPE contract_type AS ENUM (
-    'nda', 'service_agreement', 'employment', 'vendor', 'license', 'other'
-);
-COMMENT ON TYPE contract_type IS 'Types of legal contracts';
-
-CREATE TYPE contract_status AS ENUM (
-    'draft', 'review', 'negotiation', 'active', 'expired', 'terminated'
-);
-COMMENT ON TYPE contract_status IS 'Lifecycle status of a contract';
-
-CREATE TYPE clause_risk_level AS ENUM ('high', 'medium', 'low', 'none');
-COMMENT ON TYPE clause_risk_level IS 'Risk level of a contract clause';
-
-CREATE TYPE clause_status AS ENUM ('draft', 'reviewed', 'approved', 'flagged');
-COMMENT ON TYPE clause_status IS 'Review status of a contract clause';
-
-CREATE TYPE legal_doc_status AS ENUM ('draft', 'review', 'approved', 'archived');
-COMMENT ON TYPE legal_doc_status IS 'Lifecycle status of a legal document';
-
-CREATE TYPE compliance_severity AS ENUM ('critical', 'high', 'medium', 'low');
-COMMENT ON TYPE compliance_severity IS 'Severity of compliance rule violations';
-
-CREATE TYPE compliance_alert_status AS ENUM ('new', 'acknowledged', 'resolved', 'dismissed');
-COMMENT ON TYPE compliance_alert_status IS 'Status of a compliance alert';
-
-CREATE TYPE legal_workflow_type AS ENUM (
-    'contract_review', 'document_approval', 'compliance_check', 'dispute_resolution'
-);
-COMMENT ON TYPE legal_workflow_type IS 'Types of legal workflows';
-
-CREATE TYPE legal_workflow_status AS ENUM ('active', 'inactive', 'archived');
-COMMENT ON TYPE legal_workflow_status IS 'Status of a legal workflow definition';
-
-CREATE TYPE legal_instance_status AS ENUM ('active', 'completed', 'cancelled', 'suspended');
-COMMENT ON TYPE legal_instance_status IS 'Status of a running legal workflow instance';
-
--- =============================================================================
--- TRIGGER FUNCTION
--- =============================================================================
-
-CREATE OR REPLACE FUNCTION update_updated_at_column()
-RETURNS TRIGGER AS $$
-BEGIN
-    NEW.updated_at = NOW();
-    RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
--- =============================================================================
--- TABLE: contracts
--- =============================================================================
-
-CREATE TABLE contracts (
-    id             UUID            PRIMARY KEY DEFAULT gen_random_uuid(),
-    tenant_id      UUID            NOT NULL,
-    title          VARCHAR(500)    NOT NULL,
-    type           contract_type   NOT NULL,
-    status         contract_status NOT NULL DEFAULT 'draft',
-    parties        JSONB           NOT NULL DEFAULT '[]',
-    effective_date DATE,
-    expiry_date    DATE,
-    value          DECIMAL(15,2),
-    currency       VARCHAR(3)      DEFAULT 'SAR',
-    file_url       TEXT,
-    metadata       JSONB           DEFAULT '{}',
-    created_by     UUID,
-    created_at     TIMESTAMPTZ     NOT NULL DEFAULT NOW(),
-    updated_at     TIMESTAMPTZ     NOT NULL DEFAULT NOW(),
-    updated_by     UUID
+CREATE TABLE IF NOT EXISTS contracts (
+    id                   UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id            UUID        NOT NULL,
+    title                TEXT        NOT NULL,
+    contract_number      TEXT,
+    type                 TEXT        NOT NULL CHECK (type IN (
+        'service_agreement', 'nda', 'employment', 'vendor', 'license',
+        'lease', 'partnership', 'consulting', 'procurement', 'sla',
+        'mou', 'amendment', 'renewal', 'other'
+    )),
+    description          TEXT        NOT NULL DEFAULT '',
+    party_a_name         TEXT        NOT NULL,
+    party_a_entity       TEXT,
+    party_b_name         TEXT        NOT NULL,
+    party_b_entity       TEXT,
+    party_b_contact      TEXT,
+    total_value          DECIMAL(18,2),
+    currency             TEXT        NOT NULL DEFAULT 'SAR',
+    payment_terms        TEXT,
+    effective_date       DATE,
+    expiry_date          DATE,
+    renewal_date         DATE,
+    auto_renew           BOOLEAN     NOT NULL DEFAULT false,
+    renewal_notice_days  INT         NOT NULL DEFAULT 30,
+    signed_date          DATE,
+    status               TEXT        NOT NULL DEFAULT 'draft' CHECK (status IN (
+        'draft', 'internal_review', 'legal_review', 'negotiation',
+        'pending_signature', 'active', 'suspended', 'expired',
+        'terminated', 'renewed', 'cancelled'
+    )),
+    previous_status      TEXT,
+    status_changed_at    TIMESTAMPTZ,
+    status_changed_by    UUID,
+    owner_user_id        UUID        NOT NULL,
+    owner_name           TEXT        NOT NULL,
+    legal_reviewer_id    UUID,
+    legal_reviewer_name  TEXT,
+    risk_score           DECIMAL(5,2),
+    risk_level           TEXT        CHECK (risk_level IN ('critical', 'high', 'medium', 'low', 'none')),
+    analysis_status      TEXT        DEFAULT 'pending' CHECK (analysis_status IN ('pending', 'analyzing', 'completed', 'failed')),
+    last_analyzed_at     TIMESTAMPTZ,
+    document_file_id     UUID,
+    document_text        TEXT,
+    current_version      INT         NOT NULL DEFAULT 1,
+    parent_contract_id   UUID        REFERENCES contracts(id),
+    workflow_instance_id UUID,
+    department           TEXT,
+    tags                 TEXT[]      NOT NULL DEFAULT '{}',
+    metadata             JSONB       NOT NULL DEFAULT '{}',
+    created_by           UUID        NOT NULL,
+    created_at           TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at           TIMESTAMPTZ NOT NULL DEFAULT now(),
+    deleted_at           TIMESTAMPTZ
 );
 
-COMMENT ON TABLE contracts IS 'Legal contracts managed by the Lex suite';
-COMMENT ON COLUMN contracts.parties IS 'JSON array of party objects (name, role, contact)';
-COMMENT ON COLUMN contracts.value IS 'Monetary value of the contract';
-COMMENT ON COLUMN contracts.currency IS 'ISO 4217 currency code (default: SAR)';
-COMMENT ON COLUMN contracts.file_url IS 'URL to the contract document in object storage';
+CREATE UNIQUE INDEX IF NOT EXISTS idx_contracts_contract_number_unique
+    ON contracts (tenant_id, contract_number)
+    WHERE contract_number IS NOT NULL AND deleted_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_contracts_tenant_status
+    ON contracts (tenant_id, status, created_at DESC)
+    WHERE deleted_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_contracts_tenant_type
+    ON contracts (tenant_id, type)
+    WHERE deleted_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_contracts_expiry
+    ON contracts (tenant_id, expiry_date)
+    WHERE status = 'active' AND expiry_date IS NOT NULL AND deleted_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_contracts_owner
+    ON contracts (owner_user_id)
+    WHERE deleted_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_contracts_risk
+    ON contracts (tenant_id, risk_level)
+    WHERE risk_level IN ('critical', 'high') AND deleted_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_contracts_parent
+    ON contracts (parent_contract_id)
+    WHERE parent_contract_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_contracts_fts
+    ON contracts USING GIN (
+        to_tsvector('english', coalesce(title, '') || ' ' || coalesce(party_b_name, '') || ' ' || coalesce(description, ''))
+    )
+    WHERE deleted_at IS NULL;
 
-CREATE INDEX idx_contracts_tenant_status ON contracts (tenant_id, status);
-CREATE INDEX idx_contracts_tenant_type ON contracts (tenant_id, type);
-CREATE INDEX idx_contracts_expiry ON contracts (expiry_date) WHERE status = 'active';
-CREATE INDEX idx_contracts_tenant_created ON contracts (tenant_id, created_at DESC);
-CREATE INDEX idx_contracts_parties ON contracts USING GIN (parties);
-CREATE INDEX idx_contracts_metadata ON contracts USING GIN (metadata);
-
-CREATE TRIGGER trg_contracts_updated_at
-    BEFORE UPDATE ON contracts
-    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-
--- =============================================================================
--- TABLE: contract_clauses
--- =============================================================================
-
-CREATE TABLE contract_clauses (
-    id             UUID             PRIMARY KEY DEFAULT gen_random_uuid(),
-    tenant_id      UUID             NOT NULL,
-    contract_id    UUID             NOT NULL REFERENCES contracts(id) ON DELETE CASCADE,
-    clause_number  VARCHAR(20)      NOT NULL,
-    title          VARCHAR(500)     NOT NULL,
-    content        TEXT             NOT NULL,
-    risk_level     clause_risk_level NOT NULL DEFAULT 'none',
-    ai_analysis    JSONB            DEFAULT '{}',
-    ai_risk_flags  JSONB            DEFAULT '[]',
-    status         clause_status    NOT NULL DEFAULT 'draft',
-    reviewed_by    UUID,
-    created_at     TIMESTAMPTZ      NOT NULL DEFAULT NOW(),
-    updated_at     TIMESTAMPTZ      NOT NULL DEFAULT NOW(),
-    created_by     UUID,
-    updated_by     UUID
+CREATE TABLE IF NOT EXISTS contract_versions (
+    id               UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id        UUID        NOT NULL,
+    contract_id      UUID        NOT NULL REFERENCES contracts(id) ON DELETE CASCADE,
+    version          INT         NOT NULL,
+    file_id          UUID        NOT NULL,
+    file_name        TEXT        NOT NULL,
+    file_size_bytes  BIGINT      NOT NULL,
+    content_hash     TEXT        NOT NULL,
+    extracted_text   TEXT,
+    change_summary   TEXT,
+    uploaded_by      UUID        NOT NULL,
+    uploaded_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE (contract_id, version)
 );
 
-COMMENT ON TABLE contract_clauses IS 'Individual clauses within a contract with AI risk analysis';
-COMMENT ON COLUMN contract_clauses.clause_number IS 'Clause numbering (e.g., 1.1, 2.3.a)';
-COMMENT ON COLUMN contract_clauses.ai_analysis IS 'AI-generated analysis of the clause content';
-COMMENT ON COLUMN contract_clauses.ai_risk_flags IS 'AI-identified risk flags as JSON array';
-COMMENT ON COLUMN contract_clauses.reviewed_by IS 'User who reviewed the clause (references platform_core.users)';
+CREATE INDEX IF NOT EXISTS idx_contract_versions
+    ON contract_versions (contract_id, version DESC);
 
-CREATE INDEX idx_clauses_contract ON contract_clauses (contract_id, clause_number);
-CREATE INDEX idx_clauses_tenant_risk ON contract_clauses (tenant_id, risk_level);
-CREATE INDEX idx_clauses_tenant_status ON contract_clauses (tenant_id, status);
-CREATE INDEX idx_clauses_ai_analysis ON contract_clauses USING GIN (ai_analysis);
-CREATE INDEX idx_clauses_ai_risk ON contract_clauses USING GIN (ai_risk_flags);
-
-CREATE TRIGGER trg_clauses_updated_at
-    BEFORE UPDATE ON contract_clauses
-    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-
--- =============================================================================
--- TABLE: legal_documents
--- =============================================================================
-
-CREATE TABLE legal_documents (
-    id          UUID             PRIMARY KEY DEFAULT gen_random_uuid(),
-    tenant_id   UUID             NOT NULL,
-    title       VARCHAR(500)     NOT NULL,
-    type        VARCHAR(100)     NOT NULL,
-    content     TEXT             NOT NULL DEFAULT '',
-    file_url    TEXT,
-    status      legal_doc_status NOT NULL DEFAULT 'draft',
-    version     INTEGER          NOT NULL DEFAULT 1,
-    parent_id   UUID             REFERENCES legal_documents(id) ON DELETE SET NULL,
-    tags        TEXT[]           DEFAULT '{}',
-    created_by  UUID,
-    created_at  TIMESTAMPTZ      NOT NULL DEFAULT NOW(),
-    updated_at  TIMESTAMPTZ      NOT NULL DEFAULT NOW(),
-    updated_by  UUID
+CREATE TABLE IF NOT EXISTS contract_clauses (
+    id                    UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id             UUID        NOT NULL,
+    contract_id           UUID        NOT NULL REFERENCES contracts(id) ON DELETE CASCADE,
+    clause_type           TEXT        NOT NULL CHECK (clause_type IN (
+        'indemnification', 'termination', 'limitation_of_liability', 'confidentiality',
+        'ip_ownership', 'non_compete', 'payment_terms', 'warranty', 'force_majeure',
+        'dispute_resolution', 'data_protection', 'governing_law', 'assignment',
+        'insurance', 'audit_rights', 'sla', 'auto_renewal', 'non_solicitation',
+        'representations', 'other'
+    )),
+    title                 TEXT        NOT NULL,
+    content               TEXT        NOT NULL,
+    section_reference     TEXT,
+    page_number           INT,
+    risk_level            TEXT        NOT NULL DEFAULT 'none' CHECK (risk_level IN ('critical', 'high', 'medium', 'low', 'none')),
+    risk_score            DECIMAL(5,2) NOT NULL DEFAULT 0,
+    risk_keywords         TEXT[]      NOT NULL DEFAULT '{}',
+    analysis_summary      TEXT,
+    recommendations       TEXT[]      NOT NULL DEFAULT '{}',
+    compliance_flags      TEXT[]      NOT NULL DEFAULT '{}',
+    review_status         TEXT        NOT NULL DEFAULT 'pending' CHECK (review_status IN ('pending', 'reviewed', 'flagged', 'accepted', 'rejected')),
+    reviewed_by           UUID,
+    reviewed_at           TIMESTAMPTZ,
+    review_notes          TEXT,
+    extraction_confidence DECIMAL(3,2) NOT NULL DEFAULT 0.80,
+    created_at            TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at            TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-COMMENT ON TABLE legal_documents IS 'Legal documents, memos, opinions, and other legal content';
-COMMENT ON COLUMN legal_documents.version IS 'Document version number';
-COMMENT ON COLUMN legal_documents.parent_id IS 'Parent document for versioning chains';
-COMMENT ON COLUMN legal_documents.tags IS 'Searchable tags for categorization';
+CREATE INDEX IF NOT EXISTS idx_clauses_contract
+    ON contract_clauses (contract_id, clause_type);
+CREATE INDEX IF NOT EXISTS idx_clauses_risk
+    ON contract_clauses (tenant_id, risk_level)
+    WHERE risk_level IN ('critical', 'high');
 
-CREATE INDEX idx_legal_docs_tenant_status ON legal_documents (tenant_id, status);
-CREATE INDEX idx_legal_docs_tenant_type ON legal_documents (tenant_id, type);
-CREATE INDEX idx_legal_docs_parent ON legal_documents (parent_id);
-CREATE INDEX idx_legal_docs_tags ON legal_documents USING GIN (tags);
-CREATE INDEX idx_legal_docs_tenant_created ON legal_documents (tenant_id, created_at DESC);
-
-CREATE TRIGGER trg_legal_docs_updated_at
-    BEFORE UPDATE ON legal_documents
-    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-
--- =============================================================================
--- TABLE: compliance_rules
--- =============================================================================
-
-CREATE TABLE compliance_rules (
-    id                    UUID              PRIMARY KEY DEFAULT gen_random_uuid(),
-    tenant_id             UUID              NOT NULL,
-    name                  VARCHAR(255)      NOT NULL,
-    description           TEXT              NOT NULL DEFAULT '',
-    jurisdiction          VARCHAR(100),
-    regulation_reference  VARCHAR(255),
-    rule_logic            JSONB             NOT NULL DEFAULT '{}',
-    severity              compliance_severity NOT NULL DEFAULT 'medium',
-    enabled               BOOLEAN           NOT NULL DEFAULT true,
-    created_at            TIMESTAMPTZ       NOT NULL DEFAULT NOW(),
-    updated_at            TIMESTAMPTZ       NOT NULL DEFAULT NOW(),
-    created_by            UUID,
-    updated_by            UUID
+CREATE TABLE IF NOT EXISTS contract_analyses (
+    id                     UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id              UUID        NOT NULL,
+    contract_id            UUID        NOT NULL REFERENCES contracts(id) ON DELETE CASCADE,
+    contract_version       INT         NOT NULL,
+    overall_risk           TEXT        NOT NULL CHECK (overall_risk IN ('critical', 'high', 'medium', 'low', 'none')),
+    risk_score             DECIMAL(5,2) NOT NULL,
+    clause_count           INT         NOT NULL DEFAULT 0,
+    high_risk_clause_count INT         NOT NULL DEFAULT 0,
+    missing_clauses        TEXT[]      NOT NULL DEFAULT '{}',
+    key_findings           JSONB       NOT NULL DEFAULT '[]',
+    recommendations        TEXT[]      NOT NULL DEFAULT '{}',
+    compliance_flags       JSONB       NOT NULL DEFAULT '[]',
+    extracted_parties      JSONB       NOT NULL DEFAULT '{}',
+    extracted_dates        JSONB       NOT NULL DEFAULT '{}',
+    extracted_amounts      JSONB       NOT NULL DEFAULT '{}',
+    analysis_duration_ms   BIGINT,
+    analyzed_by            TEXT        NOT NULL DEFAULT 'system',
+    analyzed_at            TIMESTAMPTZ NOT NULL DEFAULT now(),
+    created_at             TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-COMMENT ON TABLE compliance_rules IS 'Compliance rules based on regulations and internal policies';
-COMMENT ON COLUMN compliance_rules.jurisdiction IS 'Applicable legal jurisdiction (e.g., SA, GCC, International)';
-COMMENT ON COLUMN compliance_rules.regulation_reference IS 'Reference to specific regulation (e.g., NCA ECC-1:2018)';
-COMMENT ON COLUMN compliance_rules.rule_logic IS 'Executable rule definition (conditions, thresholds)';
+CREATE INDEX IF NOT EXISTS idx_analyses_contract
+    ON contract_analyses (contract_id, analyzed_at DESC);
 
-CREATE INDEX idx_comp_rules_tenant ON compliance_rules (tenant_id);
-CREATE INDEX idx_comp_rules_enabled ON compliance_rules (tenant_id, enabled) WHERE enabled = true;
-CREATE INDEX idx_comp_rules_jurisdiction ON compliance_rules (jurisdiction);
-CREATE INDEX idx_comp_rules_logic ON compliance_rules USING GIN (rule_logic);
-
-CREATE TRIGGER trg_comp_rules_updated_at
-    BEFORE UPDATE ON compliance_rules
-    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-
--- =============================================================================
--- TABLE: compliance_alerts
--- =============================================================================
-
-CREATE TABLE compliance_alerts (
-    id          UUID                     PRIMARY KEY DEFAULT gen_random_uuid(),
-    tenant_id   UUID                     NOT NULL,
-    rule_id     UUID                     NOT NULL REFERENCES compliance_rules(id) ON DELETE CASCADE,
-    entity_type VARCHAR(100)             NOT NULL,
-    entity_id   UUID                     NOT NULL,
-    title       VARCHAR(500)             NOT NULL,
-    description TEXT                     NOT NULL DEFAULT '',
-    severity    compliance_severity      NOT NULL DEFAULT 'medium',
-    status      compliance_alert_status  NOT NULL DEFAULT 'new',
-    resolved_by UUID,
-    resolved_at TIMESTAMPTZ,
-    created_at  TIMESTAMPTZ              NOT NULL DEFAULT NOW(),
-    updated_at  TIMESTAMPTZ              NOT NULL DEFAULT NOW(),
-    created_by  UUID,
-    updated_by  UUID
+CREATE TABLE IF NOT EXISTS legal_documents (
+    id               UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id        UUID        NOT NULL,
+    title            TEXT        NOT NULL,
+    type             TEXT        NOT NULL CHECK (type IN (
+        'policy', 'regulation', 'template', 'memo', 'opinion',
+        'filing', 'correspondence', 'resolution', 'power_of_attorney', 'other'
+    )),
+    description      TEXT        NOT NULL DEFAULT '',
+    file_id          UUID,
+    file_name        TEXT,
+    file_size_bytes  BIGINT,
+    category         TEXT,
+    confidentiality  TEXT        NOT NULL DEFAULT 'internal' CHECK (confidentiality IN ('public', 'internal', 'confidential', 'privileged')),
+    contract_id      UUID        REFERENCES contracts(id),
+    current_version  INT         NOT NULL DEFAULT 1,
+    status           TEXT        NOT NULL DEFAULT 'active' CHECK (status IN ('draft', 'active', 'archived', 'superseded')),
+    tags             TEXT[]      NOT NULL DEFAULT '{}',
+    metadata         JSONB       NOT NULL DEFAULT '{}',
+    created_by       UUID        NOT NULL,
+    created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
+    deleted_at       TIMESTAMPTZ
 );
 
-COMMENT ON TABLE compliance_alerts IS 'Alerts triggered by compliance rule violations';
-COMMENT ON COLUMN compliance_alerts.entity_type IS 'Type of entity that violated the rule (contract, document, etc.)';
-COMMENT ON COLUMN compliance_alerts.entity_id IS 'UUID of the violating entity';
+CREATE INDEX IF NOT EXISTS idx_legal_docs_tenant
+    ON legal_documents (tenant_id, type, status)
+    WHERE deleted_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_legal_docs_contract
+    ON legal_documents (contract_id)
+    WHERE contract_id IS NOT NULL;
 
-CREATE INDEX idx_comp_alerts_tenant_status ON compliance_alerts (tenant_id, status);
-CREATE INDEX idx_comp_alerts_tenant_severity ON compliance_alerts (tenant_id, severity);
-CREATE INDEX idx_comp_alerts_rule ON compliance_alerts (rule_id);
-CREATE INDEX idx_comp_alerts_entity ON compliance_alerts (entity_type, entity_id);
-CREATE INDEX idx_comp_alerts_tenant_created ON compliance_alerts (tenant_id, created_at DESC);
-
-CREATE TRIGGER trg_comp_alerts_updated_at
-    BEFORE UPDATE ON compliance_alerts
-    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-
--- =============================================================================
--- TABLE: legal_workflows
--- =============================================================================
-
-CREATE TABLE legal_workflows (
-    id          UUID                  PRIMARY KEY DEFAULT gen_random_uuid(),
-    tenant_id   UUID                  NOT NULL,
-    name        VARCHAR(255)          NOT NULL,
-    type        legal_workflow_type   NOT NULL,
-    definition  JSONB                 NOT NULL DEFAULT '{}',
-    status      legal_workflow_status NOT NULL DEFAULT 'active',
-    created_by  UUID,
-    created_at  TIMESTAMPTZ           NOT NULL DEFAULT NOW(),
-    updated_at  TIMESTAMPTZ           NOT NULL DEFAULT NOW(),
-    updated_by  UUID
+CREATE TABLE IF NOT EXISTS document_versions (
+    id               UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id        UUID        NOT NULL,
+    document_id      UUID        NOT NULL REFERENCES legal_documents(id) ON DELETE CASCADE,
+    version          INT         NOT NULL,
+    file_id          UUID        NOT NULL,
+    file_name        TEXT        NOT NULL,
+    file_size_bytes  BIGINT      NOT NULL,
+    content_hash     TEXT        NOT NULL,
+    change_summary   TEXT,
+    uploaded_by      UUID        NOT NULL,
+    uploaded_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE (document_id, version)
 );
 
-COMMENT ON TABLE legal_workflows IS 'Legal process workflow definitions';
-COMMENT ON COLUMN legal_workflows.definition IS 'Workflow steps, transitions, and conditions (JSON)';
-
-CREATE INDEX idx_legal_wf_tenant_status ON legal_workflows (tenant_id, status);
-CREATE INDEX idx_legal_wf_type ON legal_workflows (tenant_id, type);
-CREATE INDEX idx_legal_wf_definition ON legal_workflows USING GIN (definition);
-
-CREATE TRIGGER trg_legal_wf_updated_at
-    BEFORE UPDATE ON legal_workflows
-    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-
--- =============================================================================
--- TABLE: legal_workflow_instances
--- =============================================================================
-
-CREATE TABLE legal_workflow_instances (
-    id           UUID                  PRIMARY KEY DEFAULT gen_random_uuid(),
-    tenant_id    UUID                  NOT NULL,
-    workflow_id  UUID                  NOT NULL REFERENCES legal_workflows(id) ON DELETE CASCADE,
-    entity_type  VARCHAR(100)          NOT NULL,
-    entity_id    UUID                  NOT NULL,
-    current_step VARCHAR(100)          NOT NULL DEFAULT '',
-    data         JSONB                 NOT NULL DEFAULT '{}',
-    status       legal_instance_status NOT NULL DEFAULT 'active',
-    started_at   TIMESTAMPTZ           NOT NULL DEFAULT NOW(),
-    completed_at TIMESTAMPTZ,
-    created_at   TIMESTAMPTZ           NOT NULL DEFAULT NOW(),
-    updated_at   TIMESTAMPTZ           NOT NULL DEFAULT NOW(),
-    created_by   UUID,
-    updated_by   UUID
+CREATE TABLE IF NOT EXISTS compliance_rules (
+    id              UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id       UUID        NOT NULL,
+    name            TEXT        NOT NULL,
+    description     TEXT        NOT NULL DEFAULT '',
+    rule_type       TEXT        NOT NULL CHECK (rule_type IN (
+        'expiry_warning', 'missing_clause', 'risk_threshold',
+        'review_overdue', 'unsigned_contract', 'value_threshold',
+        'jurisdiction_check', 'data_protection_required', 'custom'
+    )),
+    severity        TEXT        NOT NULL DEFAULT 'medium' CHECK (severity IN ('critical', 'high', 'medium', 'low')),
+    config          JSONB       NOT NULL,
+    contract_types  TEXT[]      NOT NULL DEFAULT '{}',
+    enabled         BOOLEAN     NOT NULL DEFAULT true,
+    created_by      UUID        NOT NULL,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+    deleted_at      TIMESTAMPTZ
 );
 
-COMMENT ON TABLE legal_workflow_instances IS 'Running instances of legal workflows';
-COMMENT ON COLUMN legal_workflow_instances.entity_type IS 'Type of entity being processed (contract, document, etc.)';
-COMMENT ON COLUMN legal_workflow_instances.entity_id IS 'UUID of the entity being processed';
+CREATE INDEX IF NOT EXISTS idx_compliance_rules_tenant
+    ON compliance_rules (tenant_id, enabled)
+    WHERE deleted_at IS NULL;
 
-CREATE INDEX idx_legal_inst_tenant_status ON legal_workflow_instances (tenant_id, status);
-CREATE INDEX idx_legal_inst_workflow ON legal_workflow_instances (workflow_id);
-CREATE INDEX idx_legal_inst_entity ON legal_workflow_instances (entity_type, entity_id);
-CREATE INDEX idx_legal_inst_data ON legal_workflow_instances USING GIN (data);
+CREATE TABLE IF NOT EXISTS compliance_alerts (
+    id               UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id        UUID        NOT NULL,
+    rule_id          UUID        REFERENCES compliance_rules(id),
+    contract_id      UUID        REFERENCES contracts(id),
+    title            TEXT        NOT NULL,
+    description      TEXT        NOT NULL,
+    severity         TEXT        NOT NULL CHECK (severity IN ('critical', 'high', 'medium', 'low')),
+    status           TEXT        NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'acknowledged', 'investigating', 'resolved', 'dismissed')),
+    resolved_by      UUID,
+    resolved_at      TIMESTAMPTZ,
+    resolution_notes TEXT,
+    dedup_key        TEXT,
+    evidence         JSONB       NOT NULL DEFAULT '{}',
+    created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at       TIMESTAMPTZ NOT NULL DEFAULT now()
+);
 
-CREATE TRIGGER trg_legal_inst_updated_at
-    BEFORE UPDATE ON legal_workflow_instances
-    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE INDEX IF NOT EXISTS idx_compliance_alerts_tenant
+    ON compliance_alerts (tenant_id, status, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_compliance_alerts_contract
+    ON compliance_alerts (contract_id)
+    WHERE contract_id IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_compliance_alerts_dedup
+    ON compliance_alerts (tenant_id, dedup_key)
+    WHERE dedup_key IS NOT NULL AND status NOT IN ('resolved', 'dismissed');
+
+CREATE TABLE IF NOT EXISTS expiry_notifications (
+    id           UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id    UUID        NOT NULL,
+    contract_id  UUID        NOT NULL REFERENCES contracts(id),
+    horizon_days INT         NOT NULL,
+    sent_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE (contract_id, horizon_days)
+);

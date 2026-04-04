@@ -63,6 +63,7 @@ export function TaskDelegateDialog({
       const selectedUser = usersData?.data.find((u) => u.id === selectedUserId);
       await apiPost(`/api/v1/workflows/tasks/${task.id}/delegate`, {
         delegate_to: selectedUserId,
+        ...(reason && { reason }),
       });
       const name = selectedUser ? `${selectedUser.first_name} ${selectedUser.last_name}` : 'user';
       showSuccess(`Task delegated to ${name}.`);

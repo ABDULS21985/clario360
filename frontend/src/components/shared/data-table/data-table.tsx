@@ -24,6 +24,7 @@ import { DataTableEmpty } from "./data-table-empty";
 import { DataTableError } from "./data-table-error";
 import { DataTableColumnHeader } from "./data-table-column-header";
 import { actionsColumn } from "./columns/common-columns";
+import { SearchInput } from "@/components/shared/forms/search-input";
 import { cn } from "@/lib/utils";
 import type { FilterConfig, BulkAction, RowAction, EmptyStateConfig } from "@/types/table";
 
@@ -150,18 +151,22 @@ export function DataTable<TData, TValue = unknown>({
     (v) =>
       v !== undefined && v !== "" && !(Array.isArray(v) && v.length === 0)
   );
+  const resolvedSearchSlot =
+    searchSlot ?? (onSearchChange ? (
+      <SearchInput
+        value={searchValue ?? ""}
+        onChange={onSearchChange}
+        placeholder={searchPlaceholder}
+        loading={isLoading}
+      />
+    ) : undefined);
 
   const cellPadding = compact ? "px-3 py-1.5" : "px-4 py-3";
 
-  // Suppress unused warning for searchPlaceholder (consumed by searchSlot pattern)
-  void searchPlaceholder;
-  void searchValue;
-  void onSearchChange;
-
   return (
-    <div className={cn("w-full space-y-3", className)}>
+    <div className={cn("w-full space-y-4", className)}>
       <DataTableToolbar
-        searchSlot={searchSlot}
+        searchSlot={resolvedSearchSlot}
         filters={filters}
         activeFilters={activeFilters}
         onFilterChange={onFilterChange}
@@ -179,11 +184,11 @@ export function DataTable<TData, TValue = unknown>({
         getSelectedIds={() => selectedIds}
       />
 
-      <div className="rounded-md border border-border overflow-hidden">
+      <div className="w-full overflow-auto rounded-[26px] border border-[color:var(--card-border)] bg-[var(--card-bg)] shadow-[var(--card-shadow)] backdrop-blur-md">
         <div className="overflow-x-auto">
           <Table>
             <TableHeader
-              className={cn(stickyHeader && "sticky top-0 z-10 bg-background")}
+              className={cn(stickyHeader && "sticky top-0 z-10 bg-[rgba(249,251,249,0.96)] backdrop-blur-md")}
             >
               {table.getHeaderGroups().map((headerGroup) => (
                 <TableRow

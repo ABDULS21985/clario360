@@ -46,11 +46,26 @@ export const useRealtimeStore = create<RealtimeState>()((set, get) => ({
     set((state) => {
       const existing = state.subscriptions[topic] ?? [];
       const next = existing.filter((key) => key !== queryKey);
+
+      // Clean up stale queryEvents entry if this queryKey has no remaining subscriptions
+      const isKeyStillUsed = Object.entries(state.subscriptions).some(
+        ([t, keys]) => t !== topic && keys.includes(queryKey),
+      );
+      const nextQueryEvents = isKeyStillUsed
+        ? state.queryEvents
+        : (() => {
+            const copy = { ...state.queryEvents };
+            delete copy[queryKey];
+            return copy;
+          })();
+
+      // Remove empty topic subscription arrays
+      const nextSubs = { ...state.subscriptions, [topic]: next };
+      if (next.length === 0) delete nextSubs[topic];
+
       return {
-        subscriptions: {
-          ...state.subscriptions,
-          [topic]: next,
-        },
+        subscriptions: nextSubs,
+        queryEvents: nextQueryEvents,
       };
     });
   },

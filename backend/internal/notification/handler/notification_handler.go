@@ -2,6 +2,7 @@ package handler
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
@@ -51,9 +52,26 @@ func (h *NotificationHandler) ListNotifications(w http.ResponseWriter, r *http.R
 	}
 
 	writeJSON(w, http.StatusOK, map[string]interface{}{
-		"data":       notifications,
-		"pagination": dto.NewPagination(params.Page, params.PerPage, total),
+		"data": notifications,
+		"meta": dto.NewPagination(params.Page, params.PerPage, total),
 	})
+}
+
+// GetCounts handles GET /api/v1/notifications/counts.
+// Returns per-category totals and the unread count in a single response,
+// replacing the multiple individual count fetches previously required.
+func (h *NotificationHandler) GetCounts(w http.ResponseWriter, r *http.Request) {
+	user := auth.UserFromContext(r.Context())
+	tenantID := auth.TenantFromContext(r.Context())
+
+	counts, err := h.notifRepo.GetCounts(r.Context(), tenantID, user.ID)
+	if err != nil {
+		h.logger.Error().Err(err).Msg("failed to get notification counts")
+		writeErrorResponse(w, http.StatusInternalServerError, "INTERNAL_ERROR", "failed to get notification counts", r)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, counts)
 }
 
 // UnreadCount handles GET /api/v1/notifications/unread-count.
@@ -98,7 +116,12 @@ func (h *NotificationHandler) MarkRead(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 
 	if err := h.notifSvc.MarkRead(r.Context(), tenantID, user.ID, id); err != nil {
-		writeErrorResponse(w, http.StatusNotFound, "NOT_FOUND", err.Error(), r)
+		if errors.Is(err, repository.ErrNotFound) {
+			writeErrorResponse(w, http.StatusNotFound, "NOT_FOUND", "notification not found", r)
+			return
+		}
+		h.logger.Error().Err(err).Str("id", id).Msg("failed to mark notification as read")
+		writeErrorResponse(w, http.StatusInternalServerError, "INTERNAL_ERROR", "failed to mark notification as read", r)
 		return
 	}
 
@@ -120,6 +143,37 @@ func (h *NotificationHandler) MarkAllRead(w http.ResponseWriter, r *http.Request
 	writeJSON(w, http.StatusOK, map[string]interface{}{"marked": count})
 }
 
+// BulkDeleteNotifications handles POST /api/v1/notifications/bulk.
+func (h *NotificationHandler) BulkDeleteNotifications(w http.ResponseWriter, r *http.Request) {
+	user := auth.UserFromContext(r.Context())
+	tenantID := auth.TenantFromContext(r.Context())
+
+	var req struct {
+		IDs []string `json:"ids"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeErrorResponse(w, http.StatusBadRequest, "INVALID_BODY", "invalid request body", r)
+		return
+	}
+	if len(req.IDs) == 0 {
+		writeErrorResponse(w, http.StatusBadRequest, "INVALID_PARAMS", "ids must not be empty", r)
+		return
+	}
+	if len(req.IDs) > 100 {
+		writeErrorResponse(w, http.StatusBadRequest, "INVALID_PARAMS", "maximum 100 ids per request", r)
+		return
+	}
+
+	deleted, err := h.notifSvc.BulkDelete(r.Context(), tenantID, user.ID, req.IDs)
+	if err != nil {
+		h.logger.Error().Err(err).Msg("failed to bulk delete notifications")
+		writeErrorResponse(w, http.StatusInternalServerError, "INTERNAL_ERROR", "failed to bulk delete notifications", r)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]interface{}{"deleted": deleted})
+}
+
 // DeleteNotification handles DELETE /api/v1/notifications/{id}.
 func (h *NotificationHandler) DeleteNotification(w http.ResponseWriter, r *http.Request) {
 	user := auth.UserFromContext(r.Context())
@@ -127,7 +181,12 @@ func (h *NotificationHandler) DeleteNotification(w http.ResponseWriter, r *http.
 	id := chi.URLParam(r, "id")
 
 	if err := h.notifSvc.Delete(r.Context(), tenantID, user.ID, id); err != nil {
-		writeErrorResponse(w, http.StatusNotFound, "NOT_FOUND", err.Error(), r)
+		if errors.Is(err, repository.ErrNotFound) {
+			writeErrorResponse(w, http.StatusNotFound, "NOT_FOUND", "notification not found", r)
+			return
+		}
+		h.logger.Error().Err(err).Str("id", id).Msg("failed to delete notification")
+		writeErrorResponse(w, http.StatusInternalServerError, "INTERNAL_ERROR", "failed to delete notification", r)
 		return
 	}
 
@@ -148,7 +207,7 @@ func writeErrorResponse(w http.ResponseWriter, status int, code, message string,
 		},
 	}
 	if reqID := r.Context().Value("request_id"); reqID != nil {
-		resp["request_id"] = reqID
+		resp["error"].(map[string]interface{})["request_id"] = reqID
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)

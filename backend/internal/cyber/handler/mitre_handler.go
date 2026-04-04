@@ -1,22 +1,23 @@
 package handler
 
 import (
+	"errors"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
 
 	"github.com/clario360/platform/internal/cyber/dto"
 	"github.com/clario360/platform/internal/cyber/mitre"
-	"github.com/clario360/platform/internal/cyber/service"
+	"github.com/clario360/platform/internal/cyber/repository"
 )
 
 // MITREHandler handles ATT&CK reference endpoints.
 type MITREHandler struct {
-	ruleSvc *service.RuleService
+	ruleSvc mitreRuleService
 }
 
 // NewMITREHandler creates a new MITREHandler.
-func NewMITREHandler(ruleSvc *service.RuleService) *MITREHandler {
+func NewMITREHandler(ruleSvc mitreRuleService) *MITREHandler {
 	return &MITREHandler{ruleSvc: ruleSvc}
 }
 
@@ -35,10 +36,10 @@ func (h *MITREHandler) ListTactics(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *MITREHandler) ListTechniques(w http.ResponseWriter, r *http.Request) {
-	tacticID := r.URL.Query().Get("tactic_id")
+	tacticIDs := splitQueryValues(r.URL.Query(), "tactic_id")
 	var items []mitre.Technique
-	if tacticID != "" {
-		items = mitre.TechniquesByTactic(tacticID)
+	if len(tacticIDs) > 0 {
+		items = mitre.TechniquesByTactics(tacticIDs)
 	} else {
 		items = mitre.AllTechniques()
 	}
@@ -57,19 +58,20 @@ func (h *MITREHandler) ListTechniques(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *MITREHandler) GetTechnique(w http.ResponseWriter, r *http.Request) {
-	technique, ok := mitre.TechniqueByID(chi.URLParam(r, "id"))
+	tenantID, _, ok := requireTenantAndUser(w, r)
 	if !ok {
-		writeError(w, http.StatusNotFound, "NOT_FOUND", "technique not found", nil)
 		return
 	}
-	writeJSON(w, http.StatusOK, envelope{"data": dto.MITRETechniqueDTO{
-		ID:          technique.ID,
-		Name:        technique.Name,
-		Description: technique.Description,
-		TacticIDs:   technique.TacticIDs,
-		Platforms:   technique.Platforms,
-		DataSources: technique.DataSources,
-	}})
+	item, err := h.ruleSvc.TechniqueDetail(r.Context(), tenantID, chi.URLParam(r, "id"), actorFromRequest(r))
+	if err != nil {
+		status := http.StatusBadRequest
+		if errors.Is(err, repository.ErrNotFound) {
+			status = http.StatusNotFound
+		}
+		writeError(w, status, "NOT_FOUND", err.Error(), nil)
+		return
+	}
+	writeJSON(w, http.StatusOK, envelope{"data": item})
 }
 
 func (h *MITREHandler) Coverage(w http.ResponseWriter, r *http.Request) {
@@ -82,16 +84,70 @@ func (h *MITREHandler) Coverage(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "COVERAGE_FAILED", err.Error(), nil)
 		return
 	}
-	out := make([]dto.MITRECoverageDTO, 0, len(items))
+
+	// Aggregate statistics
+	totalTechniques := len(items)
+	coveredTechniques := 0
+	activeTechniques := 0
+	criticalGapCount := 0
 	for _, item := range items {
-		out = append(out, dto.MITRECoverageDTO{
-			TechniqueID:   item.Technique.ID,
-			TechniqueName: item.Technique.Name,
-			TacticIDs:     item.Technique.TacticIDs,
-			HasDetection:  item.HasDetection,
-			RuleCount:     item.RuleCount,
-			RuleNames:     item.RuleNames,
+		if item.HasDetection {
+			coveredTechniques++
+			if item.AlertCount > 0 {
+				activeTechniques++
+			}
+		}
+		if item.CoverageState == "gap" {
+			criticalGapCount++
+		}
+	}
+	passiveTechniques := coveredTechniques - activeTechniques
+
+	coveragePercent := 0.0
+	if totalTechniques > 0 {
+		coveragePercent = float64(coveredTechniques) / float64(totalTechniques) * 100
+	}
+
+	// Build per-tactic coverage
+	allTactics := mitre.AllTactics()
+	tacticCoverage := make([]dto.MITRETacticCoverageDTO, 0, len(allTactics))
+	for _, tactic := range allTactics {
+		techCount := 0
+		covCount := 0
+		for _, item := range items {
+			for _, tid := range item.TacticIDs {
+				if tid == tactic.ID {
+					techCount++
+					if item.HasDetection {
+						covCount++
+					}
+					break
+				}
+			}
+		}
+		tacticCoverage = append(tacticCoverage, dto.MITRETacticCoverageDTO{
+			ID:             tactic.ID,
+			Name:           tactic.Name,
+			ShortName:      tactic.ShortName,
+			TechniqueCount: techCount,
+			CoveredCount:   covCount,
 		})
 	}
-	writeJSON(w, http.StatusOK, envelope{"data": out})
+
+	resp := dto.MITRECoverageResponseDTO{
+		Tactics:           tacticCoverage,
+		Techniques:        items,
+		TotalTechniques:   totalTechniques,
+		CoveredTechniques: coveredTechniques,
+		CoveragePercent:   coveragePercent,
+		ActiveTechniques:  activeTechniques,
+		PassiveTechniques: passiveTechniques,
+		CriticalGapCount:  criticalGapCount,
+	}
+
+	writeJSON(w, http.StatusOK, envelope{"data": resp})
+}
+
+func (h *MITREHandler) FrameworkMeta(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, http.StatusOK, envelope{"data": mitre.FrameworkMeta()})
 }

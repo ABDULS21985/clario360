@@ -37,7 +37,7 @@ func TestNewJWTManager_EphemeralKeys(t *testing.T) {
 func TestGenerateTokenPair(t *testing.T) {
 	mgr := newTestJWTManager(t)
 
-	pair, err := mgr.GenerateTokenPair("user-1", "tenant-1", "test@example.com", []string{"viewer"})
+	pair, err := mgr.GenerateTokenPair("user-1", "tenant-1", "test@example.com", []string{"viewer"}, "")
 	if err != nil {
 		t.Fatalf("GenerateTokenPair failed: %v", err)
 	}
@@ -55,7 +55,7 @@ func TestGenerateTokenPair(t *testing.T) {
 func TestValidateAccessToken_Success(t *testing.T) {
 	mgr := newTestJWTManager(t)
 
-	pair, err := mgr.GenerateTokenPair("user-1", "tenant-1", "test@example.com", []string{"admin", "viewer"})
+	pair, err := mgr.GenerateTokenPair("user-1", "tenant-1", "test@example.com", []string{"admin", "viewer"}, "")
 	if err != nil {
 		t.Fatalf("GenerateTokenPair failed: %v", err)
 	}
@@ -94,7 +94,7 @@ func TestValidateAccessToken_WrongKey(t *testing.T) {
 	mgr1 := newTestJWTManager(t)
 	mgr2 := newTestJWTManager(t) // different ephemeral key pair
 
-	pair, _ := mgr1.GenerateTokenPair("user-1", "tenant-1", "test@example.com", nil)
+	pair, _ := mgr1.GenerateTokenPair("user-1", "tenant-1", "test@example.com", nil, "")
 	_, err := mgr2.ValidateAccessToken(pair.AccessToken)
 	if err == nil {
 		t.Fatal("expected error when validating with different key")
@@ -104,7 +104,7 @@ func TestValidateAccessToken_WrongKey(t *testing.T) {
 func TestValidateRefreshToken_Success(t *testing.T) {
 	mgr := newTestJWTManager(t)
 
-	pair, _ := mgr.GenerateTokenPair("user-1", "tenant-1", "test@example.com", nil)
+	pair, _ := mgr.GenerateTokenPair("user-1", "tenant-1", "test@example.com", nil, "")
 
 	userID, err := mgr.ValidateRefreshToken(pair.RefreshToken)
 	if err != nil {
@@ -157,7 +157,7 @@ func TestNewJWTManager_WithPEMKeys(t *testing.T) {
 	}
 
 	// Verify tokens can be generated and validated
-	pair, err := mgr.GenerateTokenPair("user-1", "tenant-1", "pem@test.com", []string{"admin"})
+	pair, err := mgr.GenerateTokenPair("user-1", "tenant-1", "pem@test.com", []string{"admin"}, "")
 	if err != nil {
 		t.Fatalf("GenerateTokenPair failed: %v", err)
 	}
@@ -195,7 +195,7 @@ func TestValidateAccessToken_ExpiredToken(t *testing.T) {
 		t.Fatalf("NewJWTManager failed: %v", err)
 	}
 
-	pair, _ := mgr.GenerateTokenPair("user-1", "tenant-1", "test@example.com", nil)
+	pair, _ := mgr.GenerateTokenPair("user-1", "tenant-1", "test@example.com", nil, "")
 
 	_, err = mgr.ValidateAccessToken(pair.AccessToken)
 	if err == nil {

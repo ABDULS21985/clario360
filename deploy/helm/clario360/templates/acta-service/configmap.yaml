@@ -1,0 +1,15 @@
+{{- if .Values.actaService.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "clario360.componentName" (dict "root" . "component" "acta-service") }}-config
+  namespace: {{ include "clario360.namespace" . }}
+  labels:
+    {{- include "clario360.componentLabels" (dict "root" . "component" "acta-service") | nindent 4 }}
+data:
+  ACTA_HTTP_PORT: "8086"
+  ACTA_ADMIN_PORT: "9086"
+  {{- with .Values.actaService.config }}
+  {{- toYaml . | nindent 2 }}
+  {{- end }}
+{{- end }}

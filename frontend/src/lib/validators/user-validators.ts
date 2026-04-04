@@ -27,7 +27,7 @@ export const createUserSchema = z
     password: passwordSchema,
     confirm_password: z.string().min(1, 'Required'),
     roles: z.array(z.string()).min(1, 'At least one role required'),
-    status: z.enum(['active', 'suspended', 'deactivated']).default('active'),
+    status: z.enum(['active', 'suspended', 'inactive']).default('active'),
     send_welcome_email: z.boolean().default(true),
   })
   .refine((d) => d.password === d.confirm_password, {
@@ -46,7 +46,7 @@ export const editUserSchema = z.object({
     .min(2, 'At least 2 characters')
     .max(100, 'Maximum 100 characters')
     .regex(nameRegex, 'Only letters, spaces, hyphens, and apostrophes'),
-  status: z.enum(['active', 'suspended', 'deactivated']),
+  status: z.enum(['active', 'suspended', 'inactive']),
 });
 
 export const resetPasswordEmailSchema = z.object({

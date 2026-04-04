@@ -1,6 +1,10 @@
 package dto
 
-import "fmt"
+import (
+	"fmt"
+
+	"github.com/clario360/platform/internal/cyber/model"
+)
 
 // VCISOBriefingParams are query parameters for generating an executive briefing.
 type VCISOBriefingParams struct {
@@ -52,4 +56,31 @@ func (p *VCISOBriefingHistoryParams) SetDefaults() {
 	if p.PerPage <= 0 || p.PerPage > 100 {
 		p.PerPage = 20
 	}
+}
+
+func (p *VCISOBriefingHistoryParams) Validate() error {
+	if p.Page < 1 {
+		return fmt.Errorf("page must be at least 1")
+	}
+	if p.PerPage < 1 || p.PerPage > 100 {
+		return fmt.Errorf("per_page must be between 1 and 100")
+	}
+	if p.Type != nil {
+		switch *p.Type {
+		case "executive", "technical", "compliance", "custom":
+		default:
+			return fmt.Errorf("invalid type: %s", *p.Type)
+		}
+	}
+	return nil
+}
+
+type VCISOBriefingHistoryResponse struct {
+	Data []*model.VCISOBriefingRecord `json:"data"`
+	Meta PaginationMeta               `json:"meta"`
+}
+
+type VCISOReportResponse struct {
+	JobID  string `json:"job_id"`
+	Status string `json:"status"`
 }

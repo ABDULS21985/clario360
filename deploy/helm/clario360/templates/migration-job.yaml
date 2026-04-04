@@ -1,0 +1,134 @@
+{{- if .Values.migration.enabled }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "clario360.fullname" . }}-migration
+  namespace: {{ include "clario360.namespace" . }}
+  labels:
+    {{- include "clario360.labels" . | nindent 4 }}
+    app.kubernetes.io/component: migration
+  annotations:
+    "helm.sh/hook": pre-install,pre-upgrade
+    "helm.sh/hook-weight": "-5"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+spec:
+  activeDeadlineSeconds: {{ .Values.migration.activeDeadlineSeconds | default 300 }}
+  backoffLimit: {{ .Values.migration.backoffLimit | default 3 }}
+  template:
+    metadata:
+      labels:
+        {{- include "clario360.labels" . | nindent 8 }}
+        app.kubernetes.io/component: migration
+    spec:
+      restartPolicy: Never
+      serviceAccountName: {{ include "clario360.fullname" . }}-migration
+      {{- with .Values.global.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        runAsGroup: 65534
+        fsGroup: 65534
+        seccompProfile:
+          type: RuntimeDefault
+      initContainers:
+        - name: wait-for-db
+          image: busybox:1.36
+          command: ['sh', '-c', 'until nc -z {{ .Values.database.host }} {{ .Values.database.port }}; do echo "Waiting for database..."; sleep 2; done']
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+        - name: wait-for-kafka
+          image: busybox:1.36
+          command: ['sh', '-c']
+          args:
+            - |
+              KAFKA_HOST=$(echo "{{ first .Values.kafka.brokers }}" | cut -d: -f1)
+              KAFKA_PORT=$(echo "{{ first .Values.kafka.brokers }}" | cut -d: -f2)
+              until nc -z $KAFKA_HOST $KAFKA_PORT; do echo "Waiting for Kafka..."; sleep 2; done
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+      containers:
+        - name: migrator
+          image: "{{ .Values.global.imageRegistry }}/{{ .Values.migration.image.repository }}:{{ .Values.migration.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.migration.image.pullPolicy | default "IfNotPresent" }}
+          command: ["/migrator"]
+          args:
+            - "--iam-db-url=$(IAM_DB_URL)"
+            - "--platform-db-url=$(PLATFORM_DB_URL)"
+            - "--cyber-db-url=$(CYBER_DB_URL)"
+            - "--data-db-url=$(DATA_DB_URL)"
+            - "--acta-db-url=$(ACTA_DB_URL)"
+            - "--lex-db-url=$(LEX_DB_URL)"
+            - "--visus-db-url=$(VISUS_DB_URL)"
+            - "--kafka-brokers=$(KAFKA_BROKERS)"
+          env:
+            - name: IAM_DB_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "clario360.fullname" . }}-database-credentials
+                  key: IAM_DB_URL
+            - name: PLATFORM_DB_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "clario360.fullname" . }}-database-credentials
+                  key: PLATFORM_DB_URL
+            - name: CYBER_DB_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "clario360.fullname" . }}-database-credentials
+                  key: CYBER_DB_URL
+            - name: DATA_DB_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "clario360.fullname" . }}-database-credentials
+                  key: DATA_DB_URL
+            - name: ACTA_DB_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "clario360.fullname" . }}-database-credentials
+                  key: ACTA_DB_URL
+            - name: LEX_DB_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "clario360.fullname" . }}-database-credentials
+                  key: LEX_DB_URL
+            - name: VISUS_DB_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "clario360.fullname" . }}-database-credentials
+                  key: VISUS_DB_URL
+            - name: KAFKA_BROKERS
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ include "clario360.fullname" . }}-shared
+                  key: KAFKA_BROKERS
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "256Mi"
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}
+{{- end }}

@@ -1,7 +1,7 @@
 import { Suspense } from 'react';
 import type { Metadata } from 'next';
+import { AuthLoadingState } from '@/components/auth/auth-page-primitives';
 import { ResetPasswordForm } from '@/components/auth/reset-password-form';
-import { Spinner } from '@/components/ui/spinner';
 
 export const metadata: Metadata = {
   title: 'Reset Password — Clario 360',
@@ -9,7 +9,14 @@ export const metadata: Metadata = {
 
 export default function ResetPasswordPage() {
   return (
-    <Suspense fallback={<div className="flex justify-center py-8"><Spinner /></div>}>
+    <Suspense
+      fallback={
+        <AuthLoadingState
+          label="Loading password reset"
+          detail="We are validating the reset flow and preparing the credential update experience."
+        />
+      }
+    >
       <ResetPasswordForm />
     </Suspense>
   );

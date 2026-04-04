@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { createPortal } from "react-dom";
 import * as AlertDialogPrimitive from "@radix-ui/react-alert-dialog";
 import { cn } from "@/lib/utils";
 import { buttonVariants } from "@/components/ui/button";
@@ -10,6 +11,14 @@ const AlertDialog = AlertDialogPrimitive.Root;
 const AlertDialogTrigger = AlertDialogPrimitive.Trigger;
 
 const AlertDialogPortal = AlertDialogPrimitive.Portal;
+
+// Same NativePortal workaround as dialog.tsx — see that file for full explanation.
+function NativePortal({ children }: { children: React.ReactNode }) {
+  const [container, setContainer] = React.useState<HTMLElement | null>(null);
+  React.useLayoutEffect(() => { setContainer(document.body); }, []);
+  if (!container) return null;
+  return createPortal(children, container);
+}
 
 const AlertDialogOverlay = React.forwardRef<
   React.ElementRef<typeof AlertDialogPrimitive.Overlay>,
@@ -30,7 +39,7 @@ const AlertDialogContent = React.forwardRef<
   React.ElementRef<typeof AlertDialogPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof AlertDialogPrimitive.Content>
 >(({ className, ...props }, ref) => (
-  <AlertDialogPortal>
+  <NativePortal>
     <AlertDialogOverlay />
     <AlertDialogPrimitive.Content
       ref={ref}
@@ -40,7 +49,7 @@ const AlertDialogContent = React.forwardRef<
       )}
       {...props}
     />
-  </AlertDialogPortal>
+  </NativePortal>
 ));
 AlertDialogContent.displayName = AlertDialogPrimitive.Content.displayName;
 

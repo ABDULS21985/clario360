@@ -68,11 +68,29 @@ function checkPermission(userPermissions: string[], required: string): boolean {
   return false;
 }
 
+// Cached permission extraction — avoids re-parsing JWT on every hasPermission call.
+// Cache is keyed by the token string itself; invalidated when token changes.
+let _cachedPermToken: string | null = null;
+let _cachedPerms: string[] = [];
+
+/** Reset the permission cache. Exported for tests that mock getTokenPayload. */
+export function _resetPermissionsCache(): void {
+  _cachedPermToken = null;
+  _cachedPerms = [];
+}
+
 function getPermissionsFromToken(): string[] {
   const token = getAccessToken();
-  if (!token) return [];
+  if (!token) {
+    _cachedPermToken = null;
+    _cachedPerms = [];
+    return [];
+  }
+  if (token === _cachedPermToken) return _cachedPerms;
   const payload = getTokenPayload(token);
-  return payload?.permissions ?? [];
+  _cachedPerms = payload?.permissions ?? [];
+  _cachedPermToken = token;
+  return _cachedPerms;
 }
 
 async function hydrateSessionFromBFF(): Promise<{
@@ -81,13 +99,16 @@ async function hydrateSessionFromBFF(): Promise<{
   accessToken: string;
 } | null> {
   try {
-    // GET /api/auth/session reads the httpOnly cookie and returns session info
-    const sessionData = await apiGet<{
+    // GET /api/auth/session is a Next.js BFF route — must use a relative URL
+    // so it resolves to localhost:3000, not the backend gateway.
+    const resp = await fetch(API_ENDPOINTS.BFF_SESSION, { credentials: 'include' });
+    if (!resp.ok) return null;
+    const sessionData = (await resp.json()) as {
       user: User;
       tenant: Tenant;
       access_token: string;
       expires_at: string;
-    }>(API_ENDPOINTS.BFF_SESSION);
+    };
     return {
       user: sessionData.user,
       tenant: sessionData.tenant,
@@ -102,10 +123,16 @@ async function storeSessionInBFF(
   accessToken: string,
   refreshToken: string,
 ): Promise<void> {
-  await apiPost(API_ENDPOINTS.BFF_SESSION, {
-    access_token: accessToken,
-    refresh_token: refreshToken,
+  // POST /api/auth/session is a Next.js BFF route — must use a relative URL.
+  const resp = await fetch(API_ENDPOINTS.BFF_SESSION, {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ access_token: accessToken, refresh_token: refreshToken }),
   });
+  if (!resp.ok) {
+    throw new Error(`Failed to store session: ${resp.status}`);
+  }
 }
 
 async function clearSessionInBFF(): Promise<void> {
@@ -177,6 +204,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const resp = await apiPost<{
         access_token: string;
         refresh_token: string;
+        expires_at: string;
+        token_type: string;
         user: User;
       }>(API_ENDPOINTS.AUTH_VERIFY_MFA, { mfa_token: mfaToken, code });
 
@@ -260,7 +289,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   ): Promise<void> => {
     set({ isLoading: true, error: null });
     try {
-      const updated = await apiPatch<User>(API_ENDPOINTS.USERS_ME, data);
+      const updated = await apiPutLazy<User>(API_ENDPOINTS.USERS_ME, data);
       set({ user: updated, isLoading: false });
     } catch (err) {
       const msg = extractErrorMessage(err);
@@ -275,7 +304,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       // Fall back to user roles if token not yet loaded
       const { user } = get();
       if (!user) return false;
-      const rolePerms = user.roles.flatMap((r) => r.permissions);
+      const rolePerms = (user.roles ?? []).flatMap((r) => r.permissions);
       return checkPermission(rolePerms, permission);
     }
     return checkPermission(perms, permission);
@@ -294,10 +323,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 }));
 
-// Lazy import to avoid circular dependency (apiPatch lives in api.ts which imports auth-store indirectly)
-async function apiPatch<T>(url: string, data?: unknown): Promise<T> {
-  const { apiPatch: patch } = await import('@/lib/api');
-  return patch<T>(url, data);
+// Lazy import to avoid circular dependency (apiPut lives in api.ts which imports auth-store indirectly)
+async function apiPutLazy<T>(url: string, data?: unknown): Promise<T> {
+  const { apiPut: put } = await import('@/lib/api');
+  return put<T>(url, data);
 }
 
 function extractErrorMessage(err: unknown): string {

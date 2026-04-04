@@ -39,14 +39,21 @@ type ServiceConfig struct {
 // should appear before shorter ones — the router sorts by prefix length descending at startup.
 func DefaultRoutes() []RouteConfig {
 	return []RouteConfig{
+		// IAM - OIDC discovery
+		{Prefix: "/.well-known", Service: "iam-service", Public: true, EndpointGroup: EndpointGroupAuth},
+
 		// IAM — Auth (public)
 		{Prefix: "/api/v1/auth", Service: "iam-service", Public: true, EndpointGroup: EndpointGroupAuth},
+		{Prefix: "/api/v1/onboarding", Service: "iam-service", Public: true, EndpointGroup: EndpointGroupAuth},
+		{Prefix: "/api/v1/invitations", Service: "iam-service", Public: true, EndpointGroup: EndpointGroupAuth},
+		{Prefix: "/api/v1/ai", Service: "iam-service", Public: false, EndpointGroup: EndpointGroupAdmin},
 
 		// IAM — User/Role/Tenant management
 		{Prefix: "/api/v1/users", Service: "iam-service", Public: false, EndpointGroup: EndpointGroupWrite},
 		{Prefix: "/api/v1/roles", Service: "iam-service", Public: false, EndpointGroup: EndpointGroupAdmin},
 		{Prefix: "/api/v1/tenants", Service: "iam-service", Public: false, EndpointGroup: EndpointGroupAdmin},
 		{Prefix: "/api/v1/api-keys", Service: "iam-service", Public: false, EndpointGroup: EndpointGroupWrite},
+		{Prefix: "/api/v1/notebooks", Service: "iam-service", Public: false, EndpointGroup: EndpointGroupWrite},
 
 		// Audit
 		{Prefix: "/api/v1/audit", Service: "audit-service", Public: false, EndpointGroup: EndpointGroupRead},
@@ -56,6 +63,7 @@ func DefaultRoutes() []RouteConfig {
 
 		// Notifications (REST)
 		{Prefix: "/api/v1/notifications", Service: "notification-service", Public: false, EndpointGroup: EndpointGroupWrite},
+		{Prefix: "/api/v1/integrations", Service: "notification-service", Public: true, EndpointGroup: EndpointGroupWrite},
 
 		// Files — upload route MUST come before the generic files route (longer prefix wins).
 		{Prefix: "/api/v1/files/upload", Service: "file-service", Public: false, EndpointGroup: EndpointGroupUpload, MaxBodyMB: 100, TimeoutSec: 120},
@@ -63,6 +71,7 @@ func DefaultRoutes() []RouteConfig {
 
 		// Cybersecurity Suite
 		{Prefix: "/api/v1/cyber", Service: "cyber-service", Public: false, EndpointGroup: EndpointGroupWrite},
+		{Prefix: "/api/v1/rca", Service: "cyber-service", Public: false, EndpointGroup: EndpointGroupWrite},
 
 		// Data Suite
 		{Prefix: "/api/v1/data", Service: "data-service", Public: false, EndpointGroup: EndpointGroupWrite},
@@ -91,15 +100,15 @@ func DefaultWSRoutes() []RouteConfig {
 func DefaultServices() []ServiceConfig {
 	return []ServiceConfig{
 		{Name: "iam-service", URL: envOrDefault("GW_SVC_URL_IAM", "http://localhost:8081"), Timeout: 30 * time.Second},
-		{Name: "audit-service", URL: envOrDefault("GW_SVC_URL_AUDIT", "http://localhost:8082"), Timeout: 30 * time.Second},
+		{Name: "audit-service", URL: envOrDefault("GW_SVC_URL_AUDIT", "http://localhost:8084"), Timeout: 30 * time.Second},
 		{Name: "workflow-engine", URL: envOrDefault("GW_SVC_URL_WORKFLOW", "http://localhost:8083"), Timeout: 60 * time.Second},
-		{Name: "notification-service", URL: envOrDefault("GW_SVC_URL_NOTIFICATION", "http://localhost:8089"), Timeout: 30 * time.Second},
+		{Name: "notification-service", URL: envOrDefault("GW_SVC_URL_NOTIFICATION", "http://localhost:8090"), Timeout: 30 * time.Second},
 		{Name: "file-service", URL: envOrDefault("GW_SVC_URL_FILE", "http://localhost:8091"), Timeout: 120 * time.Second},
-		{Name: "cyber-service", URL: envOrDefault("GW_SVC_URL_CYBER", "http://localhost:8084"), Timeout: 30 * time.Second},
-		{Name: "data-service", URL: envOrDefault("GW_SVC_URL_DATA", "http://localhost:8085"), Timeout: 60 * time.Second},
-		{Name: "acta-service", URL: envOrDefault("GW_SVC_URL_ACTA", "http://localhost:8086"), Timeout: 30 * time.Second},
-		{Name: "lex-service", URL: envOrDefault("GW_SVC_URL_LEX", "http://localhost:8087"), Timeout: 30 * time.Second},
-		{Name: "visus-service", URL: envOrDefault("GW_SVC_URL_VISUS", "http://localhost:8088"), Timeout: 30 * time.Second},
+		{Name: "cyber-service", URL: envOrDefault("GW_SVC_URL_CYBER", "http://localhost:8085"), Timeout: 30 * time.Second},
+		{Name: "data-service", URL: envOrDefault("GW_SVC_URL_DATA", "http://localhost:8086"), Timeout: 60 * time.Second},
+		{Name: "acta-service", URL: envOrDefault("GW_SVC_URL_ACTA", "http://localhost:8087"), Timeout: 30 * time.Second},
+		{Name: "lex-service", URL: envOrDefault("GW_SVC_URL_LEX", "http://localhost:8088"), Timeout: 30 * time.Second},
+		{Name: "visus-service", URL: envOrDefault("GW_SVC_URL_VISUS", "http://localhost:8089"), Timeout: 30 * time.Second},
 	}
 }
 

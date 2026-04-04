@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -23,9 +24,10 @@ func writeJSON(w http.ResponseWriter, status int, v interface{}) {
 // writeError writes a structured JSON error response.
 func writeError(w http.ResponseWriter, status int, code, message string) {
 	writeJSON(w, status, map[string]interface{}{
-		"status":  status,
-		"code":    code,
-		"message": message,
+		"error": map[string]interface{}{
+			"code":    code,
+			"message": message,
+		},
 	})
 }
 
@@ -59,9 +61,12 @@ func parsePagination(r *http.Request) (page, pageSize int) {
 			page = v
 		}
 	}
-	if ps := r.URL.Query().Get("page_size"); ps != "" {
-		if v, err := strconv.Atoi(ps); err == nil && v > 0 && v <= 100 {
-			pageSize = v
+	for _, key := range []string{"page_size", "per_page"} {
+		if ps := r.URL.Query().Get(key); ps != "" {
+			if v, err := strconv.Atoi(ps); err == nil && v > 0 && v <= 100 {
+				pageSize = v
+				break
+			}
 		}
 	}
 	return
@@ -97,4 +102,24 @@ func isValidationError(msg string) bool {
 		strings.Contains(lower, "required") ||
 		strings.Contains(lower, "invalid") ||
 		strings.Contains(lower, "must be")
+}
+
+// UserNameLookup resolves user IDs to display names. Implementations may query
+// IAM directly or through an internal HTTP call. Nil-safe — handlers check for nil.
+type UserNameLookup interface {
+	// LookupUserName returns the display name for the given user ID.
+	// Returns empty string on lookup failure (best-effort).
+	LookupUserName(ctx context.Context, userID string) string
+}
+
+// resolveUserName is a nil-safe helper that calls lookup.LookupUserName if non-nil.
+func resolveUserName(ctx context.Context, lookup UserNameLookup, userID *string) *string {
+	if lookup == nil || userID == nil || *userID == "" {
+		return nil
+	}
+	name := lookup.LookupUserName(ctx, *userID)
+	if name == "" {
+		return nil
+	}
+	return &name
 }

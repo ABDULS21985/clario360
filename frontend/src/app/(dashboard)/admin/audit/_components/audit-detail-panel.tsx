@@ -151,11 +151,11 @@ export function AuditDetailPanel({ log, open, onClose }: AuditDetailPanelProps) 
                     <CopyButton value={log.entry_hash} label="Entry Hash" />
                   </dd>
                 </div>
-                {log.prev_hash && (
+                {log.previous_hash && (
                   <div>
                     <dt className="text-muted-foreground mb-0.5">Previous Hash</dt>
                     <dd className="font-mono break-all text-muted-foreground">
-                      {log.prev_hash}
+                      {log.previous_hash}
                     </dd>
                   </div>
                 )}

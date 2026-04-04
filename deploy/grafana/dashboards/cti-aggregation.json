@@ -1,0 +1,126 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "title": "Aggregation Duration",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, rate(clario360_cti_aggregation_duration_seconds_bucket[5m]))",
+          "legendFormat": "p95 {{ aggregation_type }}"
+        },
+        {
+          "expr": "histogram_quantile(0.50, rate(clario360_cti_aggregation_duration_seconds_bucket[5m]))",
+          "legendFormat": "p50 {{ aggregation_type }}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "s" }
+      }
+    },
+    {
+      "title": "Aggregation Runs",
+      "type": "stat",
+      "gridPos": { "h": 8, "w": 6, "x": 12, "y": 0 },
+      "targets": [
+        {
+          "expr": "increase(clario360_cti_aggregation_runs_total[1h])",
+          "legendFormat": "{{ scope }}"
+        }
+      ]
+    },
+    {
+      "title": "Aggregation Errors",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 6, "x": 18, "y": 0 },
+      "targets": [
+        {
+          "expr": "rate(clario360_cti_aggregation_errors_total[5m])",
+          "legendFormat": "{{ aggregation_type }}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "red", "value": 0.01 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "title": "CTI Risk Score",
+      "type": "gauge",
+      "gridPos": { "h": 8, "w": 6, "x": 0, "y": 8 },
+      "targets": [
+        {
+          "expr": "clario360_cti_risk_score",
+          "legendFormat": "{{ tenant_id }}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "min": 0,
+          "max": 100,
+          "thresholds": {
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 40 },
+              { "color": "orange", "value": 60 },
+              { "color": "red", "value": 80 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "title": "Threat Events (24h)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 6, "y": 8 },
+      "targets": [
+        {
+          "expr": "clario360_cti_events_24h",
+          "legendFormat": "{{ tenant_id }}"
+        }
+      ]
+    },
+    {
+      "title": "Last Aggregation Run Age",
+      "type": "stat",
+      "gridPos": { "h": 8, "w": 6, "x": 18, "y": 8 },
+      "targets": [
+        {
+          "expr": "time() - clario360_cti_aggregation_last_run_timestamp",
+          "legendFormat": "{{ tenant_id }}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "thresholds": {
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 300 },
+              { "color": "red", "value": 600 }
+            ]
+          }
+        }
+      }
+    }
+  ],
+  "schemaVersion": 39,
+  "tags": ["cti", "aggregation", "cyber"],
+  "templating": { "list": [] },
+  "time": { "from": "now-1h", "to": "now" },
+  "title": "CTI Aggregation",
+  "uid": "cti-aggregation",
+  "version": 1
+}

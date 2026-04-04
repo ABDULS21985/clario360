@@ -36,15 +36,32 @@ func (r *CTEMFindingRepository) BulkInsert(ctx context.Context, findings []*mode
 		return nil
 	}
 
+	// Deduplicate findings by match key (type|asset|cve|title).
+	seen := make(map[string]struct{}, len(findings))
+	deduped := make([]*model.CTEMFinding, 0, len(findings))
+	for _, f := range findings {
+		key := findingMatchKey(f)
+		if _, exists := seen[key]; exists {
+			continue
+		}
+		seen[key] = struct{}{}
+		deduped = append(deduped, f)
+	}
+	findings = deduped
+
 	rows := make([][]any, 0, len(findings))
 	for _, finding := range findings {
+		affectedAssetIDs := ensureUUIDSlice(finding.AffectedAssetIDs)
+		vulnerabilityIDs := ensureUUIDSlice(finding.VulnerabilityIDs)
+		cveIDs := ensureStringSlice(finding.CVEIDs)
+		compensatingControls := ensureStringSlice(finding.CompensatingControls)
 		rows = append(rows, []any{
 			finding.ID, finding.TenantID, finding.AssessmentID, string(finding.Type), string(finding.Category),
 			finding.Severity, finding.Title, finding.Description, jsonDefault(finding.Evidence, "{}"),
-			finding.AffectedAssetIDs, finding.AffectedAssetCount, finding.PrimaryAssetID, finding.VulnerabilityIDs,
-			finding.CVEIDs, finding.BusinessImpactScore, jsonDefault(finding.BusinessImpactFactors, "[]"),
+			affectedAssetIDs, finding.AffectedAssetCount, finding.PrimaryAssetID, vulnerabilityIDs,
+			cveIDs, finding.BusinessImpactScore, jsonDefault(finding.BusinessImpactFactors, "[]"),
 			finding.ExploitabilityScore, jsonDefault(finding.ExploitabilityFactors, "[]"), finding.PriorityScore,
-			finding.PriorityGroup, finding.PriorityRank, string(finding.ValidationStatus), finding.CompensatingControls,
+			finding.PriorityGroup, finding.PriorityRank, string(finding.ValidationStatus), compensatingControls,
 			finding.ValidationNotes, finding.ValidatedAt, remediationTypeValue(finding.RemediationType),
 			finding.RemediationDescription, remediationEffortValue(finding.RemediationEffort), finding.RemediationGroupID,
 			finding.EstimatedDays, string(finding.Status), finding.StatusChangedBy, finding.StatusChangedAt,
@@ -72,6 +89,20 @@ func (r *CTEMFindingRepository) BulkInsert(ctx context.Context, findings []*mode
 		return fmt.Errorf("bulk insert findings: %w", err)
 	}
 	return nil
+}
+
+func ensureUUIDSlice(values []uuid.UUID) []uuid.UUID {
+	if values == nil {
+		return []uuid.UUID{}
+	}
+	return values
+}
+
+func ensureStringSlice(values []string) []string {
+	if values == nil {
+		return []string{}
+	}
+	return values
 }
 
 func (r *CTEMFindingRepository) ListByAssessment(ctx context.Context, tenantID, assessmentID uuid.UUID, params *dto.CTEMFindingsListParams) ([]*model.CTEMFinding, int, error) {
@@ -138,7 +169,7 @@ func (r *CTEMFindingRepository) ListAllByAssessment(ctx context.Context, tenantI
 		       attack_path, attack_path_length, metadata, created_at, updated_at
 		FROM ctem_findings
 		WHERE tenant_id = $1 AND assessment_id = $2
-		ORDER BY priority_score DESC, severity_order(severity) DESC, created_at ASC`,
+		ORDER BY priority_score DESC, severity_order(severity::text) DESC, created_at ASC`,
 		tenantID, assessmentID,
 	)
 	if err != nil {

@@ -1,135 +1,268 @@
 'use client';
 
-import { useState } from 'react';
-import Link from 'next/link';
-import { AlertTriangle } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
-import { apiGet } from '@/lib/api';
-import { API_ENDPOINTS } from '@/lib/constants';
-import { timeAgo, cn } from '@/lib/utils';
+import { AlertTriangle, CheckCheck, GitMerge, ShieldAlert, UserCheck } from 'lucide-react';
+import { toast } from 'sonner';
 import { PageHeader } from '@/components/common/page-header';
-import { LoadingSkeleton } from '@/components/common/loading-skeleton';
-import { ErrorState } from '@/components/common/error-state';
-import { EmptyState } from '@/components/common/empty-state';
 import { PermissionRedirect } from '@/components/common/permission-redirect';
+import { PermissionGate } from '@/components/auth/permission-gate';
+import { ConfirmDialog } from '@/components/shared/confirm-dialog';
+import { DataTable } from '@/components/shared/data-table/data-table';
+import { useDataTable } from '@/hooks/use-data-table';
+import { useAuth } from '@/hooks/use-auth';
+import { apiGet, apiPut } from '@/lib/api';
+import { API_ENDPOINTS, ROUTES } from '@/lib/constants';
 import type { PaginatedResponse } from '@/types/api';
-import type { Alert } from '@/types/models';
+import type { BulkAction, FetchParams } from '@/types/table';
+import type { CyberAlert, MITRETacticItem } from '@/types/cyber';
 
-function SeverityBadge({ severity }: { severity: string }) {
-  return (
-    <span className={cn(
-      'inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold',
-      severity === 'critical' && 'bg-red-100 text-red-800',
-      severity === 'high' && 'bg-orange-100 text-orange-800',
-      severity === 'medium' && 'bg-yellow-100 text-yellow-800',
-      severity === 'low' && 'bg-blue-100 text-blue-800',
-      severity === 'info' && 'bg-gray-100 text-gray-800',
-    )}>
-      {severity}
-    </span>
-  );
-}
+import { AlertAssignDialog } from './_components/alert-assign-dialog';
+import { getAlertColumns } from './_components/alert-columns';
+import { AlertEscalateDialog } from './_components/alert-escalate-dialog';
+import { AlertFalsePositiveDialog } from './_components/alert-false-positive-dialog';
+import { buildAlertFilters, flattenAlertFetchParams } from './_components/alert-filters';
+import { AlertMergeDialog } from './_components/alert-merge-dialog';
+import { AlertStatsBar } from './_components/alert-stats-bar';
 
-function StatusBadge({ status }: { status: string }) {
-  return (
-    <span className={cn(
-      'inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold',
-      status === 'new' && 'bg-destructive/10 text-destructive',
-      status === 'acknowledged' && 'bg-amber-100 text-amber-800',
-      status === 'investigating' && 'bg-blue-100 text-blue-800',
-      status === 'resolved' && 'bg-green-100 text-green-800',
-      status === 'false_positive' && 'bg-muted text-muted-foreground',
-    )}>
-      {status.replace('_', ' ')}
-    </span>
+function fetchAlerts(params: FetchParams): Promise<PaginatedResponse<CyberAlert>> {
+  return apiGet<PaginatedResponse<CyberAlert>>(
+    API_ENDPOINTS.CYBER_ALERTS,
+    flattenAlertFetchParams(params),
   );
 }
 
 export default function CyberAlertsPage() {
-  const [page, setPage] = useState(1);
+  const router = useRouter();
+  const { hasPermission } = useAuth();
+  const canWrite = hasPermission('cyber:write');
 
-  const { data, isLoading, isError, refetch } = useQuery({
-    queryKey: ['cyber', 'alerts', page],
-    queryFn: () =>
-      apiGet<PaginatedResponse<Alert>>(API_ENDPOINTS.CYBER_ALERTS, {
-        sort: 'created_at',
-        order: 'desc',
-        per_page: 20,
-        page,
-      }),
-    refetchInterval: 30000,
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [tableResetKey, setTableResetKey] = useState(0);
+  const [assignTarget, setAssignTarget] = useState<CyberAlert | null>(null);
+  const [assignBulkIds, setAssignBulkIds] = useState<string[]>([]);
+  const [escalateTarget, setEscalateTarget] = useState<CyberAlert | null>(null);
+  const [falsePositiveIds, setFalsePositiveIds] = useState<string[]>([]);
+  const [mergeIds, setMergeIds] = useState<string[]>([]);
+  const [ackTarget, setAckTarget] = useState<CyberAlert | null>(null);
+
+  const { tableProps, setFilter, refetch } = useDataTable<CyberAlert>({
+    fetchFn: fetchAlerts,
+    queryKey: 'cyber-alerts',
+    defaultPageSize: 25,
+    defaultSort: { column: 'created_at', direction: 'desc' },
+    wsTopics: [
+      'cyber.alert.created',
+      'cyber.alert.status_changed',
+      'cyber.alert.assigned',
+      'cyber.alert.escalated',
+      'cyber.alert.merged',
+    ],
   });
+
+  const tacticsQuery = useQuery({
+    queryKey: ['cyber-mitre-tactics'],
+    queryFn: () => apiGet<{ data: MITRETacticItem[] }>(API_ENDPOINTS.CYBER_MITRE_TACTICS),
+  });
+
+  const filters = useMemo(
+    () => buildAlertFilters(tacticsQuery.data?.data ?? []),
+    [tacticsQuery.data?.data],
+  );
+
+  const currentAlerts = tableProps.data;
+  const mergeAlerts = currentAlerts.filter((alert) => mergeIds.includes(alert.id));
+
+  const columns = useMemo(
+    () => getAlertColumns({
+      includeSelection: canWrite,
+      onAssign: canWrite ? setAssignTarget : undefined,
+      onEscalate: canWrite ? setEscalateTarget : undefined,
+      onAcknowledge: canWrite ? setAckTarget : undefined,
+    }),
+    [canWrite],
+  );
+
+  const bulkActions = useMemo<BulkAction[]>(() => {
+    if (!canWrite) {
+      return [];
+    }
+
+    return [
+      {
+        label: 'Acknowledge Selected',
+        icon: CheckCheck,
+        onClick: async (ids) => {
+          if (ids.length === 0) {
+            toast.error('Select at least one alert');
+            return;
+          }
+          await apiPut(API_ENDPOINTS.CYBER_ALERT_BULK_STATUS, { alert_ids: ids, status: 'acknowledged' });
+          toast.success(`${ids.length} alerts acknowledged`);
+          await handleMutationComplete();
+        },
+      },
+      {
+        label: 'Assign to Analyst',
+        icon: UserCheck,
+        onClick: async (ids) => {
+          if (ids.length === 0) {
+            toast.error('Select at least one alert');
+            return;
+          }
+          setAssignBulkIds(ids);
+        },
+      },
+      {
+        label: 'Mark False Positive',
+        icon: ShieldAlert,
+        onClick: async (ids) => {
+          if (ids.length === 0) {
+            toast.error('Select at least one alert');
+            return;
+          }
+          setFalsePositiveIds(ids);
+        },
+      },
+      {
+        label: 'Merge Selected Alerts',
+        icon: GitMerge,
+        onClick: async (ids) => {
+          if (ids.length < 2) {
+            toast.error('Select at least two alerts to merge');
+            return;
+          }
+          setMergeIds(ids);
+        },
+      },
+    ];
+  }, [canWrite]);
+
+  async function handleMutationComplete() {
+    setSelectedIds([]);
+    setTableResetKey((value) => value + 1);
+    await refetch();
+    void tacticsQuery.refetch();
+  }
+
+  async function handleAcknowledge(alert: CyberAlert) {
+    await apiPut(API_ENDPOINTS.CYBER_ALERT_STATUS(alert.id), { status: 'acknowledged' });
+    toast.success('Alert acknowledged');
+    await handleMutationComplete();
+  }
 
   return (
     <PermissionRedirect permission="cyber:read">
       <div className="space-y-6">
-        <PageHeader title="Alerts" description="Monitor and manage security alerts" />
+        <PageHeader
+          title="Alert Management"
+          description="Triages new detections, route investigations to analysts, and pivot from MITRE techniques into evidence, comments, and correlated alerts."
+        />
 
-        {isLoading ? (
-          <LoadingSkeleton variant="table-row" count={10} />
-        ) : isError ? (
-          <ErrorState message="Failed to load alerts" onRetry={() => refetch()} />
-        ) : !data || data.data.length === 0 ? (
-          <EmptyState
-            icon={AlertTriangle}
-            title="No alerts found"
-            description="No security alerts match the current filter."
-          />
-        ) : (
-          <div className="rounded-lg border bg-card overflow-hidden">
-            <table className="w-full text-sm">
-              <thead className="border-b bg-muted/30">
-                <tr>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground">Severity</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground">Title</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground hidden md:table-cell">Source</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground">Status</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground hidden lg:table-cell">Created</th>
-                </tr>
-              </thead>
-              <tbody>
-                {data.data.map((alert) => (
-                  <tr key={alert.id} className="border-b last:border-0 hover:bg-muted/30">
-                    <td className="px-4 py-3"><SeverityBadge severity={alert.severity} /></td>
-                    <td className="px-4 py-3">
-                      <Link href={`/cyber/alerts/${alert.id}`} className="font-medium hover:underline">
-                        {alert.title}
-                      </Link>
-                      <p className="text-xs text-muted-foreground truncate max-w-xs">{alert.description}</p>
-                    </td>
-                    <td className="px-4 py-3 text-muted-foreground hidden md:table-cell">{alert.source}</td>
-                    <td className="px-4 py-3"><StatusBadge status={alert.status} /></td>
-                    <td className="px-4 py-3 text-muted-foreground hidden lg:table-cell">{timeAgo(alert.created_at)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            {data.meta.total_pages > 1 && (
-              <div className="flex items-center justify-between border-t px-4 py-3">
-                <p className="text-xs text-muted-foreground">
-                  Page {data.meta.page} of {data.meta.total_pages} ({data.meta.total} total)
-                </p>
-                <div className="flex gap-2">
-                  <button
-                    disabled={page <= 1}
-                    onClick={() => setPage((p) => p - 1)}
-                    className="rounded border px-3 py-1 text-xs disabled:opacity-50 hover:bg-accent"
-                  >
-                    Previous
-                  </button>
-                  <button
-                    disabled={page >= data.meta.total_pages}
-                    onClick={() => setPage((p) => p + 1)}
-                    className="rounded border px-3 py-1 text-xs disabled:opacity-50 hover:bg-accent"
-                  >
-                    Next
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
+        <AlertStatsBar onFilterByStatus={(status) => setFilter('status', status)} />
+
+        <DataTable
+          key={tableResetKey}
+          {...tableProps}
+          columns={columns}
+          filters={filters}
+          searchPlaceholder="Search alerts, rules, assets, or investigation context…"
+          getRowId={(row) => row.id}
+          onRowClick={(row) => router.push(`${ROUTES.CYBER_ALERTS}/${row.id}`)}
+          enableSelection={canWrite}
+          onSelectionChange={setSelectedIds}
+          bulkActions={bulkActions}
+          emptyState={{
+            icon: AlertTriangle,
+            title: 'No alerts found',
+            description: 'No alerts match the current filters.',
+          }}
+        />
       </div>
+
+      <PermissionGate permission="cyber:write">
+        <AlertAssignDialog
+          open={Boolean(assignTarget) || assignBulkIds.length > 0}
+          onOpenChange={(open) => {
+            if (!open) {
+              setAssignTarget(null);
+              setAssignBulkIds([]);
+            }
+          }}
+          alert={assignTarget}
+          alertIds={assignBulkIds}
+          onSuccess={() => {
+            setAssignTarget(null);
+            setAssignBulkIds([]);
+            void handleMutationComplete();
+          }}
+        />
+
+        {escalateTarget && (
+          <AlertEscalateDialog
+            open={Boolean(escalateTarget)}
+            onOpenChange={(open) => {
+              if (!open) {
+                setEscalateTarget(null);
+              }
+            }}
+            alert={escalateTarget}
+            onSuccess={() => {
+              setEscalateTarget(null);
+              void handleMutationComplete();
+            }}
+          />
+        )}
+
+        <AlertFalsePositiveDialog
+          open={falsePositiveIds.length > 0}
+          onOpenChange={(open) => {
+            if (!open) {
+              setFalsePositiveIds([]);
+            }
+          }}
+          alertIds={falsePositiveIds}
+          onSuccess={() => {
+            setFalsePositiveIds([]);
+            void handleMutationComplete();
+          }}
+        />
+
+        <AlertMergeDialog
+          open={mergeIds.length > 0}
+          onOpenChange={(open) => {
+            if (!open) {
+              setMergeIds([]);
+            }
+          }}
+          alerts={mergeAlerts}
+          onSuccess={() => {
+            setMergeIds([]);
+            void handleMutationComplete();
+          }}
+        />
+
+        {ackTarget && (
+          <ConfirmDialog
+            open={Boolean(ackTarget)}
+            onOpenChange={(open) => {
+              if (!open) {
+                setAckTarget(null);
+              }
+            }}
+            title="Acknowledge Alert"
+            description={`This will move ${ackTarget.title} into the acknowledged state and auto-assign it to you if it is currently unowned.`}
+            confirmLabel="Acknowledge"
+            onConfirm={async () => {
+              if (ackTarget) {
+                await handleAcknowledge(ackTarget);
+                setAckTarget(null);
+              }
+            }}
+          />
+        )}
+      </PermissionGate>
     </PermissionRedirect>
   );
 }

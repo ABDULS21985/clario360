@@ -1,6 +1,43 @@
 package mitre
 
-import "strings"
+import (
+	"strings"
+	"time"
+)
+
+// Framework metadata — update these when refreshing the embedded catalog.
+const (
+	// FrameworkVersion is the ATT&CK version this catalog is based on.
+	FrameworkVersion = "15.1"
+	// FrameworkUpdatedAt is the date the embedded catalog was last refreshed (ISO 8601).
+	FrameworkUpdatedAt = "2024-10-31"
+)
+
+// frameworkUpdatedTime is the parsed form of FrameworkUpdatedAt.
+var frameworkUpdatedTime, _ = time.Parse("2006-01-02", FrameworkUpdatedAt)
+
+// FrameworkMeta returns version metadata about the embedded catalog.
+func FrameworkMeta() FrameworkMetadata {
+	staleDays := int(time.Since(frameworkUpdatedTime).Hours() / 24)
+	return FrameworkMetadata{
+		Version:        FrameworkVersion,
+		UpdatedAt:      FrameworkUpdatedAt,
+		TacticCount:    len(tactics),
+		TechniqueCount: len(techniques),
+		StaleDays:      staleDays,
+		IsStale:        staleDays > 180,
+	}
+}
+
+// FrameworkMetadata holds version and freshness info for the embedded ATT&CK catalog.
+type FrameworkMetadata struct {
+	Version        string `json:"version"`
+	UpdatedAt      string `json:"updated_at"`
+	TacticCount    int    `json:"tactic_count"`
+	TechniqueCount int    `json:"technique_count"`
+	StaleDays      int    `json:"stale_days"`
+	IsStale        bool   `json:"is_stale"`
+}
 
 // Tactic represents a MITRE ATT&CK tactic.
 type Tactic struct {
@@ -110,10 +147,19 @@ func AllTechniques() []Technique {
 
 // TechniquesByTactic filters techniques for a single tactic.
 func TechniquesByTactic(tacticID string) []Technique {
+	return TechniquesByTactics([]string{tacticID})
+}
+
+// TechniquesByTactics filters techniques matching any of the given tactic IDs.
+func TechniquesByTactics(tacticIDs []string) []Technique {
+	set := make(map[string]struct{}, len(tacticIDs))
+	for _, id := range tacticIDs {
+		set[strings.ToLower(id)] = struct{}{}
+	}
 	results := make([]Technique, 0)
 	for _, technique := range techniques {
 		for _, candidate := range technique.TacticIDs {
-			if strings.EqualFold(candidate, tacticID) {
+			if _, ok := set[strings.ToLower(candidate)]; ok {
 				results = append(results, technique)
 				break
 			}

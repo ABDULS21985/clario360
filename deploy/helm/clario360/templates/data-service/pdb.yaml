@@ -1,0 +1,22 @@
+{{- if .Values.dataService.enabled }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "clario360.componentName" (dict "root" . "component" "data-service") }}
+  namespace: {{ include "clario360.namespace" . }}
+  labels:
+    {{- include "clario360.componentLabels" (dict "root" . "component" "data-service") | nindent 4 }}
+spec:
+  {{- if .Values.dataService.pdb }}
+  {{- if .Values.dataService.pdb.minAvailable }}
+  minAvailable: {{ .Values.dataService.pdb.minAvailable }}
+  {{- else }}
+  maxUnavailable: {{ .Values.dataService.pdb.maxUnavailable | default 1 }}
+  {{- end }}
+  {{- else }}
+  maxUnavailable: 1
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "clario360.componentSelectorLabels" (dict "root" . "component" "data-service") | nindent 6 }}
+{{- end }}

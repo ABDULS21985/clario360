@@ -34,12 +34,14 @@ type HumanTask struct {
 
 // FormField describes a single field in a human task form.
 type FormField struct {
-	Name     string      `json:"name"`
-	Type     string      `json:"type"` // boolean, text, textarea, select, number, date
-	Label    string      `json:"label"`
-	Required bool        `json:"required"`
-	Options  []string    `json:"options,omitempty"`
-	Default  interface{} `json:"default,omitempty"`
+	Name        string      `json:"name"`
+	Type        string      `json:"type"` // boolean, text, textarea, select, number, date
+	Label       string      `json:"label"`
+	Required    bool        `json:"required"`
+	Options     []string    `json:"options,omitempty"`
+	Default     interface{} `json:"default,omitempty"`
+	Placeholder string      `json:"placeholder,omitempty"`
+	Description string      `json:"description,omitempty"`
 }
 
 // SLAConfig defines the SLA parameters for a human task step.

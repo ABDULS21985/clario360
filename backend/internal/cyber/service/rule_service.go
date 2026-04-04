@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sort"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
@@ -64,6 +66,19 @@ func (s *RuleService) EnsureTemplates(ctx context.Context) error {
 	return nil
 }
 
+// Stats returns aggregate rule metrics for a tenant.
+func (s *RuleService) Stats(ctx context.Context, tenantID uuid.UUID, actor *Actor) (*dto.RuleStatsResponse, error) {
+	stats, err := s.ruleRepo.Stats(ctx, tenantID)
+	if err != nil {
+		return nil, err
+	}
+	_ = publishAuditEvent(ctx, s.producer, "cyber.rule.stats_viewed", tenantID, actor, map[string]interface{}{
+		"total":  stats.Total,
+		"active": stats.Active,
+	})
+	return stats, nil
+}
+
 // ListRules returns paginated tenant rules.
 func (s *RuleService) ListRules(ctx context.Context, tenantID uuid.UUID, params *dto.RuleListParams, actor *Actor) (*dto.RuleListResponse, error) {
 	params.SetDefaults()
@@ -77,16 +92,9 @@ func (s *RuleService) ListRules(ctx context.Context, tenantID uuid.UUID, params 
 	_ = publishAuditEvent(ctx, s.producer, "cyber.rule.listed", tenantID, actor, map[string]interface{}{
 		"count": len(rules),
 	})
-	totalPages := (total + params.PerPage - 1) / params.PerPage
-	if totalPages < 1 {
-		totalPages = 1
-	}
 	return &dto.RuleListResponse{
-		Data:       rules,
-		Total:      total,
-		Page:       params.Page,
-		PerPage:    params.PerPage,
-		TotalPages: totalPages,
+		Data: rules,
+		Meta: dto.NewPaginationMeta(params.Page, params.PerPage, total),
 	}, nil
 }
 
@@ -299,17 +307,147 @@ func (s *RuleService) SubmitFeedback(ctx context.Context, tenantID uuid.UUID, ac
 	return rule, nil
 }
 
+// RulePerformance returns operational metrics for a single detection rule.
+func (s *RuleService) RulePerformance(ctx context.Context, tenantID, ruleID uuid.UUID, actor *Actor) (*dto.RulePerformanceResponse, error) {
+	rule, err := s.ruleRepo.GetByID(ctx, tenantID, ruleID)
+	if err != nil {
+		return nil, err
+	}
+	perf, err := s.ruleRepo.RulePerformance(ctx, tenantID, ruleID)
+	if err != nil {
+		return nil, err
+	}
+	totalFeedback := rule.TruePositiveCount + rule.FalsePositiveCount
+	if totalFeedback > 0 {
+		perf.TruePositiveRate = float64(rule.TruePositiveCount) / float64(totalFeedback)
+		perf.FalsePositiveRate = float64(rule.FalsePositiveCount) / float64(totalFeedback)
+	}
+	_ = publishAuditEvent(ctx, s.producer, "cyber.rule.performance_viewed", tenantID, actor, map[string]interface{}{
+		"id": ruleID.String(),
+	})
+	return perf, nil
+}
+
 // Coverage returns the ATT&CK coverage map for the tenant's enabled rules.
-func (s *RuleService) Coverage(ctx context.Context, tenantID uuid.UUID, actor *Actor) ([]mitre.TechniqueCoverage, error) {
+func (s *RuleService) Coverage(ctx context.Context, tenantID uuid.UUID, actor *Actor) ([]dto.MITRECoverageDTO, error) {
 	rules, err := s.ruleRepo.ListEnabledByTenant(ctx, tenantID)
 	if err != nil {
 		return nil, err
 	}
 	coverage := mitre.BuildCoverage(rules)
+	contextMap, err := s.ruleRepo.TechniqueCoverageContextMap(ctx, tenantID)
+	if err != nil {
+		return nil, err
+	}
+
+	out := make([]dto.MITRECoverageDTO, 0, len(coverage))
+	for _, item := range coverage {
+		contextEntry := contextMap[item.Technique.ID]
+		highFPRuleCount := 0
+		for _, rule := range rules {
+			if !containsString(rule.MITRETechniqueIDs, item.Technique.ID) {
+				continue
+			}
+			if rule.FPRate() >= 0.30 {
+				highFPRuleCount++
+			}
+		}
+		out = append(out, dto.MITRECoverageDTO{
+			TechniqueID:       item.Technique.ID,
+			TechniqueName:     item.Technique.Name,
+			TacticIDs:         item.Technique.TacticIDs,
+			HasDetection:      item.HasDetection,
+			RuleCount:         item.RuleCount,
+			RuleNames:         item.RuleNames,
+			CoverageState:     coverageState(item.HasDetection, highFPRuleCount > 0, techniqueActiveThreatCount(contextEntry)),
+			HighFPRuleCount:   highFPRuleCount,
+			AlertCount:        techniqueAlertCount(contextEntry),
+			ThreatCount:       techniqueThreatCount(contextEntry),
+			ActiveThreatCount: techniqueActiveThreatCount(contextEntry),
+			LastAlertAt:       techniqueLastAlertAt(contextEntry),
+			Description:       item.Technique.Description,
+			Platforms:         item.Technique.Platforms,
+		})
+	}
 	_ = publishAuditEvent(ctx, s.producer, "cyber.mitre.coverage_viewed", tenantID, actor, map[string]interface{}{
-		"count": len(coverage),
+		"count": len(out),
 	})
-	return coverage, nil
+	return out, nil
+}
+
+// TechniqueDetail returns a single MITRE technique enriched with tenant-specific context.
+func (s *RuleService) TechniqueDetail(ctx context.Context, tenantID uuid.UUID, techniqueID string, actor *Actor) (*dto.MITRETechniqueDetailDTO, error) {
+	technique, ok := mitre.TechniqueByID(techniqueID)
+	if !ok {
+		return nil, repository.ErrNotFound
+	}
+
+	contextMap, err := s.ruleRepo.TechniqueCoverageContextMap(ctx, tenantID)
+	if err != nil {
+		return nil, err
+	}
+	contextEntry := contextMap[technique.ID]
+
+	rules, err := s.ruleRepo.ListByTechnique(ctx, tenantID, technique.ID)
+	if err != nil {
+		return nil, err
+	}
+	sort.Slice(rules, func(i, j int) bool {
+		if rules[i].Enabled != rules[j].Enabled {
+			return rules[i].Enabled
+		}
+		if rules[i].TriggerCount != rules[j].TriggerCount {
+			return rules[i].TriggerCount > rules[j].TriggerCount
+		}
+		return rules[i].Name < rules[j].Name
+	})
+
+	highFPRuleCount := 0
+	linkedRules := make([]dto.MITRERuleReferenceDTO, 0, len(rules))
+	for _, rule := range rules {
+		if rule.FPRate() >= 0.30 {
+			highFPRuleCount++
+		}
+		linkedRules = append(linkedRules, dto.MITRERuleReferenceDTO{
+			ID:                 rule.ID,
+			Name:               rule.Name,
+			RuleType:           rule.RuleType,
+			Severity:           rule.Severity,
+			Enabled:            rule.Enabled,
+			TriggerCount:       rule.TriggerCount,
+			TruePositiveCount:  rule.TruePositiveCount,
+			FalsePositiveCount: rule.FalsePositiveCount,
+			LastTriggeredAt:    rule.LastTriggeredAt,
+		})
+	}
+
+	recentAlerts, err := s.ruleRepo.TechniqueRecentAlerts(ctx, tenantID, technique.ID, 10)
+	if err != nil {
+		return nil, err
+	}
+
+	detail := &dto.MITRETechniqueDetailDTO{
+		ID:                technique.ID,
+		Name:              technique.Name,
+		Description:       technique.Description,
+		TacticIDs:         technique.TacticIDs,
+		Platforms:         technique.Platforms,
+		DataSources:       technique.DataSources,
+		CoverageState:     coverageState(len(linkedRules) > 0, highFPRuleCount > 0, techniqueActiveThreatCount(contextEntry)),
+		RuleCount:         len(linkedRules),
+		AlertCount:        techniqueAlertCount(contextEntry),
+		ThreatCount:       techniqueThreatCount(contextEntry),
+		ActiveThreatCount: techniqueActiveThreatCount(contextEntry),
+		HighFPRuleCount:   highFPRuleCount,
+		LastAlertAt:       techniqueLastAlertAt(contextEntry),
+		LinkedRules:       linkedRules,
+		LinkedThreats:     techniqueThreats(contextEntry),
+		RecentAlerts:      recentAlerts,
+	}
+	_ = publishAuditEvent(ctx, s.producer, "cyber.mitre.technique_viewed", tenantID, actor, map[string]interface{}{
+		"id": technique.ID,
+	})
+	return detail, nil
 }
 
 func (s *RuleService) buildRuleFromCreateRequest(tenantID uuid.UUID, req *dto.CreateRuleRequest) (*model.DetectionRule, error) {
@@ -389,4 +527,61 @@ func changedRuleFields(existing *model.DetectionRule, req *dto.UpdateRuleRequest
 
 func stringPointer(value string) *string {
 	return &value
+}
+
+func containsString(values []string, needle string) bool {
+	for _, value := range values {
+		if value == needle {
+			return true
+		}
+	}
+	return false
+}
+
+func coverageState(hasDetection bool, hasHighFPRule bool, activeThreatCount int) string {
+	switch {
+	case hasDetection && hasHighFPRule:
+		return "noisy"
+	case hasDetection:
+		return "covered"
+	case activeThreatCount > 0:
+		return "gap"
+	default:
+		return "idle"
+	}
+}
+
+func techniqueAlertCount(entry *repository.TechniqueCoverageContext) int {
+	if entry == nil {
+		return 0
+	}
+	return entry.AlertCount
+}
+
+func techniqueThreatCount(entry *repository.TechniqueCoverageContext) int {
+	if entry == nil {
+		return 0
+	}
+	return entry.ThreatCount
+}
+
+func techniqueActiveThreatCount(entry *repository.TechniqueCoverageContext) int {
+	if entry == nil {
+		return 0
+	}
+	return entry.ActiveThreatCount
+}
+
+func techniqueLastAlertAt(entry *repository.TechniqueCoverageContext) *time.Time {
+	if entry == nil {
+		return nil
+	}
+	return entry.LastAlertAt
+}
+
+func techniqueThreats(entry *repository.TechniqueCoverageContext) []dto.MITREThreatReferenceDTO {
+	if entry == nil || entry.Threats == nil {
+		return []dto.MITREThreatReferenceDTO{}
+	}
+	return entry.Threats
 }

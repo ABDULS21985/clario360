@@ -1,0 +1,127 @@
+{{- if .Values.notificationService.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "clario360.componentName" (dict "root" . "component" "notification-service") }}
+  namespace: {{ include "clario360.namespace" . }}
+  labels:
+    {{- include "clario360.componentLabels" (dict "root" . "component" "notification-service") | nindent 4 }}
+spec:
+  replicas: {{ .Values.notificationService.replicaCount | default 2 }}
+  revisionHistoryLimit: {{ .Values.notificationService.revisionHistoryLimit | default 5 }}
+  selector:
+    matchLabels:
+      {{- include "clario360.componentSelectorLabels" (dict "root" . "component" "notification-service") | nindent 6 }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap-services.yaml") . | sha256sum }}
+        {{- include "clario360.prometheusAnnotations" (dict "metricsPort" "9089") | nindent 8 }}
+        {{- with .Values.notificationService.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      labels:
+        {{- include "clario360.componentSelectorLabels" (dict "root" . "component" "notification-service") | nindent 8 }}
+        {{- with .Values.notificationService.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- with .Values.global.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "clario360.serviceAccountName" (dict "root" . "component" "notification-service" "svcConfig" .Values.notificationService) }}
+      securityContext:
+        {{- include "clario360.podSecurityContext" . | nindent 8 }}
+      terminationGracePeriodSeconds: {{ .Values.notificationService.terminationGracePeriodSeconds | default 30 }}
+      containers:
+        - name: notification-service
+          image: {{ include "clario360.image" (dict "imageConfig" .Values.notificationService.image "root" . "defaultRepo" "clario360/notification-service") }}
+          imagePullPolicy: {{ .Values.notificationService.image.pullPolicy | default "IfNotPresent" }}
+          securityContext:
+            {{- include "clario360.containerSecurityContext" . | nindent 12 }}
+          ports:
+            - name: http
+              containerPort: 8089
+              protocol: TCP
+            - name: admin
+              containerPort: 9089
+              protocol: TCP
+          envFrom:
+            - configMapRef:
+                name: {{ include "clario360.fullname" . }}-shared-config
+            - configMapRef:
+                name: {{ include "clario360.componentName" (dict "root" . "component" "notification-service") }}-config
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "clario360.fullname" . }}-database-credentials
+                  key: PLATFORM_DB_URL
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "clario360.fullname" . }}-redis-credentials
+                  key: REDIS_PASSWORD
+            - name: AUTH_RSA_PUBLIC_KEY_PEM
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "clario360.fullname" . }}-jwt-keys
+                  key: AUTH_RSA_PUBLIC_KEY_PEM
+            - name: NOTIF_SMTP_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "clario360.fullname" . }}-smtp-credentials
+                  key: SMTP_PASSWORD
+                  optional: true
+            - name: NOTIF_WEBHOOK_HMAC_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "clario360.fullname" . }}-notification-secrets
+                  key: NOTIF_WEBHOOK_HMAC_SECRET
+            - name: KAFKA_BROKERS
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ include "clario360.fullname" . }}-shared-config
+                  key: KAFKA_BROKERS
+            - name: NOTIF_IAM_SERVICE_URL
+              value: "http://{{ include "clario360.componentName" (dict "root" . "component" "iam-service") }}:8081"
+            - name: OTEL_SERVICE_NAME
+              value: "notification-service"
+            {{- with .Values.notificationService.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- include "clario360.healthProbes" (dict "portName" "http" "healthPath" "/healthz" "readyPath" "/readyz") | nindent 10 }}
+          resources:
+            {{- toYaml .Values.notificationService.resources | nindent 12 }}
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: {{ if eq (default "dev" .Values.global.environment) "production" }}DoNotSchedule{{ else }}ScheduleAnyway{{ end }}
+          labelSelector:
+            matchLabels:
+              {{- include "clario360.componentSelectorLabels" (dict "root" . "component" "notification-service") | nindent 14 }}
+      {{- with .Values.notificationService.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.notificationService.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.notificationService.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}

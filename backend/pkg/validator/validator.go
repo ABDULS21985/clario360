@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/go-playground/validator/v10"
 
@@ -66,6 +67,18 @@ func RegisterCustomValidators(v *validator.Validate) error {
 	}); err != nil {
 		return err
 	}
+	if err := v.RegisterValidation("datestr", func(fl validator.FieldLevel) bool {
+		s := fl.Field().String()
+		if _, err := time.Parse("2006-01-02", s); err == nil {
+			return true
+		}
+		if _, err := time.Parse(time.RFC3339, s); err == nil {
+			return true
+		}
+		return false
+	}); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -119,6 +132,8 @@ func formatError(fe validator.FieldError) string {
 		return "must be a valid relationship type (hosts, runs_on, connects_to, depends_on, managed_by, backs_up, load_balances)"
 	case "alphanumdash":
 		return "must contain only letters, digits, hyphens, and underscores"
+	case "datestr":
+		return "must be a valid date (YYYY-MM-DD or RFC3339)"
 	case "gte":
 		return fmt.Sprintf("must be greater than or equal to %s", fe.Param())
 	case "lte":

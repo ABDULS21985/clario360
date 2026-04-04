@@ -16,7 +16,7 @@ type HealthChecker interface {
 
 // HealthResult describes the outcome of a single health check.
 type HealthResult struct {
-	Status    string                 `json:"status"`              // "healthy", "degraded", "unhealthy"
+	Status    string                 `json:"status"` // "healthy", "degraded", "unhealthy"
 	LatencyMs int64                  `json:"latency_ms"`
 	Error     string                 `json:"error,omitempty"`
 	Details   map[string]interface{} `json:"details,omitempty"`
@@ -24,8 +24,8 @@ type HealthResult struct {
 
 // CompositeResult is the aggregated result of all health checks.
 type CompositeResult struct {
-	Status string                   `json:"status"`
-	Checks map[string]HealthResult  `json:"checks"`
+	Status string                  `json:"status"`
+	Checks map[string]HealthResult `json:"checks"`
 }
 
 // CompositeHealthChecker runs multiple health checks concurrently.
@@ -44,6 +44,15 @@ func NewCompositeHealthChecker(timeout time.Duration, checkers ...HealthChecker)
 		checkers: checkers,
 		timeout:  timeout,
 	}
+}
+
+// AddCheckers appends dependency probes to an existing composite checker.
+// It is intended for service-specific checks that are only known after bootstrap.
+func (c *CompositeHealthChecker) AddCheckers(checkers ...HealthChecker) {
+	if c == nil || len(checkers) == 0 {
+		return
+	}
+	c.checkers = append(c.checkers, checkers...)
 }
 
 // CheckAll runs ALL checks concurrently, each with its own timeout.

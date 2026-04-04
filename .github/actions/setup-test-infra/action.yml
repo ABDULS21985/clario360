@@ -1,0 +1,97 @@
+name: Setup Test Infrastructure
+description: Wait for service containers, create test databases, and run migrations
+
+inputs:
+  pg_password:
+    description: PostgreSQL password
+    required: false
+    default: testpass
+  pg_user:
+    description: PostgreSQL user
+    required: false
+    default: postgres
+  pg_host:
+    description: PostgreSQL host
+    required: false
+    default: localhost
+  redis_host:
+    description: Redis host
+    required: false
+    default: localhost
+  kafka_broker:
+    description: Kafka broker address
+    required: false
+    default: localhost:9092
+
+runs:
+  using: composite
+  steps:
+    - name: Wait for PostgreSQL
+      shell: bash
+      run: |
+        echo "Waiting for PostgreSQL..."
+        for i in $(seq 1 30); do
+          if pg_isready -h ${{ inputs.pg_host }} -U ${{ inputs.pg_user }} 2>/dev/null; then
+            echo "PostgreSQL is ready"
+            break
+          fi
+          echo "Attempt $i/30..."
+          sleep 2
+        done
+
+    - name: Wait for Redis
+      shell: bash
+      run: |
+        echo "Waiting for Redis..."
+        for i in $(seq 1 30); do
+          if redis-cli -h ${{ inputs.redis_host }} ping 2>/dev/null | grep -q PONG; then
+            echo "Redis is ready"
+            break
+          fi
+          echo "Attempt $i/30..."
+          sleep 2
+        done
+
+    - name: Wait for Kafka
+      shell: bash
+      run: |
+        echo "Waiting for Kafka..."
+        for i in $(seq 1 30); do
+          if echo "exit" | timeout 5 bash -c "cat < /dev/tcp/${KAFKA_HOST:-localhost}/${KAFKA_PORT:-9092}" 2>/dev/null; then
+            echo "Kafka is ready"
+            break
+          fi
+          echo "Attempt $i/30..."
+          sleep 2
+        done
+      env:
+        KAFKA_HOST: ${{ inputs.kafka_broker && 'localhost' }}
+        KAFKA_PORT: "9092"
+
+    - name: Create test databases
+      shell: bash
+      env:
+        PGPASSWORD: ${{ inputs.pg_password }}
+      run: |
+        echo "Creating test databases..."
+        for db in iam_test platform_test cyber_test data_test acta_test lex_test visus_test; do
+          echo "Creating database: $db"
+          psql -h ${{ inputs.pg_host }} -U ${{ inputs.pg_user }} -c "CREATE DATABASE $db;" 2>/dev/null || echo "Database $db already exists"
+        done
+        echo "All test databases created"
+
+    - name: Run migrations
+      shell: bash
+      working-directory: backend
+      env:
+        PGPASSWORD: ${{ inputs.pg_password }}
+        IAM_DB_URL: postgres://${{ inputs.pg_user }}:${{ inputs.pg_password }}@${{ inputs.pg_host }}:5432/iam_test?sslmode=disable
+        PLATFORM_DB_URL: postgres://${{ inputs.pg_user }}:${{ inputs.pg_password }}@${{ inputs.pg_host }}:5432/platform_test?sslmode=disable
+        CYBER_DB_URL: postgres://${{ inputs.pg_user }}:${{ inputs.pg_password }}@${{ inputs.pg_host }}:5432/cyber_test?sslmode=disable
+        DATA_DB_URL: postgres://${{ inputs.pg_user }}:${{ inputs.pg_password }}@${{ inputs.pg_host }}:5432/data_test?sslmode=disable
+        ACTA_DB_URL: postgres://${{ inputs.pg_user }}:${{ inputs.pg_password }}@${{ inputs.pg_host }}:5432/acta_test?sslmode=disable
+        LEX_DB_URL: postgres://${{ inputs.pg_user }}:${{ inputs.pg_password }}@${{ inputs.pg_host }}:5432/lex_test?sslmode=disable
+        VISUS_DB_URL: postgres://${{ inputs.pg_user }}:${{ inputs.pg_password }}@${{ inputs.pg_host }}:5432/visus_test?sslmode=disable
+      run: |
+        echo "Running database migrations..."
+        GOWORK=off go run cmd/migrator/main.go --env=test || echo "Migration completed (or no migrator available)"

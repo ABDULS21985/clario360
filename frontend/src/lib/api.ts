@@ -4,13 +4,22 @@ import axios, {
   AxiosResponse,
 } from 'axios';
 import { getAccessToken, setAccessToken, clearAccessToken } from '@/lib/auth';
+import { getCSRFToken, requiresCSRF, CSRF_HEADER } from '@/lib/csrf';
 import type { ApiError } from '@/types/api';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8080';
 
+// Intentionally global: ALL backend list endpoints use Go's url.Values which
+// reads repeated keys (type=sigma&type=threshold), not Axios's default bracket
+// format (type[]=sigma&type[]=threshold). Every call through this instance —
+// cyber rules, alerts, assets, threats, etc. — hits a splitQueryValues helper
+// that requires the repeat format. Do not use a per-request override.
 const api = axios.create({
   baseURL: API_URL,
   timeout: 30000,
+  paramsSerializer: {
+    indexes: null, // repeat format: arr=a&arr=b (not arr[]=a&arr[]=b)
+  },
 });
 
 // ── Request interceptor ──────────────────────────────────────────────────────
@@ -40,6 +49,14 @@ api.interceptors.request.use(
       config.headers
     ) {
       config.headers['Content-Type'] = 'application/json';
+    }
+
+    // Attach CSRF token for state-changing methods (POST, PUT, PATCH, DELETE)
+    if (config.method && requiresCSRF(config.method) && config.headers) {
+      const csrfToken = getCSRFToken();
+      if (csrfToken) {
+        config.headers[CSRF_HEADER] = csrfToken;
+      }
     }
 
     return config;
@@ -173,16 +190,32 @@ function buildApiError(error: AxiosError): ApiError {
 
   const body = error.response.data as Record<string, unknown> | null;
   const status = error.response.status;
+  const nestedError =
+    body?.['error'] && typeof body['error'] === 'object'
+      ? (body['error'] as Record<string, unknown>)
+      : null;
+  const fallbackMessage =
+    typeof body?.['error'] === 'string' ? (body['error'] as string) : undefined;
 
   return {
     status,
-    code: (body?.['code'] as string | undefined) ?? `HTTP_${status}`,
+    code:
+      (nestedError?.['code'] as string | undefined) ??
+      (body?.['code'] as string | undefined) ??
+      `HTTP_${status}`,
     message:
+      (nestedError?.['message'] as string | undefined) ??
       (body?.['message'] as string | undefined) ??
-      (body?.['error'] as string | undefined) ??
+      fallbackMessage ??
       `Request failed with status ${status}`,
-    details: (body?.['details'] as Record<string, string[]> | undefined) ?? undefined,
-    request_id: (body?.['request_id'] as string | undefined) ?? undefined,
+    details:
+      (nestedError?.['details'] as Record<string, string[]> | undefined) ??
+      (body?.['details'] as Record<string, string[]> | undefined) ??
+      undefined,
+    request_id:
+      (nestedError?.['request_id'] as string | undefined) ??
+      (body?.['request_id'] as string | undefined) ??
+      undefined,
   };
 }
 

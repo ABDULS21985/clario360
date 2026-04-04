@@ -1,75 +1,110 @@
 'use client';
 
-import { useParams } from 'next/navigation';
-import { AlertTriangle } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
-import { apiGet } from '@/lib/api';
-import { formatDateTime, cn } from '@/lib/utils';
-import { PageHeader } from '@/components/common/page-header';
-import { LoadingSkeleton } from '@/components/common/loading-skeleton';
+import { ArrowLeft, RefreshCw } from 'lucide-react';
 import { ErrorState } from '@/components/common/error-state';
+import { LoadingSkeleton } from '@/components/common/loading-skeleton';
+import { PageHeader } from '@/components/common/page-header';
 import { PermissionRedirect } from '@/components/common/permission-redirect';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import type { Alert } from '@/types/models';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { apiGet } from '@/lib/api';
+import { API_ENDPOINTS } from '@/lib/constants';
+import type { CyberAlert } from '@/types/cyber';
 
-export default function AlertDetailPage() {
-  const { id } = useParams<{ id: string }>();
+import { AlertComments } from './_components/alert-comments';
+import { AlertEvidence } from './_components/alert-evidence';
+import { AlertExplanation } from './_components/alert-explanation';
+import { AlertHeader } from './_components/alert-header';
+import { AlertRelated } from './_components/alert-related';
+import { AlertTimeline } from './_components/alert-timeline';
 
-  const { data: alert, isLoading, isError, refetch } = useQuery({
-    queryKey: ['cyber', 'alert', id],
-    queryFn: () => apiGet<Alert>(`/api/v1/cyber/alerts/${id}`),
-    enabled: !!id,
+interface AlertDetailPageProps {
+  params: { id: string };
+}
+
+export default function AlertDetailPage({ params }: AlertDetailPageProps) {
+  const router = useRouter();
+
+  const alertQuery = useQuery({
+    queryKey: ['cyber-alert', params.id],
+    queryFn: () => apiGet<{ data: CyberAlert }>(API_ENDPOINTS.CYBER_ALERT_DETAIL(params.id)),
+    refetchInterval: 30000,
   });
+
+  const alert = alertQuery.data?.data;
 
   return (
     <PermissionRedirect permission="cyber:read">
       <div className="space-y-6">
-        {isLoading ? (
-          <LoadingSkeleton variant="card" count={2} />
-        ) : isError ? (
-          <ErrorState message="Failed to load alert details" onRetry={() => refetch()} />
-        ) : alert ? (
-          <>
-            <PageHeader
-              title={alert.title}
-              description={`Source: ${alert.source}`}
-            />
-            <div className="grid gap-4 md:grid-cols-2">
-              <Card>
-                <CardHeader><CardTitle className="text-sm">Details</CardTitle></CardHeader>
-                <CardContent className="space-y-3 text-sm">
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Severity</span>
-                    <span className={cn(
-                      'rounded-full px-2 py-0.5 text-xs font-semibold',
-                      alert.severity === 'critical' && 'bg-red-100 text-red-800',
-                      alert.severity === 'high' && 'bg-orange-100 text-orange-800',
-                      alert.severity === 'medium' && 'bg-yellow-100 text-yellow-800',
-                    )}>{alert.severity}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Status</span>
-                    <span>{alert.status.replace('_', ' ')}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Created</span>
-                    <span>{formatDateTime(alert.created_at)}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Updated</span>
-                    <span>{formatDateTime(alert.updated_at)}</span>
-                  </div>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardHeader><CardTitle className="text-sm">Description</CardTitle></CardHeader>
-                <CardContent>
-                  <p className="text-sm text-muted-foreground">{alert.description}</p>
-                </CardContent>
-              </Card>
+        <PageHeader
+          title="Alert Investigation Workspace"
+          description="Inspect the explanation payload, review supporting evidence, collaborate with analysts, and pivot into related detections."
+          actions={
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" onClick={() => router.push('/cyber/alerts')}>
+                <ArrowLeft className="mr-1.5 h-4 w-4" />
+                Back to Alerts
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => void alertQuery.refetch()}>
+                <RefreshCw className="mr-1.5 h-4 w-4" />
+                Refresh
+              </Button>
             </div>
+          }
+        />
+
+        {alertQuery.isLoading ? (
+          <LoadingSkeleton variant="card" />
+        ) : alertQuery.error || !alert ? (
+          <ErrorState message="Failed to load alert details" onRetry={() => void alertQuery.refetch()} />
+        ) : (
+          <>
+            <AlertHeader alert={alert} onUpdated={() => void alertQuery.refetch()} />
+
+            {(alert.tags?.length ?? 0) > 0 && (
+              <div className="flex flex-wrap gap-2">
+                {alert.tags.map((tag) => (
+                  <Badge key={tag} variant="secondary">
+                    {tag}
+                  </Badge>
+                ))}
+              </div>
+            )}
+
+            <Tabs defaultValue="explanation" className="space-y-4">
+              <TabsList className="w-full justify-start overflow-x-auto">
+                <TabsTrigger value="explanation">AI Explanation</TabsTrigger>
+                <TabsTrigger value="evidence">Evidence</TabsTrigger>
+                <TabsTrigger value="comments">Comments</TabsTrigger>
+                <TabsTrigger value="timeline">Timeline</TabsTrigger>
+                <TabsTrigger value="related">Related Alerts</TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="explanation">
+                <AlertExplanation alert={alert} />
+              </TabsContent>
+
+              <TabsContent value="evidence">
+                <AlertEvidence alert={alert} />
+              </TabsContent>
+
+              <TabsContent value="comments">
+                <AlertComments alertId={alert.id} />
+              </TabsContent>
+
+              <TabsContent value="timeline">
+                <AlertTimeline alertId={alert.id} />
+              </TabsContent>
+
+              <TabsContent value="related">
+                <AlertRelated alert={alert} />
+              </TabsContent>
+            </Tabs>
           </>
-        ) : null}
+        )}
       </div>
     </PermissionRedirect>
   );

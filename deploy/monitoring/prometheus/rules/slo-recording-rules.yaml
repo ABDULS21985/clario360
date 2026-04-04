@@ -1,0 +1,93 @@
+groups:
+  - name: slo-recording
+    interval: 1m
+    rules:
+      # Request success rate (availability SLI) — 5 minute window
+      - record: clario360:sli:availability:rate5m
+        expr: |
+          sum(rate(clario360_gateway_requests_total{status_code!~"5.."}[5m]))
+          /
+          sum(rate(clario360_gateway_requests_total[5m]))
+
+      # Request success rate — 1 hour window
+      - record: clario360:sli:availability:rate1h
+        expr: |
+          sum(rate(clario360_gateway_requests_total{status_code!~"5.."}[1h]))
+          /
+          sum(rate(clario360_gateway_requests_total[1h]))
+
+      # Request success rate — 6 hour window
+      - record: clario360:sli:availability:rate6h
+        expr: |
+          sum(rate(clario360_gateway_requests_total{status_code!~"5.."}[6h]))
+          /
+          sum(rate(clario360_gateway_requests_total[6h]))
+
+      # Request success rate — 24 hour window
+      - record: clario360:sli:availability:rate24h
+        expr: |
+          sum(rate(clario360_gateway_requests_total{status_code!~"5.."}[24h]))
+          /
+          sum(rate(clario360_gateway_requests_total[24h]))
+
+      # 30-day rolling availability
+      - record: clario360:sli:availability:rate30d
+        expr: |
+          sum(increase(clario360_gateway_requests_total{status_code!~"5.."}[30d]))
+          /
+          sum(increase(clario360_gateway_requests_total[30d]))
+
+      # Error budget remaining (monthly, target 99.9%)
+      - record: clario360:slo:error_budget_remaining
+        expr: |
+          1 - (
+            (1 - clario360:sli:availability:rate30d)
+            /
+            (1 - 0.999)
+          )
+
+      # Current error rate (inverse of availability)
+      - record: clario360:slo:error_rate:rate5m
+        expr: |
+          1 - clario360:sli:availability:rate5m
+
+      # Burn rate — 1h window
+      - record: clario360:slo:burn_rate:1h
+        expr: |
+          (1 - clario360:sli:availability:rate1h) / (1 - 0.999)
+
+      # Burn rate — 6h window
+      - record: clario360:slo:burn_rate:6h
+        expr: |
+          (1 - clario360:sli:availability:rate6h) / (1 - 0.999)
+
+      # Burn rate — 24h window
+      - record: clario360:slo:burn_rate:24h
+        expr: |
+          (1 - clario360:sli:availability:rate24h) / (1 - 0.999)
+
+      # Latency SLI — p95 response time
+      - record: clario360:sli:latency:p95:rate5m
+        expr: |
+          histogram_quantile(0.95,
+            sum(rate(clario360_gateway_request_duration_seconds_bucket[5m])) by (le)
+          )
+
+      # Latency SLI — p99 response time
+      - record: clario360:sli:latency:p99:rate5m
+        expr: |
+          histogram_quantile(0.99,
+            sum(rate(clario360_gateway_request_duration_seconds_bucket[5m])) by (le)
+          )
+
+      # Per-service request rate
+      - record: clario360:service:requests:rate5m
+        expr: |
+          sum(rate(clario360_gateway_requests_total[5m])) by (service)
+
+      # Per-service error rate
+      - record: clario360:service:error_rate:rate5m
+        expr: |
+          sum(rate(clario360_gateway_requests_total{status_code=~"5.."}[5m])) by (service)
+          /
+          sum(rate(clario360_gateway_requests_total[5m])) by (service)

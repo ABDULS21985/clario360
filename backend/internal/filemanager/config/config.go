@@ -106,6 +106,14 @@ func Load() (*Config, error) {
 
 	// Optional with defaults
 	port := getOptionalInt("FILE_HTTP_PORT", 8091)
+	dbMinConns := getOptionalInt("FILE_DB_MIN_CONNS", 5)
+	dbMaxConns := getOptionalInt("FILE_DB_MAX_CONNS", 20)
+	if dbMinConns < 1 {
+		return nil, fmt.Errorf("FILE_DB_MIN_CONNS must be >= 1")
+	}
+	if dbMaxConns < dbMinConns {
+		return nil, fmt.Errorf("FILE_DB_MAX_CONNS must be >= FILE_DB_MIN_CONNS")
+	}
 	cfg.MinIOUseSSL = getOptional("FILE_MINIO_USE_SSL", "false") == "true"
 	cfg.MinIORegion = getOptional("FILE_MINIO_REGION", "us-east-1")
 	cfg.BucketPrefix = getOptional("FILE_MINIO_BUCKET_PREFIX", "clario360")
@@ -150,9 +158,12 @@ func Load() (*Config, error) {
 		AdminPort:   port + 1000, // 9091
 		LogLevel:    logLevel,
 		DB: &bootstrap.DBConfig{
-			URL:      dbURL,
-			MinConns: 5,
-			MaxConns: 20,
+			URL:               dbURL,
+			MinConns:          dbMinConns,
+			MaxConns:          dbMaxConns,
+			MaxConnLife:       time.Hour,
+			MaxConnIdle:       30 * time.Minute,
+			HealthCheckPeriod: time.Minute,
 		},
 		Redis: &bootstrap.RedisConfig{
 			Addr: redisURL,

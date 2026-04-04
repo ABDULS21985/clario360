@@ -68,11 +68,8 @@ func (p *CTEMAssessmentListParams) Validate() error {
 }
 
 type CTEMAssessmentListResponse struct {
-	Data       []*model.CTEMAssessment `json:"data"`
-	Total      int                     `json:"total"`
-	Page       int                     `json:"page"`
-	PerPage    int                     `json:"per_page"`
-	TotalPages int                     `json:"total_pages"`
+	Data []*model.CTEMAssessment `json:"data"`
+	Meta PaginationMeta          `json:"meta"`
 }
 
 type CTEMFindingsListParams struct {
@@ -124,11 +121,8 @@ func (p *CTEMFindingsListParams) Validate() error {
 }
 
 type CTEMFindingsListResponse struct {
-	Data       []*model.CTEMFinding `json:"data"`
-	Total      int                  `json:"total"`
-	Page       int                  `json:"page"`
-	PerPage    int                  `json:"per_page"`
-	TotalPages int                  `json:"total_pages"`
+	Data []*model.CTEMFinding `json:"data"`
+	Meta PaginationMeta       `json:"meta"`
 }
 
 type UpdateCTEMFindingStatusRequest struct {

@@ -38,9 +38,13 @@ func (r *CTEMRemediationGroupRepository) ReplaceForAssessment(ctx context.Contex
 
 	rows := make([][]any, 0, len(groups))
 	for _, group := range groups {
+		cveIDs := group.CVEIDs
+		if cveIDs == nil {
+			cveIDs = []string{}
+		}
 		rows = append(rows, []any{
 			group.ID, group.TenantID, group.AssessmentID, group.Title, group.Description, string(group.Type),
-			group.FindingCount, group.AffectedAssetCount, group.CVEIDs, group.MaxPriorityScore, group.PriorityGroup,
+			group.FindingCount, group.AffectedAssetCount, cveIDs, group.MaxPriorityScore, group.PriorityGroup,
 			string(group.Effort), group.EstimatedDays, group.ScoreReduction, string(group.Status),
 			group.WorkflowInstanceID, group.TargetDate, group.StartedAt, group.CompletedAt, group.CreatedAt, group.UpdatedAt,
 		})

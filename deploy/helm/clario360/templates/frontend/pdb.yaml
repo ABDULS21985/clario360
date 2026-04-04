@@ -1,0 +1,22 @@
+{{- if .Values.frontend.enabled }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "clario360.componentName" (dict "root" . "component" "frontend") }}
+  namespace: {{ include "clario360.namespace" . }}
+  labels:
+    {{- include "clario360.componentLabels" (dict "root" . "component" "frontend") | nindent 4 }}
+spec:
+  {{- if .Values.frontend.pdb }}
+  {{- if .Values.frontend.pdb.minAvailable }}
+  minAvailable: {{ .Values.frontend.pdb.minAvailable }}
+  {{- else }}
+  maxUnavailable: {{ .Values.frontend.pdb.maxUnavailable | default 1 }}
+  {{- end }}
+  {{- else }}
+  maxUnavailable: 1
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "clario360.componentSelectorLabels" (dict "root" . "component" "frontend") | nindent 6 }}
+{{- end }}

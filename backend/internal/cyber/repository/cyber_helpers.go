@@ -21,10 +21,38 @@ type dbtx interface {
 	Exec(ctx context.Context, sql string, arguments ...any) (pgconn.CommandTag, error)
 	Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error)
 	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
+	CopyFrom(ctx context.Context, tableName pgx.Identifier, columnNames []string, rowSrc pgx.CopyFromSource) (int64, error)
 }
 
 func queryable(pool *pgxpool.Pool) dbtx {
 	return pool
+}
+
+func runWithTenantRead(ctx context.Context, pool *pgxpool.Pool, tenantID uuid.UUID, fn func(dbtx) error) error {
+	return runWithTenantTx(ctx, pool, tenantID, pgx.TxOptions{AccessMode: pgx.ReadOnly}, fn)
+}
+
+func runWithTenantWrite(ctx context.Context, pool *pgxpool.Pool, tenantID uuid.UUID, fn func(dbtx) error) error {
+	return runWithTenantTx(ctx, pool, tenantID, pgx.TxOptions{}, fn)
+}
+
+func runWithTenantTx(ctx context.Context, pool *pgxpool.Pool, tenantID uuid.UUID, opts pgx.TxOptions, fn func(dbtx) error) error {
+	tx, err := pool.BeginTx(ctx, opts)
+	if err != nil {
+		return fmt.Errorf("begin tenant transaction: %w", err)
+	}
+	defer tx.Rollback(ctx) //nolint:errcheck
+
+	if _, err := tx.Exec(ctx, "SELECT set_config('app.current_tenant_id', $1, true)", tenantID.String()); err != nil {
+		return fmt.Errorf("set tenant context: %w", err)
+	}
+	if err := fn(tx); err != nil {
+		return err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("commit tenant transaction: %w", err)
+	}
+	return nil
 }
 
 func marshalJSON(value interface{}) ([]byte, error) {
@@ -200,6 +228,7 @@ func scanThreat(row scanner) (*model.Threat, error) {
 		&item.Campaign,
 		&item.MITRETacticIDs,
 		&item.MITRETechniqueIDs,
+		&item.IndicatorCount,
 		&item.AffectedAssetCount,
 		&item.AlertCount,
 		&item.FirstSeenAt,
@@ -256,6 +285,56 @@ func scanIndicator(row scanner) (*model.ThreatIndicator, error) {
 		item.Tags = []string{}
 	}
 	return &item, nil
+}
+
+func scanIndicatorWithThreat(row scanner) (*model.ThreatIndicator, error) {
+	var item model.ThreatIndicator
+	if err := row.Scan(
+		&item.ID,
+		&item.TenantID,
+		&item.ThreatID,
+		&item.ThreatName,
+		&item.ThreatType,
+		&item.ThreatStatus,
+		&item.Type,
+		&item.Value,
+		&item.Description,
+		&item.Severity,
+		&item.Source,
+		&item.Confidence,
+		&item.Active,
+		&item.FirstSeenAt,
+		&item.LastSeenAt,
+		&item.ExpiresAt,
+		&item.Tags,
+		&item.Metadata,
+		&item.CreatedBy,
+		&item.CreatedAt,
+		&item.UpdatedAt,
+	); err != nil {
+		return nil, err
+	}
+	item.Metadata = ensureRawMessage(item.Metadata, "{}")
+	if item.Tags == nil {
+		item.Tags = []string{}
+	}
+	return &item, nil
+}
+
+func uniqueUUIDs(ids []uuid.UUID) []uuid.UUID {
+	seen := make(map[uuid.UUID]struct{}, len(ids))
+	result := make([]uuid.UUID, 0, len(ids))
+	for _, id := range ids {
+		if id == uuid.Nil {
+			continue
+		}
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		result = append(result, id)
+	}
+	return result
 }
 
 func scanSecurityEvent(row scanner) (*model.SecurityEvent, error) {

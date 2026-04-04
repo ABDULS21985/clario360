@@ -1,0 +1,12 @@
+jupyterhub:
+  singleuser:
+    image:
+      tag: "1.0.0-rc"
+
+resourceQuota:
+  requestsCpu: "16"
+  requestsMemory: 48Gi
+  limitsCpu: "32"
+  limitsMemory: 96Gi
+  persistentVolumeClaims: "20"
+  requestsStorage: 750Gi

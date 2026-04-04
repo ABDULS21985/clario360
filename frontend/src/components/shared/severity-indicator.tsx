@@ -1,7 +1,13 @@
 import { AlertTriangle, AlertCircle, Info, ArrowDown, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-export type Severity = "critical" | "high" | "medium" | "low" | "info";
+export type Severity =
+  | "critical"
+  | "high"
+  | "warning"
+  | "medium"
+  | "low"
+  | "info";
 
 interface SeverityIndicatorProps {
   severity: Severity;
@@ -14,6 +20,7 @@ interface SeverityIndicatorProps {
 const severityConfig: Record<Severity, { label: string; icon: LucideIcon; bg: string; text: string }> = {
   critical: { label: "Critical", icon: AlertTriangle, bg: "bg-red-100 dark:bg-red-900/30", text: "text-red-600 dark:text-red-400" },
   high:     { label: "High",     icon: AlertCircle,   bg: "bg-orange-100 dark:bg-orange-900/30", text: "text-orange-600 dark:text-orange-400" },
+  warning:  { label: "Warning",  icon: AlertCircle,   bg: "bg-yellow-100 dark:bg-yellow-900/30", text: "text-yellow-600 dark:text-yellow-400" },
   medium:   { label: "Medium",   icon: Info,          bg: "bg-yellow-100 dark:bg-yellow-900/30", text: "text-yellow-600 dark:text-yellow-400" },
   low:      { label: "Low",      icon: ArrowDown,     bg: "bg-blue-100 dark:bg-blue-900/30", text: "text-blue-600 dark:text-blue-400" },
   info:     { label: "Info",     icon: Info,          bg: "bg-gray-100 dark:bg-gray-800", text: "text-gray-500 dark:text-gray-400" },

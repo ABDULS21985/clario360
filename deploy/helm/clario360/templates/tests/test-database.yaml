@@ -1,0 +1,78 @@
+{{/*
+=======================================================================
+Clario360 Platform — Helm Test: Database Connectivity
+=======================================================================
+Verifies that all 7 PostgreSQL databases are reachable via pg_isready.
+*/}}
+apiVersion: v1
+kind: Pod
+metadata:
+  name: {{ include "clario360.fullname" . }}-test-database
+  namespace: {{ include "clario360.namespace" . }}
+  labels:
+    {{- include "clario360.labels" . | nindent 4 }}
+    app.kubernetes.io/component: test-database
+  annotations:
+    "helm.sh/hook": test
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+spec:
+  restartPolicy: Never
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 65534
+    runAsGroup: 65534
+    fsGroup: 65534
+    seccompProfile:
+      type: RuntimeDefault
+  containers:
+    - name: test-database
+      image: postgres:16-alpine
+      imagePullPolicy: IfNotPresent
+      command: ['sh', '-c']
+      args:
+        - |
+          echo "=== Clario360 Database Connectivity Test ==="
+          echo ""
+          DB_HOST="{{ .Values.database.host }}"
+          DB_PORT="{{ .Values.database.port }}"
+          FAILED=0
+          TOTAL=0
+          PASSED=0
+
+          test_db() {
+            local name="$1"
+            TOTAL=$((TOTAL + 1))
+            echo -n "  Testing database '$name' at $DB_HOST:$DB_PORT ... "
+            if pg_isready -h "$DB_HOST" -p "$DB_PORT" -d "$name" -t 5 >/dev/null 2>&1; then
+              echo "OK"
+              PASSED=$((PASSED + 1))
+            else
+              echo "FAILED"
+              FAILED=1
+            fi
+          }
+
+          test_db "{{ .Values.database.names.iam }}"
+          test_db "{{ .Values.database.names.platform }}"
+          test_db "{{ .Values.database.names.cyber }}"
+          test_db "{{ .Values.database.names.data }}"
+          test_db "{{ .Values.database.names.acta }}"
+          test_db "{{ .Values.database.names.lex }}"
+          test_db "{{ .Values.database.names.visus }}"
+
+          echo ""
+          echo "=== Results: $PASSED/$TOTAL databases reachable ==="
+
+          if [ $FAILED -eq 1 ]; then
+            echo "FAILED: Some databases are unreachable"
+            exit 1
+          fi
+          echo "All databases reachable!"
+      securityContext:
+        allowPrivilegeEscalation: false
+        readOnlyRootFilesystem: true
+        runAsNonRoot: true
+        runAsUser: 65534
+        capabilities:
+          drop:
+            - ALL

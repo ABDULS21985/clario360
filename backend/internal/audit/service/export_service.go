@@ -48,13 +48,18 @@ func (s *ExportService) ExportCSV(ctx context.Context, w io.Writer, cfg *dto.Exp
 
 	csvWriter := csv.NewWriter(w)
 
-	// Write header
-	header := []string{
-		"id", "tenant_id", "user_id", "user_email", "service", "action",
-		"severity", "resource_type", "resource_id", "ip_address",
-		"user_agent", "event_id", "correlation_id", "created_at",
+	// Determine which columns to include.
+	columns := dto.AllExportColumns
+	if len(cfg.Columns) > 0 {
+		columns = cfg.Columns
 	}
-	if err := csvWriter.Write(header); err != nil {
+	colSet := make(map[string]bool, len(columns))
+	for _, c := range columns {
+		colSet[c] = true
+	}
+
+	// Write header
+	if err := csvWriter.Write(columns); err != nil {
 		return 0, fmt.Errorf("writing CSV header: %w", err)
 	}
 
@@ -68,18 +73,11 @@ func (s *ExportService) ExportCSV(ctx context.Context, w io.Writer, cfg *dto.Exp
 		}
 
 		masked := s.masking.MaskEntry(entry, callerRoles)
+		allFields := entryToFieldMap(&masked)
 
-		userID := ""
-		if masked.UserID != nil {
-			userID = *masked.UserID
-		}
-
-		record := []string{
-			masked.ID, masked.TenantID, userID, masked.UserEmail,
-			masked.Service, masked.Action, masked.Severity,
-			masked.ResourceType, masked.ResourceID, masked.IPAddress,
-			masked.UserAgent, masked.EventID, masked.CorrelationID,
-			masked.CreatedAt.Format(time.RFC3339),
+		record := make([]string, 0, len(columns))
+		for _, col := range columns {
+			record = append(record, allFields[col])
 		}
 
 		if err := csvWriter.Write(record); err != nil {
@@ -117,20 +115,66 @@ func (s *ExportService) ExportNDJSON(ctx context.Context, w io.Writer, cfg *dto.
 	filter := s.buildFilter(cfg)
 	var count int64
 
+	// Build column set for filtering NDJSON output.
+	var colSet map[string]bool
+	if len(cfg.Columns) > 0 {
+		colSet = make(map[string]bool, len(cfg.Columns))
+		for _, c := range cfg.Columns {
+			colSet[c] = true
+		}
+	}
+
 	_, err := s.repo.StreamForExport(ctx, filter, func(entry *model.AuditEntry) error {
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
 
 		masked := s.masking.MaskEntry(entry, callerRoles)
-		if err := encoder.Encode(masked); err != nil {
-			return fmt.Errorf("encoding NDJSON: %w", err)
+
+		if colSet != nil {
+			// Emit only selected columns as a JSON object.
+			fields := entryToFieldMap(&masked)
+			filtered := make(map[string]string, len(colSet))
+			for col := range colSet {
+				filtered[col] = fields[col]
+			}
+			if err := encoder.Encode(filtered); err != nil {
+				return fmt.Errorf("encoding NDJSON: %w", err)
+			}
+		} else {
+			if err := encoder.Encode(masked); err != nil {
+				return fmt.Errorf("encoding NDJSON: %w", err)
+			}
 		}
 		count++
 		return nil
 	})
 
 	return count, err
+}
+
+// entryToFieldMap converts an AuditEntry to a column-name→string-value map.
+func entryToFieldMap(e *model.AuditEntry) map[string]string {
+	userID := ""
+	if e.UserID != nil {
+		userID = *e.UserID
+	}
+	return map[string]string{
+		"id":             e.ID,
+		"tenant_id":      e.TenantID,
+		"user_id":        userID,
+		"user_email":     e.UserEmail,
+		"service":        e.Service,
+		"action":         e.Action,
+		"severity":       e.Severity,
+		"resource_type":  e.ResourceType,
+		"resource_id":    e.ResourceID,
+		"ip_address":     e.IPAddress,
+		"user_agent":     e.UserAgent,
+		"event_id":       e.EventID,
+		"correlation_id": e.CorrelationID,
+		"created_at":     e.CreatedAt.Format(time.RFC3339),
+	}
 }
 
 // ShouldExportAsync determines if the export should be async based on record count.

@@ -1,12 +1,22 @@
 apiVersion: v2
 name: clario360
-description: Clario 360 Enterprise AI Platform Helm Chart
+description: "Clario 360 Enterprise AI Platform — Cybersecurity, Data Intelligence, Board Governance, Legal Operations, Executive Intelligence"
 type: application
-version: 0.1.0
-appVersion: "0.1.0"
+version: 1.0.0
+appVersion: "1.0.0"
+kubeVersion: ">=1.27.0-0"
 keywords:
-  - clario360
   - enterprise
-  - ai-platform
+  - cybersecurity
+  - data-intelligence
+  - governance
+  - legal
+  - ai
+home: https://clario360.com
+icon: https://clario360.com/assets/icon.png
 maintainers:
-  - name: Clario360 Team
+  - name: Clario 360 Platform Team
+    email: platform@clario360.com
+annotations:
+  category: Enterprise Platform
+  licenses: Proprietary

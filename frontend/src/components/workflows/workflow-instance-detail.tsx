@@ -112,7 +112,7 @@ function StepHistoryTable({ steps }: { steps: StepExecution[] }) {
                     className="border-b last:border-0 hover:bg-muted/30 cursor-pointer"
                     onClick={() => toggle(step.id)}
                   >
-                    <td className="px-3 py-2 font-medium">{step.step_name}</td>
+                    <td className="px-3 py-2 font-medium">{step.step_name ?? step.step_id}</td>
                     <td className="px-3 py-2">
                       <div className="flex items-center gap-1.5">
                         <StepIcon className="h-3.5 w-3.5 text-muted-foreground" />
@@ -139,36 +139,36 @@ function StepHistoryTable({ steps }: { steps: StepExecution[] }) {
                       {step.started_at ? formatDateTime(step.started_at) : '—'}
                     </td>
                     <td className="hidden px-3 py-2 text-xs text-muted-foreground lg:table-cell">
-                      {step.duration_seconds != null ? formatDuration(step.duration_seconds) : '—'}
+                      {step.duration_ms != null ? formatDuration(Math.round(step.duration_ms / 1000)) : step.duration_seconds != null ? formatDuration(step.duration_seconds) : '—'}
                     </td>
                     <td className="hidden px-3 py-2 text-xs text-muted-foreground lg:table-cell">
                       {step.attempt}
                     </td>
                   </tr>
-                  {isExpanded && (step.input || step.output || step.error) && (
+                  {isExpanded && ((step.input_data ?? step.input) || (step.output_data ?? step.output) || (step.error_message ?? step.error)) && (
                     <tr className="border-b last:border-0 bg-muted/20">
                       <td colSpan={6} className="px-3 py-3">
-                        <div className="grid gap-3 text-xs sm:grid-cols-2">
-                          {step.input && (
+                        <div className="grid grid-cols-1 gap-3 text-xs sm:grid-cols-2">
+                          {(step.input_data ?? step.input) && (
                             <div>
                               <p className="mb-1 font-semibold text-muted-foreground">Input</p>
                               <pre className="overflow-auto rounded border bg-background p-2 whitespace-pre-wrap">
-                                {JSON.stringify(step.input, null, 2)}
+                                {JSON.stringify(step.input_data ?? step.input, null, 2)}
                               </pre>
                             </div>
                           )}
-                          {step.output && (
+                          {(step.output_data ?? step.output) && (
                             <div>
                               <p className="mb-1 font-semibold text-muted-foreground">Output</p>
                               <pre className="overflow-auto rounded border bg-background p-2 whitespace-pre-wrap">
-                                {JSON.stringify(step.output, null, 2)}
+                                {JSON.stringify(step.output_data ?? step.output, null, 2)}
                               </pre>
                             </div>
                           )}
-                          {step.error && (
+                          {(step.error_message ?? step.error) && (
                             <div className="sm:col-span-2">
                               <p className="mb-1 font-semibold text-destructive">Error</p>
-                              <p className="text-destructive">{step.error}</p>
+                              <p className="text-destructive">{step.error_message ?? step.error}</p>
                             </div>
                           )}
                         </div>
@@ -203,7 +203,7 @@ export function WorkflowInstanceDetail({
       </div>
 
       {/* Two-column layout */}
-      <div className="grid gap-6 lg:grid-cols-[1fr_300px]">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_300px]">
         {/* Left: step timeline */}
         <div className="space-y-6">
           <div>
@@ -211,7 +211,7 @@ export function WorkflowInstanceDetail({
             <WorkflowStepTimeline
               steps={history}
               currentStepId={instance.current_step_id}
-              definitionSteps={instance.definition_steps}
+              definitionSteps={instance.definition_steps ?? []}
             />
           </div>
           <StepHistoryTable steps={history} />
@@ -220,7 +220,7 @@ export function WorkflowInstanceDetail({
         {/* Right: variables and outputs */}
         <div className="space-y-6">
           <VariablesSection variables={instance.variables} />
-          <StepOutputsSection outputs={instance.step_outputs} />
+          <StepOutputsSection outputs={instance.step_outputs ?? {}} />
         </div>
       </div>
     </div>

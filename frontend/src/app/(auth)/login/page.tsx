@@ -1,7 +1,7 @@
 import { Suspense } from 'react';
 import type { Metadata } from 'next';
+import { AuthLoadingState } from '@/components/auth/auth-page-primitives';
 import { LoginForm } from '@/components/auth/login-form';
-import { Spinner } from '@/components/ui/spinner';
 
 export const metadata: Metadata = {
   title: 'Sign In — Clario 360',
@@ -9,7 +9,14 @@ export const metadata: Metadata = {
 
 export default function LoginPage() {
   return (
-    <Suspense fallback={<div className="flex justify-center py-8"><Spinner /></div>}>
+    <Suspense
+      fallback={
+        <AuthLoadingState
+          label="Loading secure access"
+          detail="We are preparing the sign-in experience and syncing the current authentication state."
+        />
+      }
+    >
       <LoginForm />
     </Suspense>
   );

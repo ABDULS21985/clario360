@@ -66,6 +66,19 @@ func TestNewEvent_NilData(t *testing.T) {
 	}
 }
 
+func TestNewEvent_PreservesPrefixedTypeAndSource(t *testing.T) {
+	event, err := NewEvent("com.clario360.cyber.remediation.created", "clario360/cyber-service", "tenant-123", nil)
+	if err != nil {
+		t.Fatalf("NewEvent with prefixed inputs failed: %v", err)
+	}
+	if event.Type != "com.clario360.cyber.remediation.created" {
+		t.Fatalf("expected fully-qualified type to be preserved, got %s", event.Type)
+	}
+	if event.Source != "clario360/cyber-service" {
+		t.Fatalf("expected fully-qualified source to be preserved, got %s", event.Source)
+	}
+}
+
 func TestNewEventWithCorrelation(t *testing.T) {
 	event, err := NewEventWithCorrelation("alert.created", "cyber-service", "tenant-456", nil, "corr-123", "cause-789")
 	if err != nil {

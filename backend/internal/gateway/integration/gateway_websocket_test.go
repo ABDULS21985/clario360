@@ -46,7 +46,7 @@ func newTestJWTManager(t *testing.T) *auth.JWTManager {
 // makeWSToken generates a valid access token for WebSocket tests.
 func makeWSToken(t *testing.T, mgr *auth.JWTManager) string {
 	t.Helper()
-	pair, err := mgr.GenerateTokenPair("user-ws-1", "tenant-ws", "ws@example.com", []string{"viewer"})
+	pair, err := mgr.GenerateTokenPair("user-ws-1", "tenant-ws", "ws@example.com", []string{"viewer"}, "")
 	if err != nil {
 		t.Fatalf("GenerateTokenPair: %v", err)
 	}

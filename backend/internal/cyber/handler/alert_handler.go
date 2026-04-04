@@ -8,17 +8,16 @@ import (
 
 	"github.com/clario360/platform/internal/cyber/dto"
 	"github.com/clario360/platform/internal/cyber/repository"
-	"github.com/clario360/platform/internal/cyber/service"
 	pkgvalidator "github.com/clario360/platform/pkg/validator"
 )
 
 // AlertHandler handles alert lifecycle endpoints.
 type AlertHandler struct {
-	svc *service.AlertService
+	svc alertService
 }
 
 // NewAlertHandler creates a new AlertHandler.
-func NewAlertHandler(svc *service.AlertService) *AlertHandler {
+func NewAlertHandler(svc alertService) *AlertHandler {
 	return &AlertHandler{svc: svc}
 }
 
@@ -136,6 +135,31 @@ func (h *AlertHandler) Escalate(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, envelope{"data": alert})
 }
 
+func (h *AlertHandler) MarkFalsePositive(w http.ResponseWriter, r *http.Request) {
+	tenantID, _, ok := requireTenantAndUser(w, r)
+	if !ok {
+		return
+	}
+	alertID, ok := parseUUID(w, chi.URLParam(r, "id"))
+	if !ok {
+		return
+	}
+	var req dto.AlertFalsePositiveRequest
+	if !decodeJSON(w, r, &req) {
+		return
+	}
+	if fieldErrs := pkgvalidator.Validate(req); fieldErrs != nil {
+		writeValidationError(w, fieldErrs)
+		return
+	}
+	alert, err := h.svc.MarkFalsePositive(r.Context(), tenantID, alertID, actorFromRequest(r), req.Reason)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "FALSE_POSITIVE_FAILED", err.Error(), nil)
+		return
+	}
+	writeJSON(w, http.StatusOK, envelope{"data": alert})
+}
+
 func (h *AlertHandler) AddComment(w http.ResponseWriter, r *http.Request) {
 	tenantID, _, ok := requireTenantAndUser(w, r)
 	if !ok {
@@ -246,6 +270,69 @@ func (h *AlertHandler) Stats(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, envelope{"data": stats})
 }
 
+func (h *AlertHandler) BulkUpdateStatus(w http.ResponseWriter, r *http.Request) {
+	tenantID, _, ok := requireTenantAndUser(w, r)
+	if !ok {
+		return
+	}
+	var req dto.BulkAlertStatusRequest
+	if !decodeJSON(w, r, &req) {
+		return
+	}
+	if fieldErrs := pkgvalidator.Validate(req); fieldErrs != nil {
+		writeValidationError(w, fieldErrs)
+		return
+	}
+	result, err := h.svc.BulkUpdateStatus(r.Context(), tenantID, actorFromRequest(r), &req)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "BULK_STATUS_FAILED", err.Error(), nil)
+		return
+	}
+	writeJSON(w, http.StatusOK, envelope{"data": result})
+}
+
+func (h *AlertHandler) BulkAssign(w http.ResponseWriter, r *http.Request) {
+	tenantID, _, ok := requireTenantAndUser(w, r)
+	if !ok {
+		return
+	}
+	var req dto.BulkAlertAssignRequest
+	if !decodeJSON(w, r, &req) {
+		return
+	}
+	if fieldErrs := pkgvalidator.Validate(req); fieldErrs != nil {
+		writeValidationError(w, fieldErrs)
+		return
+	}
+	result, err := h.svc.BulkAssign(r.Context(), tenantID, actorFromRequest(r), &req)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "BULK_ASSIGN_FAILED", err.Error(), nil)
+		return
+	}
+	writeJSON(w, http.StatusOK, envelope{"data": result})
+}
+
+func (h *AlertHandler) BulkMarkFalsePositive(w http.ResponseWriter, r *http.Request) {
+	tenantID, _, ok := requireTenantAndUser(w, r)
+	if !ok {
+		return
+	}
+	var req dto.BulkAlertFalsePositiveRequest
+	if !decodeJSON(w, r, &req) {
+		return
+	}
+	if fieldErrs := pkgvalidator.Validate(req); fieldErrs != nil {
+		writeValidationError(w, fieldErrs)
+		return
+	}
+	result, err := h.svc.BulkMarkFalsePositive(r.Context(), tenantID, actorFromRequest(r), &req)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "BULK_FALSE_POSITIVE_FAILED", err.Error(), nil)
+		return
+	}
+	writeJSON(w, http.StatusOK, envelope{"data": result})
+}
+
 func (h *AlertHandler) Count(w http.ResponseWriter, r *http.Request) {
 	tenantID, _, ok := requireTenantAndUser(w, r)
 	if !ok {
@@ -256,10 +343,10 @@ func (h *AlertHandler) Count(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "VALIDATION_ERROR", err.Error(), nil)
 		return
 	}
-	count, err := h.svc.Count(r.Context(), tenantID, params, actorFromRequest(r))
+	resp, err := h.svc.CountWithHistory(r.Context(), tenantID, params, actorFromRequest(r))
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "COUNT_FAILED", err.Error(), nil)
 		return
 	}
-	writeJSON(w, http.StatusOK, envelope{"data": dto.AlertCountResponse{Count: count}})
+	writeJSON(w, http.StatusOK, envelope{"data": resp})
 }

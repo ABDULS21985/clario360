@@ -6,8 +6,8 @@ import (
 
 func TestAllTopics(t *testing.T) {
 	topics := AllTopics()
-	if len(topics) != 22 {
-		t.Errorf("expected 22 topics, got %d", len(topics))
+	if len(topics) != 28 {
+		t.Errorf("expected 28 topics, got %d", len(topics))
 	}
 
 	// Verify no duplicates
@@ -39,11 +39,23 @@ func TestTopicConstants(t *testing.T) {
 	if Topics.DeadLetter != "platform.dead-letter" {
 		t.Errorf("unexpected DeadLetter: %s", Topics.DeadLetter)
 	}
+	if Topics.AIEvents != "platform.ai.events" {
+		t.Errorf("unexpected AIEvents: %s", Topics.AIEvents)
+	}
 	if Topics.AlertEvents != "cyber.alert.events" {
 		t.Errorf("unexpected AlertEvents: %s", Topics.AlertEvents)
 	}
 	if Topics.RuleEvents != "cyber.rule.events" {
 		t.Errorf("unexpected RuleEvents: %s", Topics.RuleEvents)
+	}
+	if Topics.DSPMEvents != "cyber.dspm.events" {
+		t.Errorf("unexpected DSPMEvents: %s", Topics.DSPMEvents)
+	}
+	if Topics.DarkDataEvents != "data.darkdata.events" {
+		t.Errorf("unexpected DarkDataEvents: %s", Topics.DarkDataEvents)
+	}
+	if Topics.VCISOEvents != "cyber.vciso.events" {
+		t.Errorf("unexpected VCISOEvents: %s", Topics.VCISOEvents)
 	}
 }
 
@@ -65,8 +77,8 @@ func TestLegacyTopicConstants(t *testing.T) {
 
 func TestDefaultTopicConfigs(t *testing.T) {
 	configs := DefaultTopicConfigs()
-	if len(configs) != 22 {
-		t.Errorf("expected 22 topic configs, got %d", len(configs))
+	if len(configs) != 28 {
+		t.Errorf("expected 28 topic configs, got %d", len(configs))
 	}
 
 	// Verify DLQ has 30-day retention
