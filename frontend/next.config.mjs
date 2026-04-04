@@ -8,6 +8,7 @@ const analyzer = withBundleAnalyzer({
 const nextConfig = {
   reactStrictMode: true,
   output: 'standalone',
+  distDir: process.env.NEXT_DIST_DIR || '.next',
   experimental: {
     optimizePackageImports: ['lucide-react', 'recharts', 'framer-motion'],
   },
