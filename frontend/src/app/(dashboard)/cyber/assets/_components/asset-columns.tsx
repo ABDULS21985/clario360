@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation';
 import { ColumnDef, Row } from '@tanstack/react-table';
 import {
   Server, Monitor, Cloud, Router, Wifi, AppWindow, Database, Box,
-  MoreHorizontal, Pencil, Trash2, Tag,
+  MoreHorizontal, Pencil, Trash2, Tag, GitBranch,
 } from 'lucide-react';
 import Link from 'next/link';
 import { SeverityIndicator } from '@/components/shared/severity-indicator';
@@ -60,9 +60,10 @@ interface AssetActionsProps {
   onEdit?: (asset: CyberAsset) => void;
   onDelete?: (asset: CyberAsset) => void;
   onTag?: (asset: CyberAsset) => void;
+  onRelationship?: (asset: CyberAsset) => void;
 }
 
-function AssetActions({ asset, onEdit, onDelete, onTag }: AssetActionsProps) {
+function AssetActions({ asset, onEdit, onDelete, onTag, onRelationship }: AssetActionsProps) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -72,18 +73,29 @@ function AssetActions({ asset, onEdit, onDelete, onTag }: AssetActionsProps) {
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
-        <DropdownMenuItem onClick={() => onEdit?.(asset)}>
-          <Pencil className="mr-2 h-3.5 w-3.5" /> Edit
-        </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => onTag?.(asset)}>
-          <Tag className="mr-2 h-3.5 w-3.5" /> Manage Tags
-        </DropdownMenuItem>
-        <DropdownMenuItem
-          className="text-destructive"
-          onClick={() => onDelete?.(asset)}
-        >
-          <Trash2 className="mr-2 h-3.5 w-3.5" /> Delete
-        </DropdownMenuItem>
+        {onEdit && (
+          <DropdownMenuItem onClick={() => onEdit(asset)}>
+            <Pencil className="mr-2 h-3.5 w-3.5" /> Edit
+          </DropdownMenuItem>
+        )}
+        {onTag && (
+          <DropdownMenuItem onClick={() => onTag(asset)}>
+            <Tag className="mr-2 h-3.5 w-3.5" /> Manage Tags
+          </DropdownMenuItem>
+        )}
+        {onRelationship && (
+          <DropdownMenuItem onClick={() => onRelationship(asset)}>
+            <GitBranch className="mr-2 h-3.5 w-3.5" /> Add Relationship
+          </DropdownMenuItem>
+        )}
+        {onDelete && (
+          <DropdownMenuItem
+            className="text-destructive"
+            onClick={() => onDelete(asset)}
+          >
+            <Trash2 className="mr-2 h-3.5 w-3.5" /> Delete
+          </DropdownMenuItem>
+        )}
       </DropdownMenuContent>
     </DropdownMenu>
   );
@@ -93,6 +105,7 @@ interface AssetColumnOptions {
   onEdit?: (asset: CyberAsset) => void;
   onDelete?: (asset: CyberAsset) => void;
   onTag?: (asset: CyberAsset) => void;
+  onRelationship?: (asset: CyberAsset) => void;
 }
 
 export function getAssetColumns(options: AssetColumnOptions = {}): ColumnDef<CyberAsset>[] {

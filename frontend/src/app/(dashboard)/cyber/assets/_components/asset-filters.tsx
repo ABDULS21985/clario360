@@ -69,4 +69,36 @@ export const ASSET_FILTERS: FilterConfig[] = [
       { label: 'Import', value: 'import' },
     ],
   },
+  {
+    key: 'has_vulnerabilities',
+    label: 'Has Vulnerabilities',
+    type: 'select',
+    options: [
+      { label: 'Yes', value: 'true' },
+      { label: 'No', value: 'false' },
+    ],
+  },
+  {
+    key: 'owner',
+    label: 'Owner',
+    type: 'text',
+    placeholder: 'Filter by owner...',
+  },
+  {
+    key: 'department',
+    label: 'Department',
+    type: 'text',
+    placeholder: 'Filter by department...',
+  },
+  {
+    key: 'tag',
+    label: 'Tag',
+    type: 'text',
+    placeholder: 'Filter by tag...',
+  },
+  {
+    key: 'discovered_after',
+    label: 'Discovered After',
+    type: 'date-range',
+  },
 ];

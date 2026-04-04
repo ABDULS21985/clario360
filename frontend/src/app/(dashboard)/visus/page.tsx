@@ -11,6 +11,7 @@ import { PageHeader } from '@/components/common/page-header';
 import { PermissionRedirect } from '@/components/common/permission-redirect';
 import { RelativeTime } from '@/components/shared/relative-time';
 import { SectionCard } from '@/components/suites/section-card';
+import { CTIExecutiveSection } from '@/components/visus/cti/cti-executive-section';
 import { enterpriseApi } from '@/lib/enterprise';
 import type { VisusDashboard, VisusReport } from '@/types/suites';
 import { Badge } from '@/components/ui/badge';
@@ -202,6 +203,8 @@ export default function VisusPage() {
             <p className="text-sm text-muted-foreground">Executive health data is unavailable for this tenant.</p>
           )}
         </SectionCard>
+
+        <CTIExecutiveSection />
 
         <SectionCard title="Recent Reports" description="Most recently updated report definitions.">
           <div className="space-y-3">

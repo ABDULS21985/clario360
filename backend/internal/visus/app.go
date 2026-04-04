@@ -26,13 +26,13 @@ import (
 )
 
 type Dependencies struct {
-	DB         *pgxpool.Pool
-	Redis      *redis.Client
-	Publisher  *events.Producer
-	Logger     zerolog.Logger
-	Registerer prometheus.Registerer
-	Config     *visusconfig.Config
-	JWTManager *auth.JWTManager
+	DB               *pgxpool.Pool
+	Redis            *redis.Client
+	Publisher        *events.Producer
+	Logger           zerolog.Logger
+	Registerer       prometheus.Registerer
+	Config           *visusconfig.Config
+	JWTManager       *auth.JWTManager
 	PredictionLogger *aigovmiddleware.PredictionLogger
 }
 
@@ -47,6 +47,7 @@ type Application struct {
 	ExecutiveService  *service.ExecutiveService
 	KPIScheduler      *kpi.Scheduler
 	ReportScheduler   *report.Scheduler
+	CTIAlertScheduler *CTIAlertScheduler
 	Consumer          *consumer.VisusConsumer
 	CrossSuiteMetrics *events.CrossSuiteMetrics
 
@@ -56,6 +57,11 @@ type Application struct {
 	alertHandler     *handler.AlertHandler
 	reportHandler    *handler.ReportHandler
 	executiveHandler *handler.ExecutiveHandler
+	ctiWidgetHandler *CTIWidgetHandler
+	ctiClient        *CTIClient
+	ctiCache         *CTICache
+	ctiKPIProvider   *CTIKPIProvider
+	ctiAlertEval     *CTIAlertEvaluator
 	cfg              *visusconfig.Config
 	logger           zerolog.Logger
 }
@@ -91,22 +97,34 @@ func NewApplication(deps Dependencies) (*Application, error) {
 	escalator := visusalert.NewEscalator(store.Alerts)
 	kpiEngine := kpi.NewEngine(kpi.NewFetcher(suiteClient), kpi.NewCalculator(), kpi.NewThresholdEvaluator(), store.KPISnapshots, store.KPIs, alertGenerator, appMetrics, deps.Logger, deps.PredictionLogger)
 	reportGenerator := report.NewGenerator(store.Reports, store.ReportSnapshots, store.KPIs, store.KPISnapshots, suiteClient, deps.Publisher, deps.Logger, deps.PredictionLogger)
+	serviceUserID := parseServiceUserID(cfg.ServiceAccountUserID)
+	ctiClient := NewCTIClient(cfg.SuiteCyberURL, deps.Logger)
+	ctiCache := NewCTICache(deps.Redis, deps.Logger)
+	ctiKPIProvider := NewCTIKPIProvider(ctiClient, ctiCache, tokenProvider, store.KPIs, serviceUserID, deps.Logger)
+	ctiWidgetHandler := NewCTIWidgetHandler(ctiClient, ctiCache, deps.Logger).WithKPIProvider(ctiKPIProvider)
+	ctiAlertEval := NewCTIAlertEvaluator(ctiClient, ctiCache, tokenProvider, alertGenerator, deps.Logger)
 
 	app := &Application{
-		Store:            store,
-		Metrics:          appMetrics,
-		DashboardService: service.NewDashboardService(store.Dashboards, store.Widgets, deps.Publisher, appMetrics, deps.Logger),
-		WidgetService:    service.NewWidgetService(store.Dashboards, store.Widgets, store.KPIs, store.KPISnapshots, store.Alerts, suiteClient, appMetrics, deps.Logger),
-		KPIService:       service.NewKPIService(store.KPIs, store.KPISnapshots, kpiEngine, deps.Publisher, appMetrics, deps.Logger),
-		AlertService:     service.NewAlertService(store.Alerts, alertGenerator, correlator, escalator, deps.Publisher, appMetrics, deps.Logger),
-		ReportService:    service.NewReportService(store.Reports, store.ReportSnapshots, reportGenerator, appMetrics, deps.Logger),
-		ExecutiveService: service.NewExecutiveService(crossAggregator, deps.Publisher, appMetrics, deps.Logger),
-		KPIScheduler:     kpi.NewScheduler(kpiEngine, store.KPIs, cfg.SchedulerInterval, deps.Logger),
-		ReportScheduler:  report.NewScheduler(store.Reports, reportGenerator, cfg.ReportSchedulerInterval, deps.Logger),
+		Store:             store,
+		Metrics:           appMetrics,
+		DashboardService:  service.NewDashboardService(store.Dashboards, store.Widgets, deps.Publisher, appMetrics, deps.Logger),
+		WidgetService:     service.NewWidgetService(store.Dashboards, store.Widgets, store.KPIs, store.KPISnapshots, store.Alerts, suiteClient, appMetrics, deps.Logger),
+		KPIService:        service.NewKPIService(store.KPIs, store.KPISnapshots, kpiEngine, deps.Publisher, appMetrics, deps.Logger),
+		AlertService:      service.NewAlertService(store.Alerts, alertGenerator, correlator, escalator, deps.Publisher, appMetrics, deps.Logger),
+		ReportService:     service.NewReportService(store.Reports, store.ReportSnapshots, reportGenerator, appMetrics, deps.Logger),
+		ExecutiveService:  service.NewExecutiveService(crossAggregator, deps.Publisher, appMetrics, deps.Logger),
+		KPIScheduler:      kpi.NewScheduler(kpiEngine, store.KPIs, cfg.SchedulerInterval, deps.Logger),
+		ReportScheduler:   report.NewScheduler(store.Reports, reportGenerator, cfg.ReportSchedulerInterval, deps.Logger),
+		CTIAlertScheduler: NewCTIAlertScheduler(ctiAlertEval, store.Dashboards, cfg.SchedulerInterval, deps.Logger),
 		Consumer: consumer.NewVisusConsumer(deps.Logger).
 			WithDependencies(nil, store.KPIs, store.KPISnapshots, deps.Redis).
 			WithMetrics(crossSuiteMetrics),
 		CrossSuiteMetrics: crossSuiteMetrics,
+		ctiWidgetHandler:  ctiWidgetHandler,
+		ctiClient:         ctiClient,
+		ctiCache:          ctiCache,
+		ctiKPIProvider:    ctiKPIProvider,
+		ctiAlertEval:      ctiAlertEval,
 		cfg:               cfg,
 		logger:            deps.Logger,
 	}
@@ -124,12 +142,15 @@ func NewApplication(deps Dependencies) (*Application, error) {
 
 func (a *Application) RegisterRoutes(r chi.Router, jwtMgr *auth.JWTManager, rdb *redis.Client, rateLimitPerMinute int) {
 	handler.RegisterRoutes(r, handler.RouteDependencies{
-		Dashboard:       a.dashboardHandler,
-		Widget:          a.widgetHandler,
-		KPI:             a.kpiHandler,
-		Alert:           a.alertHandler,
-		Report:          a.reportHandler,
-		Executive:       a.executiveHandler,
+		Dashboard: a.dashboardHandler,
+		Widget:    a.widgetHandler,
+		KPI:       a.kpiHandler,
+		Alert:     a.alertHandler,
+		Report:    a.reportHandler,
+		Executive: a.executiveHandler,
+		RegisterExtra: func(router chi.Router) {
+			RegisterCTIWidgetRoutes(router, a.ctiWidgetHandler)
+		},
 		JWTManager:      jwtMgr,
 		Redis:           rdb,
 		RateLimitPerMin: rateLimitPerMinute,
@@ -141,4 +162,12 @@ func defaultServiceUserID(raw string) string {
 		return raw
 	}
 	return "00000000-0000-0000-0000-000000000360"
+}
+
+func parseServiceUserID(raw string) uuid.UUID {
+	id, err := uuid.Parse(defaultServiceUserID(raw))
+	if err != nil {
+		return uuid.MustParse("00000000-0000-0000-0000-000000000360")
+	}
+	return id
 }

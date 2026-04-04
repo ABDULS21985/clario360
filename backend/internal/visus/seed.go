@@ -80,6 +80,18 @@ func seedDefaultKPIs(ctx context.Context, app *Application, tenantID, userID uui
 		}
 		byName[created.Name] = *created
 	}
+	if app.ctiKPIProvider != nil {
+		for _, def := range app.ctiKPIProvider.defaultDefinitions(tenantID) {
+			if _, ok := byName[def.Name]; ok {
+				continue
+			}
+			created, err := app.Store.KPIs.Create(ctx, &def)
+			if err != nil {
+				return nil, fmt.Errorf("seed cti kpi %q: %w", def.Name, err)
+			}
+			byName[created.Name] = *created
+		}
+	}
 	return byName, nil
 }
 

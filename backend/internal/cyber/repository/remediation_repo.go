@@ -315,19 +315,19 @@ func (r *RemediationRepository) List(ctx context.Context, tenantID uuid.UUID, pa
 	}
 
 	offset := (params.Page - 1) * params.PerPage
-	query := fmt.Sprintf(
-		`SELECT id, tenant_id, alert_id, vulnerability_id, assessment_id, ctem_finding_id, remediation_group_id,
-		        type, severity, title, description, plan, affected_asset_ids, affected_asset_count,
-		        execution_mode, status, submitted_by, submitted_at, approved_by, approved_at,
-		        rejected_by, rejected_at, rejection_reason, approval_notes, requires_approval_from,
-		        dry_run_result, dry_run_at, dry_run_duration_ms, pre_execution_state,
-		        execution_result, executed_by, execution_started_at, execution_completed_at, execution_duration_ms,
-		        verification_result, verified_by, verified_at,
-		        rollback_result, rollback_reason, rollback_approved_by, rolled_back_at, rollback_deadline,
-		        workflow_instance_id, tags, metadata, created_by, created_at, updated_at
-		 FROM remediation_actions %s ORDER BY %s %s LIMIT $%d OFFSET $%d`,
-		where, order, dir, i, i+1,
-	)
+		query := fmt.Sprintf(
+			`SELECT id, tenant_id, alert_id, vulnerability_id, assessment_id, ctem_finding_id, remediation_group_id,
+			        type, severity, title, description, plan, affected_asset_ids, affected_asset_count,
+			        execution_mode, status, submitted_by, submitted_at, approved_by, approved_at,
+			        rejected_by, rejected_at, rejection_reason, approval_notes, requires_approval_from,
+			        dry_run_result, dry_run_at, dry_run_duration_ms, pre_execution_state,
+			        execution_result, executed_by, execution_started_at, execution_completed_at, execution_duration_ms,
+			        verification_result, verified_by, verified_at,
+			        rollback_result, rollback_reason, rollback_approved_by, rolled_back_at, rollback_deadline,
+			        workflow_instance_id, tags, metadata, created_by, created_by_name, created_at, updated_at
+			 FROM remediation_actions %s ORDER BY %s %s LIMIT $%d OFFSET $%d`,
+			where, order, dir, i, i+1,
+		)
 	args = append(args, params.PerPage, offset)
 
 	rows, err := r.db.Query(ctx, query, args...)

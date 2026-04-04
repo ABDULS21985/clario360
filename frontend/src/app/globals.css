@@ -147,6 +147,231 @@
   }
 }
 
+/* ==========================================================================
+   KPI Card Themed Variants
+   ========================================================================== */
+
+.kpi-card-themed {
+  position: relative;
+  overflow: hidden;
+  border-radius: 1.25rem;
+  padding: 1.25rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04), 0 8px 24px -12px var(--kpi-shadow, rgba(0, 0, 0, 0.06));
+  border: 1px solid var(--kpi-border);
+  background: var(--kpi-bg);
+  transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s;
+}
+.kpi-card-themed:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06), 0 12px 32px -12px var(--kpi-shadow, rgba(0, 0, 0, 0.1));
+  border-color: var(--kpi-border-hover, var(--kpi-border));
+}
+
+/* Decorative orbs */
+.kpi-card-themed::before,
+.kpi-card-themed::after {
+  content: '';
+  position: absolute;
+  border-radius: 9999px;
+  pointer-events: none;
+}
+.kpi-card-themed::before {
+  width: 5rem;
+  height: 5rem;
+  top: -0.75rem;
+  right: -0.75rem;
+  background: var(--kpi-orb, transparent);
+  opacity: 0.07;
+}
+.kpi-card-themed::after {
+  width: 2.5rem;
+  height: 2.5rem;
+  top: 1.5rem;
+  right: -0.25rem;
+  background: var(--kpi-orb-alt, transparent);
+  opacity: 0.05;
+}
+
+/* Icon badge */
+.kpi-icon-badge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 0.75rem;
+  color: white;
+  background: var(--kpi-icon-bg);
+  box-shadow: 0 4px 12px -2px var(--kpi-icon-shadow, rgba(0, 0, 0, 0.15));
+}
+
+/* ---- Color themes ---- */
+.kpi-theme-red {
+  --kpi-bg: linear-gradient(135deg, #fef2f2, #ffffff, #fff1f2);
+  --kpi-border: rgb(254 202 202 / 0.7);
+  --kpi-border-hover: rgb(252 165 165 / 0.6);
+  --kpi-orb: #ef4444;
+  --kpi-orb-alt: #dc2626;
+  --kpi-icon-bg: linear-gradient(135deg, #ef4444, #dc2626);
+  --kpi-icon-shadow: rgba(239, 68, 68, 0.3);
+  --kpi-shadow: rgba(239, 68, 68, 0.08);
+  --kpi-accent: #dc2626;
+}
+.kpi-theme-orange {
+  --kpi-bg: linear-gradient(135deg, #fff7ed, #ffffff, #fffbeb);
+  --kpi-border: rgb(253 186 116 / 0.6);
+  --kpi-border-hover: rgb(251 146 60 / 0.5);
+  --kpi-orb: #f97316;
+  --kpi-orb-alt: #ea580c;
+  --kpi-icon-bg: linear-gradient(135deg, #f97316, #ea580c);
+  --kpi-icon-shadow: rgba(249, 115, 22, 0.3);
+  --kpi-shadow: rgba(249, 115, 22, 0.08);
+  --kpi-accent: #ea580c;
+}
+.kpi-theme-amber {
+  --kpi-bg: linear-gradient(135deg, #fffbeb, #ffffff, #fefce8);
+  --kpi-border: rgb(252 211 77 / 0.6);
+  --kpi-border-hover: rgb(245 158 11 / 0.5);
+  --kpi-orb: #f59e0b;
+  --kpi-orb-alt: #d97706;
+  --kpi-icon-bg: linear-gradient(135deg, #f59e0b, #d97706);
+  --kpi-icon-shadow: rgba(245, 158, 11, 0.3);
+  --kpi-shadow: rgba(245, 158, 11, 0.08);
+  --kpi-accent: #d97706;
+}
+.kpi-theme-yellow {
+  --kpi-bg: linear-gradient(135deg, #fefce8, #ffffff, #fffbeb);
+  --kpi-border: rgb(253 224 71 / 0.6);
+  --kpi-border-hover: rgb(234 179 8 / 0.5);
+  --kpi-orb: #eab308;
+  --kpi-orb-alt: #ca8a04;
+  --kpi-icon-bg: linear-gradient(135deg, #eab308, #ca8a04);
+  --kpi-icon-shadow: rgba(234, 179, 8, 0.3);
+  --kpi-shadow: rgba(234, 179, 8, 0.08);
+  --kpi-accent: #ca8a04;
+}
+.kpi-theme-green {
+  --kpi-bg: linear-gradient(135deg, #f0fdf4, #ffffff, #ecfdf5);
+  --kpi-border: rgb(134 239 172 / 0.6);
+  --kpi-border-hover: rgb(74 222 128 / 0.5);
+  --kpi-orb: #22c55e;
+  --kpi-orb-alt: #16a34a;
+  --kpi-icon-bg: linear-gradient(135deg, #22c55e, #16a34a);
+  --kpi-icon-shadow: rgba(34, 197, 94, 0.3);
+  --kpi-shadow: rgba(34, 197, 94, 0.08);
+  --kpi-accent: #16a34a;
+}
+.kpi-theme-emerald {
+  --kpi-bg: linear-gradient(135deg, #ecfdf5, #ffffff, #f0fdfa);
+  --kpi-border: rgb(110 231 183 / 0.6);
+  --kpi-border-hover: rgb(52 211 153 / 0.5);
+  --kpi-orb: #10b981;
+  --kpi-orb-alt: #059669;
+  --kpi-icon-bg: linear-gradient(135deg, #10b981, #059669);
+  --kpi-icon-shadow: rgba(16, 185, 129, 0.3);
+  --kpi-shadow: rgba(16, 185, 129, 0.08);
+  --kpi-accent: #059669;
+}
+.kpi-theme-teal {
+  --kpi-bg: linear-gradient(135deg, #f0fdfa, #ffffff, #ecfeff);
+  --kpi-border: rgb(94 234 212 / 0.6);
+  --kpi-border-hover: rgb(45 212 191 / 0.5);
+  --kpi-orb: #14b8a6;
+  --kpi-orb-alt: #0d9488;
+  --kpi-icon-bg: linear-gradient(135deg, #14b8a6, #0d9488);
+  --kpi-icon-shadow: rgba(20, 184, 166, 0.3);
+  --kpi-shadow: rgba(20, 184, 166, 0.08);
+  --kpi-accent: #0d9488;
+}
+.kpi-theme-cyan {
+  --kpi-bg: linear-gradient(135deg, #ecfeff, #ffffff, #f0f9ff);
+  --kpi-border: rgb(103 232 249 / 0.5);
+  --kpi-border-hover: rgb(34 211 238 / 0.5);
+  --kpi-orb: #06b6d4;
+  --kpi-orb-alt: #0891b2;
+  --kpi-icon-bg: linear-gradient(135deg, #06b6d4, #0891b2);
+  --kpi-icon-shadow: rgba(6, 182, 212, 0.3);
+  --kpi-shadow: rgba(6, 182, 212, 0.08);
+  --kpi-accent: #0891b2;
+}
+.kpi-theme-sky {
+  --kpi-bg: linear-gradient(135deg, #f0f9ff, #ffffff, #eff6ff);
+  --kpi-border: rgb(125 211 252 / 0.6);
+  --kpi-border-hover: rgb(56 189 248 / 0.5);
+  --kpi-orb: #0ea5e9;
+  --kpi-orb-alt: #0284c7;
+  --kpi-icon-bg: linear-gradient(135deg, #0ea5e9, #0284c7);
+  --kpi-icon-shadow: rgba(14, 165, 233, 0.3);
+  --kpi-shadow: rgba(14, 165, 233, 0.08);
+  --kpi-accent: #0284c7;
+}
+.kpi-theme-blue {
+  --kpi-bg: linear-gradient(135deg, #eff6ff, #ffffff, #eef2ff);
+  --kpi-border: rgb(147 197 253 / 0.6);
+  --kpi-border-hover: rgb(96 165 250 / 0.5);
+  --kpi-orb: #3b82f6;
+  --kpi-orb-alt: #2563eb;
+  --kpi-icon-bg: linear-gradient(135deg, #3b82f6, #2563eb);
+  --kpi-icon-shadow: rgba(59, 130, 246, 0.3);
+  --kpi-shadow: rgba(59, 130, 246, 0.08);
+  --kpi-accent: #2563eb;
+}
+.kpi-theme-indigo {
+  --kpi-bg: linear-gradient(135deg, #eef2ff, #ffffff, #f5f3ff);
+  --kpi-border: rgb(165 180 252 / 0.6);
+  --kpi-border-hover: rgb(129 140 248 / 0.5);
+  --kpi-orb: #6366f1;
+  --kpi-orb-alt: #4f46e5;
+  --kpi-icon-bg: linear-gradient(135deg, #6366f1, #4f46e5);
+  --kpi-icon-shadow: rgba(99, 102, 241, 0.3);
+  --kpi-shadow: rgba(99, 102, 241, 0.08);
+  --kpi-accent: #4f46e5;
+}
+.kpi-theme-violet {
+  --kpi-bg: linear-gradient(135deg, #f5f3ff, #ffffff, #faf5ff);
+  --kpi-border: rgb(196 181 253 / 0.6);
+  --kpi-border-hover: rgb(167 139 250 / 0.5);
+  --kpi-orb: #8b5cf6;
+  --kpi-orb-alt: #7c3aed;
+  --kpi-icon-bg: linear-gradient(135deg, #8b5cf6, #7c3aed);
+  --kpi-icon-shadow: rgba(139, 92, 246, 0.3);
+  --kpi-shadow: rgba(139, 92, 246, 0.08);
+  --kpi-accent: #7c3aed;
+}
+.kpi-theme-purple {
+  --kpi-bg: linear-gradient(135deg, #faf5ff, #ffffff, #fdf4ff);
+  --kpi-border: rgb(216 180 254 / 0.6);
+  --kpi-border-hover: rgb(192 132 252 / 0.5);
+  --kpi-orb: #a855f7;
+  --kpi-orb-alt: #9333ea;
+  --kpi-icon-bg: linear-gradient(135deg, #a855f7, #9333ea);
+  --kpi-icon-shadow: rgba(168, 85, 247, 0.3);
+  --kpi-shadow: rgba(168, 85, 247, 0.08);
+  --kpi-accent: #9333ea;
+}
+.kpi-theme-pink {
+  --kpi-bg: linear-gradient(135deg, #fdf2f8, #ffffff, #fce7f3);
+  --kpi-border: rgb(249 168 212 / 0.6);
+  --kpi-border-hover: rgb(244 114 182 / 0.5);
+  --kpi-orb: #ec4899;
+  --kpi-orb-alt: #db2777;
+  --kpi-icon-bg: linear-gradient(135deg, #ec4899, #db2777);
+  --kpi-icon-shadow: rgba(236, 72, 153, 0.3);
+  --kpi-shadow: rgba(236, 72, 153, 0.08);
+  --kpi-accent: #db2777;
+}
+.kpi-theme-primary {
+  --kpi-bg: linear-gradient(135deg, #ecfdf5, #ffffff, #f0fdfa);
+  --kpi-border: rgb(110 231 183 / 0.5);
+  --kpi-border-hover: rgb(52 211 153 / 0.5);
+  --kpi-orb: #1B5E20;
+  --kpi-orb-alt: #0D4B4F;
+  --kpi-icon-bg: linear-gradient(135deg, #1B5E20, #0D4B4F);
+  --kpi-icon-shadow: rgba(27, 94, 32, 0.3);
+  --kpi-shadow: rgba(27, 94, 32, 0.06);
+  --kpi-accent: #1B5E20;
+}
+
 /* Dashboard animations */
 @keyframes critical-pulse {
   0%, 100% {

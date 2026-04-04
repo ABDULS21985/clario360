@@ -16,6 +16,7 @@ type RouteDependencies struct {
 	Alert           *AlertHandler
 	Report          *ReportHandler
 	Executive       *ExecutiveHandler
+	RegisterExtra   func(chi.Router)
 	JWTManager      *auth.JWTManager
 	Redis           *redis.Client
 	RateLimitPerMin int
@@ -72,5 +73,9 @@ func RegisterRoutes(r chi.Router, deps RouteDependencies) {
 		r.Get("/executive", deps.Executive.View)
 		r.Get("/executive/summary", deps.Executive.Summary)
 		r.Get("/executive/health", deps.Executive.Health)
+
+		if deps.RegisterExtra != nil {
+			deps.RegisterExtra(r)
+		}
 	})
 }

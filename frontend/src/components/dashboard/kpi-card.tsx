@@ -8,6 +8,27 @@ import type { LucideIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { HighlightAnimation } from '@/components/realtime/highlight-animation';
 
+type KpiColorTheme =
+  | 'red' | 'orange' | 'amber' | 'yellow'
+  | 'green' | 'emerald' | 'teal' | 'cyan'
+  | 'sky' | 'blue' | 'indigo' | 'violet'
+  | 'purple' | 'pink' | 'primary';
+
+function deriveThemeFromIconColor(iconColor: string): KpiColorTheme {
+  const c = iconColor.toLowerCase();
+  const families: KpiColorTheme[] = [
+    'emerald', 'orange', 'amber', 'yellow',
+    'green', 'teal', 'cyan', 'sky',
+    'blue', 'indigo', 'violet', 'purple',
+    'pink', 'red',
+  ];
+  for (const f of families) {
+    if (c.includes(f)) return f;
+  }
+  if (c.includes('destructive')) return 'red';
+  return 'primary';
+}
+
 interface KpiCardProps {
   title: string;
   value: number | string | undefined;
@@ -68,31 +89,12 @@ export function KpiCard({
           damping: 25,
         }}
         className={cn(
-          'group/kpi relative overflow-hidden rounded-2xl border border-white/20 p-6',
-          'transition-all duration-300 ease-out',
-          'hover:shadow-[0_12px_40px_rgba(0,0,0,0.12)] hover:-translate-y-0.5',
+          `kpi-card-themed kpi-theme-${deriveThemeFromIconColor(iconColor)}`,
+          'group/kpi flex h-full flex-col justify-between p-6',
+          'hover:-translate-y-0.5',
           href && 'cursor-pointer',
         )}
-        style={{
-          background: 'rgba(255, 255, 255, 0.65)',
-          backdropFilter: 'blur(20px)',
-          WebkitBackdropFilter: 'blur(20px)',
-          boxShadow: '0 8px 32px rgba(0, 0, 0, 0.08), 0 2px 8px rgba(0, 0, 0, 0.04)',
-        }}
       >
-        {/* Animated gradient border on hover */}
-        <div
-          className="pointer-events-none absolute inset-[-1px] rounded-2xl opacity-0 transition-opacity duration-500 group-hover/kpi:opacity-100"
-          style={{
-            background: 'conic-gradient(from 0deg, transparent 30%, hsl(158 59% 25% / 0.25), transparent 70%)',
-            mask: 'linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)',
-            maskComposite: 'exclude',
-            WebkitMask: 'linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)',
-            WebkitMaskComposite: 'xor',
-            padding: '1px',
-          } as React.CSSProperties}
-        />
-
         <div className="flex items-start justify-between gap-4">
           <div className="space-y-3">
             <span className="inline-flex items-center rounded-full border border-border/50 bg-secondary/60 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
@@ -127,14 +129,7 @@ export function KpiCard({
             )}
           </div>
           <div className="flex flex-col items-end gap-2">
-            <div
-              className={cn(
-                'flex h-11 w-11 items-center justify-center rounded-2xl',
-                'border border-white/70 bg-gradient-to-br from-white via-secondary/60 to-secondary shadow-sm',
-                'transition-transform duration-200 group-hover/kpi:scale-110',
-                iconColor,
-              )}
-            >
+            <div className="kpi-icon-badge h-11 w-11 rounded-2xl transition-transform duration-200 group-hover/kpi:scale-110">
               <Icon className="h-5 w-5" />
             </div>
             {href && (

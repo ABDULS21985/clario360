@@ -1,17 +1,41 @@
 import { TrendingUp, TrendingDown, Minus, type LucideIcon } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
+
+type KpiColorTheme =
+  | "red" | "orange" | "amber" | "yellow"
+  | "green" | "emerald" | "teal" | "cyan"
+  | "sky" | "blue" | "indigo" | "violet"
+  | "purple" | "pink" | "primary";
 
 interface KpiCardProps {
   title: string;
   value: string | number;
-  change?: number; // percentage change, e.g. 12.5 = +12.5%
+  change?: number;
   changeLabel?: string;
   icon?: LucideIcon;
   iconColor?: string;
+  /** Explicit color theme. When omitted, auto-derived from iconColor. */
+  colorTheme?: KpiColorTheme;
   description?: string;
   loading?: boolean;
   className?: string;
+}
+
+/** Map common Tailwind icon-color class fragments to theme names. */
+function deriveTheme(iconColor: string | undefined): KpiColorTheme {
+  if (!iconColor) return "primary";
+  const c = iconColor.toLowerCase();
+  const families: KpiColorTheme[] = [
+    "emerald", "orange", "amber", "yellow",
+    "green", "teal", "cyan", "sky",
+    "blue", "indigo", "violet", "purple",
+    "pink", "red",
+  ];
+  for (const f of families) {
+    if (c.includes(f)) return f;
+  }
+  if (c.includes("destructive")) return "red";
+  return "primary";
 }
 
 export function KpiCard({
@@ -21,10 +45,12 @@ export function KpiCard({
   changeLabel,
   icon: Icon,
   iconColor = "text-primary",
+  colorTheme,
   description,
   loading = false,
   className,
 }: KpiCardProps) {
+  const theme = colorTheme ?? deriveTheme(iconColor);
   const isPositive = change !== undefined && change > 0;
   const isNegative = change !== undefined && change < 0;
   const TrendIcon = isPositive ? TrendingUp : isNegative ? TrendingDown : Minus;
@@ -32,56 +58,58 @@ export function KpiCard({
 
   if (loading) {
     return (
-      <Card className={cn("overflow-hidden", className)}>
-        <CardHeader className="p-4 pb-3 sm:p-6 sm:pb-3">
-          <div className="h-4 w-28 rounded-full animate-pulse bg-muted" />
-        </CardHeader>
-        <CardContent className="p-4 pt-0 sm:p-6 sm:pt-0">
-          <div className="mb-3 h-9 w-32 rounded-xl animate-pulse bg-muted" />
-          <div className="h-3 w-24 rounded animate-pulse bg-muted" />
-        </CardContent>
-      </Card>
+      <div className={cn("kpi-card-themed kpi-theme-primary", className)}>
+        <div className="mb-3 flex items-center gap-2.5">
+          <div className="h-9 w-9 animate-pulse rounded-xl bg-muted" />
+          <div className="h-4 w-24 animate-pulse rounded-full bg-muted" />
+        </div>
+        <div className="mb-2 h-9 w-28 animate-pulse rounded-xl bg-muted" />
+        <div className="h-3 w-20 animate-pulse rounded bg-muted" />
+      </div>
     );
   }
 
   return (
-    <Card className={cn("group overflow-hidden", className)}>
-      <CardHeader className="flex flex-row items-start justify-between gap-3 p-4 pb-3 space-y-0 sm:p-6 sm:pb-3">
-        <div className="space-y-2">
-          <span className="inline-flex items-center rounded-full border border-border/70 bg-secondary/70 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-            {title}
+    <div className={cn(`kpi-card-themed kpi-theme-${theme}`, className)}>
+      <div className="mb-3 flex items-center gap-2.5">
+        {Icon && (
+          <div className="kpi-icon-badge">
+            <Icon className="h-[18px] w-[18px]" aria-hidden />
+          </div>
+        )}
+        <span className="text-[11px] font-semibold uppercase tracking-[0.15em]" style={{ color: "var(--kpi-accent)" }}>
+          {title}
+        </span>
+      </div>
+
+      <div className="text-[1.75rem] font-bold leading-none tracking-tight text-slate-900">
+        {typeof value === "number" ? value.toLocaleString() : value}
+      </div>
+
+      {change !== undefined && (
+        <div
+          className={cn(
+            "mt-2.5 inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium",
+            trendColor,
+            isPositive && "bg-emerald-50",
+            isNegative && "bg-red-50",
+            !isPositive && !isNegative && "bg-muted"
+          )}
+        >
+          <TrendIcon className="h-3 w-3 shrink-0" aria-hidden />
+          <span>
+            {isPositive && "+"}
+            {change.toFixed(1)}%
+            {changeLabel && <span className="ml-1 text-muted-foreground">{changeLabel}</span>}
           </span>
         </div>
-        {Icon && (
-          <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-white/70 bg-gradient-to-br from-white via-secondary/60 to-secondary shadow-sm">
-            <Icon className={cn("h-5 w-5 shrink-0", iconColor)} aria-hidden />
-          </div>
-        )}
-      </CardHeader>
-      <CardContent className="p-4 pt-0 sm:p-6 sm:pt-0">
-        <div className="text-2xl font-semibold tracking-[-0.04em] text-slate-950 sm:text-3xl">
-          {value}
-        </div>
-        {change !== undefined && (
-          <div
-            className={cn(
-              "mt-3 inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-medium",
-              trendColor,
-              isPositive && "bg-emerald-50",
-              isNegative && "bg-red-50",
-              !isPositive && !isNegative && "bg-muted"
-            )}
-          >
-            <TrendIcon className="h-3 w-3 shrink-0" aria-hidden />
-            <span>
-              {isPositive && "+"}
-              {change.toFixed(1)}%
-              {changeLabel && <span className="text-muted-foreground ml-1">{changeLabel}</span>}
-            </span>
-          </div>
-        )}
-        {description && <p className="mt-3 text-sm leading-6 text-muted-foreground">{description}</p>}
-      </CardContent>
-    </Card>
+      )}
+
+      {description && (
+        <p className="mt-2 text-xs leading-5" style={{ color: "var(--kpi-accent)", opacity: 0.6 }}>
+          {description}
+        </p>
+      )}
+    </div>
   );
 }

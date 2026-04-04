@@ -32,7 +32,7 @@ export function SectorThreatChart({
 }: SectorThreatChartProps) {
   if (loading) {
     return (
-      <div className="rounded-[24px] border border-[color:var(--card-border)] bg-[var(--card-bg)] p-5 shadow-[var(--card-shadow)]">
+      <div className="rounded-[28px] border border-border/70 bg-white/85 p-5 shadow-sm">
         <div className="space-y-3">
           {Array.from({ length: 6 }).map((_, index) => (
             <div key={index} className="h-12 animate-pulse rounded-xl bg-muted/40" />
@@ -62,17 +62,17 @@ export function SectorThreatChart({
   const maxTotal = sorted[0]?.total_count ?? 1;
 
   return (
-    <div className="rounded-[24px] border border-[color:var(--card-border)] bg-[var(--card-bg)] p-5 shadow-[var(--card-shadow)]">
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+    <div className="rounded-[28px] border border-border/70 bg-white/85 p-5 shadow-sm">
+      <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h3 className="text-sm font-semibold text-slate-950">Threat Pressure by Sector</h3>
+          <h3 className="text-base font-semibold text-foreground">Threat Pressure by Sector</h3>
           <p className="text-sm text-muted-foreground">
             Click a sector row to expand its deep dive and pivot into filtered investigations.
           </p>
         </div>
         <div className="flex flex-wrap gap-2 text-[11px] text-muted-foreground">
           {SEGMENTS.map((segment) => (
-            <span key={segment.key} className="inline-flex items-center gap-1">
+            <span key={segment.key} className="inline-flex items-center gap-1 rounded-full border border-border/70 bg-white/80 px-2.5 py-1">
               <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: segment.color }} />
               {segment.label}
             </span>
@@ -89,20 +89,20 @@ export function SectorThreatChart({
               type="button"
               onClick={() => onSectorClick?.(sector.sector_id)}
               className={cn(
-                'w-full rounded-2xl border p-4 text-left transition hover:bg-muted/30',
-                selectedSectorId === sector.sector_id && 'border-primary/40 bg-primary/5',
+                'w-full rounded-[24px] border border-border/70 bg-white/70 p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-emerald-200 hover:bg-emerald-50/40',
+                selectedSectorId === sector.sector_id && 'border-emerald-300 bg-emerald-50/70 shadow-[0_24px_44px_-30px_rgba(5,150,105,0.65)]',
               )}
             >
-              <div className="mb-2 flex items-center justify-between gap-3">
+              <div className="mb-3 flex items-center justify-between gap-3">
                 <div>
                   <p className="font-medium text-foreground">{sector.sector_label}</p>
                   <p className="text-xs text-muted-foreground">{sector.total_count.toLocaleString()} events</p>
                 </div>
-                <span className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
+                <span className="rounded-full bg-slate-950/[0.04] px-2.5 py-1 text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
                   {sector.sector_code || sector.sector_id.slice(0, 8)}
                 </span>
               </div>
-              <div className="h-4 overflow-hidden rounded-full bg-muted/40" style={{ width }}>
+              <div className="h-4 overflow-hidden rounded-full bg-slate-950/[0.06]" style={{ width }}>
                 <div className="flex h-full">
                   {SEGMENTS.map((segment) => {
                     const count = sector[segment.key];
@@ -118,6 +118,12 @@ export function SectorThreatChart({
                     );
                   })}
                 </div>
+              </div>
+              <div className="mt-3 flex flex-wrap gap-2 text-[11px] text-muted-foreground">
+                <span>Critical {sector.severity_critical_count.toLocaleString()}</span>
+                <span>High {sector.severity_high_count.toLocaleString()}</span>
+                <span>Medium {sector.severity_medium_count.toLocaleString()}</span>
+                <span>Low {sector.severity_low_count.toLocaleString()}</span>
               </div>
             </button>
           );

@@ -31,7 +31,7 @@ export function HighlightAnimation({
   return (
     <div
       className={cn(
-        'transition-all duration-500',
+        'h-full transition-all duration-500',
         isHighlighted && 'ring-2 ring-yellow-400 ring-opacity-75',
         className,
       )}

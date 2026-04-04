@@ -82,9 +82,14 @@ func (s *RemediationService) List(ctx context.Context, tenantID uuid.UUID, param
 	if err != nil {
 		return nil, err
 	}
+	meta := dto.NewPaginationMeta(params.Page, params.PerPage, total)
 	return &dto.RemediationListResponse{
-		Data: items,
-		Meta: dto.NewPaginationMeta(params.Page, params.PerPage, total),
+		Data:       items,
+		Meta:       meta,
+		Total:      total,
+		Page:       params.Page,
+		PerPage:    params.PerPage,
+		TotalPages: meta.TotalPages,
 	}, nil
 }
 

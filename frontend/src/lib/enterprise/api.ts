@@ -79,6 +79,14 @@ import type {
   VisusWidgetData,
   VisusWidgetTypeDefinition,
 } from '@/types/suites';
+import type {
+  VisusCTIBrandAbuseListResponse,
+  VisusCTICampaignListResponse,
+  VisusCTIOverview,
+  VisusCTIRiskScoreResponse,
+  VisusCTISectorResponse,
+  VisusCTIThreatMapResponse,
+} from '@/types/visus-cti';
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -515,6 +523,16 @@ export const enterpriseApi = {
     getAlertStats: (): Promise<VisusAlertStats> => fetchSuiteData('/api/v1/visus/alerts/stats'),
     getWidgetStats: (): Promise<Record<string, number>> => fetchSuiteData('/api/v1/visus/widgets/stats'),
     getExecutiveView: (): Promise<VisusExecutiveSummary> => fetchSuiteData('/api/v1/visus/executive'),
+    getCTIOverview: (): Promise<VisusCTIOverview> => fetchSuiteData('/api/v1/visus/cti/overview'),
+    getCTIThreatMap: (period: string): Promise<VisusCTIThreatMapResponse> =>
+      fetchSuiteData('/api/v1/visus/cti/threat-map', { period }),
+    getCTISectors: (period: string): Promise<VisusCTISectorResponse> =>
+      fetchSuiteData('/api/v1/visus/cti/sectors', { period }),
+    getCTICampaigns: (limit = 5): Promise<VisusCTICampaignListResponse> =>
+      fetchSuiteData('/api/v1/visus/cti/campaigns', { limit }),
+    getCTIBrandAbuse: (limit = 5): Promise<VisusCTIBrandAbuseListResponse> =>
+      fetchSuiteData('/api/v1/visus/cti/brand-abuse', { limit }),
+    getCTIRiskScore: (): Promise<VisusCTIRiskScoreResponse> => fetchSuiteData('/api/v1/visus/cti/risk-score'),
   },
   ai: {
     getDashboard: (): Promise<AIDashboardData> => fetchSuiteData('/api/v1/ai/dashboard'),

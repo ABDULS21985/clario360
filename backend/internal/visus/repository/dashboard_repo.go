@@ -225,6 +225,28 @@ func (r *DashboardRepository) CountByVisibility(ctx context.Context, tenantID uu
 	return out, rows.Err()
 }
 
+func (r *DashboardRepository) ListTenantIDs(ctx context.Context) ([]uuid.UUID, error) {
+	rows, err := r.db.Query(ctx, `
+		SELECT DISTINCT tenant_id
+		FROM visus_dashboards
+		WHERE deleted_at IS NULL
+		ORDER BY tenant_id`)
+	if err != nil {
+		return nil, wrapErr("list dashboard tenant ids", err)
+	}
+	defer rows.Close()
+
+	out := make([]uuid.UUID, 0)
+	for rows.Next() {
+		var tenantID uuid.UUID
+		if err := rows.Scan(&tenantID); err != nil {
+			return nil, wrapErr("scan dashboard tenant id", err)
+		}
+		out = append(out, tenantID)
+	}
+	return out, rows.Err()
+}
+
 func scanDashboard(row interface{ Scan(...any) error }) (*model.Dashboard, int, error) {
 	item := &model.Dashboard{}
 	var metadata []byte

@@ -30,6 +30,16 @@ const SEVERITY_COLORS: Record<string, string> = {
   info: '#6B7280',
 };
 
+const SOURCE_COLORS = [
+  '#0F766E', '#2563EB', '#7C3AED', '#DB2777', '#EA580C',
+  '#CA8A04', '#059669', '#4F46E5', '#BE185D', '#0284C7',
+];
+
+const TYPE_COLORS = [
+  '#1B5E20', '#1565C0', '#6A1B9A', '#C62828', '#E65100',
+  '#F9A825', '#00838F', '#AD1457',
+];
+
 const EVENT_FILTERS: FilterConfig[] = [
   {
     key: 'time_range',
@@ -298,6 +308,7 @@ export default function CyberEventsPage() {
             data={bySourceChart}
             xKey="name"
             yKeys={[{ key: 'count', label: 'Events', color: '#0F766E' }]}
+            cellColors={bySourceChart.map((_, i) => SOURCE_COLORS[i % SOURCE_COLORS.length])}
             loading={statsQuery.isLoading}
             height={240}
             showLegend={false}
@@ -307,6 +318,7 @@ export default function CyberEventsPage() {
             data={byTypeChart}
             xKey="name"
             yKeys={[{ key: 'count', label: 'Events', color: '#1B5E20' }]}
+            cellColors={byTypeChart.map((_, i) => TYPE_COLORS[i % TYPE_COLORS.length])}
             loading={statsQuery.isLoading}
             height={240}
             showLegend={false}

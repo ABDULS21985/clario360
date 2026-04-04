@@ -128,6 +128,7 @@ func main() {
 
 	go runBackground(ctx, logger, "visus-kpi-scheduler", app.KPIScheduler.Run)
 	go runBackground(ctx, logger, "visus-report-scheduler", app.ReportScheduler.Run)
+	go runBackground(ctx, logger, "visus-cti-alert-scheduler", app.CTIAlertScheduler.Run)
 
 	if len(visusCfg.KafkaBrokers) > 0 {
 		kafkaConsumer, err := events.NewConsumer(appconfig.KafkaConfig{
