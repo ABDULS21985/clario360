@@ -45,9 +45,9 @@ func (ea *ExecutiveAggregator) Aggregate(ctx context.Context, tenantID string) e
 	var ev24h, ev7d, ev30d int64
 	err = tx.QueryRow(ctx, `
 		SELECT
-			COUNT(*) FILTER (WHERE first_seen_at >= $2 - INTERVAL '24 hours'),
-			COUNT(*) FILTER (WHERE first_seen_at >= $2 - INTERVAL '7 days'),
-			COUNT(*) FILTER (WHERE first_seen_at >= $2 - INTERVAL '30 days')
+			COUNT(*) FILTER (WHERE first_seen_at >= ($2::timestamptz - INTERVAL '24 hours')),
+			COUNT(*) FILTER (WHERE first_seen_at >= ($2::timestamptz - INTERVAL '7 days')),
+			COUNT(*) FILTER (WHERE first_seen_at >= ($2::timestamptz - INTERVAL '30 days'))
 		FROM cti_threat_events
 		WHERE tenant_id = $1 AND deleted_at IS NULL AND is_false_positive = false`,
 		tenantID, now).Scan(&ev24h, &ev7d, &ev30d)
@@ -100,7 +100,7 @@ func (ea *ExecutiveAggregator) Aggregate(ctx context.Context, tenantID string) e
 		SELECT target_sector_id::text
 		FROM cti_threat_events
 		WHERE tenant_id = $1 AND deleted_at IS NULL AND target_sector_id IS NOT NULL
-		  AND first_seen_at >= $2 - INTERVAL '30 days'
+		  AND first_seen_at >= ($2::timestamptz - INTERVAL '30 days')
 		GROUP BY target_sector_id ORDER BY COUNT(*) DESC LIMIT 1`,
 		tenantID, now).Scan(&topSectorID)
 	if err != nil && err != pgx.ErrNoRows {
@@ -113,7 +113,7 @@ func (ea *ExecutiveAggregator) Aggregate(ctx context.Context, tenantID string) e
 		SELECT origin_country_code
 		FROM cti_threat_events
 		WHERE tenant_id = $1 AND deleted_at IS NULL AND origin_country_code IS NOT NULL
-		  AND first_seen_at >= $2 - INTERVAL '30 days'
+		  AND first_seen_at >= ($2::timestamptz - INTERVAL '30 days')
 		GROUP BY origin_country_code ORDER BY COUNT(*) DESC LIMIT 1`,
 		tenantID, now).Scan(&topOriginCountry)
 	if err != nil && err != pgx.ErrNoRows {
@@ -126,7 +126,7 @@ func (ea *ExecutiveAggregator) Aggregate(ctx context.Context, tenantID string) e
 		SELECT COALESCE(AVG(EXTRACT(EPOCH FROM (created_at - first_seen_at)) / 3600.0), 0)
 		FROM cti_threat_events
 		WHERE tenant_id = $1 AND deleted_at IS NULL
-		  AND first_seen_at >= $2 - INTERVAL '30 days'
+		  AND first_seen_at >= ($2::timestamptz - INTERVAL '30 days')
 		  AND created_at > first_seen_at`,
 		tenantID, now).Scan(&mttdHours)
 
@@ -137,7 +137,7 @@ func (ea *ExecutiveAggregator) Aggregate(ctx context.Context, tenantID string) e
 		FROM cti_threat_events
 		WHERE tenant_id = $1 AND deleted_at IS NULL
 		  AND resolved_at IS NOT NULL
-		  AND first_seen_at >= $2 - INTERVAL '30 days'`,
+		  AND first_seen_at >= ($2::timestamptz - INTERVAL '30 days')`,
 		tenantID, now).Scan(&mttrHours)
 
 	// Composite risk score

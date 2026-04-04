@@ -39,8 +39,8 @@ func (tc *TrendCalculator) calculateWithQueryer(ctx context.Context, q rowQuerye
 	var current, previous int64
 	err := q.QueryRow(ctx, `
 		SELECT
-			COUNT(*) FILTER (WHERE first_seen_at >= $2 - INTERVAL '24 hours'),
-			COUNT(*) FILTER (WHERE first_seen_at >= $2 - INTERVAL '48 hours' AND first_seen_at < $2 - INTERVAL '24 hours')
+			COUNT(*) FILTER (WHERE first_seen_at >= ($2::timestamptz - INTERVAL '24 hours')),
+			COUNT(*) FILTER (WHERE first_seen_at >= ($2::timestamptz - INTERVAL '48 hours') AND first_seen_at < ($2::timestamptz - INTERVAL '24 hours'))
 		FROM cti_threat_events
 		WHERE tenant_id = $1 AND deleted_at IS NULL AND is_false_positive = false`,
 		tenantID, now).Scan(&current, &previous)

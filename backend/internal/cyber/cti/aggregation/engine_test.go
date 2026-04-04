@@ -115,7 +115,8 @@ func TestEngineRunFullAggregationIntegration(t *testing.T) {
 		t.Fatalf("seed aggregation tenant: %v", err)
 	}
 
-	engine := NewEngineWithConfig(pool, prometheus.NewRegistry(), zerolog.Nop(), DefaultConfig)
+	logger := zerolog.New(os.Stderr).Level(zerolog.DebugLevel)
+	engine := NewEngineWithConfig(pool, prometheus.NewRegistry(), logger, DefaultConfig)
 	if err := engine.RunFullAggregation(ctx, tenantID.String()); err != nil {
 		t.Fatalf("RunFullAggregation: %v", err)
 	}
@@ -212,7 +213,7 @@ func TestEngineGetActiveTenantsIncludesNonEventTenants(t *testing.T) {
 		t.Fatalf("seed brand-only tenant: %v", err)
 	}
 
-	engine := NewEngineWithConfig(pool, prometheus.NewRegistry(), zerolog.Nop(), DefaultConfig)
+	engine := NewEngineWithConfig(pool, prometheus.NewRegistry(), zerolog.New(os.Stderr).Level(zerolog.DebugLevel), DefaultConfig)
 	tenantIDs, err := engine.GetActiveTenants(ctx)
 	if err != nil {
 		t.Fatalf("GetActiveTenants: %v", err)
