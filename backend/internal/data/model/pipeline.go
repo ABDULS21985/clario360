@@ -153,6 +153,25 @@ type Transformation struct {
 	Config json.RawMessage    `json:"config"`
 }
 
+// UnmarshalJSON handles both string values (e.g. "normalize") and object
+// values (e.g. {"type":"rename","config":{...}}) for backward compatibility
+// with seeded data.
+func (t *Transformation) UnmarshalJSON(data []byte) error {
+	var s string
+	if err := json.Unmarshal(data, &s); err == nil {
+		t.Type = TransformationType(s)
+		t.Config = nil
+		return nil
+	}
+	type alias Transformation
+	var a alias
+	if err := json.Unmarshal(data, &a); err != nil {
+		return err
+	}
+	*t = Transformation(a)
+	return nil
+}
+
 type QualityGate struct {
 	Name        string            `json:"name"`
 	Metric      QualityGateMetric `json:"metric"`

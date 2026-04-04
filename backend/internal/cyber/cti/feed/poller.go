@@ -35,6 +35,7 @@ func (p *MultiTenantPoller) Run(ctx context.Context) error {
 	defer ticker.Stop()
 
 	p.logger.Info().Dur("interval", p.interval).Msg("CTI feed multi-tenant poller started")
+	p.pollTenants(ctx)
 	for {
 		select {
 		case <-ctx.Done():
@@ -86,6 +87,7 @@ func (p *Poller) Run(ctx context.Context) error {
 	p.logger.Info().Dur("interval", p.interval).Msg("CTI feed poller started")
 	ticker := time.NewTicker(p.interval)
 	defer ticker.Stop()
+	p.pollAll(ctx)
 
 	for {
 		select {

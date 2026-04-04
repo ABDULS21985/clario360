@@ -35,7 +35,7 @@ func (ea *ExecutiveAggregator) Aggregate(ctx context.Context, tenantID string) e
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
 
-	if _, err := tx.Exec(ctx, "SELECT set_config('app.current_tenant_id', $1, true)", tenantID); err != nil {
+	if err := setTenantContext(ctx, tx, tenantID); err != nil {
 		return fmt.Errorf("set tenant: %w", err)
 	}
 
@@ -144,7 +144,7 @@ func (ea *ExecutiveAggregator) Aggregate(ctx context.Context, tenantID string) e
 	riskScore := computeRiskScore(ev24h, int64(activeCampaigns), int64(criticalCampaigns), int64(brandCritical))
 
 	// Trend
-	trendDir, trendPct := ea.trend.Calculate(ctx, tenantID, now)
+	trendDir, trendPct := ea.trend.CalculateTx(ctx, tx, tenantID, now)
 
 	// Upsert
 	_, err = tx.Exec(ctx, `

@@ -29,7 +29,7 @@ func (s *SectorAggregator) Aggregate(ctx context.Context, tenantID string, perio
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
 
-	if _, err := tx.Exec(ctx, "SELECT set_config('app.current_tenant_id', $1, true)", tenantID); err != nil {
+	if err := setTenantContext(ctx, tx, tenantID); err != nil {
 		return fmt.Errorf("set tenant: %w", err)
 	}
 

@@ -20,11 +20,24 @@ func NewTrendCalculator(db *pgxpool.Pool, logger zerolog.Logger) *TrendCalculato
 	return &TrendCalculator{db: db, logger: logger}
 }
 
+type rowQueryer interface {
+	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
+}
+
 // Calculate compares the last 24 h against the preceding 24 h and returns a direction label
 // ("increasing", "stable", "decreasing") plus the percentage change.
 func (tc *TrendCalculator) Calculate(ctx context.Context, tenantID string, now time.Time) (string, float64) {
+	return tc.calculateWithQueryer(ctx, tc.db, tenantID, now)
+}
+
+// CalculateTx performs the same comparison using the caller's tenant-scoped transaction.
+func (tc *TrendCalculator) CalculateTx(ctx context.Context, tx pgx.Tx, tenantID string, now time.Time) (string, float64) {
+	return tc.calculateWithQueryer(ctx, tx, tenantID, now)
+}
+
+func (tc *TrendCalculator) calculateWithQueryer(ctx context.Context, q rowQueryer, tenantID string, now time.Time) (string, float64) {
 	var current, previous int64
-	err := tc.db.QueryRow(ctx, `
+	err := q.QueryRow(ctx, `
 		SELECT
 			COUNT(*) FILTER (WHERE first_seen_at >= $2 - INTERVAL '24 hours'),
 			COUNT(*) FILTER (WHERE first_seen_at >= $2 - INTERVAL '48 hours' AND first_seen_at < $2 - INTERVAL '24 hours')

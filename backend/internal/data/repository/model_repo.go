@@ -211,7 +211,14 @@ func scanDataModel(scanner modelScanner) (*model.DataModel, error) {
 	item.Metadata = metadata
 	if len(schemaJSON) > 0 {
 		if err := json.Unmarshal(schemaJSON, &item.SchemaDefinition); err != nil {
-			return nil, fmt.Errorf("decode model schema_definition: %w", err)
+			// Handle {"fields": [...]} wrapper format from seeded data.
+			var wrapper struct {
+				Fields []model.ModelField `json:"fields"`
+			}
+			if err2 := json.Unmarshal(schemaJSON, &wrapper); err2 != nil {
+				return nil, fmt.Errorf("decode model schema_definition: %w", err)
+			}
+			item.SchemaDefinition = wrapper.Fields
 		}
 	}
 	if len(rulesJSON) > 0 {

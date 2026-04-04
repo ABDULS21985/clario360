@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/rs/zerolog"
@@ -25,10 +26,23 @@ type Period struct {
 	Duration time.Duration
 }
 
+// Config controls aggregation periods and tenant concurrency.
+type Config struct {
+	Periods        []Period
+	MaxConcurrency int
+}
+
+// DefaultConfig provides the default periods and tenant concurrency used by the engine.
+var DefaultConfig = Config{
+	Periods:        append([]Period(nil), DefaultPeriods...),
+	MaxConcurrency: 5,
+}
+
 // Engine orchestrates all CTI aggregation jobs.
 type Engine struct {
 	db        *pgxpool.Pool
 	logger    zerolog.Logger
+	config    Config
 	Metrics   *Metrics
 	geoAgg    *GeoAggregator
 	sectorAgg *SectorAggregator
@@ -38,11 +52,18 @@ type Engine struct {
 
 // NewEngine creates an aggregation engine with its own Prometheus registry.
 func NewEngine(db *pgxpool.Pool, parentReg *prometheus.Registry, logger zerolog.Logger) *Engine {
+	return NewEngineWithConfig(db, parentReg, logger, DefaultConfig)
+}
+
+// NewEngineWithConfig creates an aggregation engine with caller-provided periods and concurrency.
+func NewEngineWithConfig(db *pgxpool.Pool, parentReg *prometheus.Registry, logger zerolog.Logger, cfg Config) *Engine {
+	cfg = normalizeConfig(cfg)
 	m := NewMetrics(parentReg)
 	tc := NewTrendCalculator(db, logger)
 	return &Engine{
 		db:        db,
 		logger:    logger.With().Str("component", "cti-aggregation-engine").Logger(),
+		config:    cfg,
 		Metrics:   m,
 		geoAgg:    NewGeoAggregator(db, logger, m),
 		sectorAgg: NewSectorAggregator(db, logger, m),
@@ -59,7 +80,7 @@ func (e *Engine) RunFullAggregation(ctx context.Context, tenantID string) error 
 	now := time.Now().UTC()
 	var errs int
 
-	for _, p := range DefaultPeriods {
+	for _, p := range e.config.Periods {
 		pStart := now.Add(-p.Duration)
 		if err := e.geoAgg.Aggregate(ctx, tenantID, pStart, now, p.Label); err != nil {
 			e.logger.Error().Err(err).Str("tenant_id", tenantID).Str("period", p.Label).Msg("geo aggregation failed")
@@ -70,9 +91,6 @@ func (e *Engine) RunFullAggregation(ctx context.Context, tenantID string) error 
 			errs++
 		}
 	}
-
-	// Backfill top_threat_type labels
-	_ = e.geoAgg.BackfillTopThreatTypes(ctx, tenantID)
 
 	// Executive snapshot
 	if err := e.execAgg.Aggregate(ctx, tenantID); err != nil {
@@ -106,7 +124,7 @@ func (e *Engine) RunAllTenants(ctx context.Context) error {
 
 	e.logger.Info().Int("tenants", len(tenantIDs)).Msg("running CTI aggregation for all tenants")
 
-	sem := make(chan struct{}, 5) // max concurrency
+	sem := make(chan struct{}, e.config.MaxConcurrency)
 	var wg sync.WaitGroup
 	var mu sync.Mutex
 	var totalErrors int
@@ -137,9 +155,41 @@ func (e *Engine) RunAllTenants(ctx context.Context) error {
 // GetActiveTenants returns distinct tenant IDs that have CTI threat events.
 func (e *Engine) GetActiveTenants(ctx context.Context) ([]string, error) {
 	rows, err := e.db.Query(ctx, `
-		SELECT DISTINCT tenant_id::text FROM cti_threat_events
-		WHERE deleted_at IS NULL
-		GROUP BY tenant_id`)
+		SELECT tenant_id::text
+		FROM (
+			SELECT tenant_id FROM cti_threat_events WHERE deleted_at IS NULL
+			UNION
+			SELECT tenant_id FROM cti_campaigns WHERE deleted_at IS NULL
+			UNION
+			SELECT tenant_id FROM cti_threat_actors WHERE deleted_at IS NULL
+			UNION
+			SELECT tenant_id FROM cti_brand_abuse_incidents WHERE deleted_at IS NULL
+			UNION
+			SELECT tenant_id FROM cti_monitored_brands
+			UNION
+			SELECT tenant_id FROM cti_campaign_iocs
+			UNION
+			SELECT tenant_id FROM cti_campaign_events
+			UNION
+			SELECT tenant_id FROM cti_data_sources
+			UNION
+			SELECT tenant_id FROM cti_industry_sectors
+			UNION
+			SELECT tenant_id FROM cti_geographic_regions
+			UNION
+			SELECT tenant_id FROM cti_threat_categories
+			UNION
+			SELECT tenant_id FROM cti_threat_severity_levels
+			UNION
+			SELECT tenant_id FROM cti_geo_threat_summary
+			UNION
+			SELECT tenant_id FROM cti_sector_threat_summary
+			UNION
+			SELECT tenant_id FROM cti_executive_snapshot
+			UNION
+			SELECT tenant_id FROM cti_threat_event_tags
+		) active_tenants
+		ORDER BY tenant_id`)
 	if err != nil {
 		return nil, err
 	}
@@ -154,4 +204,30 @@ func (e *Engine) GetActiveTenants(ctx context.Context) ([]string, error) {
 		ids = append(ids, id)
 	}
 	return ids, rows.Err()
+}
+
+type tenantExec interface {
+	Exec(ctx context.Context, sql string, arguments ...any) (pgconn.CommandTag, error)
+}
+
+func setTenantContext(ctx context.Context, exec tenantExec, tenantID string) error {
+	if _, err := exec.Exec(ctx, "SELECT set_config('app.current_tenant_id', $1, true)", tenantID); err != nil {
+		return fmt.Errorf("set app.current_tenant_id: %w", err)
+	}
+	if _, err := exec.Exec(ctx, "SELECT set_config('app.tenant_id', $1, true)", tenantID); err != nil {
+		return fmt.Errorf("set app.tenant_id: %w", err)
+	}
+	return nil
+}
+
+func normalizeConfig(cfg Config) Config {
+	if len(cfg.Periods) == 0 {
+		cfg.Periods = append([]Period(nil), DefaultPeriods...)
+	} else {
+		cfg.Periods = append([]Period(nil), cfg.Periods...)
+	}
+	if cfg.MaxConcurrency <= 0 {
+		cfg.MaxConcurrency = DefaultConfig.MaxConcurrency
+	}
+	return cfg
 }

@@ -2,6 +2,8 @@ package aggregation
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"time"
 
 	"github.com/rs/zerolog"
@@ -75,10 +77,15 @@ func (s *Scheduler) Start(ctx context.Context) error {
 				if err != nil {
 					return err
 				}
+				var errs []error
 				for _, tid := range tenants {
 					if err := s.engine.execAgg.Aggregate(ctx, tid); err != nil {
-						s.logger.Warn().Err(err).Str("tenant_id", tid).Msg("executive refresh failed")
+						errs = append(errs, fmt.Errorf("tenant %s: %w", tid, err))
+						s.logger.Error().Err(err).Str("tenant_id", tid).Msg("executive refresh failed")
 					}
+				}
+				if len(errs) > 0 {
+					return fmt.Errorf("executive refresh failed for %d/%d tenants: %w", len(errs), len(tenants), errors.Join(errs...))
 				}
 				return nil
 			})
@@ -105,12 +112,20 @@ func (s *Scheduler) runSafe(ctx context.Context, jobName string, fn func() error
 }
 
 func (s *Scheduler) cleanup(ctx context.Context) error {
+	start := time.Now()
 	cutoff := time.Now().UTC().Add(-s.config.MaxAggregationAge)
+	var errs []error
 	if _, err := s.engine.db.Exec(ctx, `DELETE FROM cti_geo_threat_summary WHERE computed_at < $1`, cutoff); err != nil {
-		s.logger.Warn().Err(err).Msg("cleanup geo summary")
+		errs = append(errs, fmt.Errorf("cleanup geo summary: %w", err))
 	}
 	if _, err := s.engine.db.Exec(ctx, `DELETE FROM cti_sector_threat_summary WHERE computed_at < $1`, cutoff); err != nil {
-		s.logger.Warn().Err(err).Msg("cleanup sector summary")
+		errs = append(errs, fmt.Errorf("cleanup sector summary: %w", err))
+	}
+
+	s.engine.Metrics.Duration.WithLabelValues("_system", "cleanup").Observe(time.Since(start).Seconds())
+	if len(errs) > 0 {
+		s.engine.Metrics.Errors.WithLabelValues("_system", "cleanup").Inc()
+		return errors.Join(errs...)
 	}
 	s.logger.Info().Time("cutoff", cutoff).Msg("aggregation cleanup complete")
 	return nil

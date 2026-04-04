@@ -3,6 +3,7 @@ package cti
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -19,7 +20,15 @@ import (
 // When set, the admin refresh endpoint delegates to it instead of raw repo queries.
 type AggEngine interface {
 	RunFullAggregation(ctx context.Context, tenantID string) error
+	RunAllTenants(ctx context.Context) error
 }
+
+type AggregationRefreshScope string
+
+const (
+	AggregationScopeTenant     AggregationRefreshScope = "tenant"
+	AggregationScopeAllTenants AggregationRefreshScope = "all_tenants"
+)
 
 // Service implements CTI business logic on top of the repository.
 type Service struct {
@@ -37,6 +46,19 @@ func NewService(repo Repository, producer *events.Producer, logger zerolog.Logge
 // SetAggregationEngine attaches the full aggregation engine for admin refresh.
 func (s *Service) SetAggregationEngine(engine AggEngine) {
 	s.aggEngine = engine
+}
+
+func ParseAggregationRefreshScope(raw string) (AggregationRefreshScope, error) {
+	switch strings.ToLower(strings.TrimSpace(raw)) {
+	case "", "tenant", "self", "current":
+		return AggregationScopeTenant, nil
+	case "all", "all_tenants", "all-tenants":
+		return AggregationScopeAllTenants, nil
+	default:
+		return "", apperrors.NewValidation("INVALID_SCOPE", "scope must be one of: tenant, all", map[string]string{
+			"scope": "must be 'tenant' or 'all'",
+		})
+	}
 }
 
 // ---------------------------------------------------------------------------
@@ -402,7 +424,7 @@ func (s *Service) CreateThreatEvent(ctx context.Context, req CreateThreatEventRe
 	}
 
 	// Publish to CTI topic
-	s.publishDomainEvent(ctx,TopicCTIThreatEvents, EventThreatEventCreated, tid, ThreatEventPayload{
+	s.publishDomainEvent(ctx, TopicCTIThreatEvents, EventThreatEventCreated, tid, ThreatEventPayload{
 		EventID:         event.ID.String(),
 		TenantID:        tid.String(),
 		EventType:       event.EventType,
@@ -416,7 +438,7 @@ func (s *Service) CreateThreatEvent(ctx context.Context, req CreateThreatEventRe
 		Timestamp:       event.FirstSeenAt,
 	})
 	// Audit log
-	s.publishAuditEvent(ctx,EventThreatEventCreated, tid, map[string]interface{}{
+	s.publishAuditEvent(ctx, EventThreatEventCreated, tid, map[string]interface{}{
 		"id": event.ID.String(), "title": event.Title, "severity": req.SeverityCode,
 	})
 
@@ -550,8 +572,8 @@ func (s *Service) UpdateThreatEvent(ctx context.Context, eventID uuid.UUID, req 
 		}
 	}
 
-	s.publishDomainEvent(ctx,TopicCTIThreatEvents, EventThreatEventUpdated, tid, map[string]interface{}{"id": eventID.String()})
-	s.publishAuditEvent(ctx,EventThreatEventUpdated, tid, map[string]interface{}{"id": eventID.String()})
+	s.publishDomainEvent(ctx, TopicCTIThreatEvents, EventThreatEventUpdated, tid, map[string]interface{}{"id": eventID.String()})
+	s.publishAuditEvent(ctx, EventThreatEventUpdated, tid, map[string]interface{}{"id": eventID.String()})
 	s.triggerAggregation(ctx, tid, "threat_event_updated", eventID.String())
 
 	return s.repo.GetThreatEvent(ctx, tid, eventID)
@@ -565,8 +587,8 @@ func (s *Service) DeleteThreatEvent(ctx context.Context, eventID uuid.UUID) erro
 	if err := s.repo.DeleteThreatEvent(ctx, tid, eventID, uid); err != nil {
 		return err
 	}
-	s.publishDomainEvent(ctx,TopicCTIThreatEvents, EventThreatEventDeleted, tid, map[string]interface{}{"id": eventID.String()})
-	s.publishAuditEvent(ctx,EventThreatEventDeleted, tid, map[string]interface{}{"id": eventID.String()})
+	s.publishDomainEvent(ctx, TopicCTIThreatEvents, EventThreatEventDeleted, tid, map[string]interface{}{"id": eventID.String()})
+	s.publishAuditEvent(ctx, EventThreatEventDeleted, tid, map[string]interface{}{"id": eventID.String()})
 	s.triggerAggregation(ctx, tid, "threat_event_deleted", eventID.String())
 	return nil
 }
@@ -579,8 +601,8 @@ func (s *Service) MarkEventFalsePositive(ctx context.Context, eventID uuid.UUID)
 	if err := s.repo.MarkFalsePositive(ctx, tid, eventID, uid); err != nil {
 		return err
 	}
-	s.publishDomainEvent(ctx,TopicCTIThreatEvents, EventThreatEventFalsePositive, tid, map[string]interface{}{"id": eventID.String()})
-	s.publishAuditEvent(ctx,EventThreatEventFalsePositive, tid, map[string]interface{}{"id": eventID.String()})
+	s.publishDomainEvent(ctx, TopicCTIThreatEvents, EventThreatEventFalsePositive, tid, map[string]interface{}{"id": eventID.String()})
+	s.publishAuditEvent(ctx, EventThreatEventFalsePositive, tid, map[string]interface{}{"id": eventID.String()})
 	s.triggerAggregation(ctx, tid, "threat_event_false_positive", eventID.String())
 	return nil
 }
@@ -593,8 +615,8 @@ func (s *Service) ResolveEvent(ctx context.Context, eventID uuid.UUID) error {
 	if err := s.repo.ResolveThreatEvent(ctx, tid, eventID, uid); err != nil {
 		return err
 	}
-	s.publishDomainEvent(ctx,TopicCTIThreatEvents, EventThreatEventResolved, tid, map[string]interface{}{"id": eventID.String()})
-	s.publishAuditEvent(ctx,EventThreatEventResolved, tid, map[string]interface{}{"id": eventID.String()})
+	s.publishDomainEvent(ctx, TopicCTIThreatEvents, EventThreatEventResolved, tid, map[string]interface{}{"id": eventID.String()})
+	s.publishAuditEvent(ctx, EventThreatEventResolved, tid, map[string]interface{}{"id": eventID.String()})
 	s.triggerAggregation(ctx, tid, "threat_event_resolved", eventID.String())
 	return nil
 }
@@ -655,7 +677,7 @@ func (s *Service) CreateThreatActor(ctx context.Context, req CreateThreatActorRe
 	if err := s.repo.CreateThreatActor(ctx, tid, actor); err != nil {
 		return nil, err
 	}
-	s.publishAuditEvent(ctx,"cti.threat_actor.created", tid, map[string]interface{}{
+	s.publishAuditEvent(ctx, "cti.threat_actor.created", tid, map[string]interface{}{
 		"id": actor.ID.String(), "name": actor.Name,
 	})
 	return s.repo.GetThreatActor(ctx, tid, actor.ID)
@@ -722,7 +744,7 @@ func (s *Service) UpdateThreatActor(ctx context.Context, actorID uuid.UUID, req 
 	if err := s.repo.UpdateThreatActor(ctx, tid, actorID, updates); err != nil {
 		return nil, err
 	}
-	s.publishAuditEvent(ctx,"cti.threat_actor.updated", tid, map[string]interface{}{"id": actorID.String()})
+	s.publishAuditEvent(ctx, "cti.threat_actor.updated", tid, map[string]interface{}{"id": actorID.String()})
 	return s.repo.GetThreatActor(ctx, tid, actorID)
 }
 
@@ -734,7 +756,7 @@ func (s *Service) DeleteThreatActor(ctx context.Context, actorID uuid.UUID) erro
 	if err := s.repo.DeleteThreatActor(ctx, tid, actorID, uid); err != nil {
 		return err
 	}
-	s.publishAuditEvent(ctx,"cti.threat_actor.deleted", tid, map[string]interface{}{"id": actorID.String()})
+	s.publishAuditEvent(ctx, "cti.threat_actor.deleted", tid, map[string]interface{}{"id": actorID.String()})
 	return nil
 }
 
@@ -790,7 +812,7 @@ func (s *Service) CreateCampaign(ctx context.Context, req CreateCampaignRequest)
 	if err := s.repo.CreateCampaign(ctx, tid, c); err != nil {
 		return nil, err
 	}
-	s.publishDomainEvent(ctx,TopicCTICampaigns, EventCampaignCreated, tid, CampaignPayload{
+	s.publishDomainEvent(ctx, TopicCTICampaigns, EventCampaignCreated, tid, CampaignPayload{
 		CampaignID:   c.ID.String(),
 		TenantID:     tid.String(),
 		CampaignCode: c.CampaignCode,
@@ -798,7 +820,7 @@ func (s *Service) CreateCampaign(ctx context.Context, req CreateCampaignRequest)
 		Status:       c.Status,
 		SeverityCode: req.SeverityCode,
 	})
-	s.publishAuditEvent(ctx,EventCampaignCreated, tid, map[string]interface{}{
+	s.publishAuditEvent(ctx, EventCampaignCreated, tid, map[string]interface{}{
 		"id": c.ID.String(), "name": c.Name, "status": c.Status,
 	})
 	if req.SeverityCode == "critical" && req.Status == "active" {
@@ -905,10 +927,10 @@ func (s *Service) UpdateCampaignStatus(ctx context.Context, campaignID uuid.UUID
 	if err := s.repo.UpdateCampaignStatus(ctx, tid, campaignID, status, uid); err != nil {
 		return err
 	}
-	s.publishDomainEvent(ctx,TopicCTICampaigns, EventCampaignStatusChanged, tid, map[string]interface{}{
+	s.publishDomainEvent(ctx, TopicCTICampaigns, EventCampaignStatusChanged, tid, map[string]interface{}{
 		"id": campaignID.String(), "status": status,
 	})
-	s.publishAuditEvent(ctx,EventCampaignStatusChanged, tid, map[string]interface{}{
+	s.publishAuditEvent(ctx, EventCampaignStatusChanged, tid, map[string]interface{}{
 		"id": campaignID.String(), "status": status,
 	})
 	return nil
@@ -1042,7 +1064,7 @@ func (s *Service) CreateMonitoredBrand(ctx context.Context, req CreateMonitoredB
 	if err := s.repo.CreateMonitoredBrand(ctx, tid, brand); err != nil {
 		return nil, err
 	}
-	s.publishAuditEvent(ctx,"cti.brand.created", tid, map[string]interface{}{
+	s.publishAuditEvent(ctx, "cti.brand.created", tid, map[string]interface{}{
 		"id": brand.ID.String(), "name": brand.BrandName,
 	})
 	brands, _ := s.repo.ListMonitoredBrands(ctx, tid)
@@ -1129,7 +1151,7 @@ func (s *Service) CreateBrandAbuseIncident(ctx context.Context, req CreateBrandA
 	if err := s.repo.CreateBrandAbuseIncident(ctx, tid, inc); err != nil {
 		return nil, err
 	}
-	s.publishDomainEvent(ctx,TopicCTIBrandAbuse, EventBrandAbuseDetected, tid, BrandAbusePayload{
+	s.publishDomainEvent(ctx, TopicCTIBrandAbuse, EventBrandAbuseDetected, tid, BrandAbusePayload{
 		IncidentID:      inc.ID.String(),
 		TenantID:        tid.String(),
 		MaliciousDomain: inc.MaliciousDomain,
@@ -1137,7 +1159,7 @@ func (s *Service) CreateBrandAbuseIncident(ctx context.Context, req CreateBrandA
 		RiskLevel:       inc.RiskLevel,
 		TakedownStatus:  inc.TakedownStatus,
 	})
-	s.publishAuditEvent(ctx,EventBrandAbuseDetected, tid, map[string]interface{}{
+	s.publishAuditEvent(ctx, EventBrandAbuseDetected, tid, map[string]interface{}{
 		"id": inc.ID.String(), "domain": inc.MaliciousDomain, "risk_level": inc.RiskLevel,
 	})
 	if inc.RiskLevel == "critical" {
@@ -1200,10 +1222,10 @@ func (s *Service) UpdateTakedownStatus(ctx context.Context, incidentID uuid.UUID
 	if err := s.repo.UpdateTakedownStatus(ctx, tid, incidentID, status, uid); err != nil {
 		return err
 	}
-	s.publishDomainEvent(ctx,TopicCTIBrandAbuse, EventBrandAbuseTakedownChanged, tid, map[string]interface{}{
+	s.publishDomainEvent(ctx, TopicCTIBrandAbuse, EventBrandAbuseTakedownChanged, tid, map[string]interface{}{
 		"id": incidentID.String(), "status": status,
 	})
-	s.publishAuditEvent(ctx,EventBrandAbuseTakedownChanged, tid, map[string]interface{}{
+	s.publishAuditEvent(ctx, EventBrandAbuseTakedownChanged, tid, map[string]interface{}{
 		"id": incidentID.String(), "status": status,
 	})
 	return nil
@@ -1299,7 +1321,18 @@ func (s *Service) GetExecutiveDashboard(ctx context.Context) (*ExecutiveDashboar
 // Aggregation refresh
 // ---------------------------------------------------------------------------
 
-func (s *Service) RefreshAggregations(ctx context.Context) error {
+func (s *Service) RefreshAggregations(ctx context.Context, scope AggregationRefreshScope) error {
+	if scope == AggregationScopeAllTenants {
+		user := auth.UserFromContext(ctx)
+		if user == nil || !auth.HasPermission(user.Roles, auth.PermAdminAll) {
+			return apperrors.NewForbidden("FORBIDDEN", "super-admin permission required for all-tenant CTI aggregation refresh")
+		}
+		if s.aggEngine == nil {
+			return apperrors.NewInternal("CTI_AGG_ENGINE_UNAVAILABLE", "cti aggregation engine unavailable", fmt.Errorf("all-tenant refresh requires aggregation engine"))
+		}
+		return s.aggEngine.RunAllTenants(ctx)
+	}
+
 	tid, _, err := tenantAndUser(ctx)
 	if err != nil {
 		return err

@@ -785,9 +785,14 @@ func (h *Handler) GetExecutiveDashboard(w http.ResponseWriter, r *http.Request) 
 }
 
 func (h *Handler) RefreshAggregations(w http.ResponseWriter, r *http.Request) {
-	if err := h.svc.RefreshAggregations(r.Context()); err != nil {
+	scope, err := ParseAggregationRefreshScope(r.URL.Query().Get("scope"))
+	if err != nil {
 		handleErr(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, envelope{"data": map[string]any{"refreshed": true}})
+	if err := h.svc.RefreshAggregations(r.Context(), scope); err != nil {
+		handleErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, envelope{"data": map[string]any{"refreshed": true, "scope": scope}})
 }
