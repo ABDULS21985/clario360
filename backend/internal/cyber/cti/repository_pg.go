@@ -1577,6 +1577,37 @@ func (r *PgRepository) FindMatchingCampaignIOCs(ctx context.Context, tenantID uu
 	return items, err
 }
 
+func (r *PgRepository) ListPollingTenants(ctx context.Context) ([]uuid.UUID, error) {
+	rows, err := r.db.Query(ctx, `SELECT DISTINCT tenant_id
+		FROM cti_data_sources
+		WHERE is_active = true
+		  AND url IS NOT NULL
+		  AND BTRIM(url) <> ''`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	tenants := make([]uuid.UUID, 0)
+	for rows.Next() {
+		var tenantID uuid.UUID
+		if err := rows.Scan(&tenantID); err != nil {
+			return nil, err
+		}
+		tenants = append(tenants, tenantID)
+	}
+	return tenants, rows.Err()
+}
+
+func (r *PgRepository) UpdateDataSourceLastPolled(ctx context.Context, tenantID, sourceID uuid.UUID, polledAt time.Time) error {
+	return r.withTenantWrite(ctx, tenantID, func(db dbtx) error {
+		_, err := db.Exec(ctx, `UPDATE cti_data_sources
+			SET last_polled_at = $3, updated_at = NOW()
+			WHERE tenant_id = $1 AND id = $2`, tenantID, sourceID, polledAt)
+		return err
+	})
+}
+
 func periodToInterval(period string) string {
 	switch period {
 	case "24h":

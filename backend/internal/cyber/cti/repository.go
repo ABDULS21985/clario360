@@ -79,6 +79,8 @@ type Repository interface {
 	FindThreatEventBySourceRef(ctx context.Context, tenantID, sourceID uuid.UUID, sourceRef string) (*ThreatEvent, error)
 	UpdateThreatEventLastSeen(ctx context.Context, tenantID, eventID uuid.UUID) error
 	FindMatchingCampaignIOCs(ctx context.Context, tenantID uuid.UUID, iocType, iocValue string) ([]CampaignIOC, error)
+	ListPollingTenants(ctx context.Context) ([]uuid.UUID, error)
+	UpdateDataSourceLastPolled(ctx context.Context, tenantID, sourceID uuid.UUID, polledAt time.Time) error
 
 	// Aggregation refresh
 	RefreshGeoThreatSummary(ctx context.Context, tenantID uuid.UUID, start, end time.Time) error

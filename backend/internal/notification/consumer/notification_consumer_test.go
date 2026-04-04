@@ -6,6 +6,7 @@ import (
 	"io"
 	"testing"
 
+	"github.com/clario360/platform/internal/cyber/cti"
 	"github.com/clario360/platform/internal/events"
 	"github.com/clario360/platform/internal/notification/service"
 	"github.com/rs/zerolog"
@@ -205,6 +206,33 @@ func TestRemediationExecuted_NotifiesAssetOwners(t *testing.T) {
 	err := consumer.handleEvent(context.Background(), testNotificationEvent("com.clario360.cyber.remediation.executed", map[string]interface{}{
 		"id":                 "rem-1",
 		"affected_asset_ids": []string{"asset-1", "asset-2"},
+	}))
+	if err != nil {
+		t.Fatalf("handleEvent returned error: %v", err)
+	}
+	if len(notifs.requests) != 2 {
+		t.Fatalf("expected 2 notifications, got %d", len(notifs.requests))
+	}
+}
+
+func TestCTIAlert_NotifiesSecurityRoles(t *testing.T) {
+	notifs := &fakeNotificationService{}
+	resolver := &fakeRecipientResolver{
+		roles: map[string][]string{
+			"security-manager": {"manager-1"},
+			"security-analyst": {"analyst-1"},
+		},
+		emails: map[string]string{
+			"manager-1": "manager@example.com",
+			"analyst-1": "analyst@example.com",
+		},
+	}
+	consumer := NewNotificationConsumer(nil, notifs, resolver, nil, nil, zerolog.New(io.Discard))
+
+	err := consumer.handleEvent(context.Background(), testNotificationEvent("com.clario360."+cti.EventCriticalThreatAlert, map[string]interface{}{
+		"title":       "Critical CTI Event",
+		"description": "Ransomware infrastructure detected",
+		"action_url":  "/cyber/cti/events/evt-1",
 	}))
 	if err != nil {
 		t.Fatalf("handleEvent returned error: %v", err)

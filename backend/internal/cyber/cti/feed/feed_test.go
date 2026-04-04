@@ -81,6 +81,42 @@ func TestGenericJSONAdapterParse(t *testing.T) {
 	}
 }
 
+func TestMISPAdapterParse(t *testing.T) {
+	raw := `{"response":[{"Event":{"id":"evt-1","info":"MISP import","threat_level_id":"2","Tag":[{"name":"apt"}],"Attribute":[{"id":"attr-1","type":"ip-dst","value":"203.0.113.10","comment":"Known C2","timestamp":"1712102400","to_ids":true,"Tag":[{"name":"ransomware"}]}]}}]}`
+	adapter := adapters.NewMISPAdapter()
+	indicators, err := adapter.Parse(context.Background(), []byte(raw))
+	if err != nil {
+		t.Fatalf("parse misp: %v", err)
+	}
+	if len(indicators) != 1 {
+		t.Fatalf("expected 1 indicator, got %d", len(indicators))
+	}
+	if indicators[0].IOCType != "ip" || indicators[0].IOCValue != "203.0.113.10" {
+		t.Fatalf("unexpected indicator: %+v", indicators[0])
+	}
+	if indicators[0].SeverityCode != "high" {
+		t.Fatalf("expected high severity, got %s", indicators[0].SeverityCode)
+	}
+}
+
+func TestOTXAdapterParse(t *testing.T) {
+	raw := `{"results":[{"id":"otx-1","indicator":"malicious.example","type":"domain","title":"OTX Pulse Indicator","created":"2026-03-01T00:00:00Z","modified":"2026-03-02T00:00:00Z","pulse_info":{"count":1,"pulses":[{"name":"Threat Pulse","description":"Credential harvesting infra","tags":["phishing"]}]}}]}`
+	adapter := adapters.NewOTXAdapter()
+	indicators, err := adapter.Parse(context.Background(), []byte(raw))
+	if err != nil {
+		t.Fatalf("parse otx: %v", err)
+	}
+	if len(indicators) != 1 {
+		t.Fatalf("expected 1 indicator, got %d", len(indicators))
+	}
+	if indicators[0].IOCType != "domain" || indicators[0].IOCValue != "malicious.example" {
+		t.Fatalf("unexpected indicator: %+v", indicators[0])
+	}
+	if indicators[0].SeverityCode != "high" {
+		t.Fatalf("expected high severity, got %s", indicators[0].SeverityCode)
+	}
+}
+
 func TestNormalizerFallback(t *testing.T) {
 	n := NewNormalizer()
 	raw := `[{"id":"fb-1","title":"Fallback","severity":"low","confidence":0.5,"ioc_type":"ip","ioc_value":"10.1.2.3"}]`

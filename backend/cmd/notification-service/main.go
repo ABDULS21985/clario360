@@ -17,6 +17,7 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/clario360/platform/internal/config"
+	"github.com/clario360/platform/internal/cyber/cti"
 	"github.com/clario360/platform/internal/database"
 	"github.com/clario360/platform/internal/events"
 	intbot "github.com/clario360/platform/internal/integration/bot"
@@ -385,6 +386,9 @@ func main() {
 		kafkaConsumer.SetDeadLetterProducer(producer)
 		kafkaConsumer.SetCrossSuiteMetrics(crossSuiteMetrics)
 		kafkaConsumer.SetDLQTracker(dlqTracker, "notification-service")
+		kafkaConsumer.SetDLQTopicOverrides(map[string]string{
+			cti.TopicCTIAlerts: cti.TopicCTIDLQ,
+		})
 		recipientResolver := consumer.NewRecipientResolver(
 			notifCfg.IAMServiceURL,
 			notifCfg.DataServiceURL,

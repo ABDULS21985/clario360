@@ -18,6 +18,8 @@ func NewNormalizer() *Normalizer {
 	for _, a := range []adapters.FeedAdapter{
 		adapters.NewSTIXAdapter(),
 		adapters.NewCSVAdapter(),
+		adapters.NewMISPAdapter(),
+		adapters.NewOTXAdapter(),
 		adapters.NewGenericJSONAdapter(),
 	} {
 		n.registry[a.SourceType()] = a

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"testing"
 
+	"github.com/clario360/platform/internal/cyber/cti"
 	"github.com/clario360/platform/internal/events"
 	"github.com/clario360/platform/internal/notification/model"
 )
@@ -69,6 +70,29 @@ func TestRuleEngine_MatchAlertCreated_LowSeverity_NoMatch(t *testing.T) {
 
 	if matches := re.Match(event); len(matches) != 0 {
 		t.Fatalf("expected 0 matches for low severity alert, got %d", len(matches))
+	}
+}
+
+func TestRuleEngine_MatchCTICriticalThreatAlert(t *testing.T) {
+	re := NewRuleEngine()
+	event := makeTestEvent("com.clario360."+cti.EventCriticalThreatAlert, "tenant-1", map[string]interface{}{
+		"title":       "CTI Critical Threat",
+		"description": "APT campaign targeting the tenant",
+		"action_url":  "/cyber/cti/events/event-1",
+	})
+
+	matches := re.Match(event)
+	if len(matches) != 1 {
+		t.Fatalf("expected 1 match, got %d", len(matches))
+	}
+	if matches[0].Rule.Topic != cti.TopicCTIAlerts {
+		t.Fatalf("expected CTI alerts topic, got %s", matches[0].Rule.Topic)
+	}
+	if matches[0].Rule.NotifType != model.NotifSecurityIncident {
+		t.Fatalf("expected security incident notification, got %s", matches[0].Rule.NotifType)
+	}
+	if priority := ResolvePriority(matches[0].Rule, matches[0].Data); priority != model.PriorityCritical {
+		t.Fatalf("expected critical priority, got %s", priority)
 	}
 }
 
@@ -212,6 +236,7 @@ func TestExtractEventTopics(t *testing.T) {
 		events.Topics.WorkflowEvents: false,
 		events.Topics.ActaEvents:     false,
 		events.Topics.LexEvents:      false,
+		cti.TopicCTIAlerts:           false,
 	}
 	for _, topic := range topics {
 		if _, ok := required[topic]; ok {

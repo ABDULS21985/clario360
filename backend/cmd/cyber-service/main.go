@@ -33,6 +33,9 @@ import (
 	cyberconfig "github.com/clario360/platform/internal/cyber/config"
 	"github.com/clario360/platform/internal/cyber/consumer"
 	cyberctem "github.com/clario360/platform/internal/cyber/ctem"
+	"github.com/clario360/platform/internal/cyber/cti"
+	ctiagg "github.com/clario360/platform/internal/cyber/cti/aggregation"
+	ctifeed "github.com/clario360/platform/internal/cyber/cti/feed"
 	cyberdashboard "github.com/clario360/platform/internal/cyber/dashboard"
 	"github.com/clario360/platform/internal/cyber/detection"
 	cyberdspm "github.com/clario360/platform/internal/cyber/dspm"
@@ -61,9 +64,6 @@ import (
 	dspmrempolicy "github.com/clario360/platform/internal/cyber/dspm/remediation/policy"
 	dspmremrepo "github.com/clario360/platform/internal/cyber/dspm/remediation/repository"
 	cybershadow "github.com/clario360/platform/internal/cyber/dspm/shadow"
-	"github.com/clario360/platform/internal/cyber/cti"
-	ctiagg "github.com/clario360/platform/internal/cyber/cti/aggregation"
-	ctifeed "github.com/clario360/platform/internal/cyber/cti/feed"
 	"github.com/clario360/platform/internal/cyber/enrichment"
 	"github.com/clario360/platform/internal/cyber/handler"
 	"github.com/clario360/platform/internal/cyber/indicator"
@@ -1106,6 +1106,13 @@ func main() {
 			kafkaConsumer.SetDeadLetterProducer(producer)
 			kafkaConsumer.SetCrossSuiteMetrics(crossSuiteMetrics)
 			kafkaConsumer.SetDLQTracker(dlqTracker, "cyber-service")
+			kafkaConsumer.SetDLQTopicOverrides(map[string]string{
+				cti.TopicCTIThreatEvents:        cti.TopicCTIDLQ,
+				cti.TopicCTICampaigns:           cti.TopicCTIDLQ,
+				cti.TopicCTIBrandAbuse:          cti.TopicCTIDLQ,
+				cti.TopicCTIFeedIngestion:       cti.TopicCTIDLQ,
+				cti.TopicCTIAggregationTriggers: cti.TopicCTIDLQ,
+			})
 			cyberConsumer = consumer.NewCyberConsumer(assetSvc, detectionSvc, cyberCfg.SecurityEventTopic, kafkaConsumer, logger)
 			_ = consumer.NewCTEMConsumer(ctemSvc, kafkaConsumer, logger)
 			_ = consumer.NewRiskConsumer(riskSvc, dashboardSvc, rdb, kafkaConsumer, logger)
@@ -1129,16 +1136,19 @@ func main() {
 			kafkaConsumer.Subscribe(cti.TopicCTIThreatEvents, events.EventHandlerFunc(ctiWSBroadcast.Handle))
 			kafkaConsumer.Subscribe(cti.TopicCTICampaigns, events.EventHandlerFunc(ctiWSBroadcast.Handle))
 			kafkaConsumer.Subscribe(cti.TopicCTIBrandAbuse, events.EventHandlerFunc(ctiWSBroadcast.Handle))
-			// CTI alert → notification-service bridge
-			notifURL := os.Getenv("CTI_NOTIFICATION_SERVICE_URL")
-			if notifURL == "" {
-				notifURL = "http://localhost:8090"
-			}
-			ctiAlertConsumer := cti.NewAlertNotificationConsumer(
-				cti.NewHTTPNotificationSender(notifURL, logger), logger,
-			)
-			kafkaConsumer.Subscribe(cti.TopicCTIAlerts, events.EventHandlerFunc(ctiAlertConsumer.Handle))
 		}
+	}
+	var ctiFeedPoller *ctifeed.MultiTenantPoller
+	if producer != nil {
+		pollInterval := time.Minute
+		if raw := strings.TrimSpace(os.Getenv("CTI_FEED_POLL_INTERVAL")); raw != "" {
+			if parsed, err := time.ParseDuration(raw); err != nil || parsed <= 0 {
+				logger.Warn().Str("value", raw).Msg("invalid CTI_FEED_POLL_INTERVAL, using 1m")
+			} else {
+				pollInterval = parsed
+			}
+		}
+		ctiFeedPoller = ctifeed.NewMultiTenantPoller(ctiRepo, producer, pollInterval, logger)
 	}
 
 	// ── 14. Scan scheduler ─────────────────────────────────────────────────────
@@ -1198,6 +1208,15 @@ func main() {
 		}
 		return nil
 	})
+	if ctiFeedPoller != nil {
+		g.Go(func() error {
+			err := ctiFeedPoller.Run(gCtx)
+			if err != nil && !errors.Is(err, context.Canceled) {
+				return err
+			}
+			return nil
+		})
+	}
 
 	// CTI aggregation scheduler
 	ctiAggScheduler := ctiagg.NewScheduler(ctiAggEngine, ctiagg.DefaultScheduleConfig, logger)

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"strings"
 
+	"github.com/clario360/platform/internal/cyber/cti"
 	"github.com/clario360/platform/internal/events"
 	"github.com/clario360/platform/internal/notification/model"
 )
@@ -85,6 +86,45 @@ func NewRuleEngine() *RuleEngine {
 		TitleTemplate: "{{.title}}",
 		BodyTemplate:  "A high-severity security alert was raised: {{.title}}.",
 		ActionURLTmpl: "/cyber/alerts/{{.id}}",
+	})
+	re.addRule(&NotificationRule{
+		Topic:         cti.TopicCTIAlerts,
+		EventType:     "com.clario360." + cti.EventCriticalThreatAlert,
+		NotifType:     model.NotifSecurityIncident,
+		Category:      model.CategorySecurity,
+		Priority:      model.PriorityCritical,
+		Channels:      []string{"email", "in_app"},
+		RecipientMode: RecipientRoleBased,
+		Roles:         []string{"security-manager", "security-analyst"},
+		TitleTemplate: "{{.title}}",
+		BodyTemplate:  "{{.description}}",
+		ActionURLTmpl: "{{.action_url}}",
+	})
+	re.addRule(&NotificationRule{
+		Topic:         cti.TopicCTIAlerts,
+		EventType:     "com.clario360." + cti.EventCampaignEscalation,
+		NotifType:     model.NotifSecurityIncident,
+		Category:      model.CategorySecurity,
+		Priority:      model.PriorityCritical,
+		Channels:      []string{"email", "in_app"},
+		RecipientMode: RecipientRoleBased,
+		Roles:         []string{"security-manager", "security-analyst"},
+		TitleTemplate: "{{.title}}",
+		BodyTemplate:  "{{.description}}",
+		ActionURLTmpl: "{{.action_url}}",
+	})
+	re.addRule(&NotificationRule{
+		Topic:         cti.TopicCTIAlerts,
+		EventType:     "com.clario360." + cti.EventBrandAbuseUrgent,
+		NotifType:     model.NotifSecurityIncident,
+		Category:      model.CategorySecurity,
+		Priority:      model.PriorityCritical,
+		Channels:      []string{"email", "in_app"},
+		RecipientMode: RecipientRoleBased,
+		Roles:         []string{"security-manager", "security-analyst"},
+		TitleTemplate: "{{.title}}",
+		BodyTemplate:  "{{.description}}",
+		ActionURLTmpl: "{{.action_url}}",
 	})
 	re.addRule(&NotificationRule{
 		Topic:         events.Topics.RemediationEvents,

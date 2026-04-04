@@ -60,7 +60,6 @@ const (
 
 	// Feed ingestion
 	EventFeedRawIngested = "cyber.cti.feed.raw-ingested"
-	EventFeedNormalized  = "cyber.cti.feed.normalized"
 
 	// Aggregation
 	EventAggregationTriggered = "cyber.cti.aggregation.triggered"

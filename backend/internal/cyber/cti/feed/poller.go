@@ -13,6 +13,52 @@ import (
 	"github.com/clario360/platform/internal/events"
 )
 
+// MultiTenantPoller coordinates polling for every tenant that has active CTI data sources.
+type MultiTenantPoller struct {
+	repo     cti.Repository
+	producer *events.Producer
+	interval time.Duration
+	logger   zerolog.Logger
+}
+
+func NewMultiTenantPoller(repo cti.Repository, producer *events.Producer, interval time.Duration, logger zerolog.Logger) *MultiTenantPoller {
+	return &MultiTenantPoller{
+		repo:     repo,
+		producer: producer,
+		interval: interval,
+		logger:   logger.With().Str("component", "cti-feed-poller").Logger(),
+	}
+}
+
+func (p *MultiTenantPoller) Run(ctx context.Context) error {
+	ticker := time.NewTicker(p.interval)
+	defer ticker.Stop()
+
+	p.logger.Info().Dur("interval", p.interval).Msg("CTI feed multi-tenant poller started")
+	for {
+		select {
+		case <-ctx.Done():
+			p.logger.Info().Msg("CTI feed multi-tenant poller stopped")
+			return ctx.Err()
+		case <-ticker.C:
+			p.pollTenants(ctx)
+		}
+	}
+}
+
+func (p *MultiTenantPoller) pollTenants(ctx context.Context) {
+	tenants, err := p.repo.ListPollingTenants(ctx)
+	if err != nil {
+		p.logger.Error().Err(err).Msg("list CTI polling tenants")
+		return
+	}
+
+	for _, tenantID := range tenants {
+		poller := NewPoller(p.repo, p.producer, tenantID, p.interval, p.logger)
+		poller.pollAll(ctx)
+	}
+}
+
 // Poller periodically checks active CTI data sources and publishes raw feed data
 // to the feed-ingestion Kafka topic for downstream processing.
 type Poller struct {
@@ -126,5 +172,8 @@ func (p *Poller) pollSource(ctx context.Context, src cti.DataSource) error {
 	if err != nil {
 		return err
 	}
-	return p.producer.Publish(ctx, cti.TopicCTIFeedIngestion, evt)
+	if err := p.producer.Publish(ctx, cti.TopicCTIFeedIngestion, evt); err != nil {
+		return err
+	}
+	return p.repo.UpdateDataSourceLastPolled(ctx, p.tenantID, src.ID, payload.ReceivedAt)
 }

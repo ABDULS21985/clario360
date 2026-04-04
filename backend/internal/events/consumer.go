@@ -107,11 +107,12 @@ func NewConsumerWithConfig(cfg ConsumerConfig, logger zerolog.Logger) (*Consumer
 		group:   group,
 		groupID: cfg.GroupID,
 		handler: &consumerGroupHandler{
-			logger:           logger,
-			handlers:         make(map[string][]EventHandler),
-			ready:            make(chan struct{}),
-			maxHandlerErrors: 3,
-			consumerName:     cfg.GroupID,
+			logger:            logger,
+			handlers:          make(map[string][]EventHandler),
+			ready:             make(chan struct{}),
+			dlqTopicOverrides: make(map[string]string),
+			maxHandlerErrors:  3,
+			consumerName:      cfg.GroupID,
 		},
 		logger:    logger,
 		ready:     make(chan struct{}),
@@ -153,6 +154,24 @@ func (c *Consumer) SetDLQTracker(tracker *DLQTracker, serviceName string) {
 	defer c.handler.mu.Unlock()
 	c.handler.dlqTracker = tracker
 	c.handler.dlqServiceName = serviceName
+}
+
+// SetDLQTopicOverrides routes specific topics to explicit DLQ topics.
+func (c *Consumer) SetDLQTopicOverrides(overrides map[string]string) {
+	c.handler.mu.Lock()
+	defer c.handler.mu.Unlock()
+	if len(overrides) == 0 {
+		c.handler.dlqTopicOverrides = map[string]string{}
+		return
+	}
+	resolved := make(map[string]string, len(overrides))
+	for topic, dlqTopic := range overrides {
+		if topic == "" || dlqTopic == "" {
+			continue
+		}
+		resolved[topic] = dlqTopic
+	}
+	c.handler.dlqTopicOverrides = resolved
 }
 
 // SetMaxHandlerErrors defines how many failed attempts are allowed before
@@ -229,16 +248,17 @@ func (c *Consumer) GroupID() string {
 
 // consumerGroupHandler implements sarama.ConsumerGroupHandler with manual offset commit.
 type consumerGroupHandler struct {
-	logger           zerolog.Logger
-	handlers         map[string][]EventHandler
-	mu               sync.RWMutex
-	ready            chan struct{}
-	dlqProducer      *Producer
-	dlqTracker       *DLQTracker
-	dlqServiceName   string
-	maxHandlerErrors int
-	metrics          *CrossSuiteMetrics
-	consumerName     string
+	logger            zerolog.Logger
+	handlers          map[string][]EventHandler
+	mu                sync.RWMutex
+	ready             chan struct{}
+	dlqProducer       *Producer
+	dlqTopicOverrides map[string]string
+	dlqTracker        *DLQTracker
+	dlqServiceName    string
+	maxHandlerErrors  int
+	metrics           *CrossSuiteMetrics
+	consumerName      string
 }
 
 func (h *consumerGroupHandler) Setup(session sarama.ConsumerGroupSession) error {
@@ -415,7 +435,14 @@ func (h *consumerGroupHandler) publishToDLQ(ctx context.Context, topic string, e
 		"dlq.failed_at":         time.Now().UTC().Format(time.RFC3339Nano),
 	}
 
-	if err := h.dlqProducer.Publish(ctx, topic+".dlq", dlqEvent); err != nil {
+	targetTopic := topic + ".dlq"
+	h.mu.RLock()
+	if override, ok := h.dlqTopicOverrides[topic]; ok && override != "" {
+		targetTopic = override
+	}
+	h.mu.RUnlock()
+
+	if err := h.dlqProducer.Publish(ctx, targetTopic, dlqEvent); err != nil {
 		return err
 	}
 	if err := h.dlqProducer.Publish(ctx, Topics.DeadLetter, dlqEvent); err != nil {
