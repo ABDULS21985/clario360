@@ -11,7 +11,7 @@ function buildWebSocketUrl(token: string): string {
   const baseUrl = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8080';
   const protocol = baseUrl.startsWith('https') ? 'wss' : 'ws';
   const host = baseUrl.replace(/^https?:\/\//, '');
-  return `${protocol}://${host}/api/v1/cyber/cti/ws?token=${encodeURIComponent(token)}`;
+  return `${protocol}://${host}/ws/v1/cyber/cti/ws?token=${encodeURIComponent(token)}`;
 }
 
 export function useCTIWebSocket() {

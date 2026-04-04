@@ -1,3 +1,4 @@
+import { formatDistanceToNowStrict } from 'date-fns';
 import {
   CTI_ACTOR_TYPE_LABELS,
   CTI_CAMPAIGN_STATUS_LABELS,
@@ -68,6 +69,13 @@ export const CTI_BRAND_ABUSE_TYPE_OPTIONS = [
   { label: 'Credential Harvesting', value: 'credential_harvesting' },
 ];
 
+export const CTI_TAKEDOWN_WORKFLOW: CTITakedownStatus[] = [
+  'detected',
+  'reported',
+  'takedown_requested',
+  'taken_down',
+];
+
 export function parseTagInput(value: string): string[] {
   return Array.from(
     new Set(
@@ -97,6 +105,51 @@ export function buildMitreTechniqueHref(techniqueId: string): string {
 
 export function formatCountryCode(countryCode?: string | null): string {
   return countryCode ? countryCode.toUpperCase() : '—';
+}
+
+export function countryCodeToFlag(code?: string | null): string {
+  if (!code || code.length !== 2) {
+    return '🌐';
+  }
+
+  return [...code.toUpperCase()]
+    .map((char) => String.fromCodePoint(0x1f1e6 - 65 + char.charCodeAt(0)))
+    .join('');
+}
+
+export function formatRelativeTime(dateStr?: string | null): string {
+  if (!dateStr) {
+    return '—';
+  }
+
+  const date = new Date(dateStr);
+  if (Number.isNaN(date.getTime())) {
+    return '—';
+  }
+
+  return `${formatDistanceToNowStrict(date, { addSuffix: true })}`;
+}
+
+export function formatNumber(value?: number | null): string {
+  if (value === null || value === undefined || Number.isNaN(value)) {
+    return '0';
+  }
+
+  return value.toLocaleString();
+}
+
+export function severityToColor(severity?: string | null): string {
+  if (!severity) {
+    return '#6B7280';
+  }
+
+  return {
+    critical: '#FF3B5C',
+    high: '#FF8C42',
+    medium: '#FFD93D',
+    low: '#4ADE80',
+    informational: '#94A3B8',
+  }[severity] ?? '#6B7280';
 }
 
 export function labelFromMap<T extends string>(

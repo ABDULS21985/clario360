@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
+import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, ChevronDown, Pencil } from 'lucide-react';
@@ -13,6 +14,7 @@ import { PermissionGate } from '@/components/auth/permission-gate';
 import { BrandAbuseFormDialog } from '@/components/cyber/cti/brand-abuse-form-dialog';
 import { IOCValueDisplay } from '@/components/cyber/cti/ioc-value-display';
 import { MonitoredBrandsManager } from '@/components/cyber/cti/monitored-brands-manager';
+import { CTIKPIStatCard } from '@/components/cyber/cti/kpi-stat-card';
 import { CTISeverityBadge } from '@/components/cyber/cti/severity-badge';
 import { CTIStatusBadge } from '@/components/cyber/cti/status-badge';
 import { TakedownPipeline } from '@/components/cyber/cti/takedown-pipeline';
@@ -24,8 +26,8 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { fetchBrandAbuseIncident, updateTakedownStatus } from '@/lib/cti-api';
-import { CTI_TAKEDOWN_STATUS_OPTIONS, formatCountryCode } from '@/lib/cti-utils';
+import { fetchBrandAbuseIncident, fetchMonitoredBrands, updateTakedownStatus } from '@/lib/cti-api';
+import { CTI_TAKEDOWN_STATUS_OPTIONS } from '@/lib/cti-utils';
 import { formatDateTime } from '@/lib/utils';
 import { ROUTES } from '@/lib/constants';
 
@@ -42,11 +44,30 @@ export default function CTIBrandAbuseDetailPage() {
     queryFn: () => fetchBrandAbuseIncident(incidentId),
     enabled: Boolean(incidentId),
   });
+  const brandsQuery = useQuery({
+    queryKey: ['cti-brand-abuse-detail-brands'],
+    queryFn: fetchMonitoredBrands,
+  });
 
   const incident = incidentQuery.data;
+  const monitoredBrand = useMemo(
+    () => brandsQuery.data?.find((brand) => brand.id === incident?.brand_id) ?? null,
+    [brandsQuery.data, incident?.brand_id],
+  );
 
   const statusMutation = useMutation({
     mutationFn: async (status: string) => updateTakedownStatus(incidentId, status),
+    onMutate: async (status) => {
+      const previousIncident = queryClient.getQueryData(['cti-brand-abuse-incident', incidentId]);
+      queryClient.setQueryData(['cti-brand-abuse-incident', incidentId], (current: typeof incident) => (
+        current ? { ...current, takedown_status: status } : current
+      ));
+      return { previousIncident };
+    },
+    onError: (_error, _status, context) => {
+      queryClient.setQueryData(['cti-brand-abuse-incident', incidentId], context?.previousIncident);
+      toast.error('Failed to update takedown status');
+    },
     onSuccess: async () => {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['cti-brand-abuse-incident', incidentId] }),
@@ -54,7 +75,6 @@ export default function CTIBrandAbuseDetailPage() {
       ]);
       toast.success('Takedown status updated');
     },
-    onError: () => toast.error('Failed to update takedown status'),
   });
 
   if (incidentQuery.isLoading) {
@@ -73,11 +93,16 @@ export default function CTIBrandAbuseDetailPage() {
     );
   }
 
+  const daysActive = Math.max(
+    Math.ceil((Date.parse(incident.last_detected_at) - Date.parse(incident.first_detected_at)) / 86_400_000),
+    1,
+  );
+
   return (
     <PermissionRedirect permission="cyber:read">
       <div className="space-y-6">
         <PageHeader
-          title={
+          title={(
             <div className="flex items-center gap-3">
               <button
                 onClick={() => router.push(ROUTES.CYBER_CTI_BRAND_ABUSE)}
@@ -85,19 +110,20 @@ export default function CTIBrandAbuseDetailPage() {
               >
                 <ArrowLeft className="h-4 w-4" />
               </button>
-              <span className="truncate">{incident.brand_name}</span>
+              <span className="truncate">{incident.malicious_domain}</span>
             </div>
-          }
-          description={
+          )}
+          description={(
             <div className="flex flex-wrap items-center gap-3 pl-11">
+              <span className="text-sm text-muted-foreground">{incident.brand_name}</span>
               <CTISeverityBadge severity={incident.risk_level} />
               <CTIStatusBadge status={incident.takedown_status} type="takedown" />
               <span className="rounded-full border px-3 py-1 text-xs font-medium text-muted-foreground">
                 {incident.abuse_type.replaceAll('_', ' ')}
               </span>
             </div>
-          }
-          actions={
+          )}
+          actions={(
             <div className="flex flex-wrap items-center gap-2">
               <PermissionGate permission="cyber:write">
                 <DropdownMenu>
@@ -124,40 +150,85 @@ export default function CTIBrandAbuseDetailPage() {
                 </Button>
               </PermissionGate>
             </div>
-          }
+          )}
         />
+
+        <div className="grid gap-4 md:grid-cols-3">
+          <CTIKPIStatCard label="Detection Count" value={incident.detection_count} subtitle="Observed detections" />
+          <CTIKPIStatCard label="Takedown Status" value={incident.takedown_status.replaceAll('_', ' ')} subtitle="Current lifecycle stage" />
+          <CTIKPIStatCard label="Days Active" value={daysActive} subtitle="Time since first sighting" />
+        </div>
 
         <TakedownPipeline
           status={incident.takedown_status}
           requestedAt={incident.takedown_requested_at}
           takenDownAt={incident.taken_down_at}
+          onAdvanceStatus={(nextStatus) => statusMutation.mutate(nextStatus)}
+          isLoading={statusMutation.isPending}
         />
+
+        <div className="flex flex-wrap gap-2">
+          <PermissionGate permission="cyber:write">
+            {incident.takedown_status !== 'takedown_requested' && incident.takedown_status !== 'taken_down' && (
+              <Button variant="outline" onClick={() => statusMutation.mutate('takedown_requested')}>
+                Request Takedown
+              </Button>
+            )}
+            {incident.takedown_status !== 'taken_down' && (
+              <Button variant="outline" onClick={() => statusMutation.mutate('taken_down')}>
+                Mark Taken Down
+              </Button>
+            )}
+            {incident.takedown_status !== 'false_positive' && (
+              <Button variant="outline" onClick={() => statusMutation.mutate('false_positive')}>
+                Mark False Positive
+              </Button>
+            )}
+          </PermissionGate>
+          <Button variant="ghost" asChild>
+            <Link href={`${ROUTES.CYBER_CTI_EVENTS}?search=${encodeURIComponent(incident.malicious_domain)}`}>
+              Related Events →
+            </Link>
+          </Button>
+        </div>
 
         <div className="grid gap-4 lg:grid-cols-2">
           <Card>
             <CardHeader>
-              <CardTitle>Abuse Details</CardTitle>
+              <CardTitle>Incident Details</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3 text-sm">
               <IOCValueDisplay type="domain" value={incident.malicious_domain} />
-              <DetailRow label="Detection Count" value={String(incident.detection_count)} />
+              <DetailRow label="Abuse Type" value={incident.abuse_type.replaceAll('_', ' ')} />
               <DetailRow label="Region" value={incident.region_label || '—'} />
-              <DetailRow label="Hosting ASN" value={incident.hosting_asn || '—'} />
               <DetailRow label="Hosting IP" value={incident.hosting_ip || '—'} />
+              <DetailRow label="Hosting ASN" value={incident.hosting_asn || '—'} />
+              <DetailRow label="WHOIS Registrant" value={incident.whois_registrant || '—'} />
+              <DetailRow label="WHOIS Created" value={incident.whois_created_date || '—'} />
+              <DetailRow label="SSL Issuer" value={incident.ssl_issuer || '—'} />
               <DetailRow label="First Detected" value={formatDateTime(incident.first_detected_at)} />
               <DetailRow label="Last Detected" value={formatDateTime(incident.last_detected_at)} />
             </CardContent>
           </Card>
           <Card>
             <CardHeader>
-              <CardTitle>Infrastructure Clues</CardTitle>
+              <CardTitle>Monitored Brand Context</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3 text-sm">
-              <DetailRow label="WHOIS Registrant" value={incident.whois_registrant || '—'} />
-              <DetailRow label="WHOIS Created" value={incident.whois_created_date || '—'} />
-              <DetailRow label="SSL Issuer" value={incident.ssl_issuer || '—'} />
-              <DetailRow label="Source Ref" value={incident.source_id || '—'} />
-              <DetailRow label="Region Code" value={formatCountryCode(incident.region_id)} />
+              <DetailRow label="Brand" value={incident.brand_name} />
+              <DetailRow label="Domain Pattern" value={monitoredBrand?.domain_pattern || '—'} />
+              <div>
+                <p className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                  Keywords
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {(monitoredBrand?.keywords ?? []).length > 0 ? monitoredBrand!.keywords.map((keyword) => (
+                    <span key={keyword} className="rounded-full border px-3 py-1 text-sm text-muted-foreground">{keyword}</span>
+                  )) : (
+                    <span className="text-muted-foreground">No keywords configured</span>
+                  )}
+                </div>
+              </div>
             </CardContent>
           </Card>
         </div>

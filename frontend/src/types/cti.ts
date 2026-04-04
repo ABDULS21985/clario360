@@ -304,6 +304,8 @@ export interface UpdateCampaignRequest {
   description?: string;
   severity_code?: CTISeverityCode;
   primary_actor_id?: string;
+  target_sectors?: string[];
+  target_regions?: string[];
   target_description?: string;
   mitre_technique_ids?: string[];
   ttps_summary?: string;
@@ -344,6 +346,7 @@ export interface CTIThreatActor {
 export interface CTIThreatActorFilters {
   search?: string;
   actor_type?: string | string[];
+  sophistication?: string | string[];
   is_active?: boolean;
   sort?: string;
   order?: 'asc' | 'desc';
@@ -372,6 +375,7 @@ export interface UpdateThreatActorRequest {
   sophistication_level?: CTISophisticationLevel;
   primary_motivation?: CTIActorMotivation;
   description?: string;
+  mitre_group_id?: string;
   risk_score?: number;
   is_active?: boolean;
 }

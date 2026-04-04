@@ -733,6 +733,9 @@ func (s *Service) UpdateThreatActor(ctx context.Context, actorID uuid.UUID, req 
 	if req.Description != nil {
 		updates["description"] = *req.Description
 	}
+	if req.MitreGroupID != nil {
+		updates["mitre_group_id"] = *req.MitreGroupID
+	}
 	if req.RiskScore != nil {
 		updates["risk_score"] = *req.RiskScore
 	}
@@ -875,6 +878,20 @@ func (s *Service) UpdateCampaign(ctx context.Context, campaignID uuid.UUID, req 
 	}
 	if req.TargetDescription != nil {
 		updates["target_description"] = *req.TargetDescription
+	}
+	if req.TargetSectors != nil {
+		targetSectors, err := ParseUUIDs(req.TargetSectors)
+		if err != nil {
+			return nil, fmt.Errorf("invalid target sector UUID: %w", err)
+		}
+		updates["target_sectors"] = targetSectors
+	}
+	if req.TargetRegions != nil {
+		targetRegions, err := ParseUUIDs(req.TargetRegions)
+		if err != nil {
+			return nil, fmt.Errorf("invalid target region UUID: %w", err)
+		}
+		updates["target_regions"] = targetRegions
 	}
 	if req.MitreTechniqueIDs != nil {
 		updates["mitre_technique_ids"] = req.MitreTechniqueIDs

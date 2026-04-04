@@ -228,7 +228,7 @@ export default function CTIDashboardPage() {
                     <TableRow
                       key={campaign.id}
                       className="cursor-pointer"
-                      onClick={() => router.push(`/cyber/cti/campaigns?campaign=${campaign.id}`)}
+                      onClick={() => router.push(`/cyber/cti/campaigns/${campaign.id}`)}
                     >
                       <TableCell>
                         <div className="space-y-1">
@@ -276,7 +276,7 @@ export default function CTIDashboardPage() {
                 <button
                   key={incident.id}
                   type="button"
-                  onClick={() => router.push('/cyber/cti/brand-abuse')}
+                  onClick={() => router.push(`/cyber/cti/brand-abuse/${incident.id}`)}
                   className="w-full rounded-xl border border-white/10 bg-slate-950/40 p-3 text-left transition hover:bg-slate-950/60"
                 >
                   <div className="flex items-start justify-between gap-3">

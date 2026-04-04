@@ -116,13 +116,14 @@ func ParseThreatEventFilters(r *http.Request) ThreatEventFilters {
 // ---------------------------------------------------------------------------
 
 type ThreatActorFilters struct {
-	Search     *string
-	ActorTypes []string
-	IsActive   *bool
-	Sort       string
-	Order      string
-	Page       int
-	PerPage    int
+	Search                *string
+	ActorTypes            []string
+	SophisticationLevels  []string
+	IsActive              *bool
+	Sort                  string
+	Order                 string
+	Page                  int
+	PerPage               int
 }
 
 func (f *ThreatActorFilters) SetDefaults() {
@@ -142,13 +143,14 @@ func (f *ThreatActorFilters) SetDefaults() {
 
 func ParseThreatActorFilters(r *http.Request) ThreatActorFilters {
 	f := ThreatActorFilters{
-		Search:     optStr(r, "search"),
-		ActorTypes: strSlice(r, "actor_type"),
-		IsActive:   optBool(r, "is_active"),
-		Sort:       r.URL.Query().Get("sort"),
-		Order:      r.URL.Query().Get("order"),
-		Page:       intParam(r, "page", 1),
-		PerPage:    intParam(r, "per_page", 25),
+		Search:               optStr(r, "search"),
+		ActorTypes:           strSlice(r, "actor_type"),
+		SophisticationLevels: strSlice(r, "sophistication"),
+		IsActive:             optBool(r, "is_active"),
+		Sort:                 r.URL.Query().Get("sort"),
+		Order:                r.URL.Query().Get("order"),
+		Page:                 intParam(r, "page", 1),
+		PerPage:              intParam(r, "per_page", 25),
 	}
 	f.SetDefaults()
 	return f

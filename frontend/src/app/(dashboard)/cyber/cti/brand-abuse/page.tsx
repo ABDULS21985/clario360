@@ -11,6 +11,7 @@ import { PermissionRedirect } from '@/components/common/permission-redirect';
 import { PermissionGate } from '@/components/auth/permission-gate';
 import { BrandAbuseFormDialog } from '@/components/cyber/cti/brand-abuse-form-dialog';
 import { IOCValueDisplay } from '@/components/cyber/cti/ioc-value-display';
+import { CTIKPIStatCard } from '@/components/cyber/cti/kpi-stat-card';
 import { MonitoredBrandsManager } from '@/components/cyber/cti/monitored-brands-manager';
 import { CTISeverityBadge } from '@/components/cyber/cti/severity-badge';
 import { CTIStatusBadge } from '@/components/cyber/cti/status-badge';
@@ -58,6 +59,26 @@ export default function CTIBrandAbusePage() {
   const brandsQuery = useQuery({
     queryKey: ['cti-brand-abuse-brands'],
     queryFn: fetchMonitoredBrands,
+  });
+  const kpisQuery = useQuery({
+    queryKey: ['cti-brand-abuse-kpis'],
+    queryFn: async () => {
+      const [critical, total, pending, takenDown] = await Promise.all([
+        fetchBrandAbuseIncidents({ page: 1, per_page: 1, risk_level: 'critical' }),
+        fetchBrandAbuseIncidents({ page: 1, per_page: 1 }),
+        fetchBrandAbuseIncidents({ page: 1, per_page: 1, takedown_status: ['reported', 'takedown_requested'] }),
+        fetchBrandAbuseIncidents({ page: 1, per_page: 1, takedown_status: 'taken_down' }),
+      ]);
+
+      return {
+        monitoredBrands: brandsQuery.data?.length ?? 0,
+        criticalAlerts: critical.meta.total,
+        totalAlerts: total.meta.total,
+        pendingTakedowns: pending.meta.total,
+        takenDown: takenDown.meta.total,
+      };
+    },
+    enabled: brandsQuery.isSuccess,
   });
 
   const filters = useMemo<FilterConfig[]>(() => [
@@ -110,8 +131,20 @@ export default function CTIBrandAbusePage() {
         onClick: async (selectedIds) => statusMutation.mutateAsync({ ids: selectedIds, status: 'reported' }),
       },
       {
+        label: 'Request Takedown',
+        onClick: async (selectedIds) => statusMutation.mutateAsync({ ids: selectedIds, status: 'takedown_requested' }),
+      },
+      {
+        label: 'Mark Taken Down',
+        onClick: async (selectedIds) => statusMutation.mutateAsync({ ids: selectedIds, status: 'taken_down' }),
+      },
+      {
         label: 'Set Monitoring',
         onClick: async (selectedIds) => statusMutation.mutateAsync({ ids: selectedIds, status: 'monitoring' }),
+      },
+      {
+        label: 'Mark False Positive',
+        onClick: async (selectedIds) => statusMutation.mutateAsync({ ids: selectedIds, status: 'false_positive' }),
       },
     ];
   }, [canWrite, statusMutation]);
@@ -138,6 +171,11 @@ export default function CTIBrandAbusePage() {
         label: 'Mark Taken Down',
         onClick: (incident) => statusMutation.mutate({ ids: [incident.id], status: 'taken_down' }),
         hidden: (incident) => incident.takedown_status === 'taken_down',
+      },
+      {
+        label: 'Request Takedown',
+        onClick: (incident) => statusMutation.mutate({ ids: [incident.id], status: 'takedown_requested' }),
+        hidden: (incident) => incident.takedown_status === 'takedown_requested' || incident.takedown_status === 'taken_down',
       },
       {
         label: 'Mark False Positive',
@@ -222,6 +260,14 @@ export default function CTIBrandAbusePage() {
             </div>
           }
         />
+
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+          <CTIKPIStatCard label="Monitored Brands" value={kpisQuery.data?.monitoredBrands ?? 0} subtitle="Protected brands" />
+          <CTIKPIStatCard label="Critical Alerts" value={kpisQuery.data?.criticalAlerts ?? 0} subtitle="Immediate action" color="#FF3B5C" />
+          <CTIKPIStatCard label="Total Incidents" value={kpisQuery.data?.totalAlerts ?? 0} subtitle="Tracked abuse cases" />
+          <CTIKPIStatCard label="Pending Takedowns" value={kpisQuery.data?.pendingTakedowns ?? 0} subtitle="Reported or requested" />
+          <CTIKPIStatCard label="Taken Down" value={kpisQuery.data?.takenDown ?? 0} subtitle="Remediated incidents" color="#4ADE80" />
+        </div>
 
         <DataTable
           {...tableProps}

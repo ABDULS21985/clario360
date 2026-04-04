@@ -157,6 +157,7 @@ function buildThreatActorQuery(filters: CTIThreatActorFilters = {}): Record<stri
     order: filters.order,
     search: filters.search,
     actor_type: filters.actor_type,
+    sophistication: filters.sophistication,
     is_active: typeof filters.is_active === 'boolean' ? String(filters.is_active) : undefined,
   });
 }
@@ -232,6 +233,7 @@ export function flattenThreatActorFetchParams(params: FetchParams): CTIThreatAct
     order: params.order,
     search: params.search,
     actor_type: filters.actor_type,
+    sophistication: filters.sophistication,
     is_active: typeof filters.is_active === 'string' ? filters.is_active === 'true' : undefined,
   };
 }

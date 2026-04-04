@@ -3,6 +3,7 @@ package cti
 import (
 	"encoding/json"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -33,8 +34,14 @@ func NewWSHub(logger zerolog.Logger) *WSHub {
 }
 
 // HandleWebSocket upgrades an HTTP connection to WebSocket for a tenant.
+// It reads the tenant from context (when behind auth middleware) or from
+// gateway-injected X-Tenant-ID header (when proxied via the API gateway).
 func (h *WSHub) HandleWebSocket(w http.ResponseWriter, r *http.Request) {
 	tenantStr := auth.TenantFromContext(r.Context())
+	if tenantStr == "" {
+		// Fallback: gateway-injected header (gateway already validated JWT).
+		tenantStr = strings.TrimSpace(r.Header.Get("X-Tenant-ID"))
+	}
 	if tenantStr == "" {
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return

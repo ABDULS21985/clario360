@@ -594,6 +594,9 @@ func (r *PgRepository) ListThreatActors(ctx context.Context, tenantID uuid.UUID,
 		if len(f.ActorTypes) > 0 {
 			qb.WhereIn("actor_type", f.ActorTypes)
 		}
+		if len(f.SophisticationLevels) > 0 {
+			qb.WhereIn("sophistication_level", f.SophisticationLevels)
+		}
 		if f.IsActive != nil {
 			qb.Where("is_active = ?", *f.IsActive)
 		}

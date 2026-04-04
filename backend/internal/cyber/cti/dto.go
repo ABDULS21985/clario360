@@ -72,6 +72,7 @@ type UpdateThreatActorRequest struct {
 	SophisticationLevel *string          `json:"sophistication_level,omitempty"`
 	PrimaryMotivation   *string          `json:"primary_motivation,omitempty"`
 	Description         *string          `json:"description,omitempty"`
+	MitreGroupID        *string          `json:"mitre_group_id,omitempty"`
 	RiskScore           *float64         `json:"risk_score,omitempty"`
 	IsActive            *bool            `json:"is_active,omitempty"`
 }
@@ -96,6 +97,8 @@ type UpdateCampaignRequest struct {
 	Description       *string  `json:"description,omitempty"`
 	SeverityCode      *string  `json:"severity_code,omitempty"`
 	PrimaryActorID    *string  `json:"primary_actor_id,omitempty"`
+	TargetSectors     []string `json:"target_sectors,omitempty"`
+	TargetRegions     []string `json:"target_regions,omitempty"`
 	TargetDescription *string  `json:"target_description,omitempty"`
 	MitreTechniqueIDs []string `json:"mitre_technique_ids,omitempty"`
 	TTPsSummary       *string  `json:"ttps_summary,omitempty"`

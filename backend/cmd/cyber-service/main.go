@@ -977,6 +977,10 @@ func main() {
 		rcaHandler.RegisterRoutes(r)
 		handler.RegisterVCISOGovernanceRoutes(r, vcisoGovHandler)
 	})
+
+	// CTI WebSocket — registered outside auth middleware; the API gateway
+	// authenticates the JWT and injects X-Tenant-ID / X-User-ID headers.
+	svc.Router.Get("/ws/v1/cyber/cti/ws", ctiWSHub.HandleWebSocket)
 	vcisochathandler.RegisterRoutes(svc.Router, vcisochathandler.RouteDeps{
 		ChatHandler:          vcisoChatHandler,
 		WSHandler:            vcisoWSHandler,
