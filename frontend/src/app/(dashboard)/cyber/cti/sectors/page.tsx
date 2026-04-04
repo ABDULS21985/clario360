@@ -3,7 +3,6 @@
 import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
-import { BarChart3 } from 'lucide-react';
 import { PageHeader } from '@/components/common/page-header';
 import { ErrorState } from '@/components/common/error-state';
 import { PermissionRedirect } from '@/components/common/permission-redirect';
@@ -24,13 +23,13 @@ export default function CTISectorsPage() {
     queryFn: () => fetchSectorThreatOverview(period),
   });
 
-  const sectors = sectorsQuery.data?.sectors ?? [];
+  const sectors = sectorsQuery.data?.sectors;
   const sortedSectors = useMemo(
-    () => [...sectors].sort((left, right) => right.total_count - left.total_count),
+    () => [...(sectors ?? [])].sort((left, right) => right.total_count - left.total_count),
     [sectors],
   );
-  const totalEvents = sectors.reduce((sum, sector) => sum + sector.total_count, 0);
-  const criticalEvents = sectors.reduce((sum, sector) => sum + sector.severity_critical_count, 0);
+  const totalEvents = (sectors ?? []).reduce((sum, sector) => sum + sector.total_count, 0);
+  const criticalEvents = (sectors ?? []).reduce((sum, sector) => sum + sector.severity_critical_count, 0);
   const topSector = sortedSectors[0];
 
   return (
@@ -53,9 +52,9 @@ export default function CTISectorsPage() {
             </div>
 
             <SectorThreatChart
-              sectors={sectors}
+              sectors={sectors ?? []}
               loading={sectorsQuery.isLoading}
-              error={sectorsQuery.error instanceof Error ? sectorsQuery.error.message : undefined}
+              error={undefined}
               onRetry={() => void sectorsQuery.refetch()}
             />
 
@@ -105,121 +104,6 @@ export default function CTISectorsPage() {
             </div>
           </>
         )}
-      </div>
-    </PermissionRedirect>
-  );
-}'use client';
-
-import { useMemo, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { BarChart3 } from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { PageHeader } from '@/components/common/page-header';
-import { LoadingSkeleton } from '@/components/common/loading-skeleton';
-import { ErrorState } from '@/components/common/error-state';
-import { PermissionRedirect } from '@/components/common/permission-redirect';
-import { CTISeverityBadge } from '@/components/cyber/cti/severity-badge';
-import { PeriodSelector } from '@/components/cyber/cti/period-selector';
-import { fetchSectorThreatOverview } from '@/lib/cti-api';
-import type { CTIPeriod } from '@/types/cti';
-
-export default function CTISectorTargetingPage() {
-  const [period, setPeriod] = useState<Extract<CTIPeriod, '24h' | '7d' | '30d'>>('24h');
-
-  const query = useQuery({
-    queryKey: ['cti-sector-targeting', period],
-    queryFn: () => fetchSectorThreatOverview(period),
-    staleTime: 60_000,
-  });
-
-  const sectors = useMemo(
-    () => [...(query.data?.sectors ?? [])].sort((left, right) => right.total_count - left.total_count),
-    [query.data?.sectors],
-  );
-
-  if (query.isLoading) {
-    return (
-      <PermissionRedirect permission="cyber:read">
-        <LoadingSkeleton variant="card" />
-      </PermissionRedirect>
-    );
-  }
-
-  if (query.error) {
-    return (
-      <PermissionRedirect permission="cyber:read">
-        <ErrorState
-          message="Failed to load CTI sector targeting."
-          onRetry={() => {
-            void query.refetch();
-          }}
-        />
-      </PermissionRedirect>
-    );
-  }
-
-  return (
-    <PermissionRedirect permission="cyber:read">
-      <div className="space-y-6">
-        <PageHeader
-          title="Sector Targeting"
-          description="Review which industries are most targeted across the selected CTI period."
-          actions={<PeriodSelector value={period} onChange={(value) => setPeriod(value as typeof period)} />}
-        />
-
-        <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-          {sectors.length > 0 ? sectors.map((sector) => (
-            <Card key={sector.id}>
-              <CardHeader className="p-4 pb-2">
-                <CardTitle className="flex items-center justify-between gap-3 text-sm">
-                  <span>{sector.sector_label}</span>
-                  <span className="font-semibold tabular-nums">{sector.total_count.toLocaleString()}</span>
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3 p-4 pt-0">
-                <div className="flex flex-wrap gap-2">
-                  {sector.severity_critical_count > 0 && (
-                    <CTISeverityBadge severity="critical" size="sm" className="capitalize" />
-                  )}
-                  {sector.severity_high_count > 0 && (
-                    <CTISeverityBadge severity="high" size="sm" className="capitalize" />
-                  )}
-                  {sector.severity_medium_count > 0 && (
-                    <CTISeverityBadge severity="medium" size="sm" className="capitalize" />
-                  )}
-                  {sector.severity_low_count > 0 && (
-                    <CTISeverityBadge severity="low" size="sm" className="capitalize" />
-                  )}
-                </div>
-                <div className="grid grid-cols-2 gap-2 text-sm">
-                  <div className="rounded-xl border border-white/10 bg-slate-950/40 p-3">
-                    <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Critical</p>
-                    <p className="mt-1 font-semibold tabular-nums">{sector.severity_critical_count}</p>
-                  </div>
-                  <div className="rounded-xl border border-white/10 bg-slate-950/40 p-3">
-                    <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">High</p>
-                    <p className="mt-1 font-semibold tabular-nums">{sector.severity_high_count}</p>
-                  </div>
-                  <div className="rounded-xl border border-white/10 bg-slate-950/40 p-3">
-                    <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Medium</p>
-                    <p className="mt-1 font-semibold tabular-nums">{sector.severity_medium_count}</p>
-                  </div>
-                  <div className="rounded-xl border border-white/10 bg-slate-950/40 p-3">
-                    <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Low</p>
-                    <p className="mt-1 font-semibold tabular-nums">{sector.severity_low_count}</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          )) : (
-            <Card className="xl:col-span-2">
-              <CardContent className="p-8 text-center text-sm text-muted-foreground">
-                <BarChart3 className="mx-auto mb-2 h-5 w-5" />
-                No sector targeting data available for this period.
-              </CardContent>
-            </Card>
-          )}
-        </div>
       </div>
     </PermissionRedirect>
   );
