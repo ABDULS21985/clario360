@@ -62,6 +62,7 @@ import (
 	dspmremrepo "github.com/clario360/platform/internal/cyber/dspm/remediation/repository"
 	cybershadow "github.com/clario360/platform/internal/cyber/dspm/shadow"
 	"github.com/clario360/platform/internal/cyber/cti"
+	ctiagg "github.com/clario360/platform/internal/cyber/cti/aggregation"
 	ctifeed "github.com/clario360/platform/internal/cyber/cti/feed"
 	"github.com/clario360/platform/internal/cyber/enrichment"
 	"github.com/clario360/platform/internal/cyber/handler"
@@ -940,6 +941,7 @@ func main() {
 	ctiSvc := cti.NewService(ctiRepo, producer, logger)
 	ctiHandler := cti.NewHandler(ctiSvc, logger)
 	ctiWSHub := cti.NewWSHub(logger)
+	ctiAggEngine := ctiagg.NewEngine(db, svc.Metrics.Registry(), logger)
 
 	handler.RegisterRoutes(
 		svc.Router,
@@ -1126,6 +1128,15 @@ func main() {
 			kafkaConsumer.Subscribe(cti.TopicCTIThreatEvents, events.EventHandlerFunc(ctiWSBroadcast.Handle))
 			kafkaConsumer.Subscribe(cti.TopicCTICampaigns, events.EventHandlerFunc(ctiWSBroadcast.Handle))
 			kafkaConsumer.Subscribe(cti.TopicCTIBrandAbuse, events.EventHandlerFunc(ctiWSBroadcast.Handle))
+			// CTI alert → notification-service bridge
+			notifURL := os.Getenv("CTI_NOTIFICATION_SERVICE_URL")
+			if notifURL == "" {
+				notifURL = "http://localhost:8090"
+			}
+			ctiAlertConsumer := cti.NewAlertNotificationConsumer(
+				cti.NewHTTPNotificationSender(notifURL, logger), logger,
+			)
+			kafkaConsumer.Subscribe(cti.TopicCTIAlerts, events.EventHandlerFunc(ctiAlertConsumer.Handle))
 		}
 	}
 
@@ -1181,6 +1192,16 @@ func main() {
 	}
 	g.Go(func() error {
 		err := vcisoPredictEngine.Start(gCtx)
+		if err != nil && !errors.Is(err, context.Canceled) {
+			return err
+		}
+		return nil
+	})
+
+	// CTI aggregation scheduler
+	ctiAggScheduler := ctiagg.NewScheduler(ctiAggEngine, ctiagg.DefaultScheduleConfig, logger)
+	g.Go(func() error {
+		err := ctiAggScheduler.Start(gCtx)
 		if err != nil && !errors.Is(err, context.Canceled) {
 			return err
 		}

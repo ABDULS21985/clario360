@@ -1,0 +1,32 @@
+groups:
+  - name: cti-aggregation
+    rules:
+      - alert: CTIAggregationStale
+        expr: time() - clario360_cti_aggregation_last_run_timestamp > 600
+        for: 5m
+        labels:
+          severity: warning
+          team: cyber
+        annotations:
+          summary: "CTI aggregation has not run in 10+ minutes"
+          description: "Tenant {{ $labels.tenant_id }} aggregation last ran {{ $value | humanizeDuration }} ago"
+
+      - alert: CTIAggregationErrors
+        expr: rate(clario360_cti_aggregation_errors_total[5m]) > 0
+        for: 2m
+        labels:
+          severity: critical
+          team: cyber
+        annotations:
+          summary: "CTI aggregation errors detected"
+          description: "Aggregation type {{ $labels.aggregation_type }} for tenant {{ $labels.tenant_id }} is failing"
+
+      - alert: CTIRiskScoreCritical
+        expr: clario360_cti_risk_score > 80
+        for: 5m
+        labels:
+          severity: critical
+          team: cyber
+        annotations:
+          summary: "CTI risk score critically high: {{ $value }}"
+          description: "Tenant {{ $labels.tenant_id }} CTI risk score has exceeded 80 for 5+ minutes"

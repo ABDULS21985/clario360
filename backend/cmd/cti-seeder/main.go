@@ -8,11 +8,13 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"math"
 	"math/rand"
 	"os"
+	"sort"
 	"strings"
 	"time"
 
@@ -93,12 +95,21 @@ var regions = []regionDef{
 	{"eastern_europe", "Eastern Europe", "europe", 53.9006, 27.5590, ""},
 	{"western_europe", "Western Europe", "europe", 46.2276, 2.2137, ""},
 	{"northern_europe", "Northern Europe", "europe", 59.9139, 10.7522, ""},
+	{"southern_europe", "Southern Europe", "europe", 41.8719, 12.5674, ""},
+	{"central_europe", "Central Europe", "europe", 47.4979, 19.0402, ""},
+	{"central_asia", "Central Asia", "asia", 43.2220, 76.8512, ""},
+	{"northern_america", "Northern America", "north_america", 56.1304, -106.3468, ""},
+	{"central_america", "Central America", "north_america", 14.6349, -90.5069, ""},
+	{"north_africa", "North Africa", "africa", 30.0444, 31.2357, ""},
 	{"west_africa", "West Africa", "africa", 9.0820, 8.6753, ""},
 	{"east_africa", "East Africa", "africa", -1.2921, 36.8219, ""},
+	{"southern_africa", "Southern Africa", "africa", -26.2041, 28.0473, ""},
 	// Countries
 	{"cn", "China", "east_asia", 39.9042, 116.4074, "CHN"},
 	{"ru", "Russia", "eastern_europe", 55.7558, 37.6173, "RUS"},
 	{"us", "United States", "north_america", 38.9072, -77.0369, "USA"},
+	{"ca", "Canada", "northern_america", 45.4215, -75.6972, "CAN"},
+	{"mx", "Mexico", "central_america", 19.4326, -99.1332, "MEX"},
 	{"gb", "United Kingdom", "western_europe", 51.5074, -0.1278, "GBR"},
 	{"ir", "Iran", "middle_east", 35.6892, 51.3890, "IRN"},
 	{"kp", "North Korea", "east_asia", 39.0392, 125.7625, "PRK"},
@@ -106,6 +117,9 @@ var regions = []regionDef{
 	{"ng", "Nigeria", "west_africa", 9.0579, 7.4951, "NGA"},
 	{"de", "Germany", "western_europe", 52.5200, 13.4050, "DEU"},
 	{"fr", "France", "western_europe", 48.8566, 2.3522, "FRA"},
+	{"es", "Spain", "southern_europe", 40.4168, -3.7038, "ESP"},
+	{"it", "Italy", "southern_europe", 41.9028, 12.4964, "ITA"},
+	{"pl", "Poland", "central_europe", 52.2297, 21.0122, "POL"},
 	{"in", "India", "south_asia", 28.6139, 77.2090, "IND"},
 	{"kr", "South Korea", "east_asia", 37.5665, 126.9780, "KOR"},
 	{"il", "Israel", "middle_east", 31.7683, 35.2137, "ISR"},
@@ -113,6 +127,7 @@ var regions = []regionDef{
 	{"ae", "UAE", "middle_east", 25.2048, 55.2708, "ARE"},
 	{"ua", "Ukraine", "eastern_europe", 50.4501, 30.5234, "UKR"},
 	{"pk", "Pakistan", "south_asia", 33.6844, 73.0479, "PAK"},
+	{"kz", "Kazakhstan", "central_asia", 51.1694, 71.4491, "KAZ"},
 	{"au", "Australia", "oceania", -33.8688, 151.2093, "AUS"},
 	{"jp", "Japan", "east_asia", 35.6762, 139.6503, "JPN"},
 	{"sg", "Singapore", "southeast_asia", 1.3521, 103.8198, "SGP"},
@@ -122,6 +137,8 @@ var regions = []regionDef{
 	{"tr", "Turkey", "middle_east", 39.9334, 32.8597, "TUR"},
 	{"ro", "Romania", "eastern_europe", 44.4268, 26.1025, "ROU"},
 	{"ke", "Kenya", "east_africa", -1.2921, 36.8219, "KEN"},
+	{"eg", "Egypt", "north_africa", 30.0444, 31.2357, "EGY"},
+	{"za", "South Africa", "southern_africa", -25.7479, 28.2293, "ZAF"},
 }
 
 type sectorDef struct {
@@ -197,35 +214,36 @@ var actors = []actorDef{
 }
 
 type campaignDef struct {
-	Code           string
-	Name           string
-	Status         string
-	ActorIdx       int // index into actors
-	Description    string
-	TTPs           string
+	Code            string
+	Name            string
+	Status          string
+	ActorIdx        int // index into actors
+	Description     string
+	TTPs            string
 	MitreTechniques []string
-	TargetSectors  []int // indices into sectors
-	DaysAgo        int   // first_seen offset from now
+	TargetSectors   []int // indices into sectors
+	TargetRegions   []string
+	DaysAgo         int // first_seen offset from now
 }
 
 var campaigns = []campaignDef{
-	{"C-2026-0101", "CRIMSON TEMPEST", "active", 0, "Credential-harvesting campaign targeting NATO government portals via spear-phishing", "Spear phishing with weaponized Office docs, lateral movement via PsExec, exfil over DNS", []string{"T1566.001", "T1059.001", "T1071.004", "T1078"}, []int{1, 5}, 45},
-	{"C-2026-0102", "SILENT TYPHOON", "active", 1, "Supply-chain compromise targeting cloud SaaS providers to access downstream customers", "Trojanized npm packages, GitHub Actions abuse, cloud API key theft", []string{"T1195.002", "T1059.007", "T1528"}, []int{0, 8}, 30},
-	{"C-2026-0103", "PHANTOM VORTEX", "active", 2, "Cryptocurrency exchange exploitation via watering-hole attacks", "Watering-hole on crypto forums, browser exploits, clipboard hijacking", []string{"T1189", "T1185", "T1115"}, []int{2}, 20},
-	{"C-2026-0104", "DESERT SHADOW", "active", 3, "Espionage campaign against Gulf state energy companies via VPN exploit chains", "FortiGate CVE exploitation, Cobalt Strike beacons, SMB lateral movement", []string{"T1190", "T1059.003", "T1021.002"}, []int{4, 6}, 15},
-	{"C-2026-0105", "IRON GLACIER", "active", 4, "Wiper deployment against Ukrainian critical infrastructure during geopolitical tensions", "CaddyWiper variant, GPO abuse for deployment, MBR destruction", []string{"T1561.002", "T1484.001", "T1485"}, []int{6, 4}, 10},
-	{"C-2026-0106", "NEON HARVEST", "active", 5, "Large-scale ransomware campaign against healthcare and education via Citrix Bleed", "Citrix Bleed exploitation, data exfiltration before encryption, leak site pressure", []string{"T1190", "T1486", "T1567.002"}, []int{3, 10}, 7},
-	{"C-2026-0107", "SPIDER WEB", "monitoring", 6, "BEC fraud operation impersonating CFOs at multinational firms", "Email domain spoofing, invoice redirection, wire fraud", []string{"T1566.002", "T1534"}, []int{2, 11}, 60},
-	{"C-2026-0108", "DIGITAL STORM", "monitoring", 8, "DDoS campaign against media organizations covering controversial geopolitical events", "Amplification attacks, application-layer floods, Telegram coordination", []string{"T1498", "T1499"}, []int{7}, 55},
-	{"C-2026-0109", "CIRCUIT BREAKER", "monitoring", 9, "Supply-chain reconnaissance targeting semiconductor fabs", "LinkedIn social engineering, vendor portal credential spray, firmware implants", []string{"T1566.003", "T1110.003", "T1195.003"}, []int{12, 0}, 50},
-	{"C-2026-0110", "HYDRA LOCK", "dormant", 12, "Dormant RaaS affiliate program regrouping after law enforcement takedown", "New infrastructure setup, affiliate recruitment, testing new encryptor", []string{"T1486", "T1562.001"}, []int{3, 2}, 80},
-	{"C-2026-0111", "OCEAN DRIFT", "dormant", 13, "Low-level espionage probes against ASEAN maritime agencies", "Spear-phishing with RTF exploits, PlugX RAT deployment", []string{"T1566.001", "T1059.005"}, []int{1, 9}, 75},
-	{"C-2026-0112", "WOLF TRAP", "resolved", 7, "Resolved credential-harvesting operation taken down via domain seizure", "Bulk phishing kits, auto-generated lookalike domains", []string{"T1566.002", "T1090.002"}, []int{2, 11}, 90},
+	{"C-2026-0101", "CRIMSON TEMPEST", "active", 0, "Credential-harvesting campaign targeting NATO government portals via spear-phishing", "Spear phishing with weaponized Office docs, lateral movement via PsExec, exfil over DNS", []string{"T1566.001", "T1059.001", "T1071.004", "T1078"}, []int{1, 5}, []string{"gb", "de", "fr"}, 45},
+	{"C-2026-0102", "SILENT TYPHOON", "active", 1, "Supply-chain compromise targeting cloud SaaS providers to access downstream customers", "Trojanized npm packages, GitHub Actions abuse, cloud API key theft", []string{"T1195.002", "T1059.007", "T1528"}, []int{0, 8}, []string{"us", "gb", "sg"}, 30},
+	{"C-2026-0103", "PHANTOM VORTEX", "active", 2, "Cryptocurrency exchange exploitation via watering-hole attacks", "Watering-hole on crypto forums, browser exploits, clipboard hijacking", []string{"T1189", "T1185", "T1115"}, []int{2}, []string{"us", "jp", "kr"}, 20},
+	{"C-2026-0104", "DESERT SHADOW", "active", 3, "Espionage campaign against Gulf state energy companies via VPN exploit chains", "FortiGate CVE exploitation, Cobalt Strike beacons, SMB lateral movement", []string{"T1190", "T1059.003", "T1021.002"}, []int{4, 6}, []string{"sa", "ae"}, 15},
+	{"C-2026-0105", "IRON GLACIER", "active", 4, "Wiper deployment against Ukrainian critical infrastructure during geopolitical tensions", "CaddyWiper variant, GPO abuse for deployment, MBR destruction", []string{"T1561.002", "T1484.001", "T1485"}, []int{6, 4}, []string{"ua", "pl", "ro"}, 10},
+	{"C-2026-0106", "NEON HARVEST", "active", 5, "Large-scale ransomware campaign against healthcare and education via Citrix Bleed", "Citrix Bleed exploitation, data exfiltration before encryption, leak site pressure", []string{"T1190", "T1486", "T1567.002"}, []int{3, 10}, []string{"us", "gb", "ca"}, 7},
+	{"C-2026-0107", "SPIDER WEB", "monitoring", 6, "BEC fraud operation impersonating CFOs at multinational firms", "Email domain spoofing, invoice redirection, wire fraud", []string{"T1566.002", "T1534"}, []int{2, 11}, []string{"us", "gb", "ng"}, 60},
+	{"C-2026-0108", "DIGITAL STORM", "monitoring", 8, "DDoS campaign against media organizations covering controversial geopolitical events", "Amplification attacks, application-layer floods, Telegram coordination", []string{"T1498", "T1499"}, []int{7}, []string{"us", "gb", "fr"}, 55},
+	{"C-2026-0109", "CIRCUIT BREAKER", "monitoring", 9, "Supply-chain reconnaissance targeting semiconductor fabs", "LinkedIn social engineering, vendor portal credential spray, firmware implants", []string{"T1566.003", "T1110.003", "T1195.003"}, []int{12, 0}, []string{"kr", "jp", "us"}, 50},
+	{"C-2026-0110", "HYDRA LOCK", "dormant", 12, "Dormant RaaS affiliate program regrouping after law enforcement takedown", "New infrastructure setup, affiliate recruitment, testing new encryptor", []string{"T1486", "T1562.001"}, []int{3, 2}, []string{"de", "fr", "it"}, 80},
+	{"C-2026-0111", "OCEAN DRIFT", "dormant", 13, "Low-level espionage probes against ASEAN maritime agencies", "Spear-phishing with RTF exploits, PlugX RAT deployment", []string{"T1566.001", "T1059.005"}, []int{1, 9}, []string{"sg", "id", "vn"}, 75},
+	{"C-2026-0112", "WOLF TRAP", "resolved", 7, "Resolved credential-harvesting operation taken down via domain seizure", "Bulk phishing kits, auto-generated lookalike domains", []string{"T1566.002", "T1090.002"}, []int{2, 11}, []string{"ng", "gb", "us"}, 90},
 }
 
 type brandDef struct {
-	Name    string
-	Domain  string
+	Name     string
+	Domain   string
 	Keywords []string
 }
 
@@ -269,7 +287,7 @@ var originCities = []cityDef{
 	{"Jakarta", "id", -6.2088, 106.8456},
 }
 
-var targetCountries = []string{"us", "gb", "de", "fr", "sa", "ae", "il", "jp", "kr", "au", "sg", "nl", "in"}
+var targetCountries = []string{"us", "gb", "de", "fr", "sa", "ae", "il", "jp", "kr", "au", "sg", "nl", "in", "ca", "it", "es", "pl", "za"}
 
 var eventTitles = []string{
 	"Spear-phishing email with weaponized attachment detected",
@@ -358,11 +376,12 @@ func main() {
 	now := time.Now().UTC().Truncate(time.Second)
 
 	s := &seeder{
-		pool:     pool,
-		logger:   logger,
-		rng:      rng,
-		tenantID: tenantID,
-		now:      now,
+		pool:       pool,
+		logger:     logger,
+		rng:        rng,
+		tenantID:   tenantID,
+		seedUserID: deterministicID(tenantID, "principal", "cti-seeder"),
+		now:        now,
 		// ID maps populated during seeding
 		severityIDs: make(map[string]uuid.UUID),
 		categoryIDs: make(map[string]uuid.UUID),
@@ -392,11 +411,12 @@ func main() {
 // ---------------------------------------------------------------------------
 
 type seeder struct {
-	pool     *pgxpool.Pool
-	logger   zerolog.Logger
-	rng      *rand.Rand
-	tenantID uuid.UUID
-	now      time.Time
+	pool       *pgxpool.Pool
+	logger     zerolog.Logger
+	rng        *rand.Rand
+	tenantID   uuid.UUID
+	seedUserID uuid.UUID
+	now        time.Time
 
 	severityIDs map[string]uuid.UUID
 	categoryIDs map[string]uuid.UUID
@@ -458,11 +478,17 @@ func (s *seeder) run(ctx context.Context) error {
 
 func (s *seeder) seedSeverities(ctx context.Context, tx pgx.Tx) error {
 	for _, sv := range severities {
-		id := uuid.New()
+		id := deterministicID(s.tenantID, "severity", sv.Code)
 		_, err := tx.Exec(ctx, `
-			INSERT INTO cti_threat_severity_levels (id, tenant_id, code, label, color_hex, sort_order)
-			VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT (tenant_id, code) DO NOTHING`,
-			id, s.tenantID, sv.Code, sv.Label, sv.ColorHex, sv.SortOrder)
+			INSERT INTO cti_threat_severity_levels (id, tenant_id, code, label, color_hex, sort_order, created_by, updated_by)
+			VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+			ON CONFLICT (tenant_id, code) DO UPDATE SET
+				label = EXCLUDED.label,
+				color_hex = EXCLUDED.color_hex,
+				sort_order = EXCLUDED.sort_order,
+				updated_at = NOW(),
+				updated_by = EXCLUDED.updated_by`,
+			id, s.tenantID, sv.Code, sv.Label, sv.ColorHex, sv.SortOrder, s.seedUserID, s.seedUserID)
 		if err != nil {
 			return err
 		}
@@ -487,11 +513,17 @@ func (s *seeder) seedSeverities(ctx context.Context, tx pgx.Tx) error {
 
 func (s *seeder) seedCategories(ctx context.Context, tx pgx.Tx) error {
 	for _, c := range categories {
-		id := uuid.New()
+		id := deterministicID(s.tenantID, "category", c.Code)
 		_, err := tx.Exec(ctx, `
-			INSERT INTO cti_threat_categories (id, tenant_id, code, label, description, mitre_tactic_ids)
-			VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT (tenant_id, code) DO NOTHING`,
-			id, s.tenantID, c.Code, c.Label, c.Description, c.MitreTIDs)
+			INSERT INTO cti_threat_categories (id, tenant_id, code, label, description, mitre_tactic_ids, created_by, updated_by)
+			VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+			ON CONFLICT (tenant_id, code) DO UPDATE SET
+				label = EXCLUDED.label,
+				description = EXCLUDED.description,
+				mitre_tactic_ids = EXCLUDED.mitre_tactic_ids,
+				updated_at = NOW(),
+				updated_by = EXCLUDED.updated_by`,
+			id, s.tenantID, c.Code, c.Label, c.Description, c.MitreTIDs, s.seedUserID, s.seedUserID)
 		if err != nil {
 			return err
 		}
@@ -516,15 +548,22 @@ func (s *seeder) seedCategories(ctx context.Context, tx pgx.Tx) error {
 func (s *seeder) seedRegions(ctx context.Context, tx pgx.Tx) error {
 	// First pass: insert all without parent
 	for _, r := range regions {
-		id := uuid.New()
+		id := deterministicID(s.tenantID, "region", r.Code)
 		var isoPtr *string
 		if r.ISOCountry != "" {
 			isoPtr = &r.ISOCountry
 		}
 		_, err := tx.Exec(ctx, `
-			INSERT INTO cti_geographic_regions (id, tenant_id, code, label, latitude, longitude, iso_country_code)
-			VALUES ($1,$2,$3,$4,$5,$6,$7) ON CONFLICT (tenant_id, code) DO NOTHING`,
-			id, s.tenantID, r.Code, r.Label, r.Lat, r.Lng, isoPtr)
+			INSERT INTO cti_geographic_regions (id, tenant_id, code, label, latitude, longitude, iso_country_code, created_by, updated_by)
+			VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+			ON CONFLICT (tenant_id, code) DO UPDATE SET
+				label = EXCLUDED.label,
+				latitude = EXCLUDED.latitude,
+				longitude = EXCLUDED.longitude,
+				iso_country_code = EXCLUDED.iso_country_code,
+				updated_at = NOW(),
+				updated_by = EXCLUDED.updated_by`,
+			id, s.tenantID, r.Code, r.Label, r.Lat, r.Lng, isoPtr, s.seedUserID, s.seedUserID)
 		if err != nil {
 			return err
 		}
@@ -557,7 +596,11 @@ func (s *seeder) seedRegions(ctx context.Context, tx pgx.Tx) error {
 			continue
 		}
 		selfID := s.regionIDs[r.Code]
-		_, err := tx.Exec(ctx, `UPDATE cti_geographic_regions SET parent_region_id = $1 WHERE id = $2`, parentID, selfID)
+		_, err := tx.Exec(ctx, `
+			UPDATE cti_geographic_regions
+			SET parent_region_id = $1, updated_at = NOW(), updated_by = $3
+			WHERE id = $2`,
+			parentID, selfID, s.seedUserID)
 		if err != nil {
 			return err
 		}
@@ -567,11 +610,17 @@ func (s *seeder) seedRegions(ctx context.Context, tx pgx.Tx) error {
 
 func (s *seeder) seedSectors(ctx context.Context, tx pgx.Tx) error {
 	for _, sc := range sectors {
-		id := uuid.New()
+		id := deterministicID(s.tenantID, "sector", sc.Code)
 		_, err := tx.Exec(ctx, `
-			INSERT INTO cti_industry_sectors (id, tenant_id, code, label, description, naics_code)
-			VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT (tenant_id, code) DO NOTHING`,
-			id, s.tenantID, sc.Code, sc.Label, sc.Description, sc.NAICS)
+			INSERT INTO cti_industry_sectors (id, tenant_id, code, label, description, naics_code, created_by, updated_by)
+			VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+			ON CONFLICT (tenant_id, code) DO UPDATE SET
+				label = EXCLUDED.label,
+				description = EXCLUDED.description,
+				naics_code = EXCLUDED.naics_code,
+				updated_at = NOW(),
+				updated_by = EXCLUDED.updated_by`,
+			id, s.tenantID, sc.Code, sc.Label, sc.Description, sc.NAICS, s.seedUserID, s.seedUserID)
 		if err != nil {
 			return err
 		}
@@ -595,12 +644,21 @@ func (s *seeder) seedSectors(ctx context.Context, tx pgx.Tx) error {
 
 func (s *seeder) seedSources(ctx context.Context, tx pgx.Tx) error {
 	for _, ds := range dataSources {
-		id := uuid.New()
+		id := deterministicID(s.tenantID, "source", ds.Name)
 		_, err := tx.Exec(ctx, `
-			INSERT INTO cti_data_sources (id, tenant_id, name, source_type, url, reliability_score, poll_interval_seconds, is_active, last_polled_at)
-			VALUES ($1,$2,$3,$4,$5,$6,$7,true,$8) ON CONFLICT (tenant_id, name) DO NOTHING`,
+			INSERT INTO cti_data_sources (id, tenant_id, name, source_type, url, reliability_score, poll_interval_seconds, is_active, last_polled_at, created_by, updated_by)
+			VALUES ($1,$2,$3,$4,$5,$6,$7,true,$8,$9,$10)
+			ON CONFLICT (tenant_id, name) DO UPDATE SET
+				source_type = EXCLUDED.source_type,
+				url = EXCLUDED.url,
+				reliability_score = EXCLUDED.reliability_score,
+				poll_interval_seconds = EXCLUDED.poll_interval_seconds,
+				is_active = EXCLUDED.is_active,
+				last_polled_at = EXCLUDED.last_polled_at,
+				updated_at = NOW(),
+				updated_by = EXCLUDED.updated_by`,
 			id, s.tenantID, ds.Name, ds.SourceType, ds.URL, ds.Reliability, ds.PollIntervalS,
-			s.now.Add(-time.Duration(s.rng.Intn(3600))*time.Second))
+			s.now.Add(-time.Duration(s.rng.Intn(3600))*time.Second), s.seedUserID, s.seedUserID)
 		if err != nil {
 			return err
 		}
@@ -627,9 +685,16 @@ func (s *seeder) seedSources(ctx context.Context, tx pgx.Tx) error {
 // ---------------------------------------------------------------------------
 
 func (s *seeder) seedActors(ctx context.Context, tx pgx.Tx) error {
-	sourceKeys := sourceIDSlice(s.sourceIDs)
+	s.actorIDs = s.actorIDs[:0]
 	for _, a := range actors {
-		id := uuid.New()
+		id := deterministicID(s.tenantID, "actor", a.Name)
+		var existingID uuid.UUID
+		err := tx.QueryRow(ctx, `SELECT id FROM cti_threat_actors WHERE tenant_id = $1 AND name = $2 LIMIT 1`, s.tenantID, a.Name).Scan(&existingID)
+		if err == nil {
+			id = existingID
+		} else if err != pgx.ErrNoRows {
+			return err
+		}
 		regionID := s.regionIDs[a.OriginCountry]
 		firstObs := s.now.Add(-time.Duration(180+s.rng.Intn(365*3)) * 24 * time.Hour)
 		lastAct := s.now.Add(-time.Duration(s.rng.Intn(30)) * 24 * time.Hour)
@@ -637,14 +702,31 @@ func (s *seeder) seedActors(ctx context.Context, tx pgx.Tx) error {
 		if a.MitreGroupID != "" {
 			mitrePtr = &a.MitreGroupID
 		}
-		_, err := tx.Exec(ctx, `
-			INSERT INTO cti_threat_actors (id, tenant_id, name, aliases, actor_type, origin_country_code, origin_region_id,
-				sophistication_level, primary_motivation, description, first_observed_at, last_activity_at,
-				mitre_group_id, is_active, risk_score, created_by)
-			VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)`,
+		_, err = tx.Exec(ctx, `
+				INSERT INTO cti_threat_actors (id, tenant_id, name, aliases, actor_type, origin_country_code, origin_region_id,
+					sophistication_level, primary_motivation, description, first_observed_at, last_activity_at,
+					mitre_group_id, is_active, risk_score, created_by, updated_by)
+				VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
+			ON CONFLICT (id) DO UPDATE SET
+				name = EXCLUDED.name,
+				aliases = EXCLUDED.aliases,
+				actor_type = EXCLUDED.actor_type,
+				origin_country_code = EXCLUDED.origin_country_code,
+				origin_region_id = EXCLUDED.origin_region_id,
+				sophistication_level = EXCLUDED.sophistication_level,
+				primary_motivation = EXCLUDED.primary_motivation,
+				description = EXCLUDED.description,
+				first_observed_at = EXCLUDED.first_observed_at,
+				last_activity_at = EXCLUDED.last_activity_at,
+				mitre_group_id = EXCLUDED.mitre_group_id,
+				is_active = EXCLUDED.is_active,
+				risk_score = EXCLUDED.risk_score,
+				updated_at = NOW(),
+				updated_by = EXCLUDED.updated_by,
+				deleted_at = NULL`,
 			id, s.tenantID, a.Name, a.Aliases, a.ActorType, a.OriginCountry, regionID,
 			a.Sophistication, a.Motivation, a.Description, firstObs, lastAct,
-			mitrePtr, true, a.RiskScore, s.pickSource(sourceKeys))
+			mitrePtr, true, a.RiskScore, s.seedUserID, s.seedUserID)
 		if err != nil {
 			return err
 		}
@@ -658,13 +740,14 @@ func (s *seeder) seedActors(ctx context.Context, tx pgx.Tx) error {
 // ---------------------------------------------------------------------------
 
 func (s *seeder) seedCampaigns(ctx context.Context, tx pgx.Tx) error {
+	s.campaignIDs = s.campaignIDs[:0]
 	sectorCodes := []string{}
 	for _, sc := range sectors {
 		sectorCodes = append(sectorCodes, sc.Code)
 	}
 
 	for _, c := range campaigns {
-		id := uuid.New()
+		id := deterministicID(s.tenantID, "campaign", c.Code)
 		firstSeen := s.now.Add(-time.Duration(c.DaysAgo) * 24 * time.Hour)
 		var lastSeen *time.Time
 		ls := s.now.Add(-time.Duration(s.rng.Intn(maxInt(c.DaysAgo, 1))) * 24 * time.Hour)
@@ -685,6 +768,12 @@ func (s *seeder) seedCampaigns(ctx context.Context, tx pgx.Tx) error {
 				}
 			}
 		}
+		var targetRegionIDs []uuid.UUID
+		for _, code := range c.TargetRegions {
+			if rid, ok := s.regionIDs[code]; ok {
+				targetRegionIDs = append(targetRegionIDs, rid)
+			}
+		}
 
 		// Severity: active campaigns mostly critical/high
 		sevCode := "high"
@@ -697,14 +786,32 @@ func (s *seeder) seedCampaigns(ctx context.Context, tx pgx.Tx) error {
 			sevCode = "low"
 		}
 
-		_, err := tx.Exec(ctx, `
+		err := tx.QueryRow(ctx, `
 			INSERT INTO cti_campaigns (id, tenant_id, campaign_code, name, description, status, severity_id,
-				primary_actor_id, target_sectors, target_description, mitre_technique_ids, ttps_summary,
-				first_seen_at, last_seen_at, resolved_at)
-			VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)`,
+				primary_actor_id, target_sectors, target_regions, target_description, mitre_technique_ids, ttps_summary,
+				first_seen_at, last_seen_at, resolved_at, created_by, updated_by)
+			VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)
+			ON CONFLICT (tenant_id, campaign_code) DO UPDATE SET
+				name = EXCLUDED.name,
+				description = EXCLUDED.description,
+				status = EXCLUDED.status,
+				severity_id = EXCLUDED.severity_id,
+				primary_actor_id = EXCLUDED.primary_actor_id,
+				target_sectors = EXCLUDED.target_sectors,
+				target_regions = EXCLUDED.target_regions,
+				target_description = EXCLUDED.target_description,
+				mitre_technique_ids = EXCLUDED.mitre_technique_ids,
+				ttps_summary = EXCLUDED.ttps_summary,
+				first_seen_at = EXCLUDED.first_seen_at,
+				last_seen_at = EXCLUDED.last_seen_at,
+				resolved_at = EXCLUDED.resolved_at,
+				updated_at = NOW(),
+				updated_by = EXCLUDED.updated_by,
+				deleted_at = NULL
+			RETURNING id`,
 			id, s.tenantID, c.Code, c.Name, c.Description, c.Status, s.severityIDs[sevCode],
-			s.actorIDs[c.ActorIdx], targetSectorIDs, c.Description, c.MitreTechniques, c.TTPs,
-			firstSeen, lastSeen, resolvedAt)
+			s.actorIDs[c.ActorIdx], targetSectorIDs, targetRegionIDs, c.Description, c.MitreTechniques, c.TTPs,
+			firstSeen, lastSeen, resolvedAt, s.seedUserID, s.seedUserID).Scan(&id)
 		if err != nil {
 			return err
 		}
@@ -726,10 +833,10 @@ func (s *seeder) seedEvents(ctx context.Context, tx pgx.Tx) error {
 	sourceKeys := sourceIDSlice(s.sourceIDs)
 
 	const total = 550
-	batch := &pgx.Batch{}
+	s.eventIDs = s.eventIDs[:0]
 
 	for i := 0; i < total; i++ {
-		id := uuid.New()
+		id := deterministicID(s.tenantID, "event", fmt.Sprintf("%03d", i))
 
 		// Temporal distribution: 40% last 7d, 30% days 8-30, 30% days 31-90
 		var daysAgo int
@@ -780,27 +887,61 @@ func (s *seeder) seedEvents(ctx context.Context, tx pgx.Tx) error {
 
 		regionID := s.regionIDs[city.Country]
 		sectorID := s.sectorIDs[sectorCode]
-
-		batch.Queue(`
+		seedRef := fmt.Sprintf("seed:event:%03d", i)
+		payload, err := json.Marshal(map[string]any{
+			"generator":   "cti-seeder",
+			"seed_key":    seedRef,
+			"event_index": i,
+		})
+		if err != nil {
+			return err
+		}
+		existingID, err := s.findThreatEventID(ctx, tx, seedRef, title, iocType, iocValue, firstSeen)
+		if err != nil {
+			return err
+		}
+		if existingID != nil {
+			id = *existingID
+		}
+		_, err = tx.Exec(ctx, `
 			INSERT INTO cti_threat_events (id, tenant_id, event_type, title, description, severity_id, category_id,
-				source_id, confidence_score, origin_latitude, origin_longitude, origin_country_code, origin_city,
+				source_id, source_reference, confidence_score, origin_latitude, origin_longitude, origin_country_code, origin_city,
 				origin_region_id, target_sector_id, target_country_code, ioc_type, ioc_value,
-				mitre_technique_ids, first_seen_at, last_seen_at)
-			VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21)`,
+				mitre_technique_ids, raw_payload, first_seen_at, last_seen_at, created_by, updated_by)
+			VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25)
+			ON CONFLICT (id) DO UPDATE SET
+				event_type = EXCLUDED.event_type,
+				title = EXCLUDED.title,
+				description = EXCLUDED.description,
+				severity_id = EXCLUDED.severity_id,
+				category_id = EXCLUDED.category_id,
+				source_id = EXCLUDED.source_id,
+				source_reference = EXCLUDED.source_reference,
+				confidence_score = EXCLUDED.confidence_score,
+				origin_latitude = EXCLUDED.origin_latitude,
+				origin_longitude = EXCLUDED.origin_longitude,
+				origin_country_code = EXCLUDED.origin_country_code,
+				origin_city = EXCLUDED.origin_city,
+				origin_region_id = EXCLUDED.origin_region_id,
+				target_sector_id = EXCLUDED.target_sector_id,
+				target_country_code = EXCLUDED.target_country_code,
+				ioc_type = EXCLUDED.ioc_type,
+				ioc_value = EXCLUDED.ioc_value,
+				mitre_technique_ids = EXCLUDED.mitre_technique_ids,
+				raw_payload = EXCLUDED.raw_payload,
+				first_seen_at = EXCLUDED.first_seen_at,
+				last_seen_at = EXCLUDED.last_seen_at,
+				updated_at = NOW(),
+				updated_by = EXCLUDED.updated_by,
+				deleted_at = NULL`,
 			id, s.tenantID, evtType, title, "Auto-generated CTI event for demo", s.severityIDs[sevCode], s.categoryIDs[catCode],
-			s.sourceIDs[srcKey], math.Round(conf*100)/100, city.Lat, city.Lng, city.Country, city.Name,
+			s.sourceIDs[srcKey], seedRef, math.Round(conf*100)/100, city.Lat, city.Lng, city.Country, city.Name,
 			regionID, sectorID, tgtCountry, iocType, iocValue,
-			techs, firstSeen, lastSeen)
-
-		s.eventIDs = append(s.eventIDs, id)
-	}
-
-	br := tx.SendBatch(ctx, batch)
-	defer br.Close()
-	for i := 0; i < total; i++ {
-		if _, err := br.Exec(); err != nil {
+			techs, payload, firstSeen, lastSeen, s.seedUserID, s.seedUserID)
+		if err != nil {
 			return fmt.Errorf("event %d: %w", i, err)
 		}
+		s.eventIDs = append(s.eventIDs, id)
 	}
 	return nil
 }
@@ -828,35 +969,46 @@ func (s *seeder) randomIOC(idx int) (string, string) {
 
 func (s *seeder) seedCampaignIOCs(ctx context.Context, tx pgx.Tx) error {
 	sourceKeys := sourceIDSlice(s.sourceIDs)
-	batch := &pgx.Batch{}
 	count := 0
 
 	for ci, cid := range s.campaignIDs {
-		// 15-25 IOCs per campaign
-		n := 15 + s.rng.Intn(11)
+		const n = 20
 		for j := 0; j < n; j++ {
+			id := deterministicID(s.tenantID, "campaign-ioc", fmt.Sprintf("%02d", ci), fmt.Sprintf("%02d", j))
 			iocType, iocValue := s.randomIOC(ci*100 + j)
 			conf := 0.50 + s.rng.Float64()*0.45
 			daysAgo := s.rng.Intn(60)
 			first := s.now.Add(-time.Duration(daysAgo)*24*time.Hour - time.Duration(s.rng.Intn(86400))*time.Second)
 			last := first.Add(time.Duration(s.rng.Intn(maxInt(daysAgo*24, 1))) * time.Hour)
 			srcKey := sourceKeys[s.rng.Intn(len(sourceKeys))]
-
-			batch.Queue(`
-				INSERT INTO cti_campaign_iocs (tenant_id, campaign_id, ioc_type, ioc_value, confidence_score,
-					first_seen_at, last_seen_at, is_active, source_id)
-				VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
-				s.tenantID, cid, iocType, iocValue, math.Round(conf*100)/100,
-				first, last, s.rng.Float64() > 0.2, s.sourceIDs[srcKey])
+			existingID, err := s.findCampaignIOCID(ctx, tx, cid, iocType, iocValue)
+			if err != nil {
+				return err
+			}
+			if existingID != nil {
+				id = *existingID
+			}
+			_, err = tx.Exec(ctx, `
+				INSERT INTO cti_campaign_iocs (id, tenant_id, campaign_id, ioc_type, ioc_value, confidence_score,
+					first_seen_at, last_seen_at, is_active, source_id, created_by, updated_by)
+				VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+				ON CONFLICT (id) DO UPDATE SET
+					campaign_id = EXCLUDED.campaign_id,
+					ioc_type = EXCLUDED.ioc_type,
+					ioc_value = EXCLUDED.ioc_value,
+					confidence_score = EXCLUDED.confidence_score,
+					first_seen_at = EXCLUDED.first_seen_at,
+					last_seen_at = EXCLUDED.last_seen_at,
+					is_active = EXCLUDED.is_active,
+					source_id = EXCLUDED.source_id,
+					updated_at = NOW(),
+					updated_by = EXCLUDED.updated_by`,
+				id, s.tenantID, cid, iocType, iocValue, math.Round(conf*100)/100,
+				first, last, s.rng.Float64() > 0.2, s.sourceIDs[srcKey], s.seedUserID, s.seedUserID)
+			if err != nil {
+				return fmt.Errorf("ioc %d: %w", count, err)
+			}
 			count++
-		}
-	}
-
-	br := tx.SendBatch(ctx, batch)
-	defer br.Close()
-	for i := 0; i < count; i++ {
-		if _, err := br.Exec(); err != nil {
-			return fmt.Errorf("ioc %d: %w", i, err)
 		}
 	}
 	s.logger.Info().Int("count", count).Msg("campaign IOCs inserted")
@@ -868,37 +1020,29 @@ func (s *seeder) seedCampaignIOCs(ctx context.Context, tx pgx.Tx) error {
 // ---------------------------------------------------------------------------
 
 func (s *seeder) seedCampaignEvents(ctx context.Context, tx pgx.Tx) error {
-	batch := &pgx.Batch{}
 	count := 0
-	used := make(map[string]struct{})
 
-	for _, cid := range s.campaignIDs {
-		// 25-40 events per campaign
-		n := 25 + s.rng.Intn(16)
+	for ci, cid := range s.campaignIDs {
+		const n = 32
 		for j := 0; j < n && j < len(s.eventIDs); j++ {
-			eid := s.eventIDs[s.rng.Intn(len(s.eventIDs))]
-			key := cid.String() + ":" + eid.String()
-			if _, exists := used[key]; exists {
-				continue
+			eid := s.eventIDs[(ci*41+j*17)%len(s.eventIDs)]
+			linkID := deterministicID(s.tenantID, "campaign-event", cid.String(), eid.String())
+			linkedAt := s.now.Add(-time.Duration((ci+j)%14) * 24 * time.Hour)
+			_, err := tx.Exec(ctx, `
+				INSERT INTO cti_campaign_events (id, tenant_id, campaign_id, event_id, linked_at, linked_by, created_at, updated_at, created_by, updated_by)
+				VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+				ON CONFLICT (tenant_id, campaign_id, event_id) DO UPDATE SET
+					linked_at = EXCLUDED.linked_at,
+					linked_by = EXCLUDED.linked_by,
+					updated_at = NOW(),
+					updated_by = EXCLUDED.updated_by`,
+				linkID, s.tenantID, cid, eid, linkedAt, s.seedUserID, linkedAt, linkedAt, s.seedUserID, s.seedUserID)
+			if err != nil {
+				return fmt.Errorf("campaign_event %d: %w", count, err)
 			}
-			used[key] = struct{}{}
-
-			batch.Queue(`
-				INSERT INTO cti_campaign_events (tenant_id, campaign_id, event_id)
-				VALUES ($1,$2,$3) ON CONFLICT DO NOTHING`,
-				s.tenantID, cid, eid)
 			count++
 		}
 	}
-
-	br := tx.SendBatch(ctx, batch)
-	for i := 0; i < count; i++ {
-		if _, err := br.Exec(); err != nil {
-			br.Close()
-			return fmt.Errorf("campaign_event %d: %w", i, err)
-		}
-	}
-	br.Close()
 	s.logger.Info().Int("count", count).Msg("campaign-event links inserted")
 
 	// Update event_count on campaigns
@@ -923,43 +1067,40 @@ func (s *seeder) seedCampaignEvents(ctx context.Context, tx pgx.Tx) error {
 // ---------------------------------------------------------------------------
 
 func (s *seeder) seedBrands(ctx context.Context, tx pgx.Tx) error {
+	s.brandIDs = s.brandIDs[:0]
 	for _, b := range brands {
-		id := uuid.New()
-		_, err := tx.Exec(ctx, `
-			INSERT INTO cti_monitored_brands (id, tenant_id, brand_name, domain_pattern, keywords, is_active)
-			VALUES ($1,$2,$3,$4,$5,true) ON CONFLICT (tenant_id, brand_name) DO NOTHING`,
-			id, s.tenantID, b.Name, b.Domain, b.Keywords)
+		id := deterministicID(s.tenantID, "brand", b.Name)
+		err := tx.QueryRow(ctx, `
+			INSERT INTO cti_monitored_brands (id, tenant_id, brand_name, domain_pattern, keywords, is_active, created_by, updated_by)
+			VALUES ($1,$2,$3,$4,$5,true,$6,$7)
+			ON CONFLICT (tenant_id, brand_name) DO UPDATE SET
+				domain_pattern = EXCLUDED.domain_pattern,
+				keywords = EXCLUDED.keywords,
+				is_active = EXCLUDED.is_active,
+				updated_at = NOW(),
+				updated_by = EXCLUDED.updated_by
+			RETURNING id`,
+			id, s.tenantID, b.Name, b.Domain, b.Keywords, s.seedUserID, s.seedUserID).Scan(&id)
 		if err != nil {
 			return err
 		}
 		s.brandIDs = append(s.brandIDs, id)
 	}
-	// Re-read
-	rows, err := tx.Query(ctx, `SELECT id FROM cti_monitored_brands WHERE tenant_id = $1 ORDER BY created_at`, s.tenantID)
-	if err != nil {
-		return err
-	}
-	defer rows.Close()
-	s.brandIDs = s.brandIDs[:0]
-	for rows.Next() {
-		var id uuid.UUID
-		if err := rows.Scan(&id); err != nil {
-			return err
-		}
-		s.brandIDs = append(s.brandIDs, id)
-	}
-	return rows.Err()
+	return nil
 }
 
 func (s *seeder) seedBrandAbuse(ctx context.Context, tx pgx.Tx) error {
-	batch := &pgx.Batch{}
 	count := 45
 
 	sslIssuers := []string{"Let's Encrypt", "Comodo", "DigiCert", "Self-Signed", "Unknown CA"}
 	riskLevels := []string{"critical", "critical", "high", "high", "high", "medium", "medium", "medium", "low"}
+	whoisRegistrants := []string{"Privacy Protect LLC", "NameShield Holdings", "NorthBridge Domains", "Blue Harbor Registration", "Red Maple Proxy"}
+	hostingASNs := []string{"AS13335", "AS16509", "AS15169", "AS8075", "AS9009", "AS32787"}
+	incidentRegions := []string{"us", "gb", "de", "fr", "ng", "za", "sg", "ae", "jp", "es", "it", "ca"}
 	sourceKeys := sourceIDSlice(s.sourceIDs)
 
 	for i := 0; i < count; i++ {
+		id := deterministicID(s.tenantID, "brand-abuse", fmt.Sprintf("%03d", i))
 		brandID := s.brandIDs[s.rng.Intn(len(s.brandIDs))]
 		abuseType := abuseTypes[s.rng.Intn(len(abuseTypes))]
 		risk := riskLevels[s.rng.Intn(len(riskLevels))]
@@ -971,6 +1112,10 @@ func (s *seeder) seedBrandAbuse(ctx context.Context, tx pgx.Tx) error {
 
 		domain := fmt.Sprintf("clari0-%s-%04d.example.net", abuseType[:4], i)
 		ip := fmt.Sprintf("203.0.113.%d", 1+s.rng.Intn(254))
+		regionCode := incidentRegions[s.rng.Intn(len(incidentRegions))]
+		regionID := s.regionIDs[regionCode]
+		whoisCreated := firstDet.AddDate(0, 0, -(7 + s.rng.Intn(90)))
+		screenshotID := deterministicID(s.tenantID, "brand-abuse-shot", domain)
 
 		var tdReqAt, tdAt *time.Time
 		if tdStatus == "takedown_requested" || tdStatus == "taken_down" {
@@ -981,21 +1126,46 @@ func (s *seeder) seedBrandAbuse(ctx context.Context, tx pgx.Tx) error {
 			t := firstDet.Add(time.Duration(3+s.rng.Intn(10)) * 24 * time.Hour)
 			tdAt = &t
 		}
-
-		batch.Queue(`
-			INSERT INTO cti_brand_abuse_incidents (tenant_id, brand_id, malicious_domain, abuse_type, risk_level,
-				detection_count, source_id, ssl_issuer, hosting_ip, takedown_status,
-				takedown_requested_at, taken_down_at, first_detected_at, last_detected_at)
-			VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9::inet,$10,$11,$12,$13,$14)`,
-			s.tenantID, brandID, domain, abuseType, risk,
-			1+s.rng.Intn(50), s.sourceIDs[srcKey], sslIssuers[s.rng.Intn(len(sslIssuers))], ip, tdStatus,
-			tdReqAt, tdAt, firstDet, lastDet)
-	}
-
-	br := tx.SendBatch(ctx, batch)
-	defer br.Close()
-	for i := 0; i < count; i++ {
-		if _, err := br.Exec(); err != nil {
+		existingID, err := s.findBrandAbuseIncidentID(ctx, tx, domain)
+		if err != nil {
+			return err
+		}
+		if existingID != nil {
+			id = *existingID
+		}
+		_, err = tx.Exec(ctx, `
+			INSERT INTO cti_brand_abuse_incidents (id, tenant_id, brand_id, malicious_domain, abuse_type, risk_level,
+				region_id, detection_count, source_id, whois_registrant, whois_created_date, ssl_issuer, hosting_ip,
+				hosting_asn, screenshot_file_id, takedown_status, takedown_requested_at, taken_down_at,
+				first_detected_at, last_detected_at, created_by, updated_by)
+			VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13::inet,$14,$15,$16,$17,$18,$19,$20,$21,$22)
+			ON CONFLICT (id) DO UPDATE SET
+				brand_id = EXCLUDED.brand_id,
+				malicious_domain = EXCLUDED.malicious_domain,
+				abuse_type = EXCLUDED.abuse_type,
+				risk_level = EXCLUDED.risk_level,
+				region_id = EXCLUDED.region_id,
+				detection_count = EXCLUDED.detection_count,
+				source_id = EXCLUDED.source_id,
+				whois_registrant = EXCLUDED.whois_registrant,
+				whois_created_date = EXCLUDED.whois_created_date,
+				ssl_issuer = EXCLUDED.ssl_issuer,
+				hosting_ip = EXCLUDED.hosting_ip,
+				hosting_asn = EXCLUDED.hosting_asn,
+				screenshot_file_id = EXCLUDED.screenshot_file_id,
+				takedown_status = EXCLUDED.takedown_status,
+				takedown_requested_at = EXCLUDED.takedown_requested_at,
+				taken_down_at = EXCLUDED.taken_down_at,
+				first_detected_at = EXCLUDED.first_detected_at,
+				last_detected_at = EXCLUDED.last_detected_at,
+				updated_at = NOW(),
+				updated_by = EXCLUDED.updated_by,
+				deleted_at = NULL`,
+			id, s.tenantID, brandID, domain, abuseType, risk,
+			regionID, 1+s.rng.Intn(50), s.sourceIDs[srcKey], whoisRegistrants[s.rng.Intn(len(whoisRegistrants))], whoisCreated,
+			sslIssuers[s.rng.Intn(len(sslIssuers))], ip, hostingASNs[s.rng.Intn(len(hostingASNs))], screenshotID,
+			tdStatus, tdReqAt, tdAt, firstDet, lastDet, s.seedUserID, s.seedUserID)
+		if err != nil {
 			return fmt.Errorf("brand_abuse %d: %w", i, err)
 		}
 	}
@@ -1018,8 +1188,11 @@ func (s *seeder) seedGeoSummary(ctx context.Context, tx pgx.Tx) error {
 		{"30d", s.now.Add(-30 * 24 * time.Hour), s.now},
 	}
 
-	batch := &pgx.Batch{}
 	count := 0
+	categoryCodes := make([]string, 0, len(categories))
+	for _, c := range categories {
+		categoryCodes = append(categoryCodes, c.Code)
+	}
 
 	for _, p := range periods {
 		for _, city := range originCities {
@@ -1033,25 +1206,33 @@ func (s *seeder) seedGeoSummary(ctx context.Context, tx pgx.Tx) error {
 				med = 1
 			}
 			regionID := s.regionIDs[city.Country]
-
-			batch.Queue(`
+			topCategoryID := s.categoryIDs[categoryCodes[s.rng.Intn(len(categoryCodes))]]
+			_, err := tx.Exec(ctx, `
 				INSERT INTO cti_geo_threat_summary (tenant_id, country_code, city, latitude, longitude, region_id,
 					severity_critical_count, severity_high_count, severity_medium_count, severity_low_count,
-					total_count, top_threat_type, period_start, period_end)
-				VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
-				ON CONFLICT (tenant_id, country_code, city, period_start, period_end) DO NOTHING`,
+					total_count, top_category_id, top_threat_type, period_start, period_end, created_by, updated_by)
+				VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
+				ON CONFLICT (tenant_id, country_code, city, period_start, period_end) DO UPDATE SET
+					latitude = EXCLUDED.latitude,
+					longitude = EXCLUDED.longitude,
+					region_id = EXCLUDED.region_id,
+					severity_critical_count = EXCLUDED.severity_critical_count,
+					severity_high_count = EXCLUDED.severity_high_count,
+					severity_medium_count = EXCLUDED.severity_medium_count,
+					severity_low_count = EXCLUDED.severity_low_count,
+					total_count = EXCLUDED.total_count,
+					top_category_id = EXCLUDED.top_category_id,
+					top_threat_type = EXCLUDED.top_threat_type,
+					computed_at = NOW(),
+					updated_at = NOW(),
+					updated_by = EXCLUDED.updated_by`,
 				s.tenantID, city.Country, city.Name, city.Lat, city.Lng, regionID,
-				crit, high, med, low, total, "malware_detection",
-				p.start, p.end)
+				crit, high, med, low, total, topCategoryID, "malware_detection",
+				p.start, p.end, s.seedUserID, s.seedUserID)
+			if err != nil {
+				return fmt.Errorf("geo_summary %d: %w", count, err)
+			}
 			count++
-		}
-	}
-
-	br := tx.SendBatch(ctx, batch)
-	defer br.Close()
-	for i := 0; i < count; i++ {
-		if _, err := br.Exec(); err != nil {
-			return fmt.Errorf("geo_summary %d: %w", i, err)
 		}
 	}
 	s.logger.Info().Int("count", count).Msg("geo summaries inserted")
@@ -1068,7 +1249,6 @@ func (s *seeder) seedSectorSummary(ctx context.Context, tx pgx.Tx) error {
 		{s.now.Add(-30 * 24 * time.Hour), s.now},
 	}
 
-	batch := &pgx.Batch{}
 	count := 0
 
 	for _, p := range periods {
@@ -1083,23 +1263,25 @@ func (s *seeder) seedSectorSummary(ctx context.Context, tx pgx.Tx) error {
 				total = 1
 				med = 1
 			}
-
-			batch.Queue(`
+			_, err := tx.Exec(ctx, `
 				INSERT INTO cti_sector_threat_summary (tenant_id, sector_id, severity_critical_count,
 					severity_high_count, severity_medium_count, severity_low_count, total_count,
-					period_start, period_end)
-				VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
-				ON CONFLICT (tenant_id, sector_id, period_start, period_end) DO NOTHING`,
-				s.tenantID, sectorID, crit, high, med, low, total, p.start, p.end)
+					period_start, period_end, created_by, updated_by)
+				VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+				ON CONFLICT (tenant_id, sector_id, period_start, period_end) DO UPDATE SET
+					severity_critical_count = EXCLUDED.severity_critical_count,
+					severity_high_count = EXCLUDED.severity_high_count,
+					severity_medium_count = EXCLUDED.severity_medium_count,
+					severity_low_count = EXCLUDED.severity_low_count,
+					total_count = EXCLUDED.total_count,
+					computed_at = NOW(),
+					updated_at = NOW(),
+					updated_by = EXCLUDED.updated_by`,
+				s.tenantID, sectorID, crit, high, med, low, total, p.start, p.end, s.seedUserID, s.seedUserID)
+			if err != nil {
+				return fmt.Errorf("sector_summary %d: %w", count, err)
+			}
 			count++
-		}
-	}
-
-	br := tx.SendBatch(ctx, batch)
-	defer br.Close()
-	for i := 0; i < count; i++ {
-		if _, err := br.Exec(); err != nil {
-			return fmt.Errorf("sector_summary %d: %w", i, err)
 		}
 	}
 	s.logger.Info().Int("count", count).Msg("sector summaries inserted")
@@ -1113,8 +1295,8 @@ func (s *seeder) seedExecSnapshot(ctx context.Context, tx pgx.Tx) error {
 			active_campaigns_count, critical_campaigns_count, total_iocs, brand_abuse_critical_count,
 			brand_abuse_total_count, top_targeted_sector_id, top_threat_origin_country,
 			mean_time_to_detect_hours, mean_time_to_respond_hours, risk_score_overall,
-			trend_direction, trend_percentage)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
+			trend_direction, trend_percentage, created_by, updated_by)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)
 		ON CONFLICT (tenant_id) DO UPDATE SET
 			total_events_24h = EXCLUDED.total_events_24h,
 			total_events_7d = EXCLUDED.total_events_7d,
@@ -1131,9 +1313,11 @@ func (s *seeder) seedExecSnapshot(ctx context.Context, tx pgx.Tx) error {
 			risk_score_overall = EXCLUDED.risk_score_overall,
 			trend_direction = EXCLUDED.trend_direction,
 			trend_percentage = EXCLUDED.trend_percentage,
-			computed_at = NOW()`,
+			computed_at = NOW(),
+			updated_at = NOW(),
+			updated_by = EXCLUDED.updated_by`,
 		s.tenantID, 82, 310, 550, 6, 3, 240, 8, 45,
-		techSectorID, "cn", 2.40, 18.75, 73.50, "increasing", 12.30)
+		techSectorID, "cn", 2.40, 18.75, 73.50, "increasing", 12.30, s.seedUserID, s.seedUserID)
 	return err
 }
 
@@ -1146,11 +1330,86 @@ func sourceIDSlice(m map[string]uuid.UUID) []string {
 	for k := range m {
 		keys = append(keys, k)
 	}
+	sort.Strings(keys)
 	return keys
 }
 
 func (s *seeder) pickSource(keys []string) uuid.UUID {
 	return s.sourceIDs[keys[s.rng.Intn(len(keys))]]
+}
+
+func deterministicID(tenantID uuid.UUID, kind string, parts ...string) uuid.UUID {
+	payload := tenantID.String() + "|" + kind
+	if len(parts) > 0 {
+		payload += "|" + strings.Join(parts, "|")
+	}
+	return uuid.NewSHA1(uuid.NameSpaceURL, []byte(payload))
+}
+
+func (s *seeder) findThreatEventID(ctx context.Context, tx pgx.Tx, sourceReference, title, iocType, iocValue string, firstSeen time.Time) (*uuid.UUID, error) {
+	var id uuid.UUID
+	err := tx.QueryRow(ctx, `
+		SELECT id
+		FROM cti_threat_events
+		WHERE tenant_id = $1
+		  AND deleted_at IS NULL
+		  AND (
+			source_reference = $2
+			OR (
+				source_reference IS NULL
+				AND title = $3
+				AND ioc_type = $4
+				AND ioc_value = $5
+				AND first_seen_at = $6
+				AND description = 'Auto-generated CTI event for demo'
+			)
+		  )
+		ORDER BY created_at
+		LIMIT 1`,
+		s.tenantID, sourceReference, title, iocType, iocValue, firstSeen).Scan(&id)
+	if err == pgx.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &id, nil
+}
+
+func (s *seeder) findCampaignIOCID(ctx context.Context, tx pgx.Tx, campaignID uuid.UUID, iocType, iocValue string) (*uuid.UUID, error) {
+	var id uuid.UUID
+	err := tx.QueryRow(ctx, `
+		SELECT id
+		FROM cti_campaign_iocs
+		WHERE tenant_id = $1 AND campaign_id = $2 AND ioc_type = $3 AND ioc_value = $4
+		ORDER BY created_at
+		LIMIT 1`,
+		s.tenantID, campaignID, iocType, iocValue).Scan(&id)
+	if err == pgx.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &id, nil
+}
+
+func (s *seeder) findBrandAbuseIncidentID(ctx context.Context, tx pgx.Tx, domain string) (*uuid.UUID, error) {
+	var id uuid.UUID
+	err := tx.QueryRow(ctx, `
+		SELECT id
+		FROM cti_brand_abuse_incidents
+		WHERE tenant_id = $1 AND malicious_domain = $2
+		ORDER BY created_at
+		LIMIT 1`,
+		s.tenantID, domain).Scan(&id)
+	if err == pgx.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &id, nil
 }
 
 func maxInt(a, b int) int {

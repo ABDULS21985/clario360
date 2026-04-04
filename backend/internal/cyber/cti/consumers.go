@@ -3,6 +3,9 @@ package cti
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -91,7 +94,6 @@ func (c *WebSocketBroadcastConsumer) Handle(ctx context.Context, event *events.E
 		return nil
 	}
 
-	// Parse the raw data for the broadcast payload
 	var data json.RawMessage
 	if event.Data != nil {
 		data = event.Data
@@ -100,5 +102,130 @@ func (c *WebSocketBroadcastConsumer) Handle(ctx context.Context, event *events.E
 	}
 
 	c.hub.Broadcast(tenantID, event.Type, data)
+	return nil
+}
+
+// ---------------------------------------------------------------------------
+// AlertNotificationConsumer bridges CTI alerts to the notification service.
+// Subscribes to: cyber.cti.alerts
+// ---------------------------------------------------------------------------
+
+// NotificationSender abstracts the notification-service HTTP API.
+type NotificationSender interface {
+	SendNotification(ctx context.Context, req NotificationRequest) error
+}
+
+// NotificationRequest maps to the notification-service's create-notification endpoint.
+type NotificationRequest struct {
+	TenantID string            `json:"tenant_id"`
+	Type     string            `json:"type"`
+	Title    string            `json:"title"`
+	Body     string            `json:"body"`
+	Priority string            `json:"priority"`
+	Channel  string            `json:"channel"`
+	Category string            `json:"category"`
+	Metadata map[string]string `json:"metadata,omitempty"`
+}
+
+type AlertNotificationConsumer struct {
+	sender NotificationSender
+	logger zerolog.Logger
+}
+
+func NewAlertNotificationConsumer(sender NotificationSender, logger zerolog.Logger) *AlertNotificationConsumer {
+	return &AlertNotificationConsumer{
+		sender: sender,
+		logger: logger.With().Str("component", "cti-alert-notification").Logger(),
+	}
+}
+
+func (c *AlertNotificationConsumer) Handle(ctx context.Context, event *events.Event) error {
+	var alert AlertPayload
+	if err := json.Unmarshal(event.Data, &alert); err != nil {
+		c.logger.Warn().Err(err).Msg("unmarshal alert payload")
+		return nil // don't retry malformed payloads
+	}
+
+	channel := "websocket"
+	priority := "high"
+	if alert.SeverityCode == "critical" {
+		channel = "email,websocket"
+		priority = "urgent"
+	}
+
+	req := NotificationRequest{
+		TenantID: alert.TenantID,
+		Type:     "cyber_threat_intelligence",
+		Title:    alert.Title,
+		Body:     alert.Description,
+		Priority: priority,
+		Channel:  channel,
+		Category: "cyber_threat_intelligence",
+		Metadata: map[string]string{
+			"alert_type":    alert.AlertType,
+			"source_entity": alert.SourceEntity,
+			"source_id":     alert.SourceID,
+			"severity":      alert.SeverityCode,
+			"action_url":    alert.ActionURL,
+		},
+	}
+
+	if err := c.sender.SendNotification(ctx, req); err != nil {
+		c.logger.Error().Err(err).
+			Str("tenant_id", alert.TenantID).
+			Str("alert_type", alert.AlertType).
+			Msg("failed to send CTI alert notification")
+		return err // retry via DLQ
+	}
+
+	c.logger.Info().
+		Str("tenant_id", alert.TenantID).
+		Str("alert_type", alert.AlertType).
+		Str("severity", alert.SeverityCode).
+		Msg("CTI alert notification sent")
+	return nil
+}
+
+// ---------------------------------------------------------------------------
+// HTTPNotificationSender sends notifications via HTTP to the notification-service.
+// ---------------------------------------------------------------------------
+
+type HTTPNotificationSender struct {
+	baseURL string
+	client  *http.Client
+	logger  zerolog.Logger
+}
+
+func NewHTTPNotificationSender(notificationServiceURL string, logger zerolog.Logger) *HTTPNotificationSender {
+	return &HTTPNotificationSender{
+		baseURL: strings.TrimRight(notificationServiceURL, "/"),
+		client:  &http.Client{Timeout: 10 * time.Second},
+		logger:  logger,
+	}
+}
+
+func (s *HTTPNotificationSender) SendNotification(ctx context.Context, req NotificationRequest) error {
+	body, err := json.Marshal(req)
+	if err != nil {
+		return fmt.Errorf("marshal notification: %w", err)
+	}
+
+	url := s.baseURL + "/api/v1/notifications/internal"
+	httpReq, err := http.NewRequestWithContext(ctx, "POST", url, strings.NewReader(string(body)))
+	if err != nil {
+		return fmt.Errorf("create request: %w", err)
+	}
+	httpReq.Header.Set("Content-Type", "application/json")
+	httpReq.Header.Set("X-Internal-Service", "cyber-service")
+
+	resp, err := s.client.Do(httpReq)
+	if err != nil {
+		return fmt.Errorf("send notification: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode >= 300 {
+		return fmt.Errorf("notification-service returned %d", resp.StatusCode)
+	}
 	return nil
 }

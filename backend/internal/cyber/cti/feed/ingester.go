@@ -62,31 +62,57 @@ func (ing *Ingester) HandleFeedEvent(ctx context.Context, event *events.Event) e
 		return err
 	}
 
-	// Enrich + persist
-	created := 0
+	// Enrich + persist (idempotent: deduplicate by source_reference)
+	created, updated, correlated := 0, 0, 0
 	for i := range indicators {
 		ing.enricher.Enrich(&indicators[i])
-		if err := ing.persistIndicator(ctx, tenantID, src, &indicators[i]); err != nil {
+
+		// Duplicate detection: check if this indicator was already ingested
+		if src != nil && indicators[i].ExternalRef != "" {
+			existing, _ := ing.repo.FindThreatEventBySourceRef(ctx, tenantID, src.ID, indicators[i].ExternalRef)
+			if existing != nil {
+				// Already ingested — update last_seen_at only
+				_ = ing.repo.UpdateThreatEventLastSeen(ctx, tenantID, existing.ID)
+				updated++
+				continue
+			}
+		}
+
+		eventID, err := ing.persistIndicator(ctx, tenantID, src, &indicators[i])
+		if err != nil {
 			ing.logger.Warn().Err(err).Str("ref", indicators[i].ExternalRef).Msg("persist indicator failed")
 			continue
 		}
 		created++
+
+		// IOC correlation: check if this IOC matches a known campaign
+		if indicators[i].IOCType != "" && indicators[i].IOCValue != "" {
+			matches, _ := ing.repo.FindMatchingCampaignIOCs(ctx, tenantID, indicators[i].IOCType, indicators[i].IOCValue)
+			if len(matches) > 0 {
+				correlated++
+				for _, m := range matches {
+					_ = ing.repo.LinkEventToCampaign(ctx, tenantID, m.CampaignID, eventID, nil)
+				}
+			}
+		}
 	}
 
 	ing.logger.Info().
 		Str("source", payload.SourceName).
 		Int("total", len(indicators)).
 		Int("created", created).
+		Int("deduplicated", updated).
+		Int("correlated", correlated).
 		Msg("feed ingestion batch complete")
 
 	return nil
 }
 
-func (ing *Ingester) persistIndicator(ctx context.Context, tenantID uuid.UUID, src *cti.DataSource, ind *adapters.NormalizedIndicator) error {
+func (ing *Ingester) persistIndicator(ctx context.Context, tenantID uuid.UUID, src *cti.DataSource, ind *adapters.NormalizedIndicator) (uuid.UUID, error) {
 	// Resolve severity
 	sev, err := ing.repo.GetSeverityByCode(ctx, tenantID, ind.SeverityCode)
 	if err != nil {
-		return err
+		return uuid.Nil, err
 	}
 
 	var catID *uuid.UUID
@@ -168,7 +194,7 @@ func (ing *Ingester) persistIndicator(ctx context.Context, tenantID uuid.UUID, s
 	}
 
 	if err := ing.repo.CreateThreatEvent(ctx, tenantID, &event); err != nil {
-		return err
+		return uuid.Nil, err
 	}
 
 	if len(ind.Tags) > 0 {
@@ -193,5 +219,5 @@ func (ing *Ingester) persistIndicator(ctx context.Context, tenantID uuid.UUID, s
 		}
 	}
 
-	return nil
+	return event.ID, nil
 }

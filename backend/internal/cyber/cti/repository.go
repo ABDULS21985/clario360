@@ -75,6 +75,11 @@ type Repository interface {
 	GetSectorThreatSummary(ctx context.Context, tenantID uuid.UUID, period string) ([]SectorThreatSummary, error)
 	GetExecutiveSnapshot(ctx context.Context, tenantID uuid.UUID) (*ExecutiveSnapshot, error)
 
+	// Idempotent ingestion
+	FindThreatEventBySourceRef(ctx context.Context, tenantID, sourceID uuid.UUID, sourceRef string) (*ThreatEvent, error)
+	UpdateThreatEventLastSeen(ctx context.Context, tenantID, eventID uuid.UUID) error
+	FindMatchingCampaignIOCs(ctx context.Context, tenantID uuid.UUID, iocType, iocValue string) ([]CampaignIOC, error)
+
 	// Aggregation refresh
 	RefreshGeoThreatSummary(ctx context.Context, tenantID uuid.UUID, start, end time.Time) error
 	RefreshSectorThreatSummary(ctx context.Context, tenantID uuid.UUID, start, end time.Time) error

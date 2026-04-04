@@ -34,39 +34,41 @@ func AllCTITopics() []string {
 
 // ---------------------------------------------------------------------------
 // CloudEvents `type` field values
+// These are passed to events.NewEvent which normalizes them to
+// "com.clario360.cyber.cti.threat-event.created" etc.
 // ---------------------------------------------------------------------------
 
 const (
 	// Threat events
-	EventThreatEventCreated       = "cti.threat_event.created"
-	EventThreatEventUpdated       = "cti.threat_event.updated"
-	EventThreatEventResolved      = "cti.threat_event.resolved"
-	EventThreatEventFalsePositive = "cti.threat_event.false_positive"
-	EventThreatEventDeleted       = "cti.threat_event.deleted"
+	EventThreatEventCreated       = "cyber.cti.threat-event.created"
+	EventThreatEventUpdated       = "cyber.cti.threat-event.updated"
+	EventThreatEventResolved      = "cyber.cti.threat-event.resolved"
+	EventThreatEventFalsePositive = "cyber.cti.threat-event.false-positive"
+	EventThreatEventDeleted       = "cyber.cti.threat-event.deleted"
 
 	// Campaigns
-	EventCampaignCreated       = "cti.campaign.created"
-	EventCampaignUpdated       = "cti.campaign.updated"
-	EventCampaignStatusChanged = "cti.campaign.status_changed"
-	EventCampaignIOCAdded      = "cti.campaign.ioc_added"
-	EventCampaignEventLinked   = "cti.campaign.event_linked"
+	EventCampaignCreated       = "cyber.cti.campaign.created"
+	EventCampaignUpdated       = "cyber.cti.campaign.updated"
+	EventCampaignStatusChanged = "cyber.cti.campaign.status-changed"
+	EventCampaignIOCAdded      = "cyber.cti.campaign.ioc-added"
+	EventCampaignEventLinked   = "cyber.cti.campaign.event-linked"
 
 	// Brand abuse
-	EventBrandAbuseDetected         = "cti.brand_abuse.detected"
-	EventBrandAbuseTakedownChanged  = "cti.brand_abuse.takedown_status_changed"
-	EventBrandAbuseUpdated          = "cti.brand_abuse.updated"
+	EventBrandAbuseDetected        = "cyber.cti.brand-abuse.detected"
+	EventBrandAbuseTakedownChanged = "cyber.cti.brand-abuse.takedown-changed"
+	EventBrandAbuseUpdated         = "cyber.cti.brand-abuse.updated"
 
 	// Feed ingestion
-	EventFeedRawIngested = "cti.feed.raw_ingested"
-	EventFeedNormalized  = "cti.feed.normalized"
+	EventFeedRawIngested = "cyber.cti.feed.raw-ingested"
+	EventFeedNormalized  = "cyber.cti.feed.normalized"
 
 	// Aggregation
-	EventAggregationTriggered = "cti.aggregation.triggered"
+	EventAggregationTriggered = "cyber.cti.aggregation.triggered"
 
 	// Alerts
-	EventCriticalThreatAlert = "cti.alert.critical_threat"
-	EventCampaignEscalation  = "cti.alert.campaign_escalation"
-	EventBrandAbuseUrgent    = "cti.alert.brand_abuse_urgent"
+	EventCriticalThreatAlert = "cyber.cti.alert.critical-threat"
+	EventCampaignEscalation  = "cyber.cti.alert.campaign-escalation"
+	EventBrandAbuseUrgent    = "cyber.cti.alert.brand-abuse-urgent"
 )
 
 // ---------------------------------------------------------------------------

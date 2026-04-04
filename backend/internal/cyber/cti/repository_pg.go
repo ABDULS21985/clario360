@@ -310,18 +310,18 @@ func scanEventDetailRows(rows pgx.Rows) (*ThreatEventDetail, error) {
 func (r *PgRepository) CreateThreatEvent(ctx context.Context, tenantID uuid.UUID, event *ThreatEvent) error {
 	return r.withTenantWrite(ctx, tenantID, func(db dbtx) error {
 		_, err := db.Exec(ctx, `INSERT INTO cti_threat_events
-			(id,tenant_id,event_type,title,description,severity_id,category_id,source_id,source_reference,
-			confidence_score,origin_latitude,origin_longitude,origin_country_code,origin_city,origin_region_id,
-			target_sector_id,target_org_name,target_country_code,ioc_type,ioc_value,mitre_technique_ids,
-			raw_payload,first_seen_at,last_seen_at,created_by)
-			VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25)`,
+				(id,tenant_id,event_type,title,description,severity_id,category_id,source_id,source_reference,
+				confidence_score,origin_latitude,origin_longitude,origin_country_code,origin_city,origin_region_id,
+				target_sector_id,target_org_name,target_country_code,ioc_type,ioc_value,mitre_technique_ids,
+				raw_payload,first_seen_at,last_seen_at,created_by,updated_by)
+				VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26)`,
 			event.ID, tenantID, event.EventType, event.Title, event.Description,
 			event.SeverityID, event.CategoryID, event.SourceID, event.SourceReference,
 			event.ConfidenceScore, event.OriginLatitude, event.OriginLongitude,
 			event.OriginCountryCode, event.OriginCity, event.OriginRegionID,
 			event.TargetSectorID, event.TargetOrgName, event.TargetCountryCode,
 			event.IOCType, event.IOCValue, event.MitreTechniqueIDs,
-			event.RawPayload, event.FirstSeenAt, event.LastSeenAt, event.CreatedBy)
+			event.RawPayload, event.FirstSeenAt, event.LastSeenAt, event.CreatedBy, event.CreatedBy)
 		return err
 	})
 }
@@ -540,13 +540,13 @@ func (r *PgRepository) CreateThreatActor(ctx context.Context, tenantID uuid.UUID
 			refs = actor.ExternalReferences
 		}
 		_, err := db.Exec(ctx, `INSERT INTO cti_threat_actors
-			(id,tenant_id,name,aliases,actor_type,origin_country_code,origin_region_id,sophistication_level,
-			primary_motivation,description,mitre_group_id,external_references,is_active,risk_score,created_by)
-			VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)`,
+				(id,tenant_id,name,aliases,actor_type,origin_country_code,origin_region_id,sophistication_level,
+				primary_motivation,description,mitre_group_id,external_references,is_active,risk_score,created_by,updated_by)
+				VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)`,
 			actor.ID, tenantID, actor.Name, actor.Aliases, actor.ActorType,
 			actor.OriginCountryCode, actor.OriginRegionID, actor.SophisticationLevel,
 			actor.PrimaryMotivation, actor.Description, actor.MitreGroupID,
-			refs, actor.IsActive, actor.RiskScore, actor.CreatedBy)
+			refs, actor.IsActive, actor.RiskScore, actor.CreatedBy, actor.CreatedBy)
 		return err
 	})
 }
@@ -693,14 +693,14 @@ func (r *PgRepository) CreateCampaign(ctx context.Context, tenantID uuid.UUID, c
 			refs = json.RawMessage("{}")
 		}
 		_, err := db.Exec(ctx, `INSERT INTO cti_campaigns
-			(id,tenant_id,campaign_code,name,description,status,severity_id,primary_actor_id,
-			target_sectors,target_regions,target_description,mitre_technique_ids,ttps_summary,
-			first_seen_at,last_seen_at,external_references,created_by)
-			VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)`,
+				(id,tenant_id,campaign_code,name,description,status,severity_id,primary_actor_id,
+				target_sectors,target_regions,target_description,mitre_technique_ids,ttps_summary,
+				first_seen_at,last_seen_at,external_references,created_by,updated_by)
+				VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)`,
 			c.ID, tenantID, c.CampaignCode, c.Name, c.Description, c.Status,
 			c.SeverityID, c.PrimaryActorID, c.TargetSectors, c.TargetRegions,
 			c.TargetDescription, c.MitreTechniqueIDs, c.TTPsSummary,
-			c.FirstSeenAt, c.LastSeenAt, refs, c.CreatedBy)
+			c.FirstSeenAt, c.LastSeenAt, refs, c.CreatedBy, c.CreatedBy)
 		if err != nil {
 			if isUniqueViolation(err) {
 				return apperrors.ErrConflict
@@ -835,9 +835,14 @@ func (r *PgRepository) UpdateCampaignStatus(ctx context.Context, tenantID, campa
 
 func (r *PgRepository) LinkEventToCampaign(ctx context.Context, tenantID, campaignID, eventID uuid.UUID, userID *uuid.UUID) error {
 	return r.withTenantWrite(ctx, tenantID, func(db dbtx) error {
-		_, err := db.Exec(ctx, `INSERT INTO cti_campaign_events (tenant_id, campaign_id, event_id, linked_by)
-			VALUES ($1,$2,$3,$4) ON CONFLICT (tenant_id, campaign_id, event_id) DO NOTHING`,
-			tenantID, campaignID, eventID, userID)
+		_, err := db.Exec(ctx, `INSERT INTO cti_campaign_events
+			(tenant_id, campaign_id, event_id, linked_by, created_by, updated_by)
+			VALUES ($1,$2,$3,$4,$5,$6)
+			ON CONFLICT (tenant_id, campaign_id, event_id) DO UPDATE SET
+				linked_by = EXCLUDED.linked_by,
+				updated_at = NOW(),
+				updated_by = EXCLUDED.updated_by`,
+			tenantID, campaignID, eventID, userID, userID, userID)
 		if err != nil {
 			return err
 		}
@@ -900,10 +905,10 @@ func (r *PgRepository) ListCampaignEvents(ctx context.Context, tenantID, campaig
 func (r *PgRepository) CreateCampaignIOC(ctx context.Context, tenantID uuid.UUID, ioc *CampaignIOC) error {
 	return r.withTenantWrite(ctx, tenantID, func(db dbtx) error {
 		_, err := db.Exec(ctx, `INSERT INTO cti_campaign_iocs
-			(id,tenant_id,campaign_id,ioc_type,ioc_value,confidence_score,first_seen_at,last_seen_at,is_active,source_id)
-			VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+			(id,tenant_id,campaign_id,ioc_type,ioc_value,confidence_score,first_seen_at,last_seen_at,is_active,source_id,created_by,updated_by)
+			VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
 			ioc.ID, tenantID, ioc.CampaignID, ioc.IOCType, ioc.IOCValue,
-			ioc.ConfidenceScore, ioc.FirstSeenAt, ioc.LastSeenAt, ioc.IsActive, ioc.SourceID)
+			ioc.ConfidenceScore, ioc.FirstSeenAt, ioc.LastSeenAt, ioc.IsActive, ioc.SourceID, ioc.CreatedBy, ioc.CreatedBy)
 		if err != nil {
 			return err
 		}
@@ -974,9 +979,10 @@ func (r *PgRepository) DeleteCampaignIOC(ctx context.Context, tenantID, iocID uu
 
 func (r *PgRepository) CreateMonitoredBrand(ctx context.Context, tenantID uuid.UUID, brand *MonitoredBrand) error {
 	return r.withTenantWrite(ctx, tenantID, func(db dbtx) error {
-		_, err := db.Exec(ctx, `INSERT INTO cti_monitored_brands (id,tenant_id,brand_name,domain_pattern,keywords,is_active,created_by)
-			VALUES ($1,$2,$3,$4,$5,$6,$7)`,
-			brand.ID, tenantID, brand.BrandName, brand.DomainPattern, brand.Keywords, brand.IsActive, brand.CreatedBy)
+		_, err := db.Exec(ctx, `INSERT INTO cti_monitored_brands
+			(id,tenant_id,brand_name,domain_pattern,keywords,is_active,created_by,updated_by)
+			VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
+			brand.ID, tenantID, brand.BrandName, brand.DomainPattern, brand.Keywords, brand.IsActive, brand.CreatedBy, brand.CreatedBy)
 		if err != nil {
 			if isUniqueViolation(err) {
 				return apperrors.ErrConflict
@@ -1045,12 +1051,13 @@ func (r *PgRepository) CreateBrandAbuseIncident(ctx context.Context, tenantID uu
 	return r.withTenantWrite(ctx, tenantID, func(db dbtx) error {
 		_, err := db.Exec(ctx, `INSERT INTO cti_brand_abuse_incidents
 			(id,tenant_id,brand_id,malicious_domain,abuse_type,risk_level,region_id,source_id,
-			whois_registrant,ssl_issuer,hosting_ip,hosting_asn,takedown_status,first_detected_at,last_detected_at,created_by)
-			VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11::inet,$12,$13,$14,$15,$16)`,
+			whois_registrant,whois_created_date,ssl_issuer,hosting_ip,hosting_asn,screenshot_file_id,
+			takedown_status,takedown_requested_at,taken_down_at,first_detected_at,last_detected_at,created_by,updated_by)
+			VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12::inet,$13,$14,$15,$16,$17,$18,$19,$20,$21)`,
 			inc.ID, tenantID, inc.BrandID, inc.MaliciousDomain, inc.AbuseType, inc.RiskLevel,
-			inc.RegionID, inc.SourceID, inc.WhoisRegistrant, inc.SSLIssuer,
-			inc.HostingIP, inc.HostingASN, inc.TakedownStatus,
-			inc.FirstDetectedAt, inc.LastDetectedAt, inc.CreatedBy)
+			inc.RegionID, inc.SourceID, inc.WhoisRegistrant, inc.WhoisCreatedDate, inc.SSLIssuer,
+			inc.HostingIP, inc.HostingASN, inc.ScreenshotFileID, inc.TakedownStatus,
+			inc.TakedownRequestedAt, inc.TakenDownAt, inc.FirstDetectedAt, inc.LastDetectedAt, inc.CreatedBy, inc.CreatedBy)
 		return err
 	})
 }
@@ -1303,7 +1310,8 @@ func (r *PgRepository) RefreshGeoThreatSummary(ctx context.Context, tenantID uui
 				severity_low_count=EXCLUDED.severity_low_count,
 				total_count=EXCLUDED.total_count,
 				latitude=EXCLUDED.latitude, longitude=EXCLUDED.longitude,
-				computed_at=NOW()`,
+				computed_at=NOW(),
+				updated_at=NOW()`,
 			tenantID, start, end)
 		return err
 	})
@@ -1331,7 +1339,7 @@ func (r *PgRepository) RefreshSectorThreatSummary(ctx context.Context, tenantID 
 				severity_high_count=EXCLUDED.severity_high_count,
 				severity_medium_count=EXCLUDED.severity_medium_count,
 				severity_low_count=EXCLUDED.severity_low_count,
-				total_count=EXCLUDED.total_count, computed_at=NOW()`,
+				total_count=EXCLUDED.total_count, computed_at=NOW(), updated_at=NOW()`,
 			tenantID, start, end)
 		return err
 	})
@@ -1363,7 +1371,8 @@ func (r *PgRepository) RefreshExecutiveSnapshot(ctx context.Context, tenantID uu
 				brand_abuse_critical_count=EXCLUDED.brand_abuse_critical_count,
 				brand_abuse_total_count=EXCLUDED.brand_abuse_total_count,
 				top_threat_origin_country=EXCLUDED.top_threat_origin_country,
-				computed_at=NOW()`, tenantID)
+				computed_at=NOW(),
+				updated_at=NOW()`, tenantID)
 		return err
 	})
 }
@@ -1382,6 +1391,62 @@ func buildUpdateSets(updates map[string]interface{}, tenantID, entityID uuid.UUI
 		i++
 	}
 	return sets, args
+}
+
+// ---------------------------------------------------------------------------
+// Idempotent ingestion helpers
+// ---------------------------------------------------------------------------
+
+func (r *PgRepository) FindThreatEventBySourceRef(ctx context.Context, tenantID, sourceID uuid.UUID, sourceRef string) (*ThreatEvent, error) {
+	var e ThreatEvent
+	err := r.withTenantRead(ctx, tenantID, func(db dbtx) error {
+		return db.QueryRow(ctx, `SELECT id, tenant_id, event_type, title, first_seen_at, last_seen_at, created_at, updated_at
+			FROM cti_threat_events
+			WHERE tenant_id=$1 AND source_id=$2 AND source_reference=$3 AND deleted_at IS NULL`,
+			tenantID, sourceID, sourceRef).
+			Scan(&e.ID, &e.TenantID, &e.EventType, &e.Title, &e.FirstSeenAt, &e.LastSeenAt, &e.CreatedAt, &e.UpdatedAt)
+	})
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			return nil, nil // not found is not an error for duplicate checks
+		}
+		return nil, err
+	}
+	return &e, nil
+}
+
+func (r *PgRepository) UpdateThreatEventLastSeen(ctx context.Context, tenantID, eventID uuid.UUID) error {
+	return r.withTenantWrite(ctx, tenantID, func(db dbtx) error {
+		_, err := db.Exec(ctx, `UPDATE cti_threat_events SET last_seen_at=NOW(), updated_at=NOW()
+			WHERE tenant_id=$1 AND id=$2 AND deleted_at IS NULL`, tenantID, eventID)
+		return err
+	})
+}
+
+func (r *PgRepository) FindMatchingCampaignIOCs(ctx context.Context, tenantID uuid.UUID, iocType, iocValue string) ([]CampaignIOC, error) {
+	var items []CampaignIOC
+	err := r.withTenantRead(ctx, tenantID, func(db dbtx) error {
+		rows, err := db.Query(ctx, `SELECT id,tenant_id,campaign_id,ioc_type,ioc_value,confidence_score,
+			first_seen_at,last_seen_at,is_active,source_id,created_at,updated_at
+			FROM cti_campaign_iocs
+			WHERE tenant_id=$1 AND ioc_type=$2 AND ioc_value=$3 AND is_active=true`,
+			tenantID, iocType, iocValue)
+		if err != nil {
+			return err
+		}
+		defer rows.Close()
+		for rows.Next() {
+			var i CampaignIOC
+			if err := rows.Scan(&i.ID, &i.TenantID, &i.CampaignID, &i.IOCType, &i.IOCValue,
+				&i.ConfidenceScore, &i.FirstSeenAt, &i.LastSeenAt, &i.IsActive, &i.SourceID,
+				&i.CreatedAt, &i.UpdatedAt); err != nil {
+				return err
+			}
+			items = append(items, i)
+		}
+		return rows.Err()
+	})
+	return items, err
 }
 
 func periodToInterval(period string) string {

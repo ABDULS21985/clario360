@@ -4,7 +4,7 @@ Generated: 2026-04-03
 
 ## 1. Overview
 
-Five migrations (000027–000031) introduce 15 new tables into `cyber_db` to support the Cyber Threat Intelligence module. All tables are tenant-scoped with RLS, use UUID primary keys, and follow the existing migration conventions.
+Six migrations (000027–000032) introduce 15 new tables into `cyber_db` and backfill missing audit columns across the CTI schema. All tables are tenant-scoped with RLS, use UUID primary keys, and follow the existing migration conventions.
 
 ## 2. Migration Summary
 
@@ -15,6 +15,7 @@ Five migrations (000027–000031) introduce 15 new tables into `cyber_db` to sup
 | 000029 | CTI Campaigns & Actors | `cti_threat_actors`, `cti_campaigns`, `cti_campaign_events`, `cti_campaign_iocs` |
 | 000030 | CTI Brand Abuse | `cti_monitored_brands`, `cti_brand_abuse_incidents` |
 | 000031 | CTI Aggregation / Dashboard | `cti_geo_threat_summary`, `cti_sector_threat_summary`, `cti_executive_snapshot` |
+| 000032 | CTI Audit Backfill | Adds missing `created_at` / `updated_at` / `created_by` / `updated_by` columns where required |
 
 ## 3. Entity Relationship Diagram
 
@@ -59,7 +60,7 @@ Five migrations (000027–000031) introduce 15 new tables into `cyber_db` to sup
 
 ┌─────────────────────┐     ┌─────────────────────────┐
 │ cti_geographic_     │     │ cti_industry_sectors    │
-│ regions (41 rows)   │     │ (13 rows)               │
+│ regions (56 rows)   │     │ (13 rows)               │
 │ ├─ parent_region_id │     │ ├─ naics_code           │
 │ (self-referencing)  │     └─────────────────────────┘
 └─────────────────────┘
@@ -159,7 +160,7 @@ RLS is `ENABLE`d and `FORCE`d on every table.
 |-------|---------|-------|
 | cti_threat_severity_levels | 5 | critical, high, medium, low, informational |
 | cti_threat_categories | 15 | APT through destructive |
-| cti_geographic_regions | 41 | 6 continents + 9 sub-regions + 26 countries |
+| cti_geographic_regions | 56 | 6 continents + 16 sub-regions + 34 countries |
 | cti_industry_sectors | 13 | technology through manufacturing |
 | cti_data_sources | 8 | OSINT, commercial, government, internal, dark web |
 | cti_threat_actors | 15 | State-sponsored (8), cybercriminal (4), hacktivist (1), insider (1), other (1) |

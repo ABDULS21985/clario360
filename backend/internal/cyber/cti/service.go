@@ -867,7 +867,8 @@ func (s *Service) UpdateCampaign(ctx context.Context, campaignID uuid.UUID, req 
 	if err := s.repo.UpdateCampaign(ctx, tid, campaignID, updates); err != nil {
 		return nil, err
 	}
-	s.publishAuditEvent(ctx,"cti.campaign.updated", tid, map[string]interface{}{"id": campaignID.String()})
+	s.publishDomainEvent(ctx, TopicCTICampaigns, EventCampaignUpdated, tid, map[string]interface{}{"id": campaignID.String()})
+	s.publishAuditEvent(ctx, EventCampaignUpdated, tid, map[string]interface{}{"id": campaignID.String()})
 	return s.repo.GetCampaign(ctx, tid, campaignID)
 }
 
@@ -879,7 +880,8 @@ func (s *Service) DeleteCampaign(ctx context.Context, campaignID uuid.UUID) erro
 	if err := s.repo.DeleteCampaign(ctx, tid, campaignID, uid); err != nil {
 		return err
 	}
-	s.publishAuditEvent(ctx,"cti.campaign.deleted", tid, map[string]interface{}{"id": campaignID.String()})
+	s.publishDomainEvent(ctx, TopicCTICampaigns, "cyber.cti.campaign.deleted", tid, map[string]interface{}{"id": campaignID.String()})
+	s.publishAuditEvent(ctx, "cyber.cti.campaign.deleted", tid, map[string]interface{}{"id": campaignID.String()})
 	return nil
 }
 
@@ -906,7 +908,16 @@ func (s *Service) LinkEventToCampaign(ctx context.Context, campaignID, eventID u
 	if err != nil {
 		return err
 	}
-	return s.repo.LinkEventToCampaign(ctx, tid, campaignID, eventID, &uid)
+	if err := s.repo.LinkEventToCampaign(ctx, tid, campaignID, eventID, &uid); err != nil {
+		return err
+	}
+	s.publishDomainEvent(ctx, TopicCTICampaigns, EventCampaignEventLinked, tid, map[string]interface{}{
+		"campaign_id": campaignID.String(), "event_id": eventID.String(),
+	})
+	s.publishAuditEvent(ctx, EventCampaignEventLinked, tid, map[string]interface{}{
+		"campaign_id": campaignID.String(), "event_id": eventID.String(),
+	})
+	return nil
 }
 
 func (s *Service) UnlinkEventFromCampaign(ctx context.Context, campaignID, eventID uuid.UUID) error {
@@ -914,7 +925,13 @@ func (s *Service) UnlinkEventFromCampaign(ctx context.Context, campaignID, event
 	if err != nil {
 		return err
 	}
-	return s.repo.UnlinkEventFromCampaign(ctx, tid, campaignID, eventID)
+	if err := s.repo.UnlinkEventFromCampaign(ctx, tid, campaignID, eventID); err != nil {
+		return err
+	}
+	s.publishAuditEvent(ctx, "cyber.cti.campaign.event-unlinked", tid, map[string]interface{}{
+		"campaign_id": campaignID.String(), "event_id": eventID.String(),
+	})
+	return nil
 }
 
 func (s *Service) ListCampaignEvents(ctx context.Context, campaignID uuid.UUID, p ListParams) (*ListResponse[ThreatEventDetail], error) {
@@ -960,6 +977,12 @@ func (s *Service) CreateCampaignIOC(ctx context.Context, campaignID uuid.UUID, r
 	if err := s.repo.CreateCampaignIOC(ctx, tid, ioc); err != nil {
 		return nil, err
 	}
+	s.publishDomainEvent(ctx, TopicCTICampaigns, EventCampaignIOCAdded, tid, map[string]interface{}{
+		"campaign_id": campaignID.String(), "ioc_type": ioc.IOCType, "ioc_value": ioc.IOCValue,
+	})
+	s.publishAuditEvent(ctx, EventCampaignIOCAdded, tid, map[string]interface{}{
+		"campaign_id": campaignID.String(), "ioc_id": ioc.ID.String(),
+	})
 	return ioc, nil
 }
 
@@ -1149,7 +1172,12 @@ func (s *Service) UpdateBrandAbuseIncident(ctx context.Context, incidentID uuid.
 		return err
 	}
 	updates["updated_by"] = uid
-	return s.repo.UpdateBrandAbuseIncident(ctx, tid, incidentID, updates)
+	if err := s.repo.UpdateBrandAbuseIncident(ctx, tid, incidentID, updates); err != nil {
+		return err
+	}
+	s.publishDomainEvent(ctx, TopicCTIBrandAbuse, EventBrandAbuseUpdated, tid, map[string]interface{}{"id": incidentID.String()})
+	s.publishAuditEvent(ctx, EventBrandAbuseUpdated, tid, map[string]interface{}{"id": incidentID.String()})
+	return nil
 }
 
 func (s *Service) UpdateTakedownStatus(ctx context.Context, incidentID uuid.UUID, status string) error {

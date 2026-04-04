@@ -14,6 +14,7 @@ import (
 	"math/rand"
 	"os"
 	"os/signal"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -106,6 +107,7 @@ func main() {
 		eventsPerTick = flag.Int("events-per-tick", 3, "Events per interval")
 		tenantIDFlag  = flag.String("tenant-id", "aaaaaaaa-0000-0000-0000-000000000001", "Target tenant")
 		seedVal       = flag.Int64("seed", 42, "Random seed")
+		sevDist       = flag.String("severity-dist", "15,25,35,25", "Percentage distribution: critical,high,medium,low")
 	)
 	flag.Parse()
 
@@ -133,10 +135,14 @@ func main() {
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
 
+	// Parse severity distribution flag (critical,high,medium,low percentages)
+	sevThresholds := parseSevDist(*sevDist)
+
 	logger.Info().
 		Dur("interval", *interval).
 		Int("events_per_tick", *eventsPerTick).
 		Str("tenant_id", tenantID).
+		Str("severity_dist", *sevDist).
 		Msg("CTI feed simulator started — press Ctrl+C to stop")
 
 	ticker := time.NewTicker(*interval)
@@ -158,25 +164,44 @@ func main() {
 				n *= 5
 				logger.Warn().Int("burst_count", n).Msg("BURST MODE — simulating active attack")
 			}
-			publishBatch(ctx, producer, rng, tenantID, n, logger)
+			publishBatch(ctx, producer, rng, tenantID, n, sevThresholds, logger)
 		}
 	}
 }
 
-func publishBatch(ctx context.Context, producer *events.Producer, rng *rand.Rand, tenantID string, count int, logger zerolog.Logger) {
+// parseSevDist converts "15,25,35,25" into cumulative thresholds [0.15, 0.40, 0.75, 1.0].
+func parseSevDist(s string) [4]float64 {
+	parts := strings.Split(s, ",")
+	defaults := [4]float64{0.15, 0.40, 0.75, 1.0}
+	if len(parts) != 4 {
+		return defaults
+	}
+	var pcts [4]float64
+	for i, p := range parts {
+		v, err := strconv.Atoi(strings.TrimSpace(p))
+		if err != nil || v < 0 {
+			return defaults
+		}
+		pcts[i] = float64(v) / 100.0
+	}
+	// Convert to cumulative thresholds
+	return [4]float64{pcts[0], pcts[0] + pcts[1], pcts[0] + pcts[1] + pcts[2], 1.0}
+}
+
+func publishBatch(ctx context.Context, producer *events.Producer, rng *rand.Rand, tenantID string, count int, sev [4]float64, logger zerolog.Logger) {
 	for i := 0; i < count; i++ {
 		city := originCities[rng.Intn(len(originCities))]
 		iocType, iocValue := randomIOC(rng, i)
 
-		// Severity: weighted 15/25/35/25 critical/high/medium/low
+		// Severity: weighted by parsed distribution thresholds
 		var severity string
 		r := rng.Float64()
 		switch {
-		case r < 0.15:
+		case r < sev[0]:
 			severity = "critical"
-		case r < 0.40:
+		case r < sev[1]:
 			severity = "high"
-		case r < 0.75:
+		case r < sev[2]:
 			severity = "medium"
 		default:
 			severity = "low"
