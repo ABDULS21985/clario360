@@ -101,10 +101,25 @@ export default function CyberThreatsPage() {
     ['critical', 'high'],
   );
 
+  const THREAT_TYPE_COLORS: Record<string, string> = {
+    malware: '#DC2626',
+    apt: '#7C3AED',
+    brute_force: '#EA580C',
+    ddos: '#0284C7',
+    insider_threat: '#D97706',
+    other: '#6B7280',
+    ransomware: '#BE185D',
+    zero_day: '#059669',
+    phishing: '#2563EB',
+    botnet: '#4F46E5',
+  };
   const byTypeChart = (stats?.by_type ?? []).map((entry) => ({
     name: titleizeCount(entry.name),
     count: entry.count,
   }));
+  const byTypeColors = (stats?.by_type ?? []).map(
+    (entry) => THREAT_TYPE_COLORS[entry.name.toLowerCase().replace(/\s+/g, '_')] ?? '#6B7280',
+  );
   const bySeverityChart = (stats?.by_severity ?? []).map((entry) => ({
     name: titleizeCount(entry.name),
     value: entry.count,
@@ -167,6 +182,7 @@ export default function CyberThreatsPage() {
             data={byTypeChart}
             xKey="name"
             yKeys={[{ key: 'count', label: 'Threats', color: '#0F766E' }]}
+            cellColors={byTypeColors}
             loading={statsQuery.isLoading}
             error={statsQuery.error instanceof Error ? statsQuery.error.message : undefined}
             onRetry={() => void statsQuery.refetch()}

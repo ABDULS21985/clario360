@@ -30,6 +30,11 @@ export function useBreadcrumbs(): Breadcrumb[] {
     for (let i = 0; i < segments.length; i++) {
       const segment = segments[i];
       accumulatedPath += '/' + segment;
+
+      // Skip adding a "Dashboard" crumb when path starts with /dashboard
+      // — the "Home" crumb already points there.
+      if (accumulatedPath === '/dashboard') continue;
+
       const isLast = i === segments.length - 1;
       const isDynamic = isUUID(segment);
 
@@ -39,6 +44,11 @@ export function useBreadcrumbs(): Breadcrumb[] {
         isLast,
         isDynamic,
       });
+    }
+
+    // Ensure the last crumb is marked correctly after filtering.
+    if (crumbs.length > 0) {
+      crumbs[crumbs.length - 1].isLast = true;
     }
 
     return crumbs;

@@ -228,7 +228,7 @@ echo ""
 
 # Report any processes still running on service ports
 LINGERING=()
-for port in 8080 8081 8083 8084 8085 8086 8087 8088 8089 8090 8091 3000; do
+for port in 8080 8081 8083 8084 8085 8086 8087 8088 8089 8090 8091 3002 3000; do
   pid=$(lsof -ti tcp:"${port}" 2>/dev/null || true)
   if [ -n "${pid}" ]; then
     LINGERING+=("port ${port} → PID ${pid}")

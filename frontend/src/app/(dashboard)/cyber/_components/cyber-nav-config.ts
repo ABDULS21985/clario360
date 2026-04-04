@@ -64,6 +64,9 @@ export const CYBER_NAV_ITEMS: NavItem[] = [
   { id: 'cyber-dspm-financial', label: 'Financial Risk', href: '/cyber/dspm/financial', icon: DollarSign },
   { id: 'cyber-dspm-proliferation', label: 'Data Proliferation', href: '/cyber/dspm/proliferation', icon: TrendingUp },
   { id: 'cyber-ueba', label: 'UEBA', href: '/cyber/ueba', icon: Fingerprint },
+  { id: 'cyber-cti', label: 'CTI Dashboard', href: '/cyber/cti', icon: TrendingUp },
+  { id: 'cyber-cti-events', label: 'CTI Events', href: '/cyber/cti/events', icon: Search },
+  { id: 'cyber-cti-campaigns', label: 'CTI Campaigns', href: '/cyber/cti/campaigns', icon: Target },
   { id: 'cyber-vciso', label: 'Virtual CISO', href: '/cyber/vciso', icon: Bot },
   {
     id: 'cyber-detection',

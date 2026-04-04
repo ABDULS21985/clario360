@@ -115,6 +115,7 @@ LEX_SERVICE_HTTP_PORT=8088
 VISUS_SERVICE_HTTP_PORT=8089
 NOTIFICATION_SERVICE_HTTP_PORT=8090
 FILE_SERVICE_HTTP_PORT=8091
+FRONTEND_PORT=3002
 
 API_GATEWAY_ADMIN_PORT=9080
 IAM_SERVICE_ADMIN_PORT=9081
@@ -770,7 +771,7 @@ GW_HTTP_PORT=${API_GATEWAY_HTTP_PORT}
 GW_ADMIN_PORT=${API_GATEWAY_ADMIN_PORT}
 export GW_HTTP_PORT GW_ADMIN_PORT
 export GW_ENVIRONMENT="development"
-export GW_CORS_ALLOWED_ORIGINS="http://localhost:3000,http://localhost:3001"
+export GW_CORS_ALLOWED_ORIGINS="http://localhost:${FRONTEND_PORT},http://localhost:3001,http://localhost:3000"
 export GW_READ_TIMEOUT_SEC="15"
 export GW_WRITE_TIMEOUT_SEC="60"
 export GW_PROXY_TIMEOUT_SEC="30"
@@ -875,7 +876,7 @@ export NOTIF_SMTP_HOST="localhost"
 export NOTIF_SMTP_PORT="1025"
 export NOTIF_SMTP_TLS_ENABLED="false"
 export NOTIF_WEBHOOK_HMAC_SECRET="${WEBHOOK_HMAC_SECRET}"
-export NOTIF_WS_ALLOWED_ORIGINS="http://localhost:3000"
+export NOTIF_WS_ALLOWED_ORIGINS="http://localhost:${FRONTEND_PORT}"
 export NOTIF_IAM_SERVICE_URL="http://localhost:${IAM_SERVICE_HTTP_PORT}"
 export NOTIF_DATA_SERVICE_URL="http://localhost:${DATA_SERVICE_HTTP_PORT}"
 export NOTIF_ACTA_SERVICE_URL="http://localhost:${ACTA_SERVICE_HTTP_PORT}"
@@ -883,7 +884,7 @@ export NOTIF_CYBER_SERVICE_URL="http://localhost:${CYBER_SERVICE_HTTP_PORT}"
 export NOTIF_LEX_SERVICE_URL="http://localhost:${LEX_SERVICE_HTTP_PORT}"
 export NOTIF_VISUS_SERVICE_URL="http://localhost:${VISUS_SERVICE_HTTP_PORT}"
 export NOTIF_GATEWAY_URL="http://localhost:${API_GATEWAY_HTTP_PORT}"
-export CLARIO360_PUBLIC_URL="http://localhost:3000"
+export CLARIO360_PUBLIC_URL="http://localhost:${FRONTEND_PORT}"
 export NOTIF_INTEGRATION_STATE_TTL_MIN="15"
 export NOTIF_SLACK_CLIENT_ID="${NOTIF_SLACK_CLIENT_ID:-}"
 export NOTIF_SLACK_CLIENT_SECRET="${NOTIF_SLACK_CLIENT_SECRET:-}"
@@ -931,7 +932,7 @@ if [ "${OPT_SKIP_FRONTEND}" = false ]; then
     cat > "${ENVLOCAL}" << EOF
 NEXT_PUBLIC_API_URL=http://localhost:${API_GATEWAY_HTTP_PORT}
 NEXT_PUBLIC_APP_NAME=Clario 360
-NEXT_PUBLIC_APP_URL=http://localhost:3000
+NEXT_PUBLIC_APP_URL=http://localhost:${FRONTEND_PORT}
 NEXT_PUBLIC_APP_VERSION=0.1.0
 AUTH_COOKIE_NAME=clario360
 AUTH_COOKIE_SECURE=false
@@ -943,7 +944,9 @@ EOF
     ok "Created ${ENVLOCAL}"
   else
     desired_api_url="NEXT_PUBLIC_API_URL=http://localhost:${API_GATEWAY_HTTP_PORT}"
+    desired_app_url="NEXT_PUBLIC_APP_URL=http://localhost:${FRONTEND_PORT}"
     current_api_url="$(grep '^NEXT_PUBLIC_API_URL=' "${ENVLOCAL}" 2>/dev/null || true)"
+    current_app_url="$(grep '^NEXT_PUBLIC_APP_URL=' "${ENVLOCAL}" 2>/dev/null || true)"
     if [ "${current_api_url}" != "${desired_api_url}" ]; then
       if grep -q '^NEXT_PUBLIC_API_URL=' "${ENVLOCAL}"; then
         sed -i '' "s|^NEXT_PUBLIC_API_URL=.*$|${desired_api_url}|" "${ENVLOCAL}" 2>/dev/null || true
@@ -951,6 +954,14 @@ EOF
         printf '\n%s\n' "${desired_api_url}" >> "${ENVLOCAL}"
       fi
       ok "Updated .env.local to point to API gateway"
+    fi
+    if [ "${current_app_url}" != "${desired_app_url}" ]; then
+      if grep -q '^NEXT_PUBLIC_APP_URL=' "${ENVLOCAL}"; then
+        sed -i '' "s|^NEXT_PUBLIC_APP_URL=.*$|${desired_app_url}|" "${ENVLOCAL}" 2>/dev/null || true
+      else
+        printf '\n%s\n' "${desired_app_url}" >> "${ENVLOCAL}"
+      fi
+      ok "Updated .env.local to point to frontend"
     fi
   fi
 
@@ -973,7 +984,7 @@ EOF
       info "Installing frontend dependencies..."
       npm install --silent
     fi
-    nohup npm run dev > "${FRONTEND_LOG}" 2>&1 &
+    nohup node scripts/dev-server.mjs -H 0.0.0.0 -p "${FRONTEND_PORT}" --turbo > "${FRONTEND_LOG}" 2>&1 &
     FRONTEND_PID=$!
     echo "${FRONTEND_PID}" > "${FRONTEND_PID_FILE}"
     ok "Started frontend (PID ${FRONTEND_PID}) → ${FRONTEND_LOG}"
@@ -1036,8 +1047,8 @@ if [ "${OPT_SKIP_FRONTEND}" = false ]; then
   info "Waiting for frontend..."
   elapsed=0
   while [ "$elapsed" -lt 60 ]; do
-    if curl -s -o /dev/null -w '%{http_code}' --max-time 3 "http://localhost:3000" 2>/dev/null | grep -q "200\|304"; then
-      ok "Frontend → http://localhost:3000"; break
+    if curl -s -o /dev/null -w '%{http_code}' --max-time 3 "http://localhost:${FRONTEND_PORT}" 2>/dev/null | grep -q "200\|304"; then
+      ok "Frontend → http://localhost:${FRONTEND_PORT}"; break
     fi
     sleep 2; elapsed=$((elapsed + 2))
     echo -ne "  ${C_DIM}Waiting for frontend (${elapsed}s)...${C_RESET}\r"
@@ -1072,7 +1083,7 @@ for svc in "${SERVICES[@]}"; do
 done
 
 if [ "${OPT_SKIP_FRONTEND}" = false ]; then
-  printf "  │  ${C_GREEN}●${C_RESET} %-22s%-7s%-24b │\n" "frontend" ":3000" "${C_GREEN}next.js dev${C_RESET}"
+  printf "  │  ${C_GREEN}●${C_RESET} %-22s%-7s%-24b │\n" "frontend" ":${FRONTEND_PORT}" "${C_GREEN}next.js dev${C_RESET}"
 fi
 
 echo -e "${C_BOLD}  └────────────────────────────────────────────────────────┘${C_RESET}"
@@ -1088,7 +1099,7 @@ echo -e "  ${C_DIM}Jaeger Tracing${C_RESET}   → http://localhost:16686"
 
 echo ""
 echo -e "${C_BOLD}  Dev Credentials${C_RESET}"
-echo -e "  ${C_DIM}App URL${C_RESET}          → ${C_CYAN}http://localhost:3000${C_RESET}"
+echo -e "  ${C_DIM}App URL${C_RESET}          → ${C_CYAN}http://localhost:${FRONTEND_PORT}${C_RESET}"
 echo -e "  ${C_DIM}API Gateway${C_RESET}      → ${C_CYAN}http://localhost:8080${C_RESET}"
 echo -e "  ${C_DIM}Email${C_RESET}            → admin@clario.dev"
 echo -e "  ${C_DIM}Password${C_RESET}         → Cl@rio360Dev!"

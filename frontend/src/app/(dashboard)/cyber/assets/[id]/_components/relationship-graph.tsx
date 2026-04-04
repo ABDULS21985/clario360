@@ -158,7 +158,6 @@ export function RelationshipGraph({
       .data(nodes)
       .join('g')
       .attr('cursor', 'pointer')
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       .call(d3.drag<SVGGElement, GraphNode>()
           .on('start', (event, d) => {
             if (!event.active) simulation.alphaTarget(0.3).restart();

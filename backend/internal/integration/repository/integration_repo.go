@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -322,11 +323,44 @@ func scanIntegration(row interface {
 	item.Type = intmodel.IntegrationType(typ)
 	item.Status = intmodel.IntegrationStatus(status)
 	if len(filterBytes) > 0 {
-		if err := json.Unmarshal(filterBytes, &item.EventFilters); err != nil {
-			return nil, fmt.Errorf("unmarshal integration filters: %w", err)
+		filters, err := parseEventFilters(filterBytes)
+		if err != nil {
+			return nil, err
 		}
+		item.EventFilters = filters
 	}
 	return &item, nil
+}
+
+func parseEventFilters(filterBytes []byte) ([]intmodel.EventFilter, error) {
+	trimmed := bytes.TrimSpace(filterBytes)
+	if len(trimmed) == 0 || bytes.Equal(trimmed, []byte("null")) {
+		return nil, nil
+	}
+
+	var filters []intmodel.EventFilter
+	if err := json.Unmarshal(trimmed, &filters); err == nil {
+		return filters, nil
+	} else {
+		var legacyTypes []string
+		if legacyErr := json.Unmarshal(trimmed, &legacyTypes); legacyErr == nil {
+			if len(legacyTypes) == 0 {
+				return []intmodel.EventFilter{}, nil
+			}
+			return []intmodel.EventFilter{{EventTypes: legacyTypes}}, nil
+		}
+
+		var legacyType string
+		if legacyErr := json.Unmarshal(trimmed, &legacyType); legacyErr == nil {
+			legacyType = strings.TrimSpace(legacyType)
+			if legacyType == "" {
+				return []intmodel.EventFilter{}, nil
+			}
+			return []intmodel.EventFilter{{EventTypes: []string{legacyType}}}, nil
+		}
+
+		return nil, fmt.Errorf("unmarshal integration filters: %w", err)
+	}
 }
 
 func truncateMessage(message string, max int) string {

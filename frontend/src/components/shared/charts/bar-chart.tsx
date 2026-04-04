@@ -2,6 +2,7 @@
 import {
   BarChart as RechartsBarChart,
   Bar,
+  Cell,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -22,6 +23,8 @@ interface BarChartProps {
   data: Array<Record<string, unknown>>;
   xKey: string;
   yKeys: BarSeriesConfig[];
+  /** Per-bar colors applied to the first yKey series. Length must match data. */
+  cellColors?: string[];
   layout?: "vertical" | "horizontal";
   stacked?: boolean;
   xFormatter?: (value: string | number) => string;
@@ -38,7 +41,7 @@ interface BarChartProps {
 }
 
 export function BarChart({
-  data, xKey, yKeys, layout = "vertical", stacked = false,
+  data, xKey, yKeys, cellColors, layout = "vertical", stacked = false,
   xFormatter, yFormatter, loading = false, error, onRetry,
   height = 300, showGrid = true, showLegend = true, barRadius = 4, title, className,
 }: BarChartProps) {
@@ -51,8 +54,11 @@ export function BarChart({
           <YAxis dataKey={layout === "horizontal" ? xKey : undefined} type={layout === "horizontal" ? "category" : "number"} tickFormatter={yFormatter} tick={{ fontSize: 12, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} width={layout === "horizontal" ? 100 : 40} />
           <Tooltip content={<ChartTooltip valueFormatter={yFormatter} />} cursor={{ fill: "hsl(var(--muted))" }} />
           {showLegend && <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 12 }} />}
-          {yKeys.map((series) => (
-            <Bar key={series.key} dataKey={series.key} name={series.label} fill={series.color} stackId={stacked ? "stack" : undefined} radius={[barRadius, barRadius, 0, 0]} />
+          {yKeys.map((series, seriesIdx) => (
+            <Bar key={series.key} dataKey={series.key} name={series.label} fill={series.color} stackId={stacked ? "stack" : undefined} radius={[barRadius, barRadius, 0, 0]}>
+              {seriesIdx === 0 && cellColors && cellColors.length === data.length &&
+                data.map((_, i) => <Cell key={i} fill={cellColors[i]} />)}
+            </Bar>
           ))}
         </RechartsBarChart>
       </ResponsiveContainer>

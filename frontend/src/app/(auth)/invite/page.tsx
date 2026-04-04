@@ -281,7 +281,7 @@ function InviteForm() {
 
       {details.message ? (
         <AuthCallout icon={Quote} title="Inviter note" tone="warning">
-          "{details.message}"
+          &ldquo;{details.message}&rdquo;
         </AuthCallout>
       ) : null}
 

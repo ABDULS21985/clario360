@@ -102,7 +102,7 @@ export function DatasetSelector({
                 <Label htmlFor="validation-file">Upload JSON</Label>
                 <Input id="validation-file" type="file" accept=".json,application/json" onChange={onCustomFileLoad} />
                 <p className="text-sm text-muted-foreground">
-                  Expected format: [{'{'}"input_hash": "...", "expected_label": "threat"{'}'}]
+                  Expected format: <code>[{'{'}&quot;input_hash&quot;: &quot;...&quot;, &quot;expected_label&quot;: &quot;threat&quot;{'}'}]</code>
                 </p>
               </div>
               <div className="space-y-2">

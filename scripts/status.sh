@@ -75,7 +75,7 @@ SERVICES=(
   "visus-service:8089:/healthz:Visus Service"
   "notification-service:8090:/healthz:Notification Service"
   "file-service:8091:/healthz:File Service"
-  "frontend:3000::Next.js Frontend"
+  "frontend:3002::Next.js Frontend"
 )
 
 # Infrastructure checks: "label:check_command"
@@ -139,6 +139,48 @@ jaeger_check() {
   port_open localhost 16686
 }
 
+service_state_info() {
+  local name="$1"
+  local port="$2"
+  local path="$3"
+  local state="DOWN"
+  local actual_port="$port"
+
+  case "$name" in
+    iam-service)
+      actual_port="9081"
+      state=$(http_check "http://localhost:${actual_port}${path}")
+      ;;
+    file-service)
+      actual_port="9091"
+      state=$(http_check "http://localhost:${actual_port}${path}")
+      ;;
+    frontend)
+      actual_port="3002"
+      state=$(http_check "http://localhost:${actual_port}")
+      if [ "$state" = "DOWN" ]; then
+        actual_port="3000"
+        state=$(http_check "http://localhost:${actual_port}")
+      fi
+      ;;
+    *)
+      if [ -n "$path" ]; then
+        state=$(http_check "http://localhost:${actual_port}${path}")
+      else
+        state=$(port_open localhost "$actual_port")
+      fi
+      ;;
+  esac
+
+  printf '%s|%s' "$state" "$actual_port"
+}
+
+frontend_url() {
+  local state_info
+  state_info=$(service_state_info "frontend" "3002" "")
+  printf 'http://localhost:%s' "${state_info#*|}"
+}
+
 get_pid() {
   local name="$1"
   local pid_file="${PID_DIR}/${name}.pid"
@@ -177,19 +219,16 @@ if $OPT_JSON; then
   for svc_def in "${SERVICES[@]}"; do
     IFS=: read -r name port path label <<< "${svc_def}"
     pid=$(get_pid "${name}")
-
-    if [ -n "${path}" ]; then
-      state=$(http_check "http://localhost:${port}${path}")
-    else
-      state=$(port_open localhost "${port}")
-    fi
+      state_info=$(service_state_info "${name}" "${port}" "${path}")
+      state=${state_info%%|*}
+      display_port=${state_info#*|}
 
     [ "${state}" = "UP" ] && all_down=false
     [ "${state}" != "UP" ] && any_down=true
 
     $first || output+=","
     first=false
-    output+='{"name":"'"${name}"'","label":"'"${label}"'","port":'"${port}"',"status":"'"${state}"'","pid":'"${pid:-null}"'}'
+      output+='{"name":"'"${name}"'","label":"'"${label}"'","port":'"${display_port}"',"status":"'"${state}"'","pid":'"${pid:-null}"'}'
   done
 
   output+='],"infrastructure":['
@@ -270,13 +309,9 @@ render_status() {
     svc_total=$((svc_total + 1))
 
     pid=$(get_pid "${name}")
-
-    if [ -n "${path}" ]; then
-      state=$(http_check "http://localhost:${port}${path}")
-    else
-      # Frontend: just check port is open
-      state=$(port_open localhost "${port}")
-    fi
+    state_info=$(service_state_info "${name}" "${port}" "${path}")
+    state=${state_info%%|*}
+    display_port=${state_info#*|}
 
     mem_display="—"
     if [ -n "${pid}" ]; then
@@ -307,7 +342,7 @@ render_status() {
     esac
 
     printf "  ${icon} %-24s %-20b %-6s %-10s %s\n" \
-      "${label}" "${badge}" "${port}" "${pid_display}" "${mem_display}"
+      "${label}" "${badge}" "${display_port}" "${pid_display}" "${mem_display}"
   done
 
   echo -e "  ${C_DIM}$(printf '─%.0s' {1..62})${C_RESET}"
@@ -330,7 +365,7 @@ render_status() {
   # ── Useful endpoints ──────────────────────────────────────────────────────
   echo ""
   echo -e "  ${C_BOLD}Endpoints:${C_RESET}"
-  echo -e "  ${C_DIM}→${C_RESET} Frontend:      ${C_BLUE}http://localhost:3000${C_RESET}"
+  echo -e "  ${C_DIM}→${C_RESET} Frontend:      ${C_BLUE}$(frontend_url)${C_RESET}"
   echo -e "  ${C_DIM}→${C_RESET} API Gateway:   ${C_BLUE}http://localhost:8080${C_RESET}"
   echo -e "  ${C_DIM}→${C_RESET} MinIO Console: ${C_BLUE}http://localhost:9001${C_RESET}  (admin/clario_minio_secret)"
   echo -e "  ${C_DIM}→${C_RESET} Jaeger UI:     ${C_BLUE}http://localhost:16686${C_RESET}"
@@ -360,11 +395,8 @@ else
 
   for svc_def in "${SERVICES[@]}"; do
     IFS=: read -r name port path label <<< "${svc_def}"
-    if [ -n "${path}" ]; then
-      state=$(http_check "http://localhost:${port}${path}")
-    else
-      state=$(port_open localhost "${port}")
-    fi
+      state_info=$(service_state_info "${name}" "${port}" "${path}")
+      state=${state_info%%|*}
     [ "${state}" = "UP" ] && all_down=false
     [ "${state}" != "UP" ] && any_down=true
   done

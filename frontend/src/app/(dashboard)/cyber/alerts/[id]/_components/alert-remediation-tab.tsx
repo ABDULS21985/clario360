@@ -43,7 +43,7 @@ export function AlertRemediationTab({ alertId, explanation }: AlertRemediationTa
           <div className="flex-1">
             <p className="font-semibold text-sm">Create Remediation Action</p>
             <p className="mt-1 text-sm text-muted-foreground">
-              Formalize this alert's remediation with an auditable workflow — approval gates, dry-run testing, rollback support.
+              Formalize this alert&apos;s remediation with an auditable workflow, approval gates, dry-run testing, and rollback support.
             </p>
           </div>
         </div>

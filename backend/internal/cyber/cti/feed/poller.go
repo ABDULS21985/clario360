@@ -1,6 +1,7 @@
 package feed
 
 import (
+	"bytes"
 	"context"
 	"io"
 	"net/http"
@@ -157,6 +158,13 @@ func (p *Poller) pollSource(ctx context.Context, src cti.DataSource) error {
 		return err
 	}
 	if len(body) == 0 {
+		return nil
+	}
+
+	// Validate that the response is JSON — skip HTML error pages, redirects, etc.
+	body = bytes.TrimSpace(body)
+	if len(body) == 0 || (body[0] != '{' && body[0] != '[') {
+		p.logger.Debug().Str("source", src.Name).Msg("skipping non-JSON response from feed")
 		return nil
 	}
 

@@ -6,6 +6,7 @@ import { StatusBadge } from "@/components/shared/status-badge";
 import { SeverityIndicator } from "@/components/shared/severity-indicator";
 import { UserAvatar } from "@/components/shared/user-avatar";
 import { CopyButton } from "@/components/shared/copy-button";
+import { RelativeTime } from "@/components/shared/relative-time";
 import type { StatusConfig } from "@/lib/status-configs";
 import type { Severity } from "@/components/shared/severity-indicator";
 import type { RowAction } from "@/types/table";
@@ -48,14 +49,7 @@ export function dateColumn<TData>(
       const value = getValue() as string | null;
       if (!value) return <span className="text-muted-foreground">&mdash;</span>;
       if (options?.relative !== false) {
-        // Dynamically require RelativeTime to avoid breaking if not yet created
-        try {
-          // eslint-disable-next-line @typescript-eslint/no-require-imports
-          const { RelativeTime } = require("@/components/shared/relative-time");
-          return <RelativeTime date={value} />;
-        } catch {
-          // Fall through to static date rendering if component doesn't exist
-        }
+        return <RelativeTime date={value} />;
       }
       return <time dateTime={value}>{new Date(value).toLocaleDateString()}</time>;
     },

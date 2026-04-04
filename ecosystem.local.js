@@ -273,8 +273,8 @@ module.exports = {
     {
       name: "clario360-frontend",
       cwd: frontendDir,
-      script: "npm",
-      args: "run dev -- -H 0.0.0.0 -p 3002 --turbo",
+      script: "node",
+      args: "scripts/dev-server.mjs -H 0.0.0.0 -p 3002 --turbo",
       interpreter: "none",
       env: {
         NODE_ENV: "development",
