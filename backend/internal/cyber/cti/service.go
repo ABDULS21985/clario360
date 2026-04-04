@@ -15,16 +15,28 @@ import (
 	"github.com/clario360/platform/internal/events"
 )
 
+// AggEngine is an optional interface for the full aggregation engine.
+// When set, the admin refresh endpoint delegates to it instead of raw repo queries.
+type AggEngine interface {
+	RunFullAggregation(ctx context.Context, tenantID string) error
+}
+
 // Service implements CTI business logic on top of the repository.
 type Service struct {
-	repo     Repository
-	producer *events.Producer
-	logger   zerolog.Logger
-	cache    *refCache
+	repo      Repository
+	producer  *events.Producer
+	logger    zerolog.Logger
+	cache     *refCache
+	aggEngine AggEngine
 }
 
 func NewService(repo Repository, producer *events.Producer, logger zerolog.Logger) *Service {
 	return &Service{repo: repo, producer: producer, logger: logger, cache: newRefCache()}
+}
+
+// SetAggregationEngine attaches the full aggregation engine for admin refresh.
+func (s *Service) SetAggregationEngine(engine AggEngine) {
+	s.aggEngine = engine
 }
 
 // ---------------------------------------------------------------------------
@@ -1292,6 +1304,15 @@ func (s *Service) RefreshAggregations(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+
+	// Delegate to the full aggregation engine when available — it handles
+	// all 4 periods (24h/7d/30d/90d), trend calculation, risk scoring,
+	// MTTD/MTTR, and Prometheus metric emission.
+	if s.aggEngine != nil {
+		return s.aggEngine.RunFullAggregation(ctx, tid.String())
+	}
+
+	// Fallback: direct repo queries (no 90d, no trends, no risk score)
 	now := time.Now().UTC()
 	periods := []struct{ start, end time.Time }{
 		{now.Add(-24 * time.Hour), now},

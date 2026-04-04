@@ -1348,31 +1348,159 @@ func (r *PgRepository) RefreshSectorThreatSummary(ctx context.Context, tenantID 
 func (r *PgRepository) RefreshExecutiveSnapshot(ctx context.Context, tenantID uuid.UUID) error {
 	return r.withTenantWrite(ctx, tenantID, func(db dbtx) error {
 		_, err := db.Exec(ctx, `
-			INSERT INTO cti_executive_snapshot (tenant_id,
-				total_events_24h, total_events_7d, total_events_30d,
+			WITH event_stats AS (
+				SELECT
+					count(*) FILTER (WHERE deleted_at IS NULL AND first_seen_at > NOW() - INTERVAL '24 hours')::integer AS total_events_24h,
+					count(*) FILTER (WHERE deleted_at IS NULL AND first_seen_at > NOW() - INTERVAL '7 days')::integer AS total_events_7d,
+					count(*) FILTER (WHERE deleted_at IS NULL AND first_seen_at > NOW() - INTERVAL '30 days')::integer AS total_events_30d,
+					count(*) FILTER (WHERE deleted_at IS NULL AND first_seen_at > NOW() - INTERVAL '7 days' AND sl.code = 'critical')::integer AS critical_events_7d,
+					count(*) FILTER (WHERE deleted_at IS NULL AND first_seen_at > NOW() - INTERVAL '7 days' AND sl.code = 'high')::integer AS high_events_7d
+				FROM cti_threat_events e
+				LEFT JOIN cti_threat_severity_levels sl ON sl.id = e.severity_id
+				WHERE e.tenant_id = $1
+			),
+			campaign_stats AS (
+				SELECT
+					count(*) FILTER (WHERE c.deleted_at IS NULL AND c.status = 'active')::integer AS active_campaigns_count,
+					count(*) FILTER (WHERE c.deleted_at IS NULL AND c.status = 'active' AND sl.code = 'critical')::integer AS critical_campaigns_count
+				FROM cti_campaigns c
+				LEFT JOIN cti_threat_severity_levels sl ON sl.id = c.severity_id
+				WHERE c.tenant_id = $1
+			),
+			ioc_stats AS (
+				SELECT count(*)::integer AS total_iocs
+				FROM cti_campaign_iocs
+				WHERE tenant_id = $1
+			),
+			brand_stats AS (
+				SELECT
+					count(*) FILTER (WHERE deleted_at IS NULL AND risk_level = 'critical')::integer AS brand_abuse_critical_count,
+					count(*) FILTER (WHERE deleted_at IS NULL)::integer AS brand_abuse_total_count
+				FROM cti_brand_abuse_incidents
+				WHERE tenant_id = $1
+			),
+			top_sector AS (
+				SELECT target_sector_id
+				FROM cti_threat_events
+				WHERE tenant_id = $1
+				  AND deleted_at IS NULL
+				  AND target_sector_id IS NOT NULL
+				GROUP BY target_sector_id
+				ORDER BY count(*) DESC, target_sector_id
+				LIMIT 1
+			),
+			top_country AS (
+				SELECT origin_country_code
+				FROM cti_threat_events
+				WHERE tenant_id = $1
+				  AND deleted_at IS NULL
+				  AND origin_country_code IS NOT NULL
+				GROUP BY origin_country_code
+				ORDER BY count(*) DESC, origin_country_code
+				LIMIT 1
+			),
+			detect_metrics AS (
+				SELECT round(avg(EXTRACT(EPOCH FROM GREATEST(last_seen_at - first_seen_at, INTERVAL '0 seconds')) / 3600.0)::numeric, 2) AS mean_time_to_detect_hours
+				FROM cti_threat_events
+				WHERE tenant_id = $1
+				  AND deleted_at IS NULL
+			),
+			response_metrics AS (
+				SELECT round(avg(hours)::numeric, 2) AS mean_time_to_respond_hours
+				FROM (
+					SELECT EXTRACT(EPOCH FROM GREATEST(resolved_at - first_seen_at, INTERVAL '0 seconds')) / 3600.0 AS hours
+					FROM cti_campaigns
+					WHERE tenant_id = $1
+					  AND deleted_at IS NULL
+					  AND resolved_at IS NOT NULL
+					UNION ALL
+					SELECT EXTRACT(EPOCH FROM GREATEST(taken_down_at - first_detected_at, INTERVAL '0 seconds')) / 3600.0 AS hours
+					FROM cti_brand_abuse_incidents
+					WHERE tenant_id = $1
+					  AND deleted_at IS NULL
+					  AND taken_down_at IS NOT NULL
+				) durations
+			),
+			trend_stats AS (
+				SELECT
+					count(*) FILTER (WHERE deleted_at IS NULL AND first_seen_at > NOW() - INTERVAL '7 days')::integer AS current_events_7d,
+					count(*) FILTER (
+						WHERE deleted_at IS NULL
+						  AND first_seen_at <= NOW() - INTERVAL '7 days'
+						  AND first_seen_at > NOW() - INTERVAL '14 days'
+					)::integer AS previous_events_7d
+				FROM cti_threat_events
+				WHERE tenant_id = $1
+			)
+			INSERT INTO cti_executive_snapshot (
+				tenant_id, total_events_24h, total_events_7d, total_events_30d,
 				active_campaigns_count, critical_campaigns_count, total_iocs,
 				brand_abuse_critical_count, brand_abuse_total_count,
-				top_threat_origin_country, risk_score_overall, trend_direction, trend_percentage, computed_at)
-			SELECT $1,
-				(SELECT count(*) FROM cti_threat_events WHERE tenant_id=$1 AND deleted_at IS NULL AND first_seen_at > NOW()-'24h'::interval),
-				(SELECT count(*) FROM cti_threat_events WHERE tenant_id=$1 AND deleted_at IS NULL AND first_seen_at > NOW()-'7d'::interval),
-				(SELECT count(*) FROM cti_threat_events WHERE tenant_id=$1 AND deleted_at IS NULL AND first_seen_at > NOW()-'30d'::interval),
-				(SELECT count(*) FROM cti_campaigns WHERE tenant_id=$1 AND deleted_at IS NULL AND status='active'),
-				(SELECT count(*) FROM cti_campaigns c JOIN cti_threat_severity_levels sl ON c.severity_id=sl.id WHERE c.tenant_id=$1 AND c.deleted_at IS NULL AND c.status='active' AND sl.code='critical'),
-				(SELECT count(*) FROM cti_campaign_iocs WHERE tenant_id=$1),
-				(SELECT count(*) FROM cti_brand_abuse_incidents WHERE tenant_id=$1 AND deleted_at IS NULL AND risk_level='critical'),
-				(SELECT count(*) FROM cti_brand_abuse_incidents WHERE tenant_id=$1 AND deleted_at IS NULL),
-				(SELECT origin_country_code FROM cti_threat_events WHERE tenant_id=$1 AND deleted_at IS NULL AND origin_country_code IS NOT NULL GROUP BY origin_country_code ORDER BY count(*) DESC LIMIT 1),
-				73.50, 'stable', 0, NOW()
+				top_targeted_sector_id, top_threat_origin_country,
+				mean_time_to_detect_hours, mean_time_to_respond_hours,
+				risk_score_overall, trend_direction, trend_percentage, computed_at
+			)
+			SELECT
+				$1,
+				es.total_events_24h,
+				es.total_events_7d,
+				es.total_events_30d,
+				cs.active_campaigns_count,
+				cs.critical_campaigns_count,
+				is1.total_iocs,
+				bs.brand_abuse_critical_count,
+				bs.brand_abuse_total_count,
+				(SELECT target_sector_id FROM top_sector),
+				(SELECT origin_country_code FROM top_country),
+				dm.mean_time_to_detect_hours,
+				rm.mean_time_to_respond_hours,
+				round(LEAST(
+					100::numeric,
+					(es.critical_events_7d::numeric * 1.50) +
+					(es.high_events_7d::numeric * 0.75) +
+					(cs.active_campaigns_count::numeric * 4.00) +
+					(cs.critical_campaigns_count::numeric * 6.00) +
+					(bs.brand_abuse_critical_count::numeric * 2.50) +
+					(is1.total_iocs::numeric * 0.05)
+				), 2),
+				CASE
+					WHEN ts.previous_events_7d = 0 AND ts.current_events_7d = 0 THEN 'stable'
+					WHEN ts.previous_events_7d = 0 THEN 'increasing'
+					WHEN abs(((ts.current_events_7d - ts.previous_events_7d)::numeric / ts.previous_events_7d::numeric) * 100) < 5 THEN 'stable'
+					WHEN ts.current_events_7d > ts.previous_events_7d THEN 'increasing'
+					ELSE 'decreasing'
+				END,
+				CASE
+					WHEN ts.previous_events_7d = 0 AND ts.current_events_7d = 0 THEN 0
+					WHEN ts.previous_events_7d = 0 THEN 100
+					ELSE round(((ts.current_events_7d - ts.previous_events_7d)::numeric / ts.previous_events_7d::numeric) * 100, 2)
+				END,
+				NOW()
+			FROM event_stats es
+			CROSS JOIN campaign_stats cs
+			CROSS JOIN ioc_stats is1
+			CROSS JOIN brand_stats bs
+			CROSS JOIN detect_metrics dm
+			CROSS JOIN response_metrics rm
+			CROSS JOIN trend_stats ts
 			ON CONFLICT (tenant_id) DO UPDATE SET
-				total_events_24h=EXCLUDED.total_events_24h, total_events_7d=EXCLUDED.total_events_7d,
-				total_events_30d=EXCLUDED.total_events_30d, active_campaigns_count=EXCLUDED.active_campaigns_count,
-				critical_campaigns_count=EXCLUDED.critical_campaigns_count, total_iocs=EXCLUDED.total_iocs,
-				brand_abuse_critical_count=EXCLUDED.brand_abuse_critical_count,
-				brand_abuse_total_count=EXCLUDED.brand_abuse_total_count,
-				top_threat_origin_country=EXCLUDED.top_threat_origin_country,
-				computed_at=NOW(),
-				updated_at=NOW()`, tenantID)
+				total_events_24h = EXCLUDED.total_events_24h,
+				total_events_7d = EXCLUDED.total_events_7d,
+				total_events_30d = EXCLUDED.total_events_30d,
+				active_campaigns_count = EXCLUDED.active_campaigns_count,
+				critical_campaigns_count = EXCLUDED.critical_campaigns_count,
+				total_iocs = EXCLUDED.total_iocs,
+				brand_abuse_critical_count = EXCLUDED.brand_abuse_critical_count,
+				brand_abuse_total_count = EXCLUDED.brand_abuse_total_count,
+				top_targeted_sector_id = EXCLUDED.top_targeted_sector_id,
+				top_threat_origin_country = EXCLUDED.top_threat_origin_country,
+				mean_time_to_detect_hours = EXCLUDED.mean_time_to_detect_hours,
+				mean_time_to_respond_hours = EXCLUDED.mean_time_to_respond_hours,
+				risk_score_overall = EXCLUDED.risk_score_overall,
+				trend_direction = EXCLUDED.trend_direction,
+				trend_percentage = EXCLUDED.trend_percentage,
+				computed_at = NOW(),
+				updated_at = NOW()`, tenantID)
 		return err
 	})
 }

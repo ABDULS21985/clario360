@@ -942,6 +942,7 @@ func main() {
 	ctiHandler := cti.NewHandler(ctiSvc, logger)
 	ctiWSHub := cti.NewWSHub(logger)
 	ctiAggEngine := ctiagg.NewEngine(db, svc.Metrics.Registry(), logger)
+	ctiSvc.SetAggregationEngine(ctiAggEngine)
 
 	handler.RegisterRoutes(
 		svc.Router,
